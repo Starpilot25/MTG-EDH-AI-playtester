@@ -341,6 +341,13 @@ function keywordTriggers(c) {
     }
     return [];
   }, 'Evolve', { other: true, mine: true, kind: 'creature' });
+  if (/(?:^|\n)As (?:~|this [a-z]+) enters(?: the battlefield)?, choose a creature type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenType)
+    f('enters', async () => {
+      const t = await chooseCreatureType(c.controller, `${cardName(c)}: choose a creature type`);
+      if (!t || !card(c.iid)) return [];
+      card(c.iid).chosenType = t;
+      return [`chooses ${t}`];
+    }, 'Choose a creature type', { self: true });
   if (/\bExtort\b/.test(o)) f('cast', async () => {
     if (!T.payMana) return [];
     const paid = await T.payMana(c.controller, '{W/B}', `Extort (${cardName(c)})`);
@@ -1110,3 +1117,26 @@ export async function assignSectors() {
   }
   T.render && T.render();
 }
+
+// Creature types in a player's deck, most common first.
+export function deckTypes(pid) {
+  const count = {};
+  const pl = G.s.players[pid];
+  for (const z of ['library', 'hand', 'battlefield', 'graveyard', 'command', 'exile'])
+    for (const iid of pl.zones[z]) {
+      const c = card(iid);
+      if (!c) continue;
+      const tl = DB[c.def].faces[0].typeLine || '';
+      if (!/Creature|Kindred|Tribal/.test(tl.split('—')[0]) || !tl.includes('—')) continue;
+      for (const w of tl.split('—')[1].trim().split(/\s+/)) if (w) count[w] = (count[w] || 0) + 1;
+    }
+  return Object.entries(count).sort((a, b) => b[1] - a[1]).map(([w]) => w);
+}
+const COMMON_TYPES = ['Human', 'Elf', 'Goblin', 'Zombie', 'Vampire', 'Dragon', 'Angel', 'Merfolk', 'Wizard', 'Warrior', 'Soldier', 'Knight', 'Cat', 'Dinosaur', 'Sliver', 'Spirit', 'Beast', 'Elemental', 'Faerie', 'Rogue', 'Cleric', 'Pirate', 'Dog', 'Squirrel', 'Rat', 'Bird', 'Demon', 'Hydra', 'Insect', 'Snake'];
+async function chooseCreatureType(pid, prompt) {
+  const mine = deckTypes(pid);
+  const list = [...new Set([...mine.slice(0, 12), ...COMMON_TYPES])].slice(0, 24);
+  const k = await T.choosers[pid].choose({ prompt, options: list.map((t) => ({ label: t, detail: mine.includes(t) ? 'in your deck' : '' })), aiPick: () => 0 });
+  return list[k] || list[0];
+}
+

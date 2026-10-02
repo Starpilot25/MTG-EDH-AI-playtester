@@ -161,7 +161,7 @@ export function staticsOf(c) {
   let text = textFn ? textFn(c) : (d.faces[c.face || 0] || d.faces[0]).oracle;
   if (c.zone === 'command') text = eminenceText(text, d.name);
   else text = text.replace(/(^|\n)Eminence — As long as [^,]+? is in the command zone or on the battlefield, /g, '$1');
-  const key = c.def + ':' + (c.face || 0) + ':' + c.zone + ':' + text.length;
+  const key = c.def + ':' + (c.face || 0) + ':' + c.zone + ':' + text.length + ':' + (c.chosenType || '');
   if (!parsedCache.has(key)) parsedCache.set(key, parseStatics(text, d.name));
   return parsedCache.get(key);
 }
@@ -328,7 +328,14 @@ export function playerFlag(pid, flag) {
 // ------------------------------------------------------------ counting phrases
 // "the number of creatures you control", "cards in your hand", "your devotion to black"…
 export function countPhrase(pid, phrase, helpers, srcIid) {
-  const p = String(phrase || '').toLowerCase().replace(/^the (?:total )?number of /, '').replace(/\.$/, '').trim();
+  let p = String(phrase || '').toLowerCase().replace(/^the (?:total )?number of /, '').replace(/\.$/, '').trim();
+  // "for each tapped land your opponents control", "for each Goblin on the battlefield", "creature card in your graveyard"
+  p = p.replace(/^((?:[\w-]+ ){0,3}?)([\w-]*[^s\s]) (you control|your opponents control|an opponent controls|on the battlefield)$/, '$1$2s $3')
+    .replace(/\bcard (in|from) /, 'cards $1 ');
+  {
+    const nm = p.match(/^cards? named (.+?) in (?:each|all) graveyards?$/);
+    if (nm && G.s) return ['p', 'ai'].flatMap((w) => G.s.players[w].zones.graveyard).filter((i) => G.s.cards[i] && DB[G.s.cards[i].def].name.toLowerCase() === nm[1]).length;
+  }
   const s = G.s;
   const opp = pid === 'p' ? 'ai' : 'p';
   const bf = (who) => s.players[who].zones.battlefield.map((i) => s.cards[i]).filter((c) => c && !c.phasedOut);

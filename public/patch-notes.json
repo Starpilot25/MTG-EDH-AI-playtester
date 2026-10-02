@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.2.1",
+    "title": "Rituals, chosen creature types, a choosier AI",
+    "notes": [
+      "Rituals: Mana Geyser, Battle Hymn, Brightstone Ritual, Songs of the Damned, Rite of Flame, Irencrag Feat, Manamorphose, Mana Seism, Cabal Ritual's threshold and Jeska's Will now add the right amount of mana.",
+      "Mana permanents that tap for \"one mana for each…\" now count properly: Gaea's Cradle, Priest of Titania, Elvish Archdruid, Cabal Coffers. Black Lotus taps for three.",
+      "Herald's Horn, Vanquisher's Banner and other \"As this enters, choose a creature type\" cards ask you for a type (the AI picks its deck's most common one) and then work: cost reduction, anthem, card draw and Herald's Horn's upkeep reveal.",
+      "Smarter AI: it no longer casts spells whose targets don't exist (reanimating an empty graveyard, removal with nothing to hit), and it saves removal and burn for real threats instead of firing it at tokens, unless it's under pressure.",
+      "Chaos Warp and other \"shuffle it into its owner's library\" spells count as removal for the AI."
+    ]
+  },
+  {
     "version": "1.2.0",
     "title": "Patch notes and twelve more precons",
     "notes": [

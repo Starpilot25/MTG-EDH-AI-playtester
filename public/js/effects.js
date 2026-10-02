@@ -66,7 +66,10 @@ export function etbText(c) {
 }
 
 export function spellText(c) {
+  // Jeska's Will & co.: "Choose one. If you control a commander as you cast this spell, you may choose both."
+  const cmdr = G.s && c.controller && cardsIn(c.controller, 'battlefield').some((x) => x.isCommander);
   return stripName(oracle(c), c)
+    .replace(/Choose one\. If you control a commander as you cast (?:this spell|~), you may choose both\.\s*/i, cmdr ? 'Choose one or both —\n' : 'Choose one —\n')
     .replace(/\([^)]*\)/g, '')
     .split('\n')
     .filter((l) => l.trim() && !KEYWORD_LINE.test(l.trim()) && !/^(As an additional cost|This spell costs|~ costs|You may cast ~|Spend only|This spell can't be countered|~ can't be countered|When you cast ~|Split second|Cast ~ only|Cast this spell only|Strive|Kicker|Flash$)/i.test(l.trim()))
@@ -328,6 +331,9 @@ export function analyze(text, x = 0) {
   if ((m = t.match(/(destroy|exile) (?:up to (?:one|two) )?(?:another )?target ([^.]+?)(?:\.|,| and| with| an opponent| you don't| that|$)/)))
     a.removal = { verb: m[1], phrase: m[2] + (/an opponent controls/.test(t) ? ' an opponent controls' : '') };
   if ((m = t.match(/return (?:up to one )?target ([^.]+?) to (?:its|their) owner's hand/))) a.bounce = { phrase: m[1] };
+  // tuck: Chaos Warp, Spin into Myth, Oblation — removal that sends it to the library
+  if (!a.removal && (m = t.match(/(?:the owner of target ([^.]+?) shuffles it into|put target ([^.]+?) (?:on top of|on the bottom of|into) its owner's library|target ([^.]+?)'s owner shuffles it into)/)))
+    a.removal = { verb: 'tuck', phrase: (m[1] || m[2] || m[3]).trim() };
   if ((m = t.match(/deals? (\d+|x) damage to (any target|target creature or planeswalker|target creature|target player or planeswalker|target opponent|target player|each opponent)/)))
     a.burn = { amount: n(m[1], x), to: m[2] };
   if (/destroy all (?:creatures|nonland permanents|other creatures)|exile all (?:creatures|nonland permanents)|all creatures get -\d+\/-\d+|destroy each creature|return all (?:creatures|nonland permanents) to their owners' hands/.test(t)) a.wipe = true;
@@ -339,7 +345,7 @@ export function analyze(text, x = 0) {
   if ((m = t.match(/(?:each opponent|target opponent|target player|that player|defending player) loses (\d+|x) life/))) a.drain = n(m[1], x);
   if (/search your library for [^.]*?land cards?|search your library for (?:a|up to \w+) (?:basic )?(?:forest|island|swamp|mountain|plains)/.test(t)) a.ramp = true;
   else if (/search your library for (?:a|an) /.test(t)) a.tutor = true;
-  if (/return (?:target |up to \w+ target )?[^.]*?creature cards? from (?:your|a) graveyard to the battlefield/.test(t)) a.reanimate = true;
+  if (/return (?:target |up to \w+ target )?[^.]*?creature cards? from (?:your|a) graveyard to the battlefield|put target creature card from (?:a|your|an opponent's) graveyard onto the battlefield/.test(t)) a.reanimate = true;
   if (/return (?:up to \w+ )?target [^.]*?cards? from your graveyard to your hand/.test(t)) a.regrowth = true;
   if ((m = t.match(/(?:each|target) opponent sacrifices (a|two|\d+) /))) a.edict = n(m[1]);
   if ((m = t.match(/put (a|one|two|three|\d+|x) \+1\/\+1 counters? on (target creature|each creature you control|~)/))) a.counters = { amount: n(m[1], x) };
@@ -487,6 +493,7 @@ export function evalCond(cond, env) {
   if (/~ (?:isn't|is not) monstrous/.test(c)) return !(env.src && env.src.monstrous);
   if (/~ is saddled|it's saddled/.test(c)) return !!(env.src && env.src.saddledTurn === G.s.turn);
   if (/^it was attacking$/.test(c) && env.wasAttacking !== undefined) return !!env.wasAttacking;
+  if ((m = c.match(/^there are (seven|\w+|\d+) or more cards in your graveyard$/))) return gyOf(me).length >= n(m[1]);
   if ((m = c.match(/^an? ([a-z]+) died under your control this turn$/))) return ((ts[me] || {}).diedTypes || []).some((t) => new RegExp('\\b' + m[1], 'i').test(t));
   if (/^you have a full party$/.test(c)) return partySize(me) >= 4;
   if (/^~ is your ring-bearer$/.test(c)) return !!(env.src && card(env.src.iid) && card(env.src.iid).ringBearer);
@@ -1769,6 +1776,12 @@ on(/^(?:if it's|if that card is|if it is) an? ([a-z ]+?) card, (?:you may )?(?:p
     move(c.iid, /graveyard/.test(m[3]) ? 'graveyard' : 'library', /bottom/.test(m[3]) ? { to: 'bottom' } : {});
   }
 });
+on(/^(look at|reveal) the top card of your library$/, async (m, env) => {
+  const top = libTop(env.me, 1)[0];
+  if (!top) return;
+  env.it = { iid: top };
+  env.did.push(m[1] === 'reveal' ? `reveals ${nameTag(card(top))}` : 'looks at the top card of their library');
+});
 on(/^put (?:that card|it|them|those cards) into your hand$/, async (m, env) => {
   const ids = env.them_ && env.them_.length ? env.them_ : env.it && env.it.iid ? [env.it.iid] : [];
   for (const i of ids) if (card(i) && card(i).zone !== 'hand') move(i, 'hand');
@@ -2285,15 +2298,49 @@ on(/^add ((?:\{[wubrgc]\})+)(?: for each ([^.]+))?/, async (m, env) => {
     const k = countPhrase(env.me, m[2], helpers, env.src.iid) || 0;
     syms = Array.from({ length: k }, () => syms).flat();
   }
+  // Cabal Ritual: "Add {B}{B}{B}{B}{B} instead if …" replaces what was just added
+  if (/\binstead\b/.test(env.sentence) && env.lastAdded && G.s.pool) {
+    for (const x of env.lastAdded) {
+      const i = G.s.pool[env.me].lastIndexOf(x);
+      if (i >= 0) G.s.pool[env.me].splice(i, 1);
+    }
+  }
   addMana(env.me, syms);
+  env.lastAdded = syms;
+  env.did.push(`adds ${syms.map((x) => `{${x}}`).join('') || 'no mana'}`);
+});
+// Irencrag Feat: "Add seven {R}."
+on(/^add (two|three|four|five|six|seven|eight|nine|ten|x|\d+) (\{[wubrgc]\})(?: for each ([^.]+))?$/, async (m, env) => {
+  let k = n(m[1], env.x);
+  if (m[3]) k *= countPhrase(env.me, m[3], helpers, env.src.iid) || 0;
+  const syms = Array.from({ length: k }, () => m[2][1].toUpperCase());
+  addMana(env.me, syms);
+  env.lastAdded = syms;
   env.did.push(`adds ${syms.map((x) => `{${x}}`).join('')}`);
+});
+// Mana Seism: "… then add that much {C}"
+on(/^add that much (\{[wubrgc]\})$/, async (m, env) => {
+  const k = env.lastAmount || 0;
+  const syms = Array.from({ length: k }, () => m[1][1].toUpperCase());
+  addMana(env.me, syms);
+  env.did.push(`adds ${syms.map((x) => `{${x}}`).join('') || 'no mana'}`);
+});
+on(/^sacrifice any number of (lands|creatures|artifacts|permanents)(?: you control)?$/, async (m, env) => {
+  const kind = m[1].replace(/s$/, '');
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => matchesAny(c, kind));
+  const picks = pool.length ? await env.choosers[env.me].pickCards({ prompt: `Sacrifice any number of ${m[1]}`, cards: pool.map((c) => c.iid), min: 0, max: pool.length, purpose: 'sacrifice', src: env.src, aiScore: (c) => (c.tapped ? 2 : -1) }) : [];
+  // the AI only gives up lands it has already tapped
+  const chosen = env.me === 'ai' ? picks.filter((i) => card(i).tapped) : picks;
+  for (const i of chosen) sacrifice(i);
+  env.lastAmount = chosen.length;
+  env.did.push(`sacrifices ${chosen.length} ${chosen.length === 1 ? kind : m[1]}`);
 });
 on(/^add (one|two|three|x|\d+) mana of any (?:one )?color/, async (m, env) => {
   const k = n(m[1], env.x);
   addMana(env.me, Array.from({ length: k }, () => 'ANY'));
   env.did.push(`adds ${k} mana of any color`);
 });
-on(/^add (x|\d+) mana in any combination of colors/, async (m, env) => {
+on(/^add (x|\d+|one|two|three|four|five) mana in any combination of colors/, async (m, env) => {
   const k = n(m[1], env.x);
   addMana(env.me, Array.from({ length: k }, () => 'ANY'));
   env.did.push(`adds ${k} mana`);
@@ -2525,12 +2572,16 @@ async function runSentence(sentence, env) {
   // "For each opponent, …" in a two-player game is just "the opponent"
   if (/^for each opponent, /i.test(s)) s = s.replace(/^for each opponent, /i, '').replace(/that player controls/gi, 'an opponent controls').replace(/that player/gi, 'target opponent');
   // pure rules reminders that need no action
-  if (/^(?:choose new targets for the cop(?:y|ies)|(?:it|they) can't be regenerated|if you search your library this way, shuffle|this ability triggers only once each turn|do this only once each turn|put them back in any order|each mode must target a different player|you may choose the same mode more than once|until end of turn, you don't lose this mana as steps and phases end|if that spell is countered this way, exile it instead of putting it into its owner's graveyard|those votes are revealed|it's still a land|look at the top card of your library|the flashback cost is equal to its mana cost)$/i.test(s)) return;
+  if (/^(?:choose new targets for the cop(?:y|ies)|(?:it|they) can't be regenerated|you can cast only one more spell this turn|if you search your library this way, shuffle|this ability triggers only once each turn|do this only once each turn|put them back in any order|each mode must target a different player|you may choose the same mode more than once|until end of turn, you don't lose this mana as steps and phases end|if that spell is countered this way, exile it instead of putting it into its owner's graveyard|those votes are revealed|it's still a land|the flashback cost is equal to its mana cost)$/i.test(s)) return;
   if (!s) return;
+  {
+    const aw = s.match(/^([A-Z][A-Za-z' ]{2,30}?) — (.+)$/);
+    if (aw && !/^(?:choose|•)/i.test(aw[1]) && handled(aw[2].toLowerCase().replace(/ instead if .*$/, ''))) s = aw[2];
+  }
   const low = s.toLowerCase();
   // conditions
   let m = low.match(/^if (.+?), (.+)$/);
-  const condHandled = m && H.some((h) => !h.never && h.re.test(low) && /^\^if /.test(h.re.source));
+  const condHandled = m && H.some((h) => !h.never && h.re.test(low) && /^\^(?:\(\?:)?if /.test(h.re.source));
   if (m && !/^if you do\b|^if you don't\b/.test(low) && !condHandled) {
     const instead = /instead$/.test(m[2]);
     const c = evalCond(m[1], env);

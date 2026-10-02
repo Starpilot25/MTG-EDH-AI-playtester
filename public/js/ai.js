@@ -286,6 +286,8 @@ function scoreSpell(c, pay, opt = {}) {
   if (isRamp) s += turn <= 6 ? 5 + Math.max(0, 4 - d.cmc) : 0.5;
   if (perm && /Creature/.test(f.typeLine)) s += (power(fc) + toughness(fc)) / 3;
   if (a.counterspell) return -1;
+  // spells that need a target the board doesn't have do nothing (reanimating an empty graveyard, removal with no target…)
+  if (!perm && !targetsAvailable(text, c)) return -1;
   if (!perm) {
     const useful = a.removal || a.bounce || a.burn || a.wipe || a.massDamage || a.copy || a.venture || a.initiative || a.draw || a.token || a.ramp || a.tutor || a.drain || a.gain || a.edict || a.reanimate || a.regrowth || a.counters;
     if (!useful) {
@@ -295,9 +297,12 @@ function scoreSpell(c, pay, opt = {}) {
     }
   }
   if (a.removal) {
-    const tgt = bestTarget(P, a.removal.phrase);
+    const tgt = bestTarget(P, a.removal.phrase, (t) => !(a.removal.verb === 'destroy' && hasKw(t, 'indestructible')));
     if (!tgt) return perm ? s - 2 : -1;
-    s += cardValue(tgt);
+    // save removal for things that matter: a real threat, or when the AI is under pressure
+    const worth = threat(tgt);
+    if (!perm && worth < removalBar(c, f)) return -1;
+    s += perm ? Math.min(worth, cardValue(tgt)) : worth;
   }
   if (a.bounce) {
     const tgt = bestTarget(P, a.bounce.phrase);
@@ -320,9 +325,21 @@ function scoreSpell(c, pay, opt = {}) {
   }
   if (a.edict && !cardsIn(P, 'battlefield').some(isCreature) && !perm) return -1;
   if (a.burn && /creature/.test(a.burn.to) && !/any target|player/.test(a.burn.to)) {
-    if (!bestTarget(P, 'creature', (t) => toughness(t) - t.damage <= a.burn.amount) && !perm) return -1;
+    const t = bestTarget(P, 'creature', (x) => toughness(x) - x.damage <= a.burn.amount && !hasKw(x, 'indestructible'));
+    if (!perm && (!t || threat(t) < removalBar(c, f) - 1)) return -1;
   }
-  if (a.reanimate && !cardsIn(AI, 'graveyard').some((g) => isType(g, 'Creature')) && !perm) return -1;
+  if (a.burn && /any target/.test(a.burn.to) && !perm) {
+    // burn to the face only when it finishes the game or there's nothing worth killing
+    const t = bestTarget(P, 'creature', (x) => toughness(x) - x.damage <= a.burn.amount && !hasKw(x, 'indestructible'));
+    const lethal = a.burn.amount >= G.s.players[P].life;
+    if (!lethal && (!t || threat(t) < removalBar(c, f) - 1) && a.burn.amount < 4) return -1;
+  }
+  if (a.reanimate) {
+    const best = cardsIn(AI, 'graveyard').filter((g) => isType(g, 'Creature')).sort((x, y) => cardValue(y) - cardValue(x))[0];
+    if (!best && !perm) return -1;
+    if (best) s += cardValue(best) / 2;
+  }
+  if (a.regrowth && !perm && !cardsIn(AI, 'graveyard').length) return -1;
   if (a.draw) s += a.draw * (cardsIn(AI, 'hand').length < 3 ? 1.5 : 0.8);
   if (a.initiative) s += G.s.initiative === AI ? 1 : 4;
   if (a.venture) s += 1.5 * a.venture;
@@ -340,6 +357,46 @@ function scoreSpell(c, pay, opt = {}) {
   if (opt.mode === 'impulse' && c.mayPlayUntil === G.s.turn) s += 3; // use it or lose it
   if (opt.mode === 'prototype') s -= 1;
   return s;
+}
+
+// How good a target has to be before the AI spends a removal spell on it.
+function removalBar(c, f) {
+  let bar = 3.5;
+  if (/\bInstant\b/.test(f.typeLine) || hasKw(c, 'flash')) bar += 1.5; // instants wait for a better moment
+  const myLife = G.s.players[AI].life;
+  const incoming = cardsIn(P, 'battlefield').filter(isCreature).reduce((n, x) => n + Math.max(0, power(x)), 0);
+  if (myLife <= 15 || incoming * 2 >= myLife) bar -= 2; // under pressure: use it now
+  if (cardsIn(AI, 'hand').length >= 6) bar -= 1; // plenty of cards: less precious
+  return bar;
+}
+
+// Does every required target in this text have at least one legal choice?
+function targetsAvailable(text, c) {
+  const t = String(text || '').toLowerCase();
+  if (/choose (?:one|two|one or both|one or more|any number)/.test(t)) return true;
+  for (const sent of t.split(/(?<=\.)\s+|\n/)) {
+    const m = sent.match(/(?:^|[^a-z])(up to (?:one|two|three|four|x|\d+) |any number of )?(?:other |another )?target ([^,.;]+)/);
+    if (!m || m[1]) continue;
+    const ph = m[2];
+    if (/^(?:player|opponent|spell|any target|creature or player|player or planeswalker|activated|triggered|instant or sorcery spell|creature spell|noncreature spell)/.test(ph)) continue;
+    const gm = sent.match(/target ([a-z ,/-]*?)cards? (?:from|in) (your|a|an opponent's|target player's|target opponent's) graveyard/);
+    if (gm) {
+      const who = gm[2] === 'your' ? [AI] : /opponent|player's/.test(gm[2]) ? [P] : [AI, P];
+      const kind = gm[1].trim().replace(/ or /g, '|').replace(/ and\/or /g, '|').replace(/,/g, '');
+      const ok = who.flatMap((w) => cardsIn(w, 'graveyard')).some((g) => !kind || kind === 'permanent' ? true : new RegExp(kind.split(/\s*\|\s*|\s+/).filter((w) => w && !/^non/.test(w) && w !== 'permanent').join('|') || '.', 'i').test(DB[g.def].typeLine));
+      if (!ok) return false;
+      continue;
+    }
+    if (/graveyard|library|hand|exile/.test(ph)) continue;
+    const phrase = ph.replace(/ (?:to|from|into|onto|with|gets?|gains?|deals?|and|until|that|if) .*$/, '').trim();
+    if (!phrase) continue;
+    try {
+      if (!legalTargets(phrase, AI, c).length) return false;
+    } catch (e) {
+      return true;
+    }
+  }
+  return true;
 }
 
 // Modes the AI knows how to use well.

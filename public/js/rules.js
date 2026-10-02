@@ -110,6 +110,13 @@ export function oracle(inst) {
     }
   }
   if (inst.extraText) text += '\n' + inst.extraText;
+  // "As ~ enters, choose a creature type" (Herald's Horn, Vanquisher's Banner…): write the choice into the text
+  if (inst.chosenType) {
+    const T = inst.chosenType;
+    text = text
+      .replace(/\b(creature spells?|creatures?|creature cards?|permanents?|spells?|cards?)( you (?:control|cast))? of the chosen type/gi, `${T} $1$2`)
+      .replace(/\bthe chosen type\b/gi, T);
+  }
   return text;
 }
 setTextFn(oracle);
@@ -334,6 +341,14 @@ export function manaAbility(inst) {
   if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste') && /\{T\}/.test(o)) {
     if (!isLand(inst)) return null;
   }
+  // Gaea's Cradle, Priest of Titania, Cabal Coffers: "{T}: Add {G} for each …" (a {N} activation cost comes off the total)
+  {
+    const fe = o.match(/(?:^|\n)(?:\{(\d+)\}, )?\{T\}: Add (\{[WUBRGC]\}) for each ([^.]+)\./);
+    if (fe && G.s) {
+      const k = (countPhrase(inst.controller, fe[3], helpers, inst.iid) || 0) - (+fe[1] || 0);
+      return k > 0 ? { colors: [fe[2][1]], amount: k } : null;
+    }
+  }
   if (isLand(inst)) {
     if (produced.length) return { colors: produced, amount: 1 };
     const t = typeLine(inst);
@@ -350,6 +365,12 @@ export function manaAbility(inst) {
     }
     const each = ['W', 'U', 'B', 'R', 'G'].filter((x) => set.has(x));
     return each.length ? { colors: each, amount: each.length, each } : null;
+  }
+  // Black Lotus, Lion's Eye Diamond style: "Sacrifice <name>: Add three mana of any one color."
+  {
+    const nm = DB[inst.def].name.split(' // ')[0];
+    const sm = o.split(nm).join('~').match(/(?:\{T\}, )?Sacrifice (?:this artifact|~): Add (one|two|three|\w+) mana of any (?:one )?color/);
+    if (sm && !/Discard your hand/.test(o)) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: { one: 1, two: 2, three: 3 }[sm[1]] || 1, sac: true };
   }
   if (!produced.length) return null;
   let m = o.match(/\{T\}: Add ([^.]+)\./);
