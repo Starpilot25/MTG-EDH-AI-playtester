@@ -387,6 +387,32 @@ function entering(c, opts) {
     const k = nW === 'x' ? c.xPaid || 0 : words[nW] || parseInt(nW, 10) || 0;
     if (k) addCounters(c, mm[2].toLowerCase(), k, { silent: true });
   }
+  // Dragonstorm Globe, Grumgully, Metallic Mimic: "Each [other] <kind> you control enters with an additional +1/+1 counter on it"
+  for (const iid of s.players[c.controller].zones.battlefield) {
+    const src = s.cards[iid];
+    if (!src || src.phasedOut || src.faceDown) continue;
+    const so = oracle(src).replace(/\([^)]*\)/g, '');
+    for (const mm of so.matchAll(/(?:^|\n)(?:Each |Other )?(other )?((?:[\w-]+ ){0,3}?)(?:creatures?|permanents?|([A-Z][\w-]+)s?) you control (?:enters?|enter) (?:the battlefield )?with (an|one|two|three|\d+) additional ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|them)/g)) {
+      if (mm[1] && src.iid === c.iid) continue;
+      if (src.iid === c.iid && !/^Each /.test(mm[0].trim())) continue;
+      const words = (mm[2] || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const sub = mm[3];
+      const isPerm = /permanents? you control/.test(mm[0]);
+      if (!isPerm && !sub && !isCreature(c)) continue;
+      if (sub && !hasSubtype(c, sub)) continue;
+      let ok = true;
+      for (const w of words) {
+        if (w === 'other') continue;
+        if (/^non-?/.test(w)) { const t = w.replace(/^non-?/, ''); if (hasSubtype(c, t) || isType(c, t[0].toUpperCase() + t.slice(1))) ok = false; }
+        else if (w === 'nontoken') { if (c.token) ok = false; }
+        else if (w === 'token') { if (!c.token) ok = false; }
+        else if (!hasSubtype(c, w) && !isType(c, w[0].toUpperCase() + w.slice(1))) ok = false;
+      }
+      if (!ok) continue;
+      const k = { an: 1, one: 1, two: 2, three: 3 }[mm[4].toLowerCase()] || parseInt(mm[4], 10) || 1;
+      addCounters(c, mm[5].toLowerCase(), k, { silent: true });
+    }
+  }
   if ((m = o.match(/\bModular (\d+)/))) addCounters(c, '+1/+1', +m[1], { silent: true });
   if ((m = o.match(/\bGraft (\d+)/))) addCounters(c, '+1/+1', +m[1], { silent: true });
   if ((m = o.match(/\bFading (\d+)/))) addCounters(c, 'fade', +m[1], { silent: true });

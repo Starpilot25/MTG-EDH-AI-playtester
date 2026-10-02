@@ -2161,8 +2161,17 @@ on(/^discover (\d+|x)/, async (m, env) => {
     else move(hit.iid, 'hand');
     env.did.push(`discovers ${nameTag(hit)}${cast ? ' and casts it' : ''}`);
   }
+  env.discovered = hit ? { iid: hit.iid, mv: DB[hit.def].cmc || 0 } : { mv: k };
   exiled.sort(() => Math.random() - 0.5).forEach((i) => move(i, 'library', { to: 'bottom' }));
 });
+// Hit the Mother Lode: "If the discovered card's mana value is less than 10, create a number of tapped Treasure tokens equal to the difference."
+on(/^if the discovered card's mana value is less than (\d+), create a number of (tapped )?treasure tokens equal to the difference/, async (m, env) => {
+  const mv = env.discovered ? env.discovered.mv : +m[1];
+  const k = Math.max(0, +m[1] - mv);
+  if (!k) return env.did.push('no Treasures (mana value too high)');
+  createToken(genericTokenDef(0, 0, 'Treasure'), env.me, k, { tapped: !!m[2] });
+  env.did.push(`creates ${k} ${m[2] ? 'tapped ' : ''}Treasure token${k === 1 ? '' : 's'}`);
+}, { first: true });
 on(/^cascade/, async () => {}, { never: true });
 on(/^manifest (dread|the top card of (?:your|their) library|the top (\w+) cards of (?:your|their) library)/, async (m, env) => {
   const k = m[1] === 'dread' ? 2 : m[2] ? n(m[2]) : 1;
@@ -2564,6 +2573,8 @@ async function runText(text, env) {
 
 async function runSentence(sentence, env) {
   let s = sentence.trim().replace(/\.$/, '').replace(/^then,? /i, '');
+  // X was worked out up front: "create X tokens, where X is …"
+  if (/^(?!where)/i.test(s) && /, where X is [^.]+$/i.test(s) && env.x !== undefined) s = s.replace(/, where X is [^.]+$/i, '');
   // "When you do, X" (reflexive trigger) works like "If you do, X"
   s = s.replace(/^when you do, /i, 'If you do, ');
   // "Until the end of your next turn, you may play that card" → "you may play that card until the end of your next turn"
@@ -2790,10 +2801,10 @@ export async function resolveEffects(text, src, ctx) {
   };
   env.text = env.fullText.toLowerCase();
   // X defined in the text ("where X is the number of …")
-  const xm = env.text.match(/where x is (?:the number of |your |the total number of |the greatest )?([^.]+?)(?:\.|$)/);
+  const xm = env.text.match(/where x is (half |twice )?(?:the number of |your |the total number of |the greatest )?([^.]+?)(?:, rounded (up|down))?(?:\.|$)/);
   if (xm) {
-    const v = countPhrase(env.me, xm[1], helpers, src.iid);
-    if (v !== null) env.x = v;
+    const v = countPhrase(env.me, xm[2], helpers, src.iid);
+    if (v !== null) env.x = xm[1] === 'half ' ? (xm[3] === 'up' ? Math.ceil(v / 2) : Math.floor(v / 2)) : xm[1] === 'twice ' ? v * 2 : v;
   }
   await runText(env.fullText, env);
   if (env.condFalse && !env.did.length && !env.unknown.length) env.did.skipped = true;

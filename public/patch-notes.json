@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.2",
+    "title": "Dragonstorm Globe, Endless Ranks, Hit the Mother Lode",
+    "notes": [
+      "Dragonstorm Globe: Dragons you control enter with an extra +1/+1 counter. The same fix covers Grumgully, the Generous, Metallic Mimic and other \"each … you control enters with an additional +1/+1 counter\" cards.",
+      "Endless Ranks of the Dead: makes half as many Zombies as you control, rounded down (it made none before). Other \"where X is half …\" cards work too.",
+      "Hit the Mother Lode: creates tapped Treasures equal to the difference after discovering."
+    ]
+  },
+  {
     "version": "1.2.1",
     "title": "Rituals, chosen creature types, a choosier AI",
     "notes": [
