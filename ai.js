@@ -7,16 +7,17 @@ import {
   parseCost, canAttack, canBlock, isPermanentCard, mustAttack, totalMana,
 } from './rules.js';
 import {
-  G, card, cardsIn, move, log, nameTag, opp, cardName, checkLoss, discard as discardCard, restoreInPlace, eventQueue,
+  G, card, cardsIn, zoneOf, move, log, nameTag, opp, cardName, checkLoss, discard as discardCard, restoreInPlace, eventQueue,
 } from './state.js';
 import {
   spellFilterOk, analyze, etbText, spellText, costOf, legalTargets, activatedAbilities, aiHelpers, knownEffect, zoneAbilities,
   Cancelled,
 } from './effects.js';
 import { fire, settle } from './triggers.js';
+import { threat, planBlocks, planAttack, fight, pumpOf, evasive, lifeWeight } from './aicombat.js';
 import {
   manaSources, castOptions, castSpell as castThrough, effectiveCost, landOptions, playLand as playLandThrough, landsAllowed,
-  activateAbility, useZoneAbility, turnFaceUp, companionToHand, applyPayment,
+  activateAbility, useZoneAbility, turnFaceUp, companionToHand, applyPayment, timingOk,
 } from './cast.js';
 
 const AI = 'ai';
@@ -65,39 +66,49 @@ export async function aiPay(pid, cost, label, opts = {}) {
 // ------------------------------------------------------------ the AI's choices
 function bestTarget(pid, phrase, pred = () => true) {
   const list = legalTargets(phrase, AI).filter((c) => c.controller === pid && pred(c));
-  list.sort((a, b) => cardValue(b) - cardValue(a));
+  list.sort((a, b) => threat(b) - threat(a));
   return list[0] || null;
 }
 
 function threatLevel(pid) {
-  return cardsIn(pid, 'battlefield').filter((c) => !isLand(c)).reduce((a, c) => a + cardValue(c), 0);
+  return cardsIn(pid, 'battlefield').filter((c) => !isLand(c)).reduce((a, c) => a + threat(c), 0);
 }
 
 // How the AI answers the effect engine's questions.
 export const aiChooser = {
   budget: 0, // spare mana for optional costs (kicker, buyback…) while casting
+  prefer: null, // a specific target the AI planned for (instant-speed tricks and removal)
   async target(req) {
     const cands = req.candidates.map(card).filter(Boolean);
-    const byValue = (a, b) => cardValue(b) - cardValue(a);
+    if (aiChooser.prefer) {
+      const want = aiChooser.prefer;
+      if (want.player && (req.players || []).includes(want.player)) return { player: want.player };
+      if (want.iid && req.candidates.includes(want.iid)) return { iid: want.iid };
+    }
+    const byThreat = (a, b) => threat(b) - threat(a);
+    const plife = G.s.players[P].life;
     if (req.harm) {
+      // burn to the face when it's lethal
+      if (req.amount !== undefined && req.players && req.players.includes(P) && req.amount >= plife) return { player: P };
       let pool = cands.filter((c) => c.controller !== AI);
       if (req.amount !== undefined) {
         const killable = pool.filter((c) =>
-          isCreature(c) ? toughness(c) - c.damage <= req.amount && !hasKw(c, 'indestructible') : (c.counters.loyalty || 0) <= req.amount
+          isCreature(c) ? toughness(c) - c.damage <= req.amount && !hasKw(c, 'indestructible') : isType(c, 'Planeswalker') ? (c.counters.loyalty || 0) <= req.amount : false
         );
         if (killable.length) pool = killable;
         else if (req.players && req.players.includes(P)) return { player: P };
       }
-      pool.sort(byValue);
-      if (pool[0]) return { iid: pool[0].iid };
+      pool.sort(byThreat);
+      if (pool[0] && (req.amount === undefined || threat(pool[0]) >= 2 || !(req.players || []).includes(P))) return { iid: pool[0].iid };
       if (req.players && req.players.includes(P)) return { player: P };
-      if (req.forced && cands[0]) return { iid: cands.sort((a, b) => cardValue(a) - cardValue(b))[0].iid };
+      if (pool[0]) return { iid: pool[0].iid };
+      if (req.forced && cands[0]) return { iid: cands.sort((a, b) => threat(a) - threat(b))[0].iid };
       return null;
     }
-    const own = cands.filter((c) => c.controller === AI).sort(byValue);
+    const own = cands.filter((c) => c.controller === AI).sort(byThreat);
     if (own[0]) return { iid: own[0].iid };
     if (req.players && req.players.includes(AI)) return { player: AI };
-    if (req.forced && cands[0]) return { iid: cands.sort((a, b) => cardValue(a) - cardValue(b))[0].iid };
+    if (req.forced && cands[0]) return { iid: cands.sort((a, b) => threat(a) - threat(b))[0].iid };
     return null;
   },
   async pickCards(req) {
@@ -166,9 +177,15 @@ export async function aiMaybeCounter(spell, h) {
   const text = (isPermanentCard(d) ? etbText(spell) : spellText(spell)).toLowerCase();
   const a = analyze(text);
   // how much the AI cares about this spell
-  let worth = d.cmc + (spell.isCommander ? 3 : 0) + (a.wipe ? 6 : 0) + (a.removal || a.bounce || a.edict ? 3 : 0);
-  if (isCreature(spell)) worth += (power(spell) + toughness(spell)) / 4;
-  if (worth < 4) return false;
+  let worth = d.cmc + (spell.isCommander ? 3 : 0) + (a.edict ? 3 : 0);
+  if (isCreature(spell)) worth += threat({ ...spell, zone: 'battlefield', controller: P }) / 2;
+  if (a.wipe) worth += threatLevel(AI) > threatLevel(P) ? 10 : -4; // only fight wipes that hurt us
+  if (a.removal || a.bounce) worth += cardsIn(AI, 'battlefield').some((c) => !isLand(c) && threat(c) >= 6) ? 4 : 0;
+  if (a.extraTurn || a.steal) worth += 6;
+  if (a.burn && a.burn.amount >= G.s.players.ai.life) worth += 50;
+  // save a hard counter for something that matters if the player still has cards
+  const bar = zoneOf(P, 'hand').length >= 3 && G.s.turn > 6 ? 6 : 4;
+  if (worth < bar) return false;
   const src = sources(AI);
   for (const c of cardsIn(AI, 'hand')) {
     const m = oracle(c).match(/Counter target ([^.]*?)spell(?:[^.]*?unless its controller pays \{(\d+)\})?/i);
@@ -307,9 +324,9 @@ function scoreSpell(c, pay, opt = {}) {
 const AI_MODES = new Set(['normal', 'back', 'adventure', 'fuse', 'flashback', 'escape', 'foretold', 'plotted', 'impulse', 'hideaway', 'fromGraveyard',
   'mayhem', 'disturb', 'aftermath', 'prototype', 'surge', 'spectacle', 'prowl', 'freerunning', 'overload', 'awaken', 'bestow', 'harmonize', 'omen']);
 
-function castable() {
-  const src = sources(AI);
-  const units = totalMana(src);
+// Every way the AI could cast something right now, best option per card.
+function options(filter = () => true) {
+  const units = totalMana(sources(AI));
   const out = [];
   const pool = [
     ...cardsIn(AI, 'hand').filter((c) => !isLand(c) || DB[c.def].faces.length > 1),
@@ -318,9 +335,11 @@ function castable() {
     ...cardsIn(AI, 'exile'),
   ];
   for (const c of pool) {
+    if (c.aiSkip === G.s.turn) continue;
     let best = null;
     for (const opt of castOptions(AI, c)) {
       if (!AI_MODES.has(opt.mode) || opt.other) continue;
+      if (!timingOk(AI, c, opt)) continue;
       if (opt.mode === 'bestow' && !cardsIn(AI, 'battlefield').some(isCreature)) continue;
       const cost = opt.cost || '';
       if (!cost && !opt.free) continue; // uncastable (no mana cost)
@@ -328,14 +347,94 @@ function castable() {
       const hasX = /\{X\}/.test(cost);
       const pay = payCost(cost, sources(AI, { convoke: hasKw(c, 'convoke'), improvise: hasKw(c, 'improvise'), delve: hasKw(c, 'delve'), self: c.iid }), { extraGeneric: eff.generic, maxX: hasX ? 20 : 0, minX: 1 });
       if (!pay) continue;
-      const score = scoreSpell(c, pay, opt);
-      if (score > 0 && (!best || score > best.score)) best = { c, pay, score, opt, spare: units - pay.payers.length - pay.special.length };
+      const f = DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0];
+      const fc = { ...c, face: opt.face || 0 };
+      const perm = isPermanentCard({ faces: [f] }) && opt.mode !== 'adventure';
+      const text = perm ? etbText(fc) : spellText(fc);
+      const o = { c, pay, opt, perm, text, a: analyze(text, pay.x), pump: perm ? null : pumpOf(text), u: pay.payers.length + pay.special.length };
+      o.role = roleOf(o, f);
+      o.score = scoreSpell(c, pay, opt);
+      o.spare = units - o.u;
+      if (!filter(o)) continue;
+      if (!best || o.score > best.score) best = o;
     }
     if (best) out.push(best);
   }
-  out.sort((a, b) => b.score - a.score);
   return out;
 }
+
+// What an instant-speed card is for, so the AI knows when to hold it.
+function roleOf(o, f) {
+  const instant = /\bInstant\b/.test(f.typeLine) || hasKw(o.c, 'flash');
+  if (!instant) return 'sorcery';
+  if (o.a.counterspell) return 'counter';
+  if (o.a.fog) return 'fog';
+  if (o.pump) return 'trick';
+  if (o.perm && /Creature/.test(f.typeLine)) return 'flash';
+  if (o.a.removal || o.a.burn || o.a.bounce) return 'removal';
+  return 'value';
+}
+
+// Mana the AI keeps open on its own turn for counterspells and instant-speed removal.
+function reserveMana() {
+  const held = options((o) => ['counter', 'removal', 'fog'].includes(o.role));
+  if (!held.length) return 0;
+  let r = 0;
+  const counter = held.filter((o) => o.role === 'counter').sort((x, y) => x.u - y.u)[0];
+  if (counter) r += counter.u;
+  const removal = held.filter((o) => o.role === 'removal').sort((x, y) => x.u - y.u)[0];
+  if (removal && G.s.turn > 4) r += removal.u;
+  return r;
+}
+
+// Pick the best set of spells for the mana available (a small knapsack), and return the one to cast first.
+function planMain(post) {
+  const units = totalMana(sources(AI));
+  const all = options().filter((o) => o.score > 0);
+  // hold instants for the opponent's turn unless they're worth casting now
+  const now = all.filter((o) => {
+    if (o.role === 'counter' || o.role === 'fog' || o.role === 'trick') return false;
+    if (o.role === 'removal') {
+      const t = o.a.removal ? bestTarget(P, o.a.removal.phrase) : o.a.bounce ? bestTarget(P, o.a.bounce.phrase) : null;
+      return (t && threat(t) >= 7) || (post && G.s.turn > 8 && o.score > 6);
+    }
+    if (o.role === 'flash' || o.role === 'value') return false; // cast at the end of the opponent's turn instead
+    return true;
+  });
+  if (!now.length) return null;
+  const budget = Math.max(0, units - (G.s.turn <= 3 ? 0 : reserveMana()));
+  const cand = now.sort((x, y) => y.score - x.score).slice(0, 10);
+  let bestSet = [];
+  let bestVal = 0;
+  for (let mask = 1; mask < 1 << cand.length; mask++) {
+    let u = 0;
+    let v = 0;
+    const set = [];
+    for (let k = 0; k < cand.length; k++) if (mask & (1 << k)) {
+      u += cand[k].u;
+      v += cand[k].score;
+      set.push(cand[k]);
+    }
+    if (u <= budget && v > bestVal) {
+      bestVal = v;
+      bestSet = set;
+    }
+  }
+  // a bomb is worth tapping out for
+  const bomb = cand.filter((o) => o.score >= 12).sort((x, y) => y.score - x.score)[0];
+  if (bomb && bomb.score > bestVal) return bomb;
+  if (!bestSet.length) return null;
+  // ramp first (it may pay for the rest), then the most expensive
+  bestSet.sort((x, y) => y.u - x.u);
+  const ramp = bestSet.find((o) => o.a.ramp || (o.perm && DB[o.c.def].produced.length && !isCreature({ ...o.c, zone: 'battlefield' })));
+  return ramp || bestSet[0];
+}
+
+// kept for tests and the end-of-turn window
+function castable() {
+  return options().filter((o) => o.score > 0).sort((a, b) => b.score - a.score);
+}
+export { castable as __test_castable, planMain as __test_plan };
 
 async function castSpell(h, plan) {
   const s = G.s;
@@ -382,13 +481,39 @@ async function planeswalkers(h) {
   for (const pw of cardsIn(AI, 'battlefield').filter((c) => isType(c, 'Planeswalker'))) {
     if (pw.usedLoyaltyTurn === G.s.turn || pw.zone !== 'battlefield') continue;
     const loyalty = pw.counters.loyalty || 0;
-    const abilities = activatedAbilities(pw).filter((ab) => ab.kind === 'loyalty');
+    const abilities = activatedAbilities(pw).filter((ab) => ab.kind === 'loyalty' && !ab.x);
     if (!abilities.length) continue;
-    const known = (ab) => knownEffect(ab.text);
-    let pick = abilities.find((ab) => ab.cost >= 0 && !ab.x && known(ab));
-    if (!pick) pick = abilities.find((ab) => ab.cost < 0 && loyalty + ab.cost >= 1 && known(ab));
-    if (!pick) pick = abilities.find((ab) => ab.cost >= 0 && !ab.x);
-    if (!pick) continue;
+    const mineCreatures = cardsIn(AI, 'battlefield').filter(isCreature).length;
+    const value = (ab) => {
+      if (loyalty + ab.cost < 0) return -99;
+      const a = analyze(ab.text);
+      let v = 0;
+      if (a.removal) {
+        const t = bestTarget(P, a.removal.phrase);
+        v += t ? threat(t) : -6;
+      }
+      if (a.bounce) {
+        const t = bestTarget(P, a.bounce.phrase);
+        v += t ? threat(t) / 2 : -4;
+      }
+      if (a.burn) v += /creature/.test(a.burn.to) ? (bestTarget(P, 'creature', (t) => toughness(t) - t.damage <= a.burn.amount) ? 4 : -3) : a.burn.amount * 0.8;
+      if (a.wipe) v += threatLevel(P) - threatLevel(AI);
+      if (a.token) v += 2.5 * (a.token.count || 1);
+      if (a.draw) v += 1.8 * a.draw;
+      if (a.counters) v += mineCreatures ? 2 : -2;
+      if (a.teamPump) v += mineCreatures * 1.5;
+      if (a.ramp || a.ritual) v += 1.5;
+      if (a.gain || a.drain) v += 1;
+      if (a.tutor) v += 2;
+      if (/untap/i.test(ab.text)) v += 0.5;
+      if (!knownEffect(ab.text)) v -= 3;
+      v += ab.cost * 0.8; // loyalty is worth keeping
+      if (loyalty + ab.cost === 0) v -= 4;
+      if (ab.cost <= -6 && loyalty + ab.cost >= 0 && knownEffect(ab.text)) v += 6; // ultimate
+      return v;
+    };
+    const pick = [...abilities].sort((x, y) => value(y) - value(x))[0];
+    if (!pick || value(pick) < -50) continue;
     await safely(h, () => activateAbility(AI, pw, pick, aiEnv(h)));
     h.render();
   }
@@ -501,9 +626,9 @@ export async function aiMainPhase(h, post = false) {
   if (playLand(h)) await wait();
   await upgrades(h);
   for (let guard = 0; guard < 20 && G.s === s0 && !G.s.winner; guard++) {
-    const opts = castable().filter((o) => o.c.aiSkip !== G.s.turn);
-    if (!opts.length) break;
-    await castSpell(h, opts[0]);
+    const plan = planMain(post);
+    if (!plan) break;
+    await castSpell(h, plan);
     if (G.s !== s0) return;
     if (playLand(h)) await wait(); // a land drop unlocked by an extra-land effect
     await wait();
@@ -513,6 +638,134 @@ export async function aiMainPhase(h, post = false) {
   if (G.s === s0) await equipGear(h);
   if (G.s === s0) await zoneActions(h, post);
   if (G.s === s0 && post) await useAbilities(h);
+}
+
+// ------------------------------------------------------------ instant speed
+/**
+ * The AI gets a chance to act at instant speed:
+ *  'attackers'  you declared attackers (removal on a big attacker, a flash blocker, a fog)
+ *  'blocks'     it has blocked your attackers (pump a blocker to win the fight)
+ *  'ownBlocked' you blocked its attackers (pump an attacker, or remove a blocker)
+ *  'endStep'    the end of your turn (flash creatures, card draw, removal, abilities)
+ */
+export async function aiInstantWindow(h, kind) {
+  const s0 = G.s;
+  if (!s0 || s0.winner || s0.phase !== 'play') return;
+  for (let guard = 0; guard < 4 && G.s === s0 && !s0.winner; guard++) {
+    const play = chooseInstant(kind);
+    if (!play) break;
+    aiChooser.prefer = play.target || null;
+    try {
+      await castSpell(h, play.o);
+    } finally {
+      aiChooser.prefer = null;
+    }
+    if (G.s !== s0) return;
+    h.render();
+    await h.wait(Math.min(600, G.settings.aiSpeed));
+  }
+  if (kind === 'endStep' && G.s === s0) await useAbilities(h);
+}
+
+function chooseInstant(kind) {
+  const s = G.s;
+  const cb = s.combat;
+  const opts = options((o) => o.role !== 'sorcery' && o.role !== 'counter');
+  if (!opts.length) return null;
+  const myLife = s.players.ai.life;
+  const theirLife = s.players.p.life;
+  const removalTargets = (o) => {
+    const phrase = o.a.removal ? o.a.removal.phrase : o.a.bounce ? o.a.bounce.phrase : o.a.burn && /creature|any target/.test(o.a.burn.to) ? 'creature' : null;
+    if (!phrase) return [];
+    let list = legalTargets(phrase, AI).filter((c) => c.controller === P);
+    if (o.a.burn && !o.a.removal) list = list.filter((c) => isCreature(c) && toughness(c) - (c.damage || 0) <= o.a.burn.amount && !hasKw(c, 'indestructible'));
+    if (o.a.removal && o.a.removal.verb === 'destroy') list = list.filter((c) => !hasKw(c, 'indestructible'));
+    return list;
+  };
+  let best = null;
+  const consider = (o, gain, target) => {
+    if (gain > 0 && (!best || gain > best.gain)) best = { o, gain, target };
+  };
+  if (kind === 'attackers' && cb) {
+    const atk = cb.attackers.map(card).filter(Boolean);
+    const blocks = planBlocks(AI, cb.attackers);
+    const through = atk.reduce((n, a) => n + ((cb.targets || {})[a.iid] && cb.targets[a.iid] !== AI ? 0 : fight(a, (blocks[a.iid] || []).map(card)).through), 0);
+    const dying = through >= myLife;
+    for (const o of opts) {
+      if (o.role === 'fog' && (dying || through >= myLife * 0.4)) consider(o, dying ? 100 : through * lifeWeight(myLife), null);
+      if (o.role === 'removal') {
+        for (const t of removalTargets(o).filter((c) => cb.attackers.includes(c.iid))) {
+          const r = fight(t, (blocks[t.iid] || []).map(card));
+          const gain = threat(t) + r.through * lifeWeight(myLife) + (dying && r.through ? 50 : 0) - 4;
+          consider(o, gain, { iid: t.iid });
+        }
+      }
+      if (o.role === 'flash') {
+        // a surprise blocker that eats an attacker or saves a lot of damage
+        const proto = { ...o.c, zone: 'battlefield', controller: AI, tapped: false, sick: true, damage: 0 };
+        for (const a of atk) {
+          if (!canBlock(proto, a)) continue;
+          const r = fight(a, [proto]);
+          const gain = (r.aDies ? threat(a) : 0) + (r.dead.length ? -threat(proto) * 0.5 : 2) + (dying ? 20 : 0);
+          consider(o, gain, null);
+        }
+      }
+    }
+  }
+  if ((kind === 'blocks' || kind === 'ownBlocked') && cb) {
+    const mine = kind === 'blocks' ? 'blockers' : 'attackers';
+    for (const aid of cb.attackers) {
+      const a = card(aid);
+      if (!a) continue;
+      const bl = (cb.blocks[aid] || []).map(card).filter(Boolean);
+      if (!bl.length && kind === 'blocks') continue;
+      const base = fight(a, bl);
+      for (const o of opts) {
+        if (o.role === 'trick' && o.pump) {
+          const mineList = mine === 'blockers' ? bl : [a];
+          for (const m of mineList) {
+            const r = fight(a, bl, { [m.iid]: o.pump });
+            let gain = 0;
+            if (mine === 'blockers') {
+              if (base.dead.includes(m.iid) && !r.dead.includes(m.iid)) gain += threat(m) + 1;
+              if (!base.aDies && r.aDies) gain += threat(a) + 1;
+            } else {
+              if (base.aDies && !r.aDies) gain += threat(a) + 1;
+              for (const d of r.dead) if (!base.dead.includes(d)) gain += threat(card(d));
+              const extra = r.through - base.through;
+              if (extra > 0) {
+                const total = cb.attackers.reduce((n, i) => n + (card(i) ? fight(card(i), (cb.blocks[i] || []).map(card).filter(Boolean)).through : 0), 0);
+                gain += extra * lifeWeight(theirLife) + (total < theirLife && total + extra >= theirLife ? 100 : 0);
+              }
+            }
+            consider(o, gain - 1.5, { iid: m.iid });
+          }
+        }
+        if (o.role === 'removal' && kind === 'ownBlocked' && bl.length) {
+          // kill a blocker so the attacker survives or gets through
+          for (const t of removalTargets(o).filter((c) => bl.some((b) => b.iid === c.iid))) {
+            const rest = bl.filter((b) => b.iid !== t.iid);
+            const r = fight(a, rest);
+            const gain = threat(t) + (base.aDies && !r.aDies ? threat(a) : 0) + (r.through - base.through) * lifeWeight(theirLife) - 3;
+            consider(o, gain, { iid: t.iid });
+          }
+        }
+      }
+    }
+  }
+  if (kind === 'endStep') {
+    for (const o of opts) {
+      if (o.role === 'fog' || o.role === 'trick') continue;
+      if (o.role === 'removal') {
+        const t = removalTargets(o).sort((x, y) => threat(y) - threat(x))[0];
+        if (t && threat(t) >= 4) consider(o, threat(t), { iid: t.iid });
+        else if (o.a.burn && /any target|player/.test(o.a.burn.to) && o.a.burn.amount >= theirLife) consider(o, 100, { player: P });
+        continue;
+      }
+      if (o.score > 0) consider(o, o.score, null);
+    }
+  }
+  return best ? { o: best.o, target: best.target } : null;
 }
 
 // Crew vehicles / saddle mounts that would make good attackers.
@@ -537,49 +790,7 @@ function potentialBlockers(pid) {
 }
 
 export function aiChooseAttackers() {
-  const mine = cardsIn(AI, 'battlefield').filter((c) => canAttack(c) && !c.pacifiedBy);
-  const theirs = potentialBlockers(P);
-  const life = G.s.players.p.life;
-  if (!mine.length) return [];
-  const forced = mine.filter(mustAttack);
-
-  const killers = (a) =>
-    theirs.filter((b) => canBlock(b, a) && (power(b) >= toughness(a) - a.damage || hasKw(b, 'deathtouch')) && !hasKw(a, 'indestructible'));
-  const blockableBy = (a) => theirs.filter((b) => canBlock(b, a));
-
-  // all-in if lethal: unblockable damage + everything else minus the best blockers
-  const evasive = mine.filter((a) => blockableBy(a).length === 0);
-  const evasiveDmg = evasive.reduce((s, a) => s + Math.max(0, power(a)), 0);
-  const rest = mine.filter((a) => !evasive.includes(a)).sort((a, b) => power(b) - power(a));
-  const unblockedRest = rest.slice(theirs.length);
-  const total = evasiveDmg + unblockedRest.reduce((s, a) => s + Math.max(0, power(a)), 0);
-  if (total >= life) return mine.map((c) => c.iid);
-
-  const attackers = [...forced];
-  for (const a of mine) {
-    if (attackers.includes(a) || power(a) <= 0) continue;
-    const k = killers(a);
-    const survivesAll = k.length === 0;
-    const goodTrade = k.every((b) => power(a) >= toughness(b) && cardValue(b) >= cardValue(a) - 1);
-    const cmdLethalish = a.isCommander && (G.s.players.p.cmdDmg[a.iid] || 0) + power(a) >= 21;
-    const temporary = a.endOfTurn || hasKw(a, 'decayed'); // dashed, blitzed, unearthed: use it or lose it
-    if (survivesAll || goodTrade || cmdLethalish || temporary) attackers.push(a);
-  }
-  // keep enough defense home
-  const theirPower = cardsIn(P, 'battlefield').filter((c) => isCreature(c) && !c.pacifiedBy).reduce((s, c) => s + Math.max(0, power(c)), 0);
-  const myLife = G.s.players.ai.life;
-  if (theirPower >= myLife * 0.7) {
-    attackers.sort((a, b) => toughness(a) - toughness(b));
-    while (attackers.length) {
-      const home = mine.filter((c) => !attackers.includes(c) || hasKw(c, 'vigilance'));
-      const absorbed = home.length;
-      if (theirPower - absorbed * 3 < myLife * 0.7 || absorbed >= cardsIn(P, 'battlefield').filter(isCreature).length) break;
-      const keep = attackers.find((c) => !hasKw(c, 'vigilance') && !forced.includes(c));
-      if (!keep) break;
-      attackers.splice(attackers.indexOf(keep), 1);
-    }
-  }
-  return attackers.map((c) => c.iid);
+  return planAttack(AI);
 }
 
 // Which player/planeswalker/battle each attacker goes after.
@@ -618,70 +829,7 @@ export function aiAttackTargets(attackers) {
 }
 
 export function aiChooseBlocks(attackerIds) {
-  const blocks = {};
-  const avail = potentialBlockers(AI);
-  const used = new Set();
-  const life = G.s.players.ai.life;
-  const atk = attackerIds.map(card).filter(Boolean).sort((a, b) => power(b) - power(a));
-  const targets = (G.s.combat && G.s.combat.targets) || {};
-  const atMe = (a) => !targets[a.iid] || targets[a.iid] === AI;
-  const incomingIf = () =>
-    atk.filter((a) => !blocks[a.iid] && atMe(a)).reduce((s, a) => s + Math.max(0, power(a)), 0);
-  const cmdThreat = (a) => a.isCommander && atMe(a) && (G.s.players.ai.cmdDmg[a.iid] || 0) + power(a) >= 21;
-
-  // provoked creatures must block their provoker
-  for (const b of avail) {
-    if (!b.provokedBy || !attackerIds.includes(b.provokedBy) || !canBlock(b, card(b.provokedBy))) continue;
-    blocks[b.provokedBy] = [...(blocks[b.provokedBy] || []), b.iid];
-    used.add(b.iid);
-  }
-  for (const a of atk) {
-    if (blocks[a.iid]) continue;
-    const cands = avail.filter((b) => !used.has(b.iid) && canBlock(b, a));
-    if (!cands.length) continue;
-    const kills = (b) => power(b) >= toughness(a) - a.damage || (hasKw(b, 'deathtouch') && power(b) > 0);
-    const survives = (b) => hasKw(b, 'indestructible') || (toughness(b) - b.damage > power(a) && !hasKw(a, 'deathtouch'));
-    const needTwo = hasKw(a, 'menace');
-    let pick = null;
-    // 1) eat it for free
-    pick = cands.filter((b) => kills(b) && survives(b)).sort((x, y) => cardValue(x) - cardValue(y))[0];
-    // 2) safe wall
-    if (!pick) pick = cands.filter((b) => survives(b)).sort((x, y) => cardValue(x) - cardValue(y))[0];
-    // 3) fair trade
-    if (!pick) pick = cands.filter((b) => kills(b) && cardValue(b) <= cardValue(a) + 0.5).sort((x, y) => cardValue(x) - cardValue(y))[0];
-    if (needTwo && pick) {
-      const second = cands.find((b) => b !== pick);
-      if (!second) pick = null;
-      else {
-        blocks[a.iid] = [pick.iid, second.iid];
-        used.add(pick.iid);
-        used.add(second.iid);
-        continue;
-      }
-    }
-    if (pick) {
-      blocks[a.iid] = [pick.iid];
-      used.add(pick.iid);
-    }
-  }
-  // 4) chump if we'd die (or take commander lethal)
-  for (const a of atk) {
-    if (blocks[a.iid] || !atMe(a)) continue;
-    const dying = incomingIf() >= life || cmdThreat(a) || (hasKw(a, 'infect') && G.s.players.ai.poison + power(a) >= 10);
-    if (!dying) continue;
-    const cands = avail.filter((b) => !used.has(b.iid) && canBlock(b, a)).sort((x, y) => cardValue(x) - cardValue(y));
-    if (hasKw(a, 'menace')) {
-      if (cands.length >= 2) {
-        blocks[a.iid] = [cands[0].iid, cands[1].iid];
-        used.add(cands[0].iid);
-        used.add(cands[1].iid);
-      }
-    } else if (cands[0]) {
-      blocks[a.iid] = [cands[0].iid];
-      used.add(cands[0].iid);
-    }
-  }
-  return blocks;
+  return planBlocks(AI, attackerIds);
 }
 
 // End of turn: discard down to seven.

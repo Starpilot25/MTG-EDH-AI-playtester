@@ -13,6 +13,7 @@ import {
 import { fire, settle, T } from './triggers.js';
 import {
   aiMainPhase, aiChooseAttackers, aiChooseBlocks, aiCleanup, aiKeepHand, aiBottom, aiAttackTargets, aiPrepareCombat, aiPay, aiEnv,
+  aiInstantWindow,
 } from './ai.js';
 import { emptyPools, castFree, applyPayment } from './cast.js';
 
@@ -339,6 +340,19 @@ function nextTurnOf(pid) {
   return opp(pid);
 }
 
+// Let the AI act at instant speed during your turn.
+async function aiWindow(kind) {
+  const was = run.aiBusy;
+  run.aiBusy = true;
+  hooks.render();
+  try {
+    await aiInstantWindow(hooks, kind);
+  } finally {
+    run.aiBusy = was;
+    hooks.render();
+  }
+}
+
 export async function playerNextStep() {
   const s = G.s;
   if (s.active !== 'p' || run.aiBusy) return;
@@ -364,6 +378,9 @@ export async function playerNextStep() {
     await settle();
     if (G.s !== s) return;
     await endStepThings('p');
+    if (G.s !== s) return;
+    await aiWindow('endStep');
+    if (G.s !== s) return;
   } else if (s.step === 'end') {
     return playerEndTurn();
   } else setStep('main1');
@@ -395,6 +412,8 @@ export async function playerEndTurn() {
     await settle();
     if (G.s !== s) return;
     await endStepThings('p');
+    if (G.s !== s) return;
+    await aiWindow('endStep');
     if (G.s !== s) return;
   }
   const hand = zoneOf('p', 'hand').length;
@@ -469,6 +488,9 @@ export async function confirmAttacks() {
   await settle();
   if (G.s !== s || !s.combat) return;
   cb.attackers = cb.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
+  await aiWindow('attackers'); // removal on an attacker, a flash blocker, a fog
+  if (G.s !== s || !s.combat) return;
+  cb.attackers = cb.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
   cb.blocks = aiChooseBlocks(cb.attackers);
   const bl = Object.entries(cb.blocks);
   if (bl.length)
@@ -476,6 +498,8 @@ export async function confirmAttacks() {
   else log('ai', 'AI does not block.');
   fireBlocks(cb, 'ai');
   await settle();
+  if (G.s !== s || !s.combat) return;
+  await aiWindow('blocks'); // combat tricks on its blockers
   if (G.s !== s || !s.combat) return;
   cb.stage = 'damage';
   hooks.render();
@@ -662,6 +686,9 @@ async function aiCombat() {
   fireBlocks(cb, 'p');
   await settle();
   if (G.s !== s || !s.combat) return;
+  await aiInstantWindow(hooks, 'ownBlocked'); // pump an attacker or remove a blocker
+  if (G.s !== s || !s.combat) return;
+  cb.attackers = cb.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
   applyCombat(cb.attackers, cb.blocks, 'p', cb.targets);
   hooks.render();
   await settle();

@@ -25,7 +25,7 @@ Partners, Partner with, Friends Forever, Doctor's companions and Backgrounds are
 
 > Moxfield sometimes blocks automated requests. If a Moxfield link fails, open the deck on Moxfield → **Export → Copy as plain text**, and use **Paste list**.
 
-Card data and images come from Scryfall.
+Card data and images come from Scryfall. Digital-only printings (such as the Arena *Through the Omenpaths* versions of Spider-Man cards) are swapped for the paper printing so the art matches the real card.
 
 ## Arena-style casting (on by default)
 
@@ -92,15 +92,16 @@ Commander rules handled for you: 40 life, commander tax, commanders return to th
 
 ## How the AI plays
 
-The AI runs in your browser — no account or API key. Each turn it:
+The AI runs in your browser — no account or API key.
 
-1. plays the land that best fixes its colors,
-2. taps its lands, rocks and dorks to cast the best spell it can afford (commander, ramp early, removal when you have a threat, board wipes only when it's behind, big threats otherwise), including flashback, adventures, foretold and plotted cards, and kicker or buyback when it has spare mana, repeating while it has mana,
-3. uses planeswalker abilities it understands, levels up Classes, turns morphs face up, equips, crews vehicles before combat, and cycles or unearths when it has nothing better to do,
-4. attacks when its creatures survive or trade well (sending some at your planeswalkers), goes all-in when it sees lethal, and keeps blockers home when you threaten it,
-5. blocks to eat attackers, trade evenly, or chump when it would otherwise die.
+- **It knows what matters.** Every permanent gets a threat score (power, evasion, deathtouch, infect, lifelink, engines and anthems, planeswalker loyalty, commanders close to 21 damage). Removal, burn and counterspells go after the biggest threat, and burn goes to your face when it's lethal.
+- **It simulates combat.** First strike, double strike, deathtouch, trample, indestructible and infect are played out before it decides. It blocks to eat attackers, double-blocks big ones, trades when it's worth it, and only chump-blocks when the damage would actually kill it (or give you commander lethal).
+- **It attacks like a player.** It predicts how you'll block, weighs the damage and trades against the swing back on its next turn, goes all-in for lethal, sends spare attackers at your planeswalkers, and keeps blockers home when your counter-attack would kill it.
+- **It plans its mana.** Each main phase it picks the best set of spells it can afford rather than just the biggest one, plays ramp first, and leaves mana open for a counterspell or instant-speed removal it's holding (it still taps out for a bomb).
+- **It plays at instant speed on your turn.** When you attack it can kill your biggest attacker, flash in a blocker, or fog a lethal attack; after blocks it pumps a blocker to win the fight; when you block its creatures it pumps an attacker or removes a blocker; and at the end of your turn it casts flash creatures, card draw and leftover removal, and uses its abilities. You can respond to anything it casts.
+- **Everything else:** it plays the land that best fixes its colors, picks the best planeswalker ability (removal when you have a threat, tokens and card draw otherwise, the ultimate when it can), levels Classes, flips morphs, equips, crews vehicles, and cycles or unearths spare cards.
 
-It reads oracle text to automate common effects: draw, destroy/exile/bounce, damage, board wipes, tokens, life gain and drain, land searches, reanimation, edicts, +1/+1 counters, and buff/lockdown auras. Anything it can't automate is noted in the game log so you can apply it by hand — the table is free-form, so you can always move, tap or adjust anything.
+Anything it can't automate is noted in the game log so you can apply it by hand — the table is free-form, so you can always move, tap or adjust anything.
 
 ## Files
 
@@ -117,7 +118,8 @@ public/js/triggers.js triggered and keyword abilities
 public/js/cast.js  casting, alternative and additional costs, abilities, special actions
 public/js/dungeon.js dungeons and the initiative
 public/js/game.js  turn structure, turn-based keywords and combat flow
-public/js/ai.js    the AI opponent
+public/js/ai.js    the AI opponent (spell choice, instant-speed play)
+public/js/aicombat.js threat scores, combat simulator, attack and block planning
 public/js/ui.js    the tabletop UI
 public/js/main.js  setup screen and mulligans
 ```

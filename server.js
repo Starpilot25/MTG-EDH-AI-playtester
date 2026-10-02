@@ -81,6 +81,7 @@ function trimCard(c) {
       .map((p) => ({ id: p.id, name: p.name, type_line: p.type_line })),
     set: c.set,
     collector_number: c.collector_number,
+    digital: !!c.digital,
   };
 }
 
@@ -144,7 +145,25 @@ async function resolveCards(identifiers) {
       out[k] = c;
     }
   }
+  // Name-only lookups can land on a digital-only printing (e.g. the Arena "Through the Omenpaths"
+  // versions of Spider-Man cards). Swap those for the newest paper printing so the art matches.
+  for (const ident of identifiers) {
+    const k = idKey(ident);
+    const c = out[k];
+    if (!c || !isDigitalPrint(c)) continue;
+    const q = `!"${c.name.split(' // ')[0]}" -is:digital -set:om1`;
+    const { status, body } = await scryfall('https://api.scryfall.com/cards/search?unique=prints&order=released&dir=desc&q=' + encodeURIComponent(q));
+    const paper = status === 200 && (body.data || []).map(trimCard).find((x) => x && !isDigitalPrint(x));
+    if (paper) {
+      cardCache.set(k, paper);
+      out[k] = paper;
+    }
+  }
   return identifiers.map((ident) => out[idKey(ident)] || null);
+}
+
+function isDigitalPrint(c) {
+  return !!c.digital || c.set === 'om1';
 }
 
 // ---------------------------------------------------------------- deck links

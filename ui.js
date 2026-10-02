@@ -362,7 +362,7 @@ function renderBanner() {
       Unblocked damage: <b>${total}</b>${total >= G.s.players.p.life ? ' — <b class="lethal">lethal</b>' : ''}.</p>
       <div class="btns"><button class="primary" data-act="blocks">${Object.values(cb.blocks).some((b) => b.length) ? 'Confirm blocks' : 'No blocks'} <kbd>Enter</kbd></button></div></div>`;
   } else if (run.aiBusy) {
-    html = `<div class="thinking"><span class="spinner"></span>AI is taking its turn…</div>`;
+    html = `<div class="thinking"><span class="spinner"></span>${s.active === 'p' ? 'AI is deciding whether to respond…' : 'AI is taking its turn…'}</div>`;
   } else if (s.winner && !s.continueAfterWin) {
     html = `<div class="combat-bar ${s.winner === 'p' ? 'win' : 'danger'}"><span class="eyebrow">Game over</span>
       <h3>${s.winner === 'p' ? 'You win' : 'The AI wins'}</h3><p>${esc(s.players[opp(s.winner)].lost || '')}</p>
