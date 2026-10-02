@@ -91,6 +91,7 @@ Then open **http://localhost:5173** in your browser. Stop the server with Ctrl+C
   - Foundations Commander: Calling All Angels (Giada, Font of Hope), Keen Engineering (Sai, Master Thopterist), Wretched Ranks (Ghoulcaller Gisa), Reign of Dragons (Lathliss, Dragon Queen), Tramplesaurus Rex (Ghalta, Primal Hunger)
   - Teenage Mutant Ninja Turtles Commander: Turtle Power! (Leonardo, the Balance; pick a second Character select turtle from the partner dropdown if you like)
   - Edge of Eternities Commander: World Shaper (Hearthhull, the Worldseed)
+  - Tarkir: Dragonstorm Commander: Mardu Surge (Zurgo Stormrender)
 - **Mirror** (AI only) — the AI plays a copy of your deck.
 
 Partners, Partner with, Friends Forever, Doctor's companions and Backgrounds are supported: mark both commanders in your list (deck links do this automatically). If no commander is marked, one is picked from the list — a legend with a matching partner or Background if there is one — and you can change both from the dropdowns. Each commander has its own tax and its own commander-damage count (Backgrounds don't deal commander damage, so they get no counter).

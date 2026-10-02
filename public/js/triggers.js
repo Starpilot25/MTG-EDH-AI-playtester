@@ -114,6 +114,8 @@ export function triggersOf(c, defOverride) {
       add('dies', m[3], { theirs: true, nontoken: !!m[2] });
     else if ((m = line.match(/^When(?:ever)? ~ leaves the battlefield, (.+)$/i)))
       add('leaves', m[1], { self: true });
+    else if ((m = line.match(/^Whenever (?:a|another) creature token (you control )?leaves the battlefield, (.+)$/i)))
+      add('leaves', m[2], { mine: !!m[1], anyController: !m[1], tokenOnly: true, kind: 'creature', other: true });
     else if ((m = line.match(/^Whenever (~ or )?(?:another|a) (nontoken )?(creature|permanent) you control leaves the battlefield(?: without dying)?, (.+)$/i))) {
       if (m[1]) add('leaves', m[4], { self: true });
       add('leaves', m[4], { mine: true, nontoken: !!m[2], kind: m[3].toLowerCase(), other: true });
@@ -599,10 +601,12 @@ function matches(ev) {
       for (const trig of triggersOf({ ...gone, zone: 'battlefield', controller: ev.controller }, ev.def)) if (trig.event === 'leaves' && trig.self && (!trig.toZone || trig.toZone === ev.to)) out.push({ src: gone, trig, controller: ev.controller });
       const goneDef = DB[ev.def];
       each((c, trig) => {
-        if (trig.event !== 'leaves' || !trig.mine || c.controller !== ev.controller || c.iid === ev.iid) return;
+        if (trig.event !== 'leaves' || !(trig.mine || trig.anyController) || c.iid === ev.iid) return;
+        if (trig.mine && c.controller !== ev.controller) return;
+        if (trig.tokenOnly && !ev.token) return;
         if (trig.nontoken && (ev.token || (gone && gone.token))) return;
         if (trig.kind === 'creature' && goneDef && !/Creature/.test(goneDef.faces[ev.face || 0] ? goneDef.faces[ev.face || 0].typeLine : goneDef.typeLine)) return;
-        out.push({ src: c, trig, it: { iid: ev.iid } });
+        out.push({ src: c, trig, it: { iid: ev.iid }, wasAttacking: ev.wasAttacking });
       });
       // championed / exiled-until cards come back; Oubliette's creature phases back in
       for (const x of Object.values(G.s.cards)) {
@@ -1017,7 +1021,7 @@ async function resolveTrigger(hit, controller, ev) {
     src.trigTurns[trig.raw] = G.s.turn;
   }
   const ctx = {
-    me: controller, choosers: T.choosers, forced: true, thatPlayer: hit.thatPlayer, it: hit.it || null, castFree: T.castFree, deadCounters: ev && ev.counters,
+    me: controller, choosers: T.choosers, forced: true, thatPlayer: hit.thatPlayer, it: hit.it || null, wasAttacking: hit.wasAttacking, castFree: T.castFree, deadCounters: ev && ev.counters,
     kicked: src.kicked, x: src.xPaid || 0, castMode: src.castMode, castFrom: src.castFrom, event: ev,
   };
   if (hit.amount !== undefined) {

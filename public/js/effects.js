@@ -486,6 +486,7 @@ export function evalCond(cond, env) {
   if (/~ (?:isn't|is not) renowned/.test(c)) return !(env.src && env.src.renowned);
   if (/~ (?:isn't|is not) monstrous/.test(c)) return !(env.src && env.src.monstrous);
   if (/~ is saddled|it's saddled/.test(c)) return !!(env.src && env.src.saddledTurn === G.s.turn);
+  if (/^it was attacking$/.test(c) && env.wasAttacking !== undefined) return !!env.wasAttacking;
   if (/(?:~|it) (?:is|was) attacking/.test(c)) return !!(env.src && env.src.attacking);
   if (/its toughness is (\d+) or less/.test(c)) return env.src ? toughness(env.src) <= +c.match(/(\d+)/)[1] : false;
   return null;
@@ -1134,9 +1135,9 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
   env.it = made[0] ? { iid: made[0] } : null;
   env.did.push(`creates ${count > 1 ? count + ' token copies' : 'a token copy'} of ${nameTag(orig)}`);
 });
-on(/^create (.+?) tokens?(?: with (.+?))?(?: attached to (.+?))?(?:, then .+)?$/, async (m, env) => {
+on(/^create (.+?) tokens?(?: (?:that are |that's )?(tapped(?: and attacking)?)(?: (?:that player|target opponent|the player|defending player|an opponent)(?: or (?:a|that) planeswalker (?:they control|it's attacking))?)?)?(?: with (.+?))?(?: attached to (.+?))?(?:, then .+)?$/, async (m, env) => {
   if (/that's a copy|that are copies/.test(m[1])) return;
-  await makeTokens(env, m[1] + (m[2] ? ' with ' + m[2] : ''), m[3]);
+  await makeTokens(env, m[1] + (m[2] ? ' ' + m[2] : '') + (m[3] ? ' with ' + m[3] : ''), m[4]);
 });
 on(/^(?:you )?investigate(?: (\w+) times)?/, async (m, env) => {
   const k = m[1] ? n(m[1]) : 1;
@@ -1234,6 +1235,9 @@ async function makeTokens(env, desc, attachPhrase) {
     for (const i of made) {
       G.s.combat.attackers.push(i);
       card(i).attacking = true;
+      card(i).tapped = true;
+      G.s.combat.targets = G.s.combat.targets || {};
+      G.s.combat.targets[i] = opp(me);
     }
   }
   if (/sacrifice (?:it|that token|them|those tokens) at the beginning of the next end step/.test(env.text)) made.forEach((i) => (card(i).endOfTurn = 'sacrifice'));
@@ -2477,8 +2481,23 @@ async function runSentence(sentence, env) {
       env.unknown.push(sentence);
       return;
     }
+    env.lastCond = !!c;
     if (!c) return;
     return runSentence(s.slice(s.indexOf(',', m[1].length + 2) + 1).replace(/ instead$/i, '').trim(), env) || (instead ? undefined : undefined);
+  }
+  // "Draw a card if it was attacking." — a trailing condition the engine can check
+  if ((m = low.match(/^(.+?) if (.+)$/)) && !/^(?:counter|destroy|exile|return|you may)\b/.test(low)) {
+    let c = null;
+    try {
+      c = evalCond(m[2], env);
+    } catch (e) {
+      c = null;
+    }
+    if (c !== null && handled(m[1])) {
+      env.lastCond = !!c;
+      if (!c) return;
+      return runSentence(s.slice(0, m[1].length), env);
+    }
   }
   if ((m = low.match(/^if you do, (.+)$/))) {
     if (!env.lastMay) return;
