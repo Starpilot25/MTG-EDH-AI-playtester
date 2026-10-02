@@ -118,6 +118,7 @@ export function castOptions(pid, c) {
   if (zone === 'graveyard') {
     let a;
     if ((a = altCostAny(o0, 'Flashback'))) add({ mode: 'flashback', label: `Flashback ${a.mana}${a.other ? ' — ' + a.other : ''}`, cost: a.mana, other: a.other });
+    else if (c.tempFlashback === s.turn && !isLandFace(f0)) add({ mode: 'flashback', label: `Flashback ${f0.manaCost}`, cost: f0.manaCost });
     if ((a = altCostAny(o0, 'Escape'))) add({ mode: 'escape', label: `Escape ${a.mana}${a.other ? ', ' + a.other : ''}`, cost: a.mana, other: a.other });
     if ((a = altCost(o0, 'Jump-start') !== null ? f0.manaCost : null) !== null && /Jump-start/.test(o0)) add({ mode: 'jumpstart', label: 'Jump-start (discard a card)', cost: f0.manaCost });
     if (/(?:^|\n)Retrace\b/.test(o0)) add({ mode: 'retrace', label: 'Retrace (discard a land)', cost: f0.manaCost });
@@ -539,6 +540,11 @@ async function resolveSpell(pid, c, opt, info, env) {
     }
     if (hasSubtype({ ...c, face: fIdx }, 'Aura') && !/^Enchant (?:player|opponent)/m.test(oracle(c))) {
       const did = await attachAura(c, pid, ch);
+      if (did.length && /^is countered/.test(did[0])) {
+        log(pid, `${nameTag(c)} ${did[0]}.`);
+        move(c.iid, 'graveyard');
+        return;
+      }
       if (!did.length && /^Enchant /m.test(oracle(c))) {
         log(pid, `${nameTag(c)} has nothing to enchant and goes to the graveyard.`);
         move(c.iid, 'graveyard');

@@ -69,6 +69,8 @@ Keyword abilities and actions from across Magic's history are built in (Un-set m
 
 **Turn by turn.** Phasing, day and night (it flips when a turn passes with no spells, or two or more), echo, cumulative upkeep, vanishing, fading, impending, suspend counters, the monarch (draw at your end step; combat damage steals it), extra turns and extra combats, goad and "attacks each combat if able", provoke, and the end-step clean-ups for dash, blitz, unearth, warp and tokens that are sacrificed or exiled at the next end step.
 
+**Ward** works for every kind of ward cost — mana, "Pay N life", discarding or sacrificing — on spells, abilities and Auras alike, and an unpaid ward counters the whole spell or ability.
+
 **Combat.** You can attack the AI's planeswalkers and battles — when there's a choice, *Attack* asks what each creature attacks — and the AI does the same to yours. First strike and double strike, trample, deathtouch, lifelink, infect, wither, toxic, menace, flying/reach, protection, shield counters, fog effects, and the attack and block triggers (exalted, annihilator, battle cry, melee, bushido, rampage, flanking, afflict, training, mentor, enlist, renown, frenzy, mobilize, decayed…) all work.
 
 ## Playing

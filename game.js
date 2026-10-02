@@ -85,6 +85,7 @@ export async function beginTurn(pid) {
   if (s.winner && !s.continueAfterWin) return hooks.render();
   const prevActive = s.active;
   const prevSpells = prevActive ? s.ts[prevActive].spells : -1;
+  s.lastTurnSpells = { total: s.ts.p.spells + s.ts.ai.spells, max: Math.max(s.ts.p.spells, s.ts.ai.spells) };
   s.turn++;
   s.active = pid;
   s.landPlayed = false;
@@ -399,6 +400,8 @@ function afterCombat() {
     return;
   }
   setStep('main2');
+  fire({ type: 'main2', active: s.active });
+  settle();
 }
 
 export async function playerEndTurn() {
@@ -584,6 +587,12 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     const src = card(ev.from);
     if (!src) continue;
     if (ev.lifelink) changeLife(ev.controller, ev.amount, false);
+    if (ev.amount > 0) {
+      fire({ type: 'dealsDamage', iid: ev.from, amount: ev.amount, other: ev.type !== 'player' ? ev.to : null, player: ev.type === 'player' ? ev.to || defender : null });
+      if (ev.type !== 'player') fire({ type: 'dealtDamage', iid: ev.to, amount: ev.amount, other: ev.from });
+      if (ev.type === 'creature') fire({ type: 'combatDamageCreature', iid: ev.from, amount: ev.amount, other: ev.to });
+      if (ev.type === 'player') fire({ type: 'dealsDamagePlayer', iid: ev.from, amount: ev.amount, player: ev.to || defender });
+    }
     if (ev.type === 'permanent') {
       const t = card(ev.to);
       if (!t || t.zone !== 'battlefield') continue;
@@ -718,6 +727,9 @@ export async function runAiTurn() {
     if (G.s !== s || s.winner) return;
     setStep('main2');
     hooks.render();
+    fire({ type: 'main2', active: 'ai' });
+    await settle();
+    if (G.s !== s) return;
     await aiMainPhase(hooks, true);
     if (G.s !== s) return;
     setStep('end');

@@ -431,6 +431,7 @@ const LANDWALK = { swampwalk: 'Swamp', islandwalk: 'Island', forestwalk: 'Forest
 export function canBlock(blocker, attacker) {
   if (!isCreature(blocker) || blocker.tapped || blocker.pacifiedBy || blocker.phasedOut) return false;
   if (G.s && blocker.detainedUntil && blocker.detainedUntil > G.s.turn) return false;
+  if (G.s && blocker.noBlockUntil && blocker.noBlockUntil > G.s.turn) return false;
   if (blocker.cantBlockTurn === (G.s && G.s.turn)) return false;
   const bo = oracle(blocker);
   if ((/(?:^|\n|\. )(?:~|This creature|[A-Z][^.\n]*?) can't block\.?/.test(bo) && !/can't block (?:creatures with|unless|alone)/i.test(bo)) || hasKw(blocker, 'decayed') || blocker.suspected) return false;
@@ -466,6 +467,7 @@ export function canBlock(blocker, attacker) {
 export function canAttack(inst) {
   if (!isCreature(inst) || inst.tapped || inst.pacifiedBy || inst.phasedOut) return false;
   if (G.s && inst.detainedUntil && inst.detainedUntil > G.s.turn) return false;
+  if (G.s && inst.noAttackUntil && inst.noAttackUntil > G.s.turn) return false;
   if (hasKw(inst, 'defender') && !/can attack as though it didn't have defender/i.test(oracle(inst))) return false;
   if (/(?:^|\n|\. )[^.\n]*can't attack\.?(?:$|\n)/.test(oracle(inst)) && !/can't attack (?:alone|unless)/i.test(oracle(inst))) return false;
   if (inst.sick && !hasKw(inst, 'haste')) return false;

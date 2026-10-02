@@ -32,7 +32,7 @@ export function triggersOf(c, defOverride) {
   if (!d) return [];
   const inst = defOverride ? { ...c, def: d.id } : c;
   let text = stripName(oracle(inst) || (d.faces[c.face || 0] || d.faces[0]).oracle || '', inst);
-  text = text.replace(/\([^)]*\)/g, '');
+  text = text.replace(/\([^)]*\)/g, '').replace(/\n(?=•)/g, ' ¶');
   const out = [];
   const speed = G.s && c.controller ? G.s.players[c.controller].speed : 0;
   for (let line of text.split('\n')) {
@@ -42,22 +42,58 @@ export function triggersOf(c, defOverride) {
       line = line.replace(/^Max speed — /i, '');
     }
     line = line.replace(/^[A-Z][A-Za-z',.! ]{2,40} — (?=When|At|Whenever)/, ''); // ability words: "Landfall — …"
-    if (/^"|"$/.test(line)) continue;
+    if (/^"/.test(line)) continue;
     let m;
-    const add = (event, effect, extra = {}) =>
-      out.push({ event, text: effect.trim(), optional: /^you may\b/i.test(effect.trim()), raw: line, ...extra });
+    const add = (event, effect, extra = {}) => {
+      let t = effect.trim().replace(/ ¶•/g, '\n•');
+      const oncePerTurn = /This ability triggers only once each turn\.?/i.test(t);
+      t = t.replace(/\s*This ability triggers only once each turn\.?/i, '');
+      out.push({ event, text: t, optional: /^you may\b/i.test(t), raw: line, oncePerTurn, ...extra });
+    };
     // enters
-    if ((m = line.match(/^When(?:ever)? ~ (?:enters|enters the battlefield)(?: or attacks| or dies)?(?: under your control)?(?: from your graveyard| from exile)?, (.+)$/i))) {
+    if ((m = line.match(/^When(?:ever)? ~ enters(?: the battlefield)? or leaves the battlefield, (.+)$/i))) {
+      add('enters', m[1], { self: true });
+      add('leaves', m[1], { self: true });
+    } else if ((m = line.match(/^When(?:ever)? ~ enters(?: the battlefield)? and at the beginning of your upkeep, (.+)$/i))) {
+      add('enters', m[1], { self: true });
+      add('upkeep', m[1], { whose: 'your' });
+    } else if ((m = line.match(/^When(?:ever)? ~ enters(?: the battlefield)? or is put into a graveyard from the battlefield, (.+)$/i))) {
+      add('enters', m[1], { self: true });
+      add('dies', m[1], { self: true, anyPermanent: true });
+    } else if ((m = line.match(/^When(?:ever)? (?:enchanted|equipped) creature dies, (.+)$/i))) {
+      add('dies', m[1], { attachedTo: true });
+    } else if ((m = line.match(/^When(?:ever)? ~ is turned face up, (.+)$/i))) {
+      add('turnedFaceUp', m[1], { self: true });
+    } else if ((m = line.match(/^Whenever ~ is dealt damage, (.+)$/i))) {
+      add('dealtDamage', m[1], { self: true });
+    } else if ((m = line.match(/^Whenever (?:enchanted|equipped) creature is dealt damage, (.+)$/i))) {
+      add('dealtDamage', m[1], { attachedTo: true });
+    } else if ((m = line.match(/^Whenever ~ deals damage(?: to a player| to an opponent)?, (.+)$/i)) && !/combat damage/i.test(line)) {
+      add(/to a player|to an opponent/i.test(line) ? 'dealsDamagePlayer' : 'dealsDamage', m[1], { self: true });
+    } else if ((m = line.match(/^Whenever (?:enchanted|equipped) creature deals damage, (.+)$/i))) {
+      add('dealsDamage', m[1], { attachedTo: true });
+    } else if ((m = line.match(/^Whenever ~ deals combat damage to a creature, (.+)$/i))) {
+      add('combatDamageCreature', m[1], { self: true });
+    } else if ((m = line.match(/^Whenever ~ and at least (two|three|\d+) other creatures attack, (.+)$/i))) {
+      add('attacks', m[2], { self: true, minAttackers: 1 + ({ two: 2, three: 3 }[m[1].toLowerCase()] || +m[1]) });
+    } else if ((m = line.match(/^At the beginning of (?:your second main phase|your postcombat main phase|each of your postcombat main phases|your second main phase each turn), (.+)$/i))) {
+      add('main2', m[1], { whose: 'your' });
+    } else if ((m = line.match(/^At the beginning of (?:the upkeep of enchanted creature's controller|enchanted creature's controller's upkeep|enchanted player's upkeep), (.+)$/i))) {
+      add('upkeep', m[1], { whose: 'enchanted' });
+    } else if ((m = line.match(/^Whenever (?:a player|an opponent|you) cycles? (?:a|another) card, (.+)$/i))) {
+      add('cycle', m[1], { anyPlayer: /a player/i.test(line), oppOnly: /an opponent/i.test(line) });
+    }
+    else if ((m = line.match(/^When(?:ever)? ~ (?:enters?|enters? the battlefield)(?: or attacks| or dies)?(?: under your control)?(?: from your graveyard| from exile)?, (.+)$/i))) {
       add('enters', m[1], { self: true });
       if (/or attacks/i.test(line)) add('attacks', m[1], { self: true });
       if (/or dies/i.test(line)) add('dies', m[1], { self: true });
     } else if ((m = line.match(/^When(?:ever)? ~ or another (nontoken )?(creature|artifact|enchantment|permanent|[A-Z]\w+) (?:you control )?enters(?: the battlefield)?(?: under your control)?, (.+)$/i))) {
       add('enters', m[3], { self: true });
       add('enters', m[3], { other: true, kind: m[2].toLowerCase(), mine: true, nontoken: !!m[1] });
-    } else if ((m = line.match(/^Whenever (another|a|an|one or more|one or more other) (nontoken )?((?:[\w-]+ ){0,3}?)(creature|artifact|enchantment|land|permanent|planeswalker|token|[A-Z][\w-]+)s? (?:you control )?enters?(?: the battlefield)?( under your control| under an opponent's control)?, (.+)$/i))) {
-      const theirs = /opponent/.test(m[5] || '');
-      const mine = /under your control/.test(m[5] || '') || /you control/i.test(line.split(',')[0]);
-      add('enters', m[6], { other: /another|other/.test(m[1]), kind: (m[3] + m[4]).toLowerCase().trim(), mine, theirs, nontoken: !!m[2], once: /one or more/.test(m[1]) });
+    } else if ((m = line.match(/^Whenever (another|a|an|one or more|one or more other) (nontoken )?((?:[\w-]+ ){0,3}?)(creature|artifact|enchantment|land|permanent|planeswalker|token|[A-Z][\w-]+)s? (?:you control )?(with [^,]+? )?enters?(?: the battlefield)?( under your control| under an opponent's control)?, (.+)$/i))) {
+      const theirs = /opponent/.test(m[6] || '');
+      const mine = /under your control/.test(m[6] || '') || /you control/i.test(line.split(',')[0]);
+      add('enters', m[7], { other: /another|other/.test(m[1]), kind: ((m[3] + m[4]).toLowerCase().trim() + (m[5] ? ' ' + m[5].trim() : '')).trim(), mine, theirs, nontoken: !!m[2], once: /one or more/.test(m[1]) });
     }
     // dies / leaves / graveyard
     else if ((m = line.match(/^When(?:ever)? ~ dies, (.+)$/i)) || (m = line.match(/^When ~ is put into (?:a|your) graveyard from the battlefield, (.+)$/i)))
@@ -84,12 +120,12 @@ export function triggersOf(c, defOverride) {
       add('combatDamagePlayer', m[1], { attachedTo: true });
     else if ((m = line.match(/^Whenever one or more (?:other )?creatures you control deal combat damage to (?:a player|an opponent|one or more players)[^,]*, (.+)$/i)))
       add('combatDamageOnce', m[1]);
-    else if ((m = line.match(/^Whenever ~ (?:attacks or blocks|blocks or attacks)[^,]*, (.+)$/i))) {
+    else if ((m = line.match(/^When(?:ever)? ~ (?:attacks or blocks|blocks or attacks)[^,]*, (.+)$/i))) {
       add('attacks', m[1], { self: true });
       add('blocks', m[1], { self: true });
-    } else if ((m = line.match(/^Whenever ~ attacks(?: and isn't blocked)?(?: alone)?[^,]*, (.+)$/i)))
+    } else if ((m = line.match(/^When(?:ever)? ~ attacks(?: and isn't blocked)?(?: alone)?[^,]*, (.+)$/i)))
       add(/isn't blocked/i.test(line) ? 'unblocked' : /alone/i.test(line) ? 'attacksAlone' : 'attacks', m[1], { self: true });
-    else if ((m = line.match(/^Whenever ~ blocks(?: or becomes blocked)?[^,]*, (.+)$/i))) {
+    else if ((m = line.match(/^When(?:ever)? ~ blocks(?: or becomes blocked)?[^,]*, (.+)$/i))) {
       add('blocks', m[1], { self: true });
       if (/becomes blocked/i.test(line)) add('blocked', m[1], { self: true });
     } else if ((m = line.match(/^Whenever ~ becomes blocked(?: by a creature)?[^,]*, (.+)$/i)))
@@ -105,14 +141,14 @@ export function triggersOf(c, defOverride) {
     else if ((m = line.match(/^Whenever a creature (?:attacks you|an opponent controls attacks)[^,]*, (.+)$/i)))
       add('attacks', m[1], { theirAttacker: true });
     // turn steps
-    else if ((m = line.match(/^At the beginning of (your|each|each opponent's) upkeep, (.+)$/i)))
-      add('upkeep', m[2], { whose: m[1].toLowerCase() });
-    else if ((m = line.match(/^At the beginning of (your|each) draw step, (.+)$/i)))
-      add('drawStep', m[2], { whose: m[1].toLowerCase() });
-    else if ((m = line.match(/^At the beginning of (?:combat on your turn|each combat), (.+)$/i)))
-      add('beginCombat', m[1], { whose: /each combat/i.test(line) ? 'each' : 'your' });
-    else if ((m = line.match(/^At the beginning of (your|each|each opponent's) end step, (.+)$/i)) || (m = line.match(/^At the beginning of (the) next end step, (.+)$/i)))
-      add('endStep', m[2], { whose: m[1].toLowerCase() === 'the' ? 'each' : m[1].toLowerCase() });
+    else if ((m = line.match(/^At the beginning of (your|each|each opponent's|each player's) upkeep, (.+)$/i)))
+      add('upkeep', m[2], { whose: m[1].toLowerCase().replace("each player's", 'each') });
+    else if ((m = line.match(/^At the beginning of (your|each|each player's|each opponent's) draw step, (.+)$/i)))
+      add('drawStep', m[2], { whose: m[1].toLowerCase().replace("each player's", 'each') });
+    else if ((m = line.match(/^At the beginning of (?:combat on your turn|each combat|combat on each opponent's turn), (.+)$/i)))
+      add('beginCombat', m[1], { whose: /each combat/i.test(line) ? 'each' : /each opponent's/i.test(line) ? "each opponent's" : 'your' });
+    else if ((m = line.match(/^At the beginning of (your|each|each opponent's|each player's) end step, (.+)$/i)) || (m = line.match(/^At the beginning of (the|the next) end step, (.+)$/i)))
+      add('endStep', m[2], { whose: /^the/i.test(m[1]) || /each player's/i.test(m[1]) ? 'each' : m[1].toLowerCase() });
     else if ((m = line.match(/^At the beginning of your (?:precombat |first )?main phase, (.+)$/i)))
       add('mainPhase', m[1], { whose: 'your' });
     else if ((m = line.match(/^At end of combat, (.+)$/i)))
@@ -124,12 +160,12 @@ export function triggersOf(c, defOverride) {
       add('cast', m[2], { spell: m[1].toLowerCase().trim(), mine: true });
     else if ((m = line.match(/^Whenever you cast (?:a|an|your first|your second) ([^,]*?)spell(?: each turn| during [^,]+| from [^,]+| with [^,]+| that [^,]+| this turn)?, (.+)$/i)))
       add('cast', m[2], { spell: m[1].toLowerCase().trim(), mine: true, first: /your first/i.test(line), second: /your second/i.test(line) });
-    else if ((m = line.match(/^Whenever an opponent casts (?:a|an|their first) ([^,]*?)spell[^,]*, (.+)$/i)))
+    else if ((m = line.match(/^When(?:ever)? an opponent casts (?:a|an|their first) ([^,]*?)spell[^,]*, (.+)$/i)))
       add('cast', m[2], { spell: m[1].toLowerCase().trim(), theirs: true });
     else if ((m = line.match(/^Whenever a player casts (?:a|an) ([^,]*?)spell[^,]*, (.+)$/i)))
       add('cast', m[2], { spell: m[1].toLowerCase().trim() });
     // cards and life
-    else if ((m = line.match(/^Whenever (you|an opponent|a player) draws? (?:a|your second) card[^,]*, (.+)$/i)))
+    else if ((m = line.match(/^Whenever (you|an opponent|a player) draws? (?:a|your second|their second) card[^,]*, (.+)$/i)))
       add('draw', m[2], { who: m[1].toLowerCase(), second: /second/i.test(line) });
     else if ((m = line.match(/^Whenever (you|an opponent) discards? (?:a|one or more) (?:nonland )?cards?, (.+)$/i)))
       add('discard', m[2], { who: m[1].toLowerCase() });
@@ -508,8 +544,14 @@ function matches(ev) {
       const ghost = { ...dead, zone: 'battlefield', counters: ev.counters || {}, controller: ev.controller };
       for (const trig of triggersOf(ghost, ev.def)) if (trig.event === 'dies' && trig.self) out.push({ src: dead, trig, controller: ev.controller });
       if (ev.wasBlitzed) out.push({ src: dead, trig: { event: 'dies', text: 'draw a card', raw: 'Blitz' }, controller: ev.controller });
+      // "When enchanted creature dies" / "Whenever equipped creature dies"
+      for (const aid of ev.attached || []) {
+        const a = card(aid);
+        if (!a) continue;
+        for (const trig of triggersOf({ ...a, zone: 'battlefield' })) if (trig.event === 'dies' && trig.attachedTo) out.push({ src: a, trig, controller: ev.attachedCtl && ev.attachedCtl[aid] || a.controller, it: { iid: ev.iid } });
+      }
       each((c, trig) => {
-        if (trig.event !== 'dies' || trig.self) return;
+        if (trig.event !== 'dies' || trig.self || trig.attachedTo) return;
         if (trig.other && c.iid === ev.iid) return;
         if (trig.nontoken && ev.token) return;
         if (trig.mine && ev.controller !== c.controller) return;
@@ -535,9 +577,13 @@ function matches(ev) {
       }
       break;
     }
-    case 'putIntoGraveyard':
+    case 'putIntoGraveyard': {
+      // noncreature permanents: "When ~ is put into a graveyard from the battlefield"
+      const gone = card(ev.iid);
+      if (gone && ev.fromBattlefield) for (const trig of triggersOf({ ...gone, zone: 'battlefield', controller: ev.controller }, ev.def)) if (trig.event === 'dies' && trig.self) out.push({ src: gone, trig, controller: ev.controller });
       each((c, trig) => trig.event === 'putIntoGraveyard' && c.controller === ev.owner && out.push({ src: c, trig }));
       break;
+    }
     case 'combatDamagePlayer':
       each((c, trig) => {
         if (trig.event !== 'combatDamagePlayer') return;
@@ -557,8 +603,9 @@ function matches(ev) {
     case 'attacks':
       each((c, trig) => {
         if (trig.event !== 'attacks') return;
-        if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender });
-        else if (trig.anyOfMine && c.controller === ev.controller && (!trig.kind || matchesFilter(card(ev.iid), trig.kind))) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
+        if (trig.self && c.iid === ev.iid) {
+          if (!trig.minAttackers || ((G.s.combat && G.s.combat.attackers.length) || 0) >= trig.minAttackers) out.push({ src: c, trig, thatPlayer: ev.defender });
+        } else if (trig.anyOfMine && c.controller === ev.controller && (!trig.kind || matchesFilter(card(ev.iid), trig.kind))) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
         else if (trig.theirAttacker && c.controller !== ev.controller) out.push({ src: c, trig, it: { iid: ev.iid } });
       });
@@ -583,11 +630,33 @@ function matches(ev) {
     case 'beginCombat':
     case 'endStep':
     case 'mainPhase':
+    case 'main2':
     case 'endCombat':
       each((c, trig) => {
         if (trig.event !== ev.type) return;
         const w = trig.whose || 'your';
-        if (w === 'each' || (w === 'your' && c.controller === ev.active) || (w === "each opponent's" && c.controller !== ev.active)) out.push({ src: c, trig });
+        if (w === 'enchanted') {
+          const host = c.attachedTo && card(c.attachedTo);
+          const pl = host ? host.controller : c.enchantedPlayer || opp(c.controller);
+          if (pl === ev.active) out.push({ src: c, trig, thatPlayer: pl, it: host ? { iid: host.iid } : null });
+          return;
+        }
+        if (w === 'each' || (w === 'your' && c.controller === ev.active) || (w === "each opponent's" && c.controller !== ev.active)) out.push({ src: c, trig, thatPlayer: ev.active });
+      });
+      break;
+    case 'turnedFaceUp': {
+      const c = card(ev.iid);
+      if (c) for (const trig of triggersOf(c)) if (trig.event === 'turnedFaceUp' && trig.self) out.push({ src: c, trig });
+      break;
+    }
+    case 'dealtDamage':
+    case 'dealsDamage':
+    case 'dealsDamagePlayer':
+    case 'combatDamageCreature':
+      each((c, trig) => {
+        if (trig.event !== ev.type) return;
+        if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player, it: ev.other ? { iid: ev.other } : null });
+        else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player, it: { iid: ev.iid } });
       });
       break;
     case 'landfall':
@@ -622,7 +691,7 @@ function matches(ev) {
     case 'cycle': {
       const sc = card(ev.iid);
       if (sc) for (const trig of triggersOf(sc)) if (trig.event === 'cycle' && trig.self) out.push({ src: sc, trig, controller: ev.pid });
-      each((c, trig) => trig.event === 'cycle' && !trig.self && c.controller === ev.pid && out.push({ src: c, trig }));
+      each((c, trig) => trig.event === 'cycle' && !trig.self && (trig.anyPlayer || (trig.oppOnly ? c.controller !== ev.pid : c.controller === ev.pid)) && out.push({ src: c, trig, thatPlayer: ev.pid }));
       break;
     }
     case 'lifeGained':
@@ -828,6 +897,11 @@ async function legendChoice(ev) {
 
 async function resolveTrigger(hit, controller, ev) {
   const { src, trig } = hit;
+  if (trig.oncePerTurn) {
+    src.trigTurns = src.trigTurns || {};
+    if (src.trigTurns[trig.raw] === G.s.turn) return;
+    src.trigTurns[trig.raw] = G.s.turn;
+  }
   const ctx = {
     me: controller, choosers: T.choosers, forced: true, thatPlayer: hit.thatPlayer, it: hit.it || null, castFree: T.castFree, deadCounters: ev && ev.counters,
     kicked: src.kicked, x: src.xPaid || 0, castMode: src.castMode, castFrom: src.castFrom, event: ev,

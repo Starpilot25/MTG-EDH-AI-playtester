@@ -207,7 +207,7 @@ const RESET = ['tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrant
   'ringBearer', 'addTypes', 'extraText', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip'];
+  'rebound', 'encodedOn', 'hiddenBy', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -229,14 +229,15 @@ export function move(iid, zone, opts = {}) {
   // events for triggered abilities
   if (fromZone === 'battlefield' && zone !== 'battlefield') {
     s.ts[c.controller].permLeft = true;
+    const attachedHere = Object.values(s.cards).filter((a) => a.attachedTo === iid && a.zone === 'battlefield');
     if (requested === 'graveyard' && isCreature(c)) {
       s.ts.creatureDied = true;
       queueEvent({
         type: 'dies', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token,
         power: power(c), toughness: toughness(c), counters: { ...(c.counters || {}) }, isCommander: c.isCommander, merged: c.merged || [],
-        wasBlitzed: c.castMode === 'blitz',
+        wasBlitzed: c.castMode === 'blitz', attached: attachedHere.map((a) => a.iid), attachedCtl: Object.fromEntries(attachedHere.map((a) => [a.iid, a.controller])),
       });
-    } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token });
+    } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token, fromBattlefield: true });
     queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone });
   }
   if (fromZone === 'graveyard' && zone !== 'graveyard') s.ts[c.owner].cardsLeftGy++;
@@ -519,6 +520,8 @@ export function cleanupDamage() {
     c.deathtouched = false;
     c.attacking = false;
     c.blocking = false;
+    if (c.ntTurn && c.ntTurn > s.turn) continue; // "until your next turn" effects last through the opponent's turn
+    delete c.ntTurn;
     c.eot = null;
     c.eotGrants = null;
     if (c.animated && c.animated.until === 'eot') delete c.animated;
