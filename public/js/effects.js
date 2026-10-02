@@ -1301,6 +1301,17 @@ on(/^remove (a|an|one|two|three|all|x|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? f
     env.did.push(`removes ${k} ${m[2]} counter${k === 1 ? '' : 's'} from ${nameTag(c)}`);
   }
 });
+// Unnatural Growth, Mr. Orfeo, Kraken's double strike pals: "double the power (and toughness) of …"
+on(/^double (?:the )?(power and toughness|power|toughness) of (.+?)(?: until end of turn)?(?:\.|$)/, async (m, env) => {
+  const objs = (await objects(env, m[2], { harm: false })).filter(isCreature);
+  for (const c of objs) {
+    const p = /power/.test(m[1]) ? Math.max(0, power(c)) : 0;
+    const t = /toughness/.test(m[1]) ? Math.max(0, toughness(c)) : 0;
+    pumpEOT(c, { p, t });
+  }
+  if (objs.length) env.did.push(`doubles the ${m[1]} of ${objs.length > 3 ? objs.length + ' creatures' : objs.map(nameTag).join(', ')}`);
+  else env.did.push('has no creatures to double');
+});
 on(/^double the number of ([+-]\d+\/[+-]\d+|[a-z]+|each kind of) counters on (.+?)(?:\.|$)/, async (m, env) => {
   const objs = await objects(env, m[2]);
   for (const c of objs) {

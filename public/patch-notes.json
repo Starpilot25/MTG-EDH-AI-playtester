@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.4",
+    "title": "Unnatural Growth",
+    "notes": [
+      "Unnatural Growth doubles the power and toughness of each creature you control at the beginning of each combat. Other \"double the power (and toughness) of …\" cards work too."
+    ]
+  },
+  {
     "version": "1.2.3",
     "title": "Floating mana",
     "notes": [
