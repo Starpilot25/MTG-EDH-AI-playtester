@@ -58,7 +58,14 @@ async function createWindow() {
   win.once('ready-to-show', () => win.show());
   win.on('page-title-updated', (e) => e.preventDefault()); // keep the version in the title bar
   // links to Moxfield, Scryfall etc. open in your browser
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    // pop-out boards for a second screen open as app windows
+    if (/^edh-board-/.test(frameName || '') && (url === 'about:blank' || url === '' || url.startsWith(`http://127.0.0.1:${port}`))) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: { width: 1200, height: 720, backgroundColor: '#0f1a15', autoHideMenuBar: true, icon: path.join(__dirname, 'build', 'icon.png') },
+      };
+    }
     shell.openExternal(url);
     return { action: 'deny' };
   });

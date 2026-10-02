@@ -835,7 +835,10 @@ on(/^exile (.+?)\. (?:at the beginning of the next end step, )?return (?:it|that
 });
 on(/^exile (.+?)(?: until ~ leaves the battlefield)?$/, async (m, env) => {
   if (/top|graveyard|cards from|until you exile/.test(m[1])) return;
-  const objs = await objects(env, m[1].replace(/ face down$/, ''), { harm: true });
+  const returnsLater = /you control/.test(m[1]) && /\breturn (?:that card|those cards|them|it|each of them|the exiled cards?)\b[^.]*to the battlefield/.test(env.text || '');
+  const objs = await objects(env, m[1].replace(/ face down$/, ''), returnsLater ? { harm: false, purpose: 'blink' } : { harm: true });
+  env.them_ = objs.map((c) => c.iid);
+  env.it = objs[0] ? { iid: objs[0].iid } : env.it;
   const until = /until ~ leaves the battlefield/.test(env.sentence);
   // Oblivion Ring, Journey to Nowhere, Fiend Hunter: a separate "leaves the battlefield" trigger brings it back
   const linked = env.src && /leaves the battlefield, return the exiled (?:card|cards|creature|permanent)s?\b/i.test(oracle(env.src) || '');
@@ -1444,10 +1447,17 @@ on(/^(.+?) (?:doesn't|don't) untap during (?:its|their) controllers?'? next unta
   objs.forEach((c) => (c.noUntapUntil = G.s.turn + (c.controller === G.s.active ? 3 : 2)));
 });
 on(/^(.+?) phases? out/, async (m, env) => {
-  const objs = await objects(env, m[1], { harm: false });
+  const until = /until ~ leaves the battlefield/.test(env.sentence);
+  const harm = until || /you don't control|an opponent controls|your opponents control/.test(m[1]);
+  const objs = await objects(env, m[1], { harm });
   objs.forEach((c) => {
     c.phasedOut = true;
     c.phaseInTurnOf = c.controller;
+    // Oubliette: stays phased out until the source leaves, then phases in tapped
+    if (until && env.src) {
+      c.phasedUntil = env.src.iid;
+      c.phaseInTapped = /tap that creature as it phases in/i.test(env.text || '');
+    }
     for (const a of Object.values(G.s.cards)) if (a.attachedTo === c.iid) a.phasedOut = true;
   });
   env.did.push(`${objs.map(nameTag).join(', ')} phase${objs.length === 1 ? 's' : ''} out`);
@@ -1785,6 +1795,22 @@ on(/^return (it|that card|the exiled card|them|those cards|the exiled cards|that
     if (m[2] && DB[c.def].faces.length > 1) card(i).face = 1;
     env.did.push(`returns ${nameTag(card(i))} to the battlefield${m[2] ? ' transformed' : ''}`);
   }
+});
+// Otherworldly Journey, Semester's End: "At the beginning of the next end step, return that card / each of them to the battlefield …"
+on(/^at the beginning of the next end step, return (that card|those cards|them|it|each of them|the exiled cards?) to the battlefield(?: under (?:its|their) owners?'?s?'? control| under your control)?(?: with (?:a|an|one|two) (\+1\/\+1) counters? on (?:it|them|each of them))?/, async (m, env) => {
+  const ids = (env.them_ && env.them_.length ? env.them_ : env.it && env.it.iid ? [env.it.iid] : []).filter((i) => card(i) && card(i).zone === 'exile');
+  env.delayedNow = [];
+  for (const i of ids) {
+    const d = { at: 'endStep', kind: 'returnFromExile', iid: i, pid: /under your control/.test(env.sentence) ? env.me : card(i).owner };
+    if (m[2]) d.counter = '+1/+1';
+    G.s.delayed.push(d);
+    env.delayedNow.push(d);
+    env.did.push(`${nameTag(card(i))} will return at the next end step`);
+  }
+});
+on(/^each of them enters with an additional \+1\/\+1 counter on it/, async (m, env) => {
+  for (const d of env.delayedNow || []) d.counter = '+1/+1';
+  if ((env.delayedNow || []).length) env.did.push('each returns with an extra counter');
 });
 on(/^(?:sacrifice|exile) (it|them|that creature|those creatures|that token|those tokens) at the beginning of the next end step$/, async (m, env) => {
   const ids = /them|those/.test(m[1]) && env.them_ ? env.them_ : env.it && env.it.iid ? [env.it.iid] : [];

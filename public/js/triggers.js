@@ -587,8 +587,17 @@ function matches(ev) {
       const gone = card(ev.iid) || { iid: ev.iid, def: ev.def, face: ev.face, controller: ev.controller, owner: ev.owner, zone: ev.to, counters: {}, grants: [] };
       for (const trig of triggersOf({ ...gone, zone: 'battlefield', controller: ev.controller }, ev.def)) if (trig.event === 'leaves' && trig.self) out.push({ src: gone, trig, controller: ev.controller });
       each((c, trig) => trig.event === 'leaves' && trig.mine && c.controller === ev.controller && c.iid !== ev.iid && out.push({ src: c, trig }));
-      // championed / exiled-until cards come back
+      // championed / exiled-until cards come back; Oubliette's creature phases back in
       for (const x of Object.values(G.s.cards)) {
+        if (x.phasedOut && x.phasedUntil === ev.iid) {
+          delete x.phasedOut;
+          delete x.phasedUntil;
+          if (x.phaseInTapped) x.tapped = true;
+          delete x.phaseInTapped;
+          for (const a of Object.values(G.s.cards)) if (a.attachedTo === x.iid) delete a.phasedOut;
+          log(x.controller, `${nameTag(x)} phases in.`);
+          continue;
+        }
         if (x.zone === 'exile' && (x.championedBy === ev.iid || x.exiledBy === ev.iid)) {
           delete x.championedBy;
           delete x.exiledBy;

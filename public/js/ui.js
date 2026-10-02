@@ -23,8 +23,12 @@ import {
 } from './effects.js';
 import { payCost, totalMana } from './rules.js';
 
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+// Boards can be popped out into their own windows; lookups search those windows too.
+const popouts = new Map(); // pid -> { win, doc }
+const popDocs = () => [...popouts.values()].map((x) => x.doc).filter((d) => d && d.defaultView && !d.defaultView.closed);
+const $ = (sel, root = document) => root.querySelector(sel) || (root === document ? popDocs().map((d) => d.querySelector(sel)).find(Boolean) || null : null);
+const $$ = (sel, root = document) => (root === document ? [document, ...popDocs()].flatMap((d) => [...d.querySelectorAll(sel)]) : [...root.querySelectorAll(sel)]);
+let menuDoc = document;
 
 let hoverIid = null;
 let pendingRespond = null;
@@ -131,6 +135,8 @@ export function render() {
   document.body.classList.toggle('target-mode', !!pendingTarget);
   document.body.classList.toggle('block-mode', !!(s.combat && s.combat.by === 'ai' && pendingBlocks));
   document.body.classList.toggle('attack-mode', !!(s.combat && s.combat.by === 'p' && s.combat.stage === 'declare'));
+  document.body.classList.toggle('opp-popped', popouts.has('ai'));
+  for (const d of popDocs()) d.body.className = document.body.className + ' popout-body';
 }
 
 function renderTop() {
@@ -258,7 +264,7 @@ function renderOpp() {
     ? `<div class="ai-hand-reveal">${hand.map((i) => cardHTML(card(i), { small: true })).join('')}</div>`
     : `<div class="ai-hand" title="AI hand">${hand.map(() => '<i></i>').join('')}<b>${hand.length}</b></div>`;
   $('#opp-panel').innerHTML = `
-    <div class="pname"><span class="dot ai"></span>AI <small>${esc(s.decks.ai.name)}</small></div>
+    <div class="pname"><span class="dot ai"></span>AI <small>${esc(s.decks.ai.name)}</small><button class="popout-btn" data-act="${popouts.has('ai') ? 'popin' : 'popout'}" data-pid="ai" title="${popouts.has('ai') ? 'Put the AI\'s board back in the main window' : 'Pop the AI\'s board out into its own window (for a second screen)'}">${popouts.has('ai') ? '⇲ Bring back' : '⧉ Pop out'}</button></div>
     ${lifeBlock('ai')}
     <div class="piles">${pile('ai', 'library', 'Library')}${pile('ai', 'graveyard', 'Grave')}${pile('ai', 'exile', 'Exile')}${commandZone('ai')}</div>
     <div class="hand-row"><span class="lbl">Hand</span>${backs}</div>`;
@@ -1165,7 +1171,9 @@ export function helpDialog() {
 
 // ------------------------------------------------------------ context menu
 function openMenu(x, y, items) {
-  const m = $('#menu');
+  for (const d of [document, ...popDocs()]) if (d !== menuDoc && d.querySelector('#menu')) d.querySelector('#menu').hidden = true;
+  const m = menuDoc.querySelector('#menu') || document.querySelector('#menu');
+  const window = m.ownerDocument.defaultView;
   m.innerHTML = items
     .map((it) => {
       if (it === '-') return '<hr>';
@@ -1185,7 +1193,7 @@ function openMenu(x, y, items) {
   };
 }
 function closeMenu() {
-  $('#menu').hidden = true;
+  $$('#menu').forEach((m) => (m.hidden = true));
 }
 
 function counterItems(c) {
@@ -1436,10 +1444,10 @@ function onPointerMove(e) {
     ghost.classList.add('ghost');
     ghost.classList.remove('tapped');
     ghost.style.left = ghost.style.top = '';
-    document.body.appendChild(ghost);
+    drag.el.ownerDocument.body.appendChild(ghost);
     drag.ghost = ghost;
     drag.el.classList.add('dragging');
-    document.body.classList.add('is-dragging');
+    drag.el.ownerDocument.body.classList.add('is-dragging');
   }
   drag.ghost.style.transform = `translate(${e.clientX - drag.ox}px, ${e.clientY - drag.oy}px)`;
   const tgt = dropTarget(e.clientX, e.clientY);
@@ -1449,7 +1457,7 @@ function onPointerMove(e) {
 
 function dropTarget(x, y) {
   if (drag && drag.ghost) drag.ghost.style.display = 'none';
-  const el = document.elementFromPoint(x, y);
+  const el = ((drag && drag.el && drag.el.ownerDocument) || document).elementFromPoint(x, y);
   if (drag && drag.ghost) drag.ghost.style.display = '';
   return el ? el.closest('[data-drop]') : null;
 }
@@ -1458,7 +1466,7 @@ function onPointerUp(e) {
   if (!drag) return;
   const d = drag;
   drag = null;
-  document.body.classList.remove('is-dragging');
+  d.el.ownerDocument.body.classList.remove('is-dragging');
   if (!d.moved) {
     d.el.classList.remove('dragging');
     return onCardClick(d.iid, e);
@@ -1548,6 +1556,7 @@ function confirmBlocks() {
 
 // ------------------------------------------------------------ events
 export function bindEvents() {
+  bindDoc = (document) => {
   // While choosing a target, clicks pick targets and nothing else.
   document.addEventListener(
     'click',
@@ -1584,10 +1593,6 @@ export function bindEvents() {
     },
     true
   );
-  onChange(() => {
-    render();
-    refreshViewer();
-  });
   document.addEventListener('pointerdown', onPointerDown);
   document.addEventListener('pointermove', onPointerMove);
   document.addEventListener('pointerup', onPointerUp);
@@ -1601,6 +1606,7 @@ export function bindEvents() {
 
   document.addEventListener('contextmenu', (e) => {
     if (!G.s || e.target.closest('input, textarea')) return;
+    menuDoc = e.target.ownerDocument;
     const cardEl = e.target.closest('.card[data-iid]');
     const pileEl = e.target.closest('[data-pile]');
     if (cardEl && (!cardEl.closest('.pile-face') || cardEl.closest('.cz-slot'))) {
@@ -1619,6 +1625,7 @@ export function bindEvents() {
 
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#menu')) closeMenu();
+    menuDoc = e.target.ownerDocument;
     const t = e.target;
     // blocking: after picking your creature, click the AI's attacker it blocks
     const oppCard = t.closest('#opp-field .card[data-iid]');
@@ -1673,6 +1680,8 @@ export function bindEvents() {
     }
     const a = b.dataset.act;
     if (!a) return;
+    if (a === 'popout') return popOut(b.dataset.pid);
+    if (a === 'popin') return popIn(b.dataset.pid);
     if (a === 'resolve' || a === 'counter') {
       const r = pendingRespond;
       pendingRespond = null;
@@ -1709,6 +1718,17 @@ export function bindEvents() {
     if (a === 'rematch' || a === 'newdecks') return window.dispatchEvent(new CustomEvent('edh:' + a));
   });
 
+  // hover preview
+  document.addEventListener('mouseover', onHover);
+  document.addEventListener('mouseout', onHoverOut);
+  document.addEventListener('keydown', onKey);
+  };
+  bindDoc(document);
+  onChange(() => {
+    render();
+    refreshViewer();
+  });
+
   $('#btn-next').addEventListener('click', () => {
     if (G.s.step === 'combat' && G.s.combat && G.s.combat.stage === 'damage') return act(() => resolvePlayerCombat());
     snapshot();
@@ -1738,8 +1758,10 @@ export function bindEvents() {
   logEl.addEventListener('touchmove', userScrolled, { passive: true });
   logEl.addEventListener('pointerup', userScrolled);
 
-  // hover preview
-  document.addEventListener('mouseover', (e) => {
+  window.addEventListener('resize', () => G.s && render());
+}
+
+function onHover(e) {
     const el = e.target.closest('.card[data-iid], .cn[data-def]');
     if (!el) return;
     if (el.dataset.iid) {
@@ -1750,15 +1772,56 @@ export function bindEvents() {
       if (c.zone === 'library' && !el.closest('#dialog')) return;
       setPreview(c.iid, null);
     } else setPreview(null, el.dataset.def, +el.dataset.face || 0);
-  });
-  document.addEventListener('mouseout', (e) => {
+}
+function onHoverOut(e) {
     const el = e.target.closest('.card[data-iid]');
     if (el && hoverIid === el.dataset.iid && !el.contains(e.relatedTarget)) hoverIid = null;
-  });
+  }
 
-  document.addEventListener('keydown', onKey);
-  window.addEventListener('resize', () => G.s && render());
+// ------------------------------------------------------------ pop-out boards (second screen)
+let bindDoc = () => {};
+function popOut(pid) {
+  if (popouts.has(pid)) return;
+  const name = pid === 'ai' ? "AI" : 'Your';
+  const w = window.open('', 'edh-board-' + pid, 'width=1200,height=720');
+  if (!w || !w.document) {
+    toast('Couldn\'t open a new window. In the desktop app this needs version 1.1 or newer — download the latest installer from the Releases page.');
+    return;
+  }
+  const doc = w.document;
+  doc.open();
+  doc.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>EDH Playtester — ${name} board</title>
+    <link rel="stylesheet" href="${location.origin}/css/style.css"></head>
+    <body class="popout-body"><div class="board popout-board"></div><div id="menu" class="pop" hidden></div></body></html>`);
+  doc.close();
+  const holder = doc.querySelector('.popout-board');
+  const ids = pid === 'ai' ? ['#opp-panel', '#opp-field'] : ['#my-panel', '#my-field'];
+  const ph = document.createElement('div');
+  ph.className = 'pop-ph';
+  ph.id = 'pop-ph-' + pid;
+  ph.innerHTML = `<span>${pid === 'ai' ? "The AI's board" : 'Your board'} is in its own window.</span><button class="popout-btn" data-act="popin" data-pid="${pid}">⇲ Bring it back</button>`;
+  document.querySelector(ids[1]).before(ph);
+  for (const sel of ids) holder.appendChild(doc.adoptNode(document.querySelector(sel)));
+  popouts.set(pid, { win: w, doc, ids });
+  bindDoc(doc);
+  w.addEventListener('resize', () => G.s && render());
+  w.addEventListener('pagehide', () => popIn(pid, true));
+  render();
 }
+function popIn(pid, closing) {
+  const pop = popouts.get(pid);
+  if (!pop) return;
+  popouts.delete(pid);
+  const ph = document.getElementById('pop-ph-' + pid);
+  for (const sel of pop.ids) {
+    const el = pop.doc.querySelector(sel);
+    if (el && ph) ph.before(document.adoptNode(el));
+  }
+  if (ph) ph.remove();
+  if (!closing) try { pop.win.close(); } catch (e) { void e; }
+  render();
+}
+window.addEventListener('beforeunload', () => popDocs().forEach((d) => d.defaultView.close()));
 
 function tidy() {
   act(() => {

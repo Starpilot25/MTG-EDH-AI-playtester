@@ -123,6 +123,10 @@ Keyword abilities and actions from across Magic's history are built in (Un-set m
 
 **Combat.** You can attack the AI's planeswalkers and battles — when there's a choice, *Attack* asks what each creature attacks — and the AI does the same to yours. First strike and double strike, trample, deathtouch, lifelink, infect, wither, toxic, menace, flying/reach, protection, shield counters, fog effects, and the attack and block triggers (exalted, annihilator, battle cry, melee, bushido, rampage, flanking, afflict, training, mentor, enlist, renown, frenzy, mobilize, decayed…) all work.
 
+## Second screen
+
+Click **⧉ Pop out** next to the AI's name to move its board (life, piles, hand and battlefield) into a separate window you can drag to another monitor. Everything still works in that window: right-click menus, targeting, blocking and life buttons. Click **Bring back**, or just close the window, to put it back. In the desktop app this needs version 1.1.0 or newer.
+
 ## Playing
 
 | Action | How |

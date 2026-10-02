@@ -129,7 +129,7 @@ export async function beginTurn(pid) {
 export function phasing(pid) {
   for (const c of allOnField(pid)) {
     if (c.phasedOut) {
-      if (c.phasedWith) continue;
+      if (c.phasedWith || c.phasedUntil) continue;
       delete c.phasedOut;
       for (const a of [...allOnField('p'), ...allOnField('ai')]) if (a.phasedWith === c.iid) {
         delete a.phasedOut;
@@ -306,6 +306,11 @@ async function endStepThings(pid) {
     if (!c) continue;
     if (d.kind === 'returnFromExile' && c.zone === 'exile') {
       toBattlefield(d.iid, d.pid || c.owner);
+      if (d.counter && card(d.iid)) {
+        const r = card(d.iid);
+        if (isType(r, 'Planeswalker') && !isCreature(r)) r.counters.loyalty = (r.counters.loyalty || 0) + 1;
+        else r.counters[d.counter] = (r.counters[d.counter] || 0) + 1;
+      }
       log(c.owner, `${nameTag(c)} returns to the battlefield.`);
     } else if (d.kind === 'sacrifice' && c.zone === 'battlefield') sacrifice(d.iid);
   }
