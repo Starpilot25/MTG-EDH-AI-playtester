@@ -1248,7 +1248,7 @@ async function makeTokens(env, desc, attachPhrase) {
 }
 
 // --- counters
-on(/^put (a|an|one|two|three|four|five|six|x|\d+|that many) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (.+?)(?: for each [^.]+)?(?:\.|$)/, async (m, env) => {
+on(/^put (a|an|one|two|three|four|five|six|x|\d+|that many) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on ((?:(?! and (?:draw|create|you|gain|scry|surveil|investigate|exile|destroy|return|untap|tap|mill|look)\b).)+?)(?: for each [^.]+)?(?:\.|$)/, async (m, env) => {
   let k = /that many/.test(m[1]) ? env.lastAmount || 0 : n(m[1], env.x);
   const fe = env.sentence.match(/for each ([^.]+)$/);
   if (fe) k *= countPhrase(env.me, fe[1], helpers, env.src.iid) || 0;
@@ -2321,7 +2321,7 @@ on(/^creatures in each sector can be blocked this turn only by creatures in the 
 }, { first: true });
 on(/^put an? \+1\/\+1 counter on each creature in the sector of your choice/, async (m, env) => {
   const { sec, cards } = await chooseSector(env, 'put a +1/+1 counter on each creature there', (cs) => cs.reduce((a, c) => a + (c.controller === env.me ? 1 : -1), 0));
-  for (const c of cards) addCounters(c, '+1/+1', 1, { silent: true });
+  for (const c of cards) addCounters(c, '+1/+1', 1);
   env.did.push(`puts a +1/+1 counter on each creature in the ${sec} sector (${cards.length})`);
 }, { first: true });
 on(/^destroy all creatures in the sector of your choice/, async (m, env) => {

@@ -210,10 +210,14 @@ export function pairing(d) {
   const f = d.faces[0];
   const kw = d.keywords;
   const pw = f.oracle.match(/^Partner with ([^(\n]+?)\s*(?:\(|$)/m);
+  // "Partner—Character select", "Partner—Friends forever": pairs only with the same kind
+  const pv = f.oracle.match(/^Partner\s*[—–-]\s*([^(\n]+?)\s*(?:\(|$)/m);
+  const variant = pv ? pv[1].trim().toLowerCase() : null;
   return {
-    partner: kw.includes('partner') && !pw,
+    partner: (kw.includes('partner') || /^Partner\s*(?:\(|$)/m.test(f.oracle)) && !pw && !variant,
     partnerWith: pw ? pw[1].trim() : null,
-    friendsForever: kw.includes('friends forever'),
+    partnerVariant: variant && variant !== 'friends forever' ? variant : null,
+    friendsForever: kw.includes('friends forever') || variant === 'friends forever',
     chooseBackground: kw.includes('choose a background') || /Choose a Background/.test(f.oracle),
     isBackground: /\bBackground\b/.test(f.typeLine),
     doctorsCompanion: kw.includes("doctor's companion") || /Doctor's companion/.test(f.oracle),
@@ -230,6 +234,7 @@ export function canPair(a, b) {
     x.partnerWith === b.name ||
     y.partnerWith === a.name ||
     (x.friendsForever && y.friendsForever) ||
+    (!!x.partnerVariant && x.partnerVariant === y.partnerVariant) ||
     (x.chooseBackground && y.isBackground) ||
     (y.chooseBackground && x.isBackground) ||
     (x.doctorsCompanion && y.isDoctor) ||
@@ -239,7 +244,7 @@ export function canPair(a, b) {
 
 export function wantsPair(d) {
   const x = pairing(d);
-  return x.partner || !!x.partnerWith || x.friendsForever || x.chooseBackground || x.doctorsCompanion || x.isDoctor || x.isBackground;
+  return x.partner || !!x.partnerWith || !!x.partnerVariant || x.friendsForever || x.chooseBackground || x.doctorsCompanion || x.isDoctor || x.isBackground;
 }
 
 export function legendaryCandidates(deck) {
@@ -641,6 +646,202 @@ Deck
 1 Rogue's Passage
 1 Tranquil Thicket
 ${basics(32, 'Forest')}`,
+  },
+  tmnt_turtles: {
+    label: 'Turtle Power! (Leonardo, the Balance)',
+    set: 'Teenage Mutant Ninja Turtles Commander',
+    bracket: 2,
+    text: `Commander
+1 Leonardo, the Balance
+
+Deck
+1 Donatello, the Brains
+1 Splinter, the Mentor
+1 Raphael, the Muscle
+1 Michelangelo, the Heart
+1 Heroes in a Half Shell
+1 Continue?
+1 Endless Foot Assault
+1 April O'Neil, Live on the Scene
+1 Baxter, Fly in the Ointment
+1 Here Comes a New Hero!
+1 Irma, Part-Time Mutant
+1 Krang, the All-Powerful
+1 Ray Fillet, Wave Warrior
+1 Bebop, Skull & Crossbones
+1 Dimension X Pizzasaur
+1 Foot Chopper
+1 Game Over
+1 Rat King, Pale Piper
+1 Shredder, Shadow Master
+1 Swift Demise
+1 Casey Jones, Back Alley Brute
+1 Electric Seaweed
+1 Fast Forward
+1 Shellshock
+1 Special Move
+1 Tempestra, Dame of Games
+1 Tokka & Rahzar, Unsupervised
+1 High Score
+1 Leatherhead, Iron Gator
+1 Level Up
+1 Ninja Pizza
+1 Rocksteady, Mutant Marauder
+1 Super Combo
+1 Double Jump // Flying Kick
+1 Arcade Cabinet
+1 Big Mother Mouser
+1 Coin of Mastery
+1 Exploding Barrel
+1 Mole Module
+1 Roadkill Rodney
+1 Big Apple, 3 a.m.
+1 Hidden Hideout
+1 Together Forever
+1 Vanquish the Horde
+1 Wave Goodbye
+1 Blasphemous Act
+1 Biogenic Ooze
+1 Steelbane Hydra
+1 Vigor
+1 Voracious Hydra
+1 Assassin's Trophy
+1 Corpsejack Menace
+1 Chromatic Lantern
+1 Cinder Glade
+1 City of Brass
+1 Dragonskull Summit
+1 Exotic Orchard
+1 Fabled Passage
+1 Grand Coliseum
+1 Hinterland Harbor
+1 Rain-Slicked Copse
+1 Rootbound Crag
+1 Smoldering Marsh
+1 Sodden Verdure
+1 Spire Garden
+1 Sunken Hollow
+1 Undergrowth Stadium
+1 Vernal Fen
+1 Lita, Little Orphan Amphibian
+1 Mona Lisa, Science Geek
+1 Lessons from Life
+1 Everything Pizza
+1 Escape Tunnel
+1 Turtle Lair
+1 Acidic Slime
+1 Cultivate
+1 Harmonize
+1 Arcane Signet
+1 Sol Ring
+1 Ash Barrens
+1 Command Tower
+1 Evolving Wilds
+1 Path of Ancestry
+1 Thriving Grove
+1 Thriving Isle
+1 Thriving Moor
+1 Vibrant Cityscape
+${basics(2, 'Plains')}
+${basics(2, 'Island')}
+${basics(2, 'Swamp')}
+${basics(2, 'Mountain')}
+${basics(4, 'Forest')}`,
+  },
+  eoe_worldshaper: {
+    label: 'World Shaper (Hearthhull, the Worldseed)',
+    set: 'Edge of Eternities Commander',
+    bracket: 2,
+    text: `Commander
+1 Hearthhull, the Worldseed
+
+Deck
+1 Szarel, Genesis Shepherd
+1 Eumidian Wastewaker
+1 Evendo Brushrazer
+1 Planetary Annihilation
+1 Baloth Prime
+1 Exploration Broodship
+1 Horizon Explorer
+1 Scouring Swarm
+1 Eumidian Hatchery
+1 Festering Thicket
+1 Vernal Fen
+1 Fabled Passage
+1 Braids, Arisen Nightmare
+1 God-Eternal Bontu
+1 Blasphemous Act
+1 Hammer of Purphoros
+1 Moraug, Fury of Akoum
+1 Augur of Autumn
+1 Centaur Vinecrasher
+1 Formless Genesis
+1 Loamcrafter Faun
+1 Multani, Yavimaya's Avatar
+1 Oracle of Mul Daya
+1 Pest Infestation
+1 Rampaging Baloths
+1 Splendid Reclamation
+1 Tireless Tracker
+1 Titania, Protector of Argoth
+1 World Breaker
+1 Escape to the Wilds
+1 Gaze of Granite
+1 The Gitrog Monster
+1 Korvold, Fae-Cursed King
+1 Mazirek, Kraul Death Priest
+1 Omnath, Locus of Rage
+1 Soul of Windgrace
+1 Windgrace's Judgment
+1 Worldsoul's Rage
+1 Canyon Slough
+1 Cinder Glade
+1 Karplusan Forest
+1 Llanowar Wastes
+1 Sheltered Thicket
+1 Smoldering Marsh
+1 Sulfurous Springs
+1 Twilight Mire
+1 Viridescent Bog
+1 Farseek
+1 Springbloom Druid
+1 Binding the Old Gods
+1 Arcane Signet
+1 Sol Ring
+1 Command Tower
+1 Mountain Valley
+1 Terramorphic Expanse
+1 Infernal Grasp
+1 Night's Whisper
+1 Sprouting Goblin
+1 Aftermath Analyst
+1 Beast Within
+1 Cultivate
+1 Groundskeeper
+1 Harrow
+1 Nature's Lore
+1 Roiling Regrowth
+1 Satyr Wayfinder
+1 Skyshroud Claim
+1 Tear Asunder
+1 Juri, Master of the Revue
+1 Mayhem Devil
+1 Putrefy
+1 Rakdos Charm
+1 Uurg, Spawn of Turg
+1 Bojuka Bog
+1 Cabaretti Courtyard
+1 Dakmor Salvage
+1 Escape Tunnel
+1 Evolving Wilds
+1 Maestros Theater
+1 Myriad Landscape
+1 Riveteers Overlook
+1 Rocky Tar Pit
+1 Wastes
+${basics(5, 'Swamp')}
+${basics(3, 'Mountain')}
+${basics(8, 'Forest')}`,
   },
 };
 
