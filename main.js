@@ -3,6 +3,7 @@ import {
   DB, parseDecklist, importFromUrl, resolveDeck, legendaryCandidates, secondCandidates, canPair, wantsPair, SAMPLE_DECKS,
 } from './data.js';
 import { G, newGame, cardsIn, move, log, esc, emit } from './state.js';
+import { loadDungeons } from './dungeon.js';
 import { run, aiMulligans, mulligan, bottomCount, startPlay } from './game.js';
 import { render, bindEvents, openDialog, closeDialog, cancelPending, toast } from './ui.js';
 
@@ -134,6 +135,7 @@ function showSummary(pid) {
   const cands = legendaryCandidates(deck);
   const warn = [];
   if (total !== 100) warn.push(`This deck has ${total} cards, not 100. You can still play it.`);
+  if ((deck.companions || []).length) warn.push(`Companion: ${deck.companions.map((id) => esc(DB[id].name)).join(', ')} starts outside the game — pay {3} at sorcery speed (right-click it in your command zone) to put it into your hand.`);
   if (deck.missing.length) warn.push(`Couldn't find on Scryfall: ${deck.missing.map(esc).join(', ')}.`);
   if (deck.guessedCommander) warn.push('No commander was marked, so one was picked from the list. Change it below if needed.');
   if (!deck.commanders.length) warn.push('No commander found. Pick one below, or play without one.');
@@ -263,7 +265,8 @@ function showSetup() {
   $('#setup').hidden = false;
 }
 
-function beginGame() {
+async function beginGame() {
+  await loadDungeons(); // dungeon rooms come from Scryfall; cached after the first game
   cancelPending();
   closeDialog(true);
   run.aiBusy = false;

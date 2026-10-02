@@ -38,7 +38,11 @@ When you cast a spell — double-click it, drag it onto the battlefield, or righ
 - **Abilities on permanents** show up at the top of the right-click menu: planeswalker loyalty abilities, Equip (pick the creature), and activated abilities like "{2}, {T}, Sacrifice: draw a card" — costs are paid automatically.
 - **Changed your mind?** Press Esc or *Cancel* while choosing and the whole spell is rolled back.
 
-You can also cast instants while the AI casts a spell or attacks you (combat tricks, removal in response).
+**Timing and counterspells work like Arena.** On the AI's turn — while it casts a spell or attacks you — you can only cast instants and flash cards, and the ones you can afford glow green. To counter an AI spell you need a real counterspell: cast it in response and it counters the spell on the stack (filters like "noncreature spell" and "unless its controller pays {3}" are respected). Sorceries and other cards wait for your main phase. The AI plays by the same rules: if it holds a counterspell and the mana, it may counter your important spells.
+
+**The legend rule** applies to both players. If you end up with two legendary permanents with the same name (including legendary token copies), you pick which one to keep; the AI keeps the one with counters or equipment on it. Exceptions are handled: Mirror Gallery, "the legend rule doesn't apply to permanents you control" (Sakashima of a Thousand Faces, Mirror Box), Brothers Yamazaki, and token copies made "except it isn't legendary". Token-copy effects ("create a token that's a copy of target creature…") work, and the right-click menu offers a normal or non-legendary token copy.
+
+**Dungeons and the initiative.** "Venture into the dungeon" lets you pick Lost Mine of Phandelver, Dungeon of the Mad Mage or Tomb of Annihilation, then choose a branch at each fork; every room's effect resolves. "Take the initiative" ventures into Undercity, again at each of your upkeeps, and the initiative moves to whoever deals combat damage to its holder. Your current room shows under your life total — click it to see the whole dungeon. Room text is loaded from the real dungeon cards on Scryfall.
 
 **Triggered abilities fire on their own** — yours and the AI's:
 
@@ -50,6 +54,22 @@ You can also cast instants while the AI casts a spell or attacks you (combat tri
 
 "That player" means the player who was hit. "You may" asks you first. Connive, loot ("draw, then discard"), investigate, transform, discard, mill, and +1/+1 counters or pumps on the creature itself are all handled. Treasure, Clue and Food tokens come with their abilities.
 Effects the engine doesn't understand are noted in the log so you can apply them by hand. To play it purely as a tabletop, untick *Arena-style casting* on the setup screen or in the ☰ menu; right-click → *Put onto battlefield (no cost)* skips it for one card.
+
+## Game mechanics
+
+Keyword abilities and actions from across Magic's history are built in (Un-set mechanics are not). Anything printed as one-off rules text that the engine doesn't understand is noted in the log so you can apply it by hand.
+
+**Ways to cast.** When a card can be played more than one way, double-clicking it asks which: adventures (the card goes on an adventure, then you cast the creature from exile), split cards and fuse, modal double-faced cards (either side, including the land side), omens, and alternative costs — dash, evoke, blitz, bestow, prototype, mutate, surge, spectacle, prowl, emerge, overload, awaken, impending, warp, freerunning, web-slinging, sneak, and casting face down for {3} (morph, megamorph, disguise). From the graveyard: flashback, escape, jump-start, retrace, aftermath, disturb, harmonize, mayhem and "you may cast this from your graveyard". From exile: foretold and plotted cards, adventures, impulse draw ("you may play it this turn"), hideaway and suspend. Companions start outside the game — pay {3} at sorcery speed to put yours into your hand (right-click it in the command zone).
+
+**Extra costs and cost changes.** Kicker and multikicker, buyback, entwine, escalate, spree, tiered, replicate, squad, offspring, gift, bargain, casualty and "as an additional cost…" (sacrifice, discard, pay life, exile from your graveyard, collect evidence, forage, tap creatures…) are asked for as you cast. Cost reductions are applied automatically: convoke, delve and improvise (your creatures, graveyard and artifacts help pay), affinity, undaunted, "this spell costs {1} less for each…", commander tax, and Thalia- and Helm-style effects. Your mana pool is shown under your life total and empties between steps.
+
+**On the stack.** Storm, cascade, replicate and casualty copies, split second (no one can respond), "can't be countered", rebound, cipher, madness and miracle.
+
+**Abilities.** The right-click menu lists equip, reconfigure, crew, saddle, station, level up, Class levels, loyalty abilities and activated abilities; from your hand, cycling and landcycling, channel, bloodrush, ninjutsu, transmute, reinforce, forecast, foretell, plot and suspend; from your graveyard, unearth, embalm, eternalize, scavenge, encore and dredge. Face-down creatures can be turned face up for their morph or disguise cost.
+
+**Turn by turn.** Phasing, day and night (it flips when a turn passes with no spells, or two or more), echo, cumulative upkeep, vanishing, fading, impending, suspend counters, the monarch (draw at your end step; combat damage steals it), extra turns and extra combats, goad and "attacks each combat if able", provoke, and the end-step clean-ups for dash, blitz, unearth, warp and tokens that are sacrificed or exiled at the next end step.
+
+**Combat.** You can attack the AI's planeswalkers and battles — when there's a choice, *Attack* asks what each creature attacks — and the AI does the same to yours. First strike and double strike, trample, deathtouch, lifelink, infect, wither, toxic, menace, flying/reach, protection, shield counters, fog effects, and the attack and block triggers (exalted, annihilator, battle cry, melee, bushido, rampage, flanking, afflict, training, mentor, enlist, renown, frenzy, mobilize, decayed…) all work.
 
 ## Playing
 
@@ -63,7 +83,7 @@ Effects the engine doesn't understand are noted in the log so you can apply them
 | Your removal on the AI | Right-click an AI permanent → Destroy / Exile / Bounce / Damage / Gain control |
 | Attack | **To combat**, click your creatures, **Attack**; the AI blocks; **Deal damage** |
 | Block | When the AI attacks, click your creature, then the attacker; **Confirm blocks** |
-| Counter an AI spell | When the AI casts something, choose **Counter it** (or **Let it resolve**) |
+| Counter an AI spell | When the AI casts something, double-click a glowing counterspell in your hand (or **Let it resolve**). With Arena-style casting off, a manual **Counter it** button appears instead |
 | Fix anything | Life totals, poison, commander damage all have +/−; Undo / Redo (Ctrl+Z / Ctrl+Shift+Z) |
 
 Shortcuts: `Enter` next step · `Shift+Enter` pass turn · `D` draw · `U` untap all · `S` shuffle · `C` create token · `L` search library · hover a card + `T` tap, `G` graveyard, `X` exile, `H` hand, `B` library bottom, `F` flip, `=`/`-` +1/+1 counter · `?` all shortcuts.
@@ -75,9 +95,9 @@ Commander rules handled for you: 40 life, commander tax, commanders return to th
 The AI runs in your browser — no account or API key. Each turn it:
 
 1. plays the land that best fixes its colors,
-2. taps its lands, rocks and dorks to cast the best spell it can afford (commander, ramp early, removal when you have a threat, board wipes only when it's behind, big threats otherwise), repeating while it has mana,
-3. uses planeswalker abilities it understands,
-4. attacks when its creatures survive or trade well, goes all-in when it sees lethal, and keeps blockers home when you threaten it,
+2. taps its lands, rocks and dorks to cast the best spell it can afford (commander, ramp early, removal when you have a threat, board wipes only when it's behind, big threats otherwise), including flashback, adventures, foretold and plotted cards, and kicker or buyback when it has spare mana, repeating while it has mana,
+3. uses planeswalker abilities it understands, levels up Classes, turns morphs face up, equips, crews vehicles before combat, and cycles or unearths when it has nothing better to do,
+4. attacks when its creatures survive or trade well (sending some at your planeswalkers), goes all-in when it sees lethal, and keeps blockers home when you threaten it,
 5. blocks to eat attackers, trade evenly, or chump when it would otherwise die.
 
 It reads oracle text to automate common effects: draw, destroy/exile/bounce, damage, board wipes, tokens, life gain and drain, land searches, reanimation, edicts, +1/+1 counters, and buff/lockdown auras. Anything it can't automate is noted in the game log so you can apply it by hand — the table is free-form, so you can always move, tap or adjust anything.
@@ -90,8 +110,13 @@ public/index.html  the page
 public/css/        styles
 public/js/data.js  decklist parsing, deck import, card data, sample decks
 public/js/rules.js mana payment, power/toughness, keywords, combat damage
+public/js/statics.js anthems, cost changes, replacement effects
 public/js/state.js game state, zones, undo
-public/js/game.js  turn structure and combat flow
+public/js/effects.js rules-text interpreter (what spells and abilities do)
+public/js/triggers.js triggered and keyword abilities
+public/js/cast.js  casting, alternative and additional costs, abilities, special actions
+public/js/dungeon.js dungeons and the initiative
+public/js/game.js  turn structure, turn-based keywords and combat flow
 public/js/ai.js    the AI opponent
 public/js/ui.js    the tabletop UI
 public/js/main.js  setup screen and mulligans

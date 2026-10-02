@@ -1,6 +1,7 @@
 // Game state, zones and the actions both players use.
 import { DB } from './data.js';
-import { isCreature, isLand, power, isDead, def } from './rules.js';
+import { isCreature, isLand, power, toughness, isDead, def, isType, hasKw, oracle, face, typeLine, hasSubtype } from './rules.js';
+import { repl, playerFlag } from './statics.js';
 
 export const ZONES = ['library', 'hand', 'battlefield', 'graveyard', 'exile', 'command'];
 export const STEPS = ['untap', 'upkeep', 'draw', 'main1', 'combat', 'main2', 'end'];
@@ -43,23 +44,37 @@ export function emit() {
 
 export function snapshot() {
   if (!G.s) return;
-  G.undo.push(JSON.stringify(G.s));
+  G.undo.push(JSON.stringify({ s: G.s, nextId }));
   if (G.undo.length > 60) G.undo.shift();
   G.redo = [];
 }
+function restore(json) {
+  const o = JSON.parse(json);
+  if (o.s) {
+    nextId = o.nextId || nextId;
+    return o.s;
+  }
+  return o;
+}
 export function undo() {
   if (!G.undo.length) return false;
-  G.redo.push(JSON.stringify(G.s));
-  G.s = JSON.parse(G.undo.pop());
+  G.redo.push(JSON.stringify({ s: G.s, nextId }));
+  G.s = restore(G.undo.pop());
   emit();
   return true;
 }
 export function redo() {
   if (!G.redo.length) return false;
-  G.undo.push(JSON.stringify(G.s));
-  G.s = JSON.parse(G.redo.pop());
+  G.undo.push(JSON.stringify({ s: G.s, nextId }));
+  G.s = restore(G.redo.pop());
   emit();
   return true;
+}
+// put a snapshot back in place (same object), used when a spell is cancelled mid-way
+export function restoreInPlace(json) {
+  const snap = restore(json);
+  for (const k of Object.keys(G.s)) delete G.s[k];
+  Object.assign(G.s, snap);
 }
 
 function shuffleArr(a) {
@@ -73,7 +88,16 @@ function shuffleArr(a) {
 function newPlayer(name) {
   const z = {};
   ZONES.forEach((k) => (z[k] = []));
-  return { name, life: G.settings.startingLife, poison: 0, zones: z, cmdDmg: {}, tax: {}, mulligans: 0, lost: null };
+  return {
+    name, life: G.settings.startingLife, poison: 0, zones: z, cmdDmg: {}, tax: {}, mulligans: 0, lost: null,
+    counters: { energy: 0, experience: 0, rad: 0, ticket: 0 }, speed: 0, ring: 0, ringBearer: null,
+    dungeon: null, dungeonsCompleted: 0, cityBlessing: false,
+  };
+}
+
+export function freshTurnStats() {
+  const one = () => ({ spells: 0, noncreatureSpells: 0, lifeLost: 0, lifeGained: 0, damagedOpp: false, attacked: false, landsPlayed: 0, drawn: 0, cardsLeftGy: 0, permLeft: false, speedUp: false, discarded: [] });
+  return { p: one(), ai: one(), creatureDied: false, warped: false };
 }
 
 export function newGame(pDeck, aiDeck) {
@@ -87,10 +111,19 @@ export function newGame(pDeck, aiDeck) {
     first: null,
     step: 'main1',
     landPlayed: false,
+    landsPlayed: 0,
     combat: null,
     log: [],
     phase: 'mulligan',
     winner: null,
+    monarch: null,
+    initiative: null,
+    dayNight: null,
+    extraTurns: { p: 0, ai: 0 },
+    extraCombats: 0,
+    ts: freshTurnStats(),
+    delayed: [],
+    pool: { p: [], ai: [] },
   };
   G.s = s;
   eventQueue.length = 0;
@@ -101,6 +134,10 @@ export function newGame(pDeck, aiDeck) {
       const iid = makeCard(id, pid, 'command');
       s.cards[iid].isCommander = true;
       s.players[pid].tax[iid] = 0;
+    }
+    for (const id of deck.companions || []) {
+      const iid = makeCard(id, pid, 'command');
+      s.cards[iid].isCompanion = true;
     }
     for (const id of deck.cards) makeCard(id, pid, 'library');
     shuffleArr(s.players[pid].zones.library);
@@ -130,8 +167,13 @@ export function card(iid) {
 export function zoneOf(pid, z) {
   return G.s.players[pid].zones[z];
 }
+// Phased-out permanents are treated as though they don't exist.
 export function cardsIn(pid, z) {
-  return G.s.players[pid].zones[z].map((i) => G.s.cards[i]);
+  const out = G.s.players[pid].zones[z].map((i) => G.s.cards[i]).filter(Boolean);
+  return z === 'battlefield' ? out.filter((c) => !c.phasedOut) : out;
+}
+export function allOnField(pid) {
+  return G.s.players[pid].zones.battlefield.map((i) => G.s.cards[i]).filter(Boolean);
 }
 export function opp(pid) {
   return pid === 'p' ? 'ai' : 'p';
@@ -140,7 +182,8 @@ export function opp(pid) {
 export function cardName(inst) {
   if (!inst) return '?';
   if (inst.faceDown) return 'a face-down card';
-  return DB[inst.def].faces[inst.face || 0].name;
+  const d = DB[inst.def];
+  return (d.faces[inst.face || 0] || d.faces[0]).name;
 }
 export function nameTag(inst) {
   if (!inst) return '?';
@@ -153,13 +196,22 @@ export function esc(s) {
 
 export function log(who, html) {
   G.s.log.push({ who, html, turn: G.s.turn });
-  if (G.s.log.length > 400) G.s.log.shift();
+  if (G.s.log.length > 500) G.s.log.shift();
 }
 
 // ------------------------------------------------------------ zone movement
+const RESET = ['tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+  'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
+  'renowned', 'classLevel', 'proto', 'setPT', 'lostAbilities', 'endOfTurn', 'exileIfLeaves', 'noUntapUntil', 'phasedOut',
+  'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'castMode', 'xPaid', 'impending',
+  'ringBearer', 'addTypes', 'extraText', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
+  'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
+  'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'mayPlayFree', 'suspended',
+  'rebound', 'encodedOn', 'hiddenBy', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip'];
+
 /**
  * Move a card between zones (possibly across controllers' battlefields).
- * opts: {to:'top'|'bottom'|index, x, y, controller, tapped, faceDown, silent}
+ * opts: {to:'top'|'bottom'|index, x, y, controller, tapped, faceDown, silent, cause}
  */
 export function move(iid, zone, opts = {}) {
   const s = G.s;
@@ -167,11 +219,27 @@ export function move(iid, zone, opts = {}) {
   if (!c) return;
   const fromZone = c.zone;
   const fromCtl = fromZone === 'battlefield' ? c.controller : c.owner;
-  // things triggered abilities care about ("whenever a creature dies", landfall)
-  if (fromZone === 'battlefield' && zone === 'graveyard' && isCreature(c))
-    queueEvent({ type: 'dies', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, power: power(c) });
-  if (zone === 'battlefield' && fromZone !== 'battlefield' && isLand(c))
-    queueEvent({ type: 'landfall', iid, controller: opts.controller || c.controller });
+  const requested = zone;
+  // replacements: finality counters, "exile it if it would leave", Rest in Peace and friends
+  if (fromZone === 'battlefield' && zone !== 'battlefield') {
+    if ((c.counters || {}).finality && zone === 'graveyard') zone = 'exile';
+    if (c.exileIfLeaves) zone = 'exile';
+  }
+  if (zone === 'graveyard' && repl('gyExile', c.owner)) zone = 'exile';
+  // events for triggered abilities
+  if (fromZone === 'battlefield' && zone !== 'battlefield') {
+    s.ts[c.controller].permLeft = true;
+    if (requested === 'graveyard' && isCreature(c)) {
+      s.ts.creatureDied = true;
+      queueEvent({
+        type: 'dies', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token,
+        power: power(c), toughness: toughness(c), counters: { ...(c.counters || {}) }, isCommander: c.isCommander, merged: c.merged || [],
+        wasBlitzed: c.castMode === 'blitz',
+      });
+    } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token });
+    queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone });
+  }
+  if (fromZone === 'graveyard' && zone !== 'graveyard') s.ts[c.owner].cardsLeftGy++;
   // remove from old zone
   if (fromZone) {
     const arr = s.players[fromCtl].zones[fromZone];
@@ -179,8 +247,20 @@ export function move(iid, zone, opts = {}) {
     if (k >= 0) arr.splice(k, 1);
   }
   // commander replacement
-  if (c.isCommander && (zone === 'graveyard' || zone === 'exile') && (c.owner === 'ai' || G.settings.autoCommander)) {
+  if (c.isCommander && (zone === 'graveyard' || zone === 'exile') && (c.owner === 'ai' || G.settings.autoCommander) && !opts.noCommandZone) {
     zone = 'command';
+  }
+  // a mutated pile moves together
+  if (c.merged && c.merged.length && fromZone === 'battlefield' && zone !== 'battlefield') {
+    const under = c.merged;
+    c.merged = [];
+    for (const m of under) {
+      const mc = s.cards[m];
+      if (!mc) continue;
+      mc.zone = null;
+      if (mc.token && zone !== 'battlefield') delete s.cards[m];
+      else move(m, zone === 'command' ? 'graveyard' : zone);
+    }
   }
   // tokens cease to exist outside the battlefield
   if (c.token && zone !== 'battlefield') {
@@ -190,18 +270,12 @@ export function move(iid, zone, opts = {}) {
   }
   const leavingField = fromZone === 'battlefield' && zone !== 'battlefield';
   if (leavingField || (zone !== 'battlefield' && fromZone !== 'battlefield')) {
-    c.tapped = false;
+    for (const k of RESET) delete c[k];
     c.counters = {};
+    c.grants = [];
     c.ptMod = null;
     c.damage = 0;
-    c.deathtouched = false;
-    c.grants = [];
-    c.auraBuffs = null;
-    c.eot = null;
-    c.eotGrants = null;
-    c.pacifiedBy = null;
-    c.attachedTo = null;
-    c.attacking = false;
+    c.tapped = false;
     if (zone !== 'exile') c.faceDown = false;
     c.face = 0;
     c.controller = c.owner;
@@ -211,6 +285,7 @@ export function move(iid, zone, opts = {}) {
   if (zone === 'battlefield' && fromZone !== 'battlefield') {
     c.sick = true;
     c.enteredTurn = s.turn;
+    if (fromZone !== 'stack') c.castMode = c.castMode || null;
   }
   if (opts.controller) c.controller = opts.controller;
   if (opts.tapped !== undefined) c.tapped = opts.tapped;
@@ -221,12 +296,75 @@ export function move(iid, zone, opts = {}) {
   const owner = zone === 'battlefield' ? c.controller : c.owner;
   const arr = s.players[owner].zones[zone];
   if (opts.to === 'bottom') {
-    // library "bottom" is index 0 (top of library is the end of the array)
     if (zone === 'library') arr.unshift(iid);
     else arr.push(iid);
   } else if (typeof opts.to === 'number') arr.splice(opts.to, 0, iid);
   else arr.push(iid);
+  if (zone === 'battlefield' && fromZone !== 'battlefield') entering(c, opts);
   return c;
+}
+
+// Things that happen as a permanent enters: counters it enters with, enters-tapped effects, events.
+function entering(c, opts) {
+  const s = G.s;
+  if (c.faceDown) {
+    queueEvent({ type: 'enters', iid: c.iid, controller: c.controller, creature: true, token: c.token });
+    return;
+  }
+  const o = oracle(c).replace(/\([^)]*\)/g, '');
+  const f = face(c);
+  if (isType(c, 'Planeswalker') && c.counters.loyalty === undefined) c.counters.loyalty = parseInt(f.loyalty, 10) || 0;
+  if (isType(c, 'Battle') && c.counters.defense === undefined) c.counters.defense = parseInt(f.defense, 10) || 0;
+  let m;
+  // "enters with N +1/+1 counters", "enters with X …", modular, graft, fading, vanishing, sunburst-ish
+  for (const mm of o.matchAll(/enters(?: the battlefield)? with (a|an|one|two|three|four|five|six|seven|eight|nine|ten|x|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on it/gi)) {
+    const words = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+    const nW = mm[1].toLowerCase();
+    const k = nW === 'x' ? c.xPaid || 0 : words[nW] || parseInt(nW, 10) || 0;
+    if (k) addCounters(c, mm[2].toLowerCase(), k, { silent: true });
+  }
+  if ((m = o.match(/\bModular (\d+)/))) addCounters(c, '+1/+1', +m[1], { silent: true });
+  if ((m = o.match(/\bGraft (\d+)/))) addCounters(c, '+1/+1', +m[1], { silent: true });
+  if ((m = o.match(/\bFading (\d+)/))) addCounters(c, 'fade', +m[1], { silent: true });
+  if ((m = o.match(/\bVanishing (\d+)/))) addCounters(c, 'time', +m[1], { silent: true });
+  if (/\bSunburst\b/.test(o) && c.colorsSpent) addCounters(c, isCreature(c) ? '+1/+1' : 'charge', c.colorsSpent, { silent: true });
+  if (c.xPaid && /\bRavenous\b/.test(o)) addCounters(c, '+1/+1', c.xPaid, { silent: true });
+  if (/^\(?As this Saga enters/m.test(o) || hasSubtype(c, 'Saga')) {
+    if (c.counters.lore === undefined) c.counters.lore = 0;
+  }
+  if (/\b(?:enters|enters the battlefield) tapped\b/i.test(o) && !/unless|if you control|you may pay/i.test(o.match(/[^.\n]*enters (?:the battlefield )?tapped[^.\n]*/i)[0])) c.tapped = true;
+  if (isCreature(c) && repl('oppEnterTapped', c.controller)) c.tapped = true;
+  if (repl('oppPermsTapped', c.controller)) c.tapped = true;
+  if (/^Living weapon|\bLiving weapon\b/m.test(o) || /\bFor Mirrodin!/m.test(o) || /\bJob select\b/i.test(o)) queueEvent({ type: 'germ', iid: c.iid, controller: c.controller });
+  queueEvent({ type: 'enters', iid: c.iid, controller: c.controller, creature: isCreature(c), token: c.token, land: isLand(c), def: c.def });
+  if (isLand(c)) queueEvent({ type: 'landfall', iid: c.iid, controller: c.controller });
+  void opts;
+  void s;
+}
+
+// Counters, with Hardened Scales / Doubling Season style replacements for the controller.
+export function addCounters(c, kind, n, opts = {}) {
+  if (!c || n === 0) return 0;
+  c.counters = c.counters || {};
+  if (n > 0 && c.zone === 'battlefield' && kind !== 'loyalty-cost') {
+    if (kind === '+1/+1') n += repl('counterPlusOne', c.controller);
+    const dbl = repl('counterDouble', c.controller);
+    for (let k = 0; k < dbl; k++) n *= 2;
+  }
+  // +1/+1 and -1/-1 counters annihilate each other
+  c.counters[kind] = Math.max(0, (c.counters[kind] || 0) + n);
+  if (kind === '+1/+1' || kind === '-1/-1') {
+    const a = c.counters['+1/+1'] || 0;
+    const b = c.counters['-1/-1'] || 0;
+    const k = Math.min(a, b);
+    if (k) {
+      c.counters['+1/+1'] = a - k;
+      c.counters['-1/-1'] = b - k;
+    }
+  }
+  for (const key of Object.keys(c.counters)) if (!c.counters[key] && key !== 'loyalty' && key !== 'lore' && key !== 'defense') delete c.counters[key];
+  if (n > 0 && !opts.silent) queueEvent({ type: 'counterPut', iid: c.iid, kind, n, controller: c.controller });
+  return n;
 }
 
 function combatRef() {
@@ -236,6 +374,7 @@ function dropFromCombat(iid) {
   const cb = G.s.combat;
   cb.attackers = cb.attackers.filter((a) => a !== iid);
   delete cb.blocks[iid];
+  if (cb.targets) delete cb.targets[iid];
   for (const k of Object.keys(cb.blocks)) cb.blocks[k] = cb.blocks[k].filter((b) => b !== iid);
 }
 
@@ -248,6 +387,16 @@ export function draw(pid, n = 1, silent = false) {
   const lib = zoneOf(pid, 'library');
   let drawn = 0;
   for (let k = 0; k < n; k++) {
+    // dredge: you chose to dredge a card instead of this draw
+    const pl = G.s.players[pid];
+    if (pl.dredge && card(pl.dredge.iid) && card(pl.dredge.iid).zone === 'graveyard' && lib.length >= pl.dredge.n) {
+      const d = pl.dredge;
+      pl.dredge = null;
+      mill(pid, d.n);
+      move(d.iid, 'hand');
+      log(pid, `${pid === 'p' ? 'You dredge' : 'The AI dredges'} ${nameTag(card(d.iid))} instead of drawing.`);
+      continue;
+    }
     if (!lib.length) {
       if (G.s.phase === 'play') {
         log(pid, `${pid === 'p' ? 'You try' : 'The AI tries'} to draw from an empty library.`);
@@ -255,8 +404,12 @@ export function draw(pid, n = 1, silent = false) {
       }
       break;
     }
-    move(lib[lib.length - 1], 'hand');
+    const iid = lib[lib.length - 1];
+    move(iid, 'hand');
     drawn++;
+    const ts = G.s.ts[pid];
+    ts.drawn++;
+    if (G.s.phase === 'play') queueEvent({ type: 'draw', pid, iid, nth: ts.drawn });
   }
   if (!silent && drawn) log(pid, `${pid === 'p' ? 'You draw' : 'AI draws'} ${drawn} card${drawn > 1 ? 's' : ''}.`);
   return drawn;
@@ -264,19 +417,54 @@ export function draw(pid, n = 1, silent = false) {
 
 export function shuffle(pid) {
   shuffleArr(zoneOf(pid, 'library'));
-  G.s.cards; // noop
 }
 
 export function mill(pid, n) {
   const ids = libTop(pid, n);
   ids.forEach((i) => move(i, 'graveyard'));
   if (ids.length) log(pid, `${pid === 'p' ? 'You mill' : 'AI mills'} ${ids.map((i) => nameTag(card(i))).join(', ')}.`);
+  if (ids.length) queueEvent({ type: 'mill', pid, ids });
+  return ids;
+}
+
+// Discard: madness cards go to exile and may be cast; everything else to the graveyard.
+export function discard(iid) {
+  const c = card(iid);
+  if (!c) return;
+  const pid = c.owner;
+  G.s.ts[pid].discarded.push(iid);
+  if (/\bMadness\b/.test(oracle(c))) {
+    move(iid, 'exile');
+    c.madness = true;
+    queueEvent({ type: 'madness', iid, pid });
+  } else move(iid, 'graveyard');
+  queueEvent({ type: 'discard', iid, pid });
 }
 
 export function setLife(pid, value, reason) {
   const pl = G.s.players[pid];
   const before = pl.life;
+  if (value > before && playerFlag(pid, 'noLifeGain')) value = before;
   pl.life = value;
+  const ts = G.s.ts && G.s.ts[pid];
+  if (ts) {
+    if (value < before) {
+      ts.lifeLost += before - value;
+      G.s.ts[opp(pid)].damagedOpp = true;
+      queueEvent({ type: 'lifeLost', pid, amount: before - value });
+      // Start your engines!: speed goes up once on your turn when an opponent loses life
+      const o = opp(pid);
+      const po = G.s.players[o];
+      if (G.s.active === o && po.speed > 0 && po.speed < 4 && !G.s.ts[o].speedUp) {
+        po.speed++;
+        G.s.ts[o].speedUp = true;
+        log(o, `${o === 'p' ? 'Your' : "The AI's"} speed increases to ${po.speed}${po.speed === 4 ? ' (max speed)' : ''}.`);
+      }
+    } else if (value > before) {
+      ts.lifeGained += value - before;
+      queueEvent({ type: 'lifeGained', pid, amount: value - before });
+    }
+  }
   if (reason !== false && value !== before)
     log(pid, `${pid === 'p' ? 'Your' : 'AI'} life ${before} → <b>${value}</b>${reason ? ' (' + reason + ')' : ''}.`);
   checkLoss(pid);
@@ -288,9 +476,12 @@ export function changeLife(pid, delta, reason) {
 export function checkLoss(pid) {
   const pl = G.s.players[pid];
   if (pl.lost) return;
-  if (pl.life <= 0) loseGame(pid, 'life total reached 0');
+  if (pl.life <= 0 && !hasLoseImmunity(pid)) loseGame(pid, 'life total reached 0');
   else if (pl.poison >= 10) loseGame(pid, '10 poison counters');
   else if (Object.values(pl.cmdDmg).some((v) => v >= 21)) loseGame(pid, '21 commander damage');
+}
+function hasLoseImmunity(pid) {
+  return cardsIn(pid, 'battlefield').some((c) => /You can't lose the game/i.test(oracle(c)));
 }
 
 export function loseGame(pid, why) {
@@ -300,58 +491,200 @@ export function loseGame(pid, why) {
   G.s.winner = opp(pid);
   log('sys', `<b>${pid === 'p' ? 'You lose' : 'The AI loses'}</b> — ${why}.`);
 }
+export function winGame(pid, why) {
+  loseGame(opp(pid), why);
+}
 
+// Untap step: stun counters and "doesn't untap" effects
 export function untapAll(pid) {
   for (const c of cardsIn(pid, 'battlefield')) {
-    c.tapped = false;
     c.sick = false;
+    if (!c.tapped) continue;
+    if ((c.counters || {}).stun) {
+      c.counters.stun--;
+      if (!c.counters.stun) delete c.counters.stun;
+      continue;
+    }
+    if (c.noUntapUntil && c.noUntapUntil > G.s.turn) continue;
+    if (/doesn't untap during (?:your|its controller's) untap step/i.test(oracle(c)) && !/if/i.test(oracle(c).match(/[^.\n]*doesn't untap during[^.\n]*/i)[0])) continue;
+    if (c.pacifiedBy && /doesn't untap/i.test(oracle(card(c.pacifiedBy) || c))) continue;
+    c.tapped = false;
   }
 }
 
 export function cleanupDamage() {
-  for (const c of Object.values(G.s.cards)) {
+  const s = G.s;
+  for (const c of Object.values(s.cards)) {
     c.damage = 0;
     c.deathtouched = false;
     c.attacking = false;
+    c.blocking = false;
     c.eot = null;
     c.eotGrants = null;
+    if (c.animated && c.animated.until === 'eot') delete c.animated;
+    if (c.lostAbilities === 'eot') delete c.lostAbilities;
+    if (c.setPTUntil === 'eot') {
+      delete c.setPT;
+      delete c.setPTUntil;
+    }
   }
 }
 
-// creatures with lethal damage go to the graveyard
+// ------------------------------------------------------------ destroy / sacrifice
+// Destroy respects indestructible, regeneration shields, shield counters and umbra armor.
+export function destroy(iid, opts = {}) {
+  const c = card(iid);
+  if (!c || c.zone !== 'battlefield') return false;
+  if (hasKw(c, 'indestructible') && !opts.ignoreIndestructible) return false;
+  if ((c.counters || {}).shield) {
+    c.counters.shield--;
+    if (!c.counters.shield) delete c.counters.shield;
+    log(c.controller, `${nameTag(c)} loses a shield counter instead of being destroyed.`);
+    return false;
+  }
+  if (c.regen > 0 && !opts.noRegen) {
+    c.regen--;
+    c.tapped = true;
+    c.damage = 0;
+    c.deathtouched = false;
+    if (G.s.combat) dropFromCombat(iid);
+    log(c.controller, `${nameTag(c)} regenerates.`);
+    return false;
+  }
+  const umbra = Object.values(G.s.cards).find((a) => a.zone === 'battlefield' && a.attachedTo === iid && /\b(?:Umbra|Totem) armor\b/i.test(oracle(a)));
+  if (umbra) {
+    c.damage = 0;
+    c.deathtouched = false;
+    log(c.controller, `${nameTag(umbra)} is destroyed instead of ${nameTag(c)}.`);
+    move(umbra.iid, 'graveyard');
+    return false;
+  }
+  move(iid, 'graveyard');
+  return true;
+}
+
+export function sacrifice(iid) {
+  const c = card(iid);
+  if (!c || c.zone !== 'battlefield') return false;
+  queueEvent({ type: 'sacrificed', iid, def: c.def, controller: c.controller, token: c.token, types: typeLine(c) });
+  move(iid, 'graveyard');
+  return true;
+}
+
+// State-based actions
 export function stateBased() {
-  // auras fall off when what they enchant leaves; buffs go away with the aura
-  const all = Object.values(G.s.cards);
-  for (const a of all) {
-    if (a.zone === 'battlefield' && a.attachedTo && (!G.s.cards[a.attachedTo] || G.s.cards[a.attachedTo].zone !== 'battlefield')) {
-      a.attachedTo = null;
-      if (/\bAura\b/.test(DB[a.def].typeLine)) {
-        log(a.controller, `${nameTag(a)} goes to the graveyard (nothing to enchant).`);
-        move(a.iid, 'graveyard');
+  const s = G.s;
+  for (let pass = 0; pass < 4; pass++) {
+    let changed = false;
+    // auras fall off when what they enchant leaves; equipment just unattaches
+    for (const a of Object.values(s.cards)) {
+      if (a.zone === 'battlefield' && a.attachedTo && (!s.cards[a.attachedTo] || s.cards[a.attachedTo].zone !== 'battlefield' || s.cards[a.attachedTo].phasedOut)) {
+        if (s.cards[a.attachedTo] && s.cards[a.attachedTo].phasedOut) continue;
+        a.attachedTo = null;
+        if (/\bAura\b/.test(typeLine(a))) {
+          log(a.controller, `${nameTag(a)} goes to the graveyard (nothing to enchant).`);
+          move(a.iid, 'graveyard');
+          changed = true;
+        }
       }
     }
+    for (const c of Object.values(s.cards)) {
+      if (c.zone !== 'battlefield') continue;
+      if (c.pacifiedBy && (!s.cards[c.pacifiedBy] || s.cards[c.pacifiedBy].zone !== 'battlefield')) c.pacifiedBy = null;
+      if (c.auraBuffs)
+        for (const k of Object.keys(c.auraBuffs))
+          if (!s.cards[k] || s.cards[k].zone !== 'battlefield' || s.cards[k].attachedTo !== c.iid) delete c.auraBuffs[k];
+    }
+    legendRule();
+    const died = [];
+    for (const pid of ['p', 'ai']) {
+      for (const c of cardsIn(pid, 'battlefield')) {
+        if (isCreature(c) && toughness(c) <= 0) died.push({ c, zero: true });
+        else if (isCreature(c) && isDead(c)) died.push({ c });
+        else if (isType(c, 'Planeswalker') && !isCreature(c) && (c.counters.loyalty || 0) <= 0 && c.enteredTurn !== undefined) died.push({ c, zero: true, pw: true });
+        else if (isType(c, 'Battle') && (c.counters.defense || 0) <= 0 && c.counters.defense !== undefined) died.push({ c, battle: true });
+      }
+    }
+    for (const { c, zero, pw, battle } of died) {
+      if (!card(c.iid) || c.zone !== 'battlefield') continue;
+      const name = nameTag(c);
+      if (battle) {
+        queueEvent({ type: 'battleDefeated', iid: c.iid, controller: c.controller, def: c.def });
+        log(c.controller, `${name} is defeated.`);
+        move(c.iid, 'exile');
+        changed = true;
+        continue;
+      }
+      if (zero) {
+        move(c.iid, 'graveyard');
+        log(c.controller, `${name} ${pw ? 'runs out of loyalty' : 'dies'}.`);
+        changed = true;
+      } else if (destroy(c.iid)) {
+        log(c.controller, `${name} dies${c.isCommander ? ' (to the command zone)' : ''}.`);
+        changed = true;
+      }
+    }
+    // the city's blessing
+    for (const pid of ['p', 'ai']) {
+      const pl = s.players[pid];
+      if (!pl.cityBlessing && cardsIn(pid, 'battlefield').length >= 10 && cardsIn(pid, 'battlefield').some((c) => /\bAscend\b/.test(oracle(c)))) {
+        pl.cityBlessing = true;
+        log(pid, `${pid === 'p' ? 'You get' : 'The AI gets'} the city's blessing.`);
+      }
+    }
+    for (const pid of ['p', 'ai']) checkLoss(pid);
+    if (!changed) break;
   }
-  for (const c of Object.values(G.s.cards)) {
-    if (c.zone !== 'battlefield') continue;
-    if (c.pacifiedBy && (!G.s.cards[c.pacifiedBy] || G.s.cards[c.pacifiedBy].zone !== 'battlefield')) c.pacifiedBy = null;
-    if (c.auraBuffs)
-      for (const k of Object.keys(c.auraBuffs))
-        if (!G.s.cards[k] || G.s.cards[k].zone !== 'battlefield') delete c.auraBuffs[k];
-  }
-  const died = [];
+}
+
+// ------------------------------------------------------------ legend rule
+export function isLegendary(c) {
+  if (c.notLegendary || c.faceDown) return false;
+  return /\bLegendary\b/.test(typeLine(c).split('—')[0]);
+}
+const oracleOf = (c) => oracle(c);
+
+export function legendViolations() {
+  const out = [];
+  const field = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')];
+  if (field.some((c) => !c.faceDown && /The "legend rule" doesn't apply\.|The “legend rule” doesn’t apply\./i.test(oracleOf(c)))) return out;
   for (const pid of ['p', 'ai']) {
+    if (cardsIn(pid, 'battlefield').some((c) => !c.faceDown && /legend rule["”] doesn['’]t apply to permanents you control/i.test(oracleOf(c)))) continue;
+    const groups = {};
     for (const c of cardsIn(pid, 'battlefield')) {
-      if (isCreature(c) && isDead(c)) died.push(c);
+      if (!isLegendary(c)) continue;
+      const nm = cardName(c);
+      (groups[nm] = groups[nm] || []).push(c);
+    }
+    for (const [nm, cs] of Object.entries(groups)) {
+      if (cs.length < 2) continue;
+      if (cs.length === 2 && cs.some((c) => /exactly two permanents named[^.]*legend rule["”] doesn['’]t apply/i.test(oracleOf(c)))) continue;
+      out.push({ controller: pid, name: nm, ids: cs.map((c) => c.iid) });
     }
   }
-  for (const c of died) {
-    const name = nameTag(c);
-    const isCmd = c.isCommander;
-    move(c.iid, 'graveyard');
-    log(c.controller === 'p' || c.owner === 'p' ? 'p' : 'ai', `${name} dies${isCmd ? ' (to the command zone)' : ''}.`);
+  return out;
+}
+
+const legendAsked = new Set();
+function legendRule() {
+  for (const v of legendViolations()) {
+    if (v.controller === 'ai') {
+      const cs = v.ids.map((i) => G.s.cards[i]);
+      const score = (c) => Object.values(c.counters || {}).reduce((a, b) => a + b, 0) * 2 +
+        Object.values(G.s.cards).filter((o) => o.attachedTo === c.iid).length * 3 + v.ids.indexOf(c.iid) * 0.1;
+      cs.sort((a, b) => score(b) - score(a));
+      for (const c of cs.slice(1)) {
+        log('ai', `Legend rule: the AI keeps one ${nameTag(c)} and puts the other into the graveyard.`);
+        move(c.iid, 'graveyard');
+      }
+    } else {
+      const key = v.ids.slice().sort().join(',');
+      if (legendAsked.has(key)) continue;
+      legendAsked.add(key);
+      if (G.settings.arenaMode) queueEvent({ type: 'legendRule', controller: 'p', ids: v.ids, name: v.name });
+      else log('p', `Legend rule: you control ${v.ids.length} copies of ${esc(v.name)} — keep one and put the rest into the graveyard.`);
+    }
   }
-  for (const pid of ['p', 'ai']) checkLoss(pid);
-  return died.length;
 }
 
 // Put a card onto the battlefield, choosing a free spot for the player's side.
@@ -365,10 +698,10 @@ export const CARD_W = 88;
 export const CARD_H = 123;
 
 export function freeSpot(c) {
-  const land = c && isLand(c);
-  const taken = cardsIn('p', 'battlefield').filter((o) => o.iid !== c.iid && o.x !== null);
-  const W = window.__fieldWidth || 900;
-  const H = window.__fieldHeight || 360;
+  const land = c && isLand(c) && !isCreature(c);
+  const taken = allOnField('p').filter((o) => o.iid !== c.iid && o.x !== null);
+  const W = (typeof window !== 'undefined' && window.__fieldWidth) || 900;
+  const H = (typeof window !== 'undefined' && window.__fieldHeight) || 360;
   const stepX = CARD_W + 10;
   const rows = land
     ? [Math.max(8, H - CARD_H - 10), Math.max(8, H - CARD_H * 2 - 22)]
@@ -386,34 +719,67 @@ export function commanderTax(pid, iid) {
   return (G.s.players[pid].tax[iid] || 0) * 2;
 }
 
+// Tokens, doubled by Parallel Lives / Doubling Season style effects.
 export function createToken(defId, pid, n = 1, opts = {}) {
   const made = [];
-  for (let k = 0; k < n; k++) {
-    const iid = makeCard(defId, pid, null, { token: true });
-    toBattlefield(iid, pid, opts);
+  let count = n;
+  if (!opts.noDouble) for (let k = 0; k < repl('tokenDouble', pid); k++) count *= 2;
+  for (let k = 0; k < count; k++) {
+    const iid = makeCard(defId, pid, null, { token: true, ...(opts.extra || {}) });
+    toBattlefield(iid, pid, { tapped: opts.tapped });
     made.push(iid);
   }
+  if (made.length) queueEvent({ type: 'tokensCreated', pid, ids: made });
   return made;
 }
 
-// Generic token used when the real token isn't known.
+// Generic tokens used when the real token isn't known.
 const ARTIFACT_TOKENS = {
-  Treasure: '{T}, Sacrifice this artifact: Add one mana of any color.',
-  Clue: '{2}, Sacrifice this artifact: Draw a card.',
-  Food: '{2}, {T}, Sacrifice this artifact: You gain 3 life.',
-  Blood: '{1}, {T}, Discard a card, Sacrifice this artifact: Draw a card.',
-  Map: '{1}, {T}, Sacrifice this artifact: Target creature you control explores. Activate only as a sorcery.',
+  Treasure: ['Artifact', '{T}, Sacrifice this artifact: Add one mana of any color.'],
+  Clue: ['Artifact', '{2}, Sacrifice this artifact: Draw a card.'],
+  Food: ['Artifact', '{2}, {T}, Sacrifice this artifact: You gain 3 life.'],
+  Blood: ['Artifact', '{1}, {T}, Discard a card, Sacrifice this artifact: Draw a card.'],
+  Map: ['Artifact', '{1}, {T}, Sacrifice this artifact: Target creature you control explores. Activate only as a sorcery.'],
+  Powerstone: ['Artifact', "{T}: Add {C}. This mana can't be spent to cast a nonartifact spell."],
+  Gold: ['Artifact', 'Sacrifice this artifact: Add one mana of any color.'],
+  Junk: ['Artifact', '{T}, Sacrifice this artifact: Exile the top card of your library. You may play that card this turn. Activate only as a sorcery.'],
+  Shard: ['Enchantment', '{2}, Sacrifice this enchantment: Scry 1, then draw a card.'],
+  Lander: ['Artifact', '{2}, {T}, Sacrifice this artifact: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.'],
+  Mutagen: ['Artifact', '{1}, {T}, Sacrifice this artifact: Put a +1/+1 counter on target creature. Activate only as a sorcery.'],
 };
-export function genericTokenDef(p, t, label, color) {
-  const artifact = ARTIFACT_TOKENS[label];
-  const id = artifact ? `gen-${label}` : `gen-${p}-${t}-${label}`.replace(/\s+/g, '_');
+const ROLE_TOKENS = {
+  Monster: 'Enchant creature\nEnchanted creature gets +1/+1 and has trample.',
+  Royal: 'Enchant creature\nEnchanted creature gets +1/+1 and has ward {1}.',
+  Sorcerer: 'Enchant creature\nEnchanted creature gets +1/+1 and has "Whenever this creature attacks, scry 1."',
+  Virtuous: 'Enchant creature\nEnchanted creature gets +1/+1 for each enchantment you control.',
+  Wicked: 'Enchant creature\nEnchanted creature gets +1/+1.\nWhen this Aura is put into a graveyard from the battlefield, each opponent loses 1 life.',
+  'Young Hero': 'Enchant creature\nEnchanted creature has "Whenever this creature attacks, if its toughness is 3 or less, put a +1/+1 counter on it."',
+  Cursed: 'Enchant creature\nEnchanted creature has base power and toughness 1/1.',
+};
+export function genericTokenDef(p, t, label, color, extra = {}) {
+  const art = ARTIFACT_TOKENS[label];
+  const role = ROLE_TOKENS[label.replace(/ Role$/, '')];
+  const id = art ? `gen-${label}` : role ? `gen-role-${label}` : `gen-${p}-${t}-${label}-${(extra.keywords || []).join('_')}-${extra.types || ''}`.replace(/\s+/g, '_');
   if (!DB[id]) {
-    const typeLine = artifact ? `Token Artifact — ${label}` : `Token Creature — ${label}`;
+    let typeLine;
+    let oracleText = '';
+    if (art) {
+      typeLine = `Token ${art[0]} — ${label}`;
+      oracleText = art[1];
+    } else if (role) {
+      typeLine = `Token Enchantment — Aura Role`;
+      oracleText = role;
+    } else {
+      typeLine = `Token ${extra.types ? extra.types + ' ' : ''}Creature — ${label}`;
+      oracleText = (extra.keywords || []).map((k) => k[0].toUpperCase() + k.slice(1)).join(', ');
+    }
+    const name = role ? `${label.replace(/ Role$/, '')} Role` : label;
     DB[id] = {
-      id, name: label, layout: 'token', cmc: 0, manaCost: '', typeLine,
-      colors: color ? [color] : [], ci: [], keywords: [], produced: label === 'Treasure' ? ['W', 'U', 'B', 'R', 'G'] : [],
+      id, name, layout: 'token', cmc: 0, manaCost: '', typeLine,
+      colors: color ? [].concat(color) : [], ci: [], keywords: (extra.keywords || []).map((k) => k.toLowerCase()),
+      produced: label === 'Treasure' || label === 'Gold' ? ['W', 'U', 'B', 'R', 'G'] : label === 'Powerstone' ? ['C'] : [],
       tokens: [], doubleFaced: false, isToken: true,
-      faces: [{ name: label, manaCost: '', typeLine, oracle: artifact || '', power: artifact ? undefined : String(p), toughness: artifact ? undefined : String(t), img: null, imgLarge: null }],
+      faces: [{ name, manaCost: '', typeLine, oracle: oracleText, power: art || role ? undefined : String(p), toughness: art || role ? undefined : String(t), img: null, imgLarge: null }],
     };
   }
   return id;

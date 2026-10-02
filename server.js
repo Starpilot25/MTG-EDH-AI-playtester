@@ -54,6 +54,7 @@ function trimCard(c) {
     power: f.power,
     toughness: f.toughness,
     loyalty: f.loyalty,
+    defense: f.defense,
     image_uris: f.image_uris ? { normal: f.image_uris.normal, large: f.image_uris.large } : undefined,
   });
   return {
@@ -68,6 +69,7 @@ function trimCard(c) {
     power: c.power,
     toughness: c.toughness,
     loyalty: c.loyalty,
+    defense: c.defense,
     colors: c.colors || (c.card_faces && c.card_faces[0].colors) || [],
     color_identity: c.color_identity || [],
     keywords: c.keywords || [],
@@ -160,6 +162,7 @@ async function fetchMoxfield(id) {
     const d = await res.json();
     const commanders = [];
     const main = [];
+    const companions = [];
     const collect = (board, into) => {
       if (!board) return;
       const cards = board.cards || board; // v3: {cards:{...}}  v2: {...}
@@ -171,13 +174,14 @@ async function fetchMoxfield(id) {
     };
     if (d.boards) {
       collect(d.boards.commanders, commanders);
-      collect(d.boards.companions, main);
+      collect(d.boards.companions, companions);
       collect(d.boards.mainboard, main);
     } else {
       collect(d.commanders, commanders);
+      collect(d.companions, companions);
       collect(d.mainboard, main);
     }
-    return { name: d.name || 'Moxfield deck', commanders, main };
+    return { name: d.name || 'Moxfield deck', commanders, main, companions };
   }
   throw new Error(
     lastStatus === 403 || lastStatus === 429
@@ -198,6 +202,7 @@ async function fetchArchidekt(id) {
   }
   const commanders = [];
   const main = [];
+  const companions = [];
   for (const e of d.cards || []) {
     const cats = (e.categories || []).map((c) => String(typeof c === 'string' ? c : c.name).toLowerCase());
     const card = e.card || {};
@@ -206,11 +211,12 @@ async function fetchArchidekt(id) {
     const set = card.edition && card.edition.editioncode;
     const cn = card.collectorNumber;
     if (cats.includes('commander')) commanders.push(entry(name, e.quantity, set, cn));
+    else if (cats.includes('companion')) companions.push(entry(name, e.quantity, set, cn));
     else if (cats.length && cats.every((c) => excluded.has(c))) continue;
     else if (cats[0] && excluded.has(cats[0])) continue;
     else main.push(entry(name, e.quantity, set, cn));
   }
-  return { name: d.name || 'Archidekt deck', commanders, main };
+  return { name: d.name || 'Archidekt deck', commanders, main, companions };
 }
 
 async function fetchDeck(url) {

@@ -16,6 +16,7 @@ export function normalize(c) {
     power: f.power,
     toughness: f.toughness,
     loyalty: f.loyalty,
+    defense: f.defense,
     img: img(f) || img(c),
     imgLarge: imgL(f) || imgL(c),
   }));
@@ -43,10 +44,12 @@ export function normalize(c) {
 // ------------------------------------------------------------ decklist text
 const SKIP_SECTIONS = /^(sideboard|maybeboard|maybe|considering|tokens?)\b/i;
 const CMD_SECTIONS = /^(commanders?|command zone)\b/i;
-const MAIN_SECTIONS = /^(deck|main|mainboard|main deck|library|companion)\b/i;
+const MAIN_SECTIONS = /^(deck|main|mainboard|main deck|library)\b/i;
+const COMPANION_SECTIONS = /^companions?\b/i;
 
 export function parseDecklist(text) {
   const commanders = [];
+  const companions = [];
   const main = [];
   let section = 'main';
   let sawBlankAfterMain = false;
@@ -60,6 +63,7 @@ export function parseDecklist(text) {
     if (line.startsWith('//') || line.startsWith('#')) {
       const h = line.replace(/^\/\/\s*|^#+\s*/, '');
       if (CMD_SECTIONS.test(h)) section = 'cmd';
+      else if (COMPANION_SECTIONS.test(h)) section = 'companion';
       else if (SKIP_SECTIONS.test(h)) section = 'skip';
       else if (MAIN_SECTIONS.test(h)) section = 'main';
       continue;
@@ -67,6 +71,7 @@ export function parseDecklist(text) {
     const header = line.replace(/:$/, '');
     if (!/^\d/.test(header) && header.split(' ').length <= 3) {
       if (CMD_SECTIONS.test(header)) { section = 'cmd'; continue; }
+      if (COMPANION_SECTIONS.test(header)) { section = 'companion'; continue; }
       if (SKIP_SECTIONS.test(header)) { section = 'skip'; continue; }
       if (MAIN_SECTIONS.test(header)) { section = 'main'; continue; }
     }
@@ -82,10 +87,11 @@ export function parseDecklist(text) {
     if (!e) continue;
     if (section === 'skip') continue;
     if (isCmdTag || section === 'cmd') commanders.push(e);
+    else if (section === 'companion') companions.push(e);
     else main.push(e);
   }
   void sawBlankAfterMain;
-  return { commanders, main };
+  return { commanders, main, companions };
 }
 
 function parseLine(line) {
@@ -143,16 +149,21 @@ export async function searchTokens(q) {
 // Resolve a parsed deck ({name, commanders, main}) into card definitions.
 // Returns {name, commanders:[defId], cards:[defId,... one per copy], missing:[names]}
 export async function resolveDeck(parsed) {
-  const all = [...parsed.commanders.map((e) => ({ ...e, cmd: true })), ...parsed.main];
+  const all = [
+    ...parsed.commanders.map((e) => ({ ...e, cmd: true })),
+    ...(parsed.companions || []).map((e) => ({ ...e, companion: true })),
+    ...parsed.main,
+  ];
   const idents = all.map((e) =>
     e.set && e.collector_number ? { name: e.name, set: e.set, collector_number: e.collector_number } : { name: e.name }
   );
   const defs = await fetchCards(idents);
-  const out = { name: parsed.name || 'Deck', commanders: [], cards: [], missing: [] };
+  const out = { name: parsed.name || 'Deck', commanders: [], companions: [], cards: [], missing: [] };
   all.forEach((e, i) => {
     const d = defs[i];
     if (!d) return out.missing.push(e.name);
     if (e.cmd) out.commanders.push(d.id);
+    else if (e.companion && /(?:^|\n)Companion —/.test(d.faces[0].oracle || '')) out.companions.push(d.id);
     else for (let k = 0; k < (e.qty || 1); k++) out.cards.push(d.id);
   });
   // Pre-load the tokens these cards can make, so the AI (and the token menu) can use them.

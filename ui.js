@@ -6,15 +6,20 @@ import {
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, esc, snapshot, undo, redo, shuffle, mill, libTop,
   setLife, toBattlefield, createToken, stateBased, commanderTax, cardName, makeCard, CARD_W, CARD_H,
-  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue,
+  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace,
 } from './state.js';
 import {
   hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn,
 } from './game.js';
-import { aiChooser, manaSources } from './ai.js';
-import { T, fire, settle } from './triggers.js';
+import { aiChooser, aiMaybeCounter, aiPay, aiEnv } from './ai.js';
 import {
-  Cancelled, costOf, etbText, spellText, resolveEffects, attachAura, attachTo, activatedAbilities, canTarget,
+  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, landOptions, playLand, landsAllowed, applyPayment,
+  activateAbility, useZoneAbility, turnFaceUp, companionToHand,
+} from './cast.js';
+import { T, fire, settle } from './triggers.js';
+import { DUNGEONS, venture, takeInitiative } from './dungeon.js';
+import {
+  Cancelled, activatedAbilities, zoneAbilities,
 } from './effects.js';
 import { payCost, totalMana } from './rules.js';
 
@@ -65,7 +70,8 @@ function cardHTML(c, opts = {}) {
   if (cb && cb.attackers.includes(c.iid)) cls.push('attacking');
   if (cb && Object.values(cb.blocks).some((b) => b.includes(c.iid))) cls.push('blocking');
   if (cb && cb.selected === c.iid) cls.push('selected');
-  if (G.s.stack && G.s.stack.iid === c.iid) cls.push('on-stack');
+  if ((G.s.stack && G.s.stack.iid === c.iid) || (G.s.pstack && G.s.pstack.iid === c.iid)) cls.push('on-stack');
+  if (respondable(c)) cls.push('playable');
   if (pendingTarget && pendingTarget.req.candidates.includes(c.iid)) cls.push('targetable');
   if (pendingTarget && pendingTarget.req.src && pendingTarget.req.src.iid === c.iid) cls.push('source');
   const style = opts.abs ? `style="left:${c.x}px;top:${c.y}px"` : '';
@@ -151,6 +157,50 @@ function renderTop() {
   $('#btn-redo').disabled = !G.redo.length || run.aiBusy;
 }
 
+function dungeonLine(pid) {
+  const pl = G.s.players[pid];
+  const bits = [];
+  if (G.s.initiative === pid) bits.push('<span class="init" title="Venture into Undercity at your upkeep; whoever deals combat damage to you takes it">Initiative</span>');
+  if (pl.dungeon) {
+    const dg = DUNGEONS[pl.dungeon.name];
+    const k = dg ? dg.order.indexOf(pl.dungeon.room) + 1 : 0;
+    bits.push(`<button class="dg" data-dungeon="${pid}" title="See the dungeon">${esc(pl.dungeon.name.replace(/ of .*/, ''))} · ${esc(pl.dungeon.room)} <small>${k}/${dg ? dg.order.length : '?'}</small></button>`);
+  }
+  if (pl.dungeonsCompleted) bits.push(`<span class="dg-done">${pl.dungeonsCompleted} dungeon${pl.dungeonsCompleted > 1 ? 's' : ''} completed</span>`);
+  return bits.length ? `<div class="dungeon-row">${bits.join('')}</div>` : '';
+}
+
+function dungeonDialog(pid) {
+  const pl = G.s.players[pid];
+  if (!pl.dungeon) return;
+  const dg = DUNGEONS[pl.dungeon.name];
+  openDialog(`<span class="eyebrow">${pid === 'p' ? 'Your' : "The AI's"} dungeon</span><h3>${esc(dg.name)}</h3>
+    <ol class="rooms">${dg.order
+      .map((n) => {
+        const r = dg.rooms[n];
+        const cls = n === pl.dungeon.room ? 'here' : pl.dungeon.visited.includes(n) ? 'been' : '';
+        return `<li class="${cls}"><b>${esc(n)}</b> — ${esc(r.text)}${r.next.length ? `<small>→ ${esc(r.next.join(' or '))}</small>` : '<small>last room</small>'}</li>`;
+      })
+      .join('')}</ol>`);
+}
+
+// Monarch, day/night, speed, the Ring, energy and other player counters, floating mana.
+function statusLine(pid) {
+  const s = G.s;
+  const pl = s.players[pid];
+  const bits = [];
+  if (s.monarch === pid) bits.push('<span class="st monarch" title="Draws a card at the beginning of their end step; combat damage to them steals it">♛ Monarch</span>');
+  if (pl.cityBlessing) bits.push('<span class="st" title="City\'s blessing">City\'s blessing</span>');
+  if (pl.speed) bits.push(`<span class="st" title="Speed">Speed ${pl.speed}${pl.speed >= 4 ? ' (max)' : ''}</span>`);
+  if (pl.ring) bits.push(`<span class="st" title="The Ring has tempted ${pid === 'p' ? 'you' : 'the AI'} ${pl.ring} time(s)">Ring ${pl.ring}</span>`);
+  const names = { energy: 'Energy', experience: 'Experience', rad: 'Rad', ticket: 'Tickets' };
+  for (const [k, v] of Object.entries(pl.counters || {})) if (v) bits.push(`<span class="st">${esc(names[k] || k)} ${v}</span>`);
+  const pool = (s.pool && s.pool[pid]) || [];
+  if (pool.length) bits.push(`<span class="st pool" title="Floating mana (empties between steps)">Pool ${manaSymbols(pool.map((x) => `{${x === 'ANY' ? '*' : x}}`).join(''))}</span>`);
+  if (pid === 'p' && s.dayNight) bits.push(`<span class="st daynight ${s.dayNight}">${s.dayNight === 'day' ? '☀ Day' : '☾ Night'}</span>`);
+  return bits.length ? `<div class="status-row">${bits.join('')}</div>` : '';
+}
+
 function lifeBlock(pid) {
   const pl = G.s.players[pid];
   // Commander damage only comes from creature commanders (not Backgrounds), but keep any row that has damage.
@@ -172,6 +222,8 @@ function lifeBlock(pid) {
       <button class="lval" data-setlife="${pid}" title="Click to set life">${pl.life}</button>
       <button class="lbtn" data-life="${pid}:1" title="+1 (Shift: +5)">+</button>
     </div>
+    ${dungeonLine(pid)}
+    ${statusLine(pid)}
     <div class="subcounters">
       <div class="poison" title="Poison counters"><span class="lbl">poison</span>
         <button class="mini" data-poison="${pid}:-1" aria-label="Less poison">−</button><b>${pl.poison}</b><small>/10</small>
@@ -275,16 +327,19 @@ function renderBanner() {
         ${r.optional ? '<button data-act="tgt-skip">No target</button>' : ''}
         ${r.forced ? '' : '<button data-act="tgt-cancel">Cancel <kbd>Esc</kbd></button>'}
       </div></div>`;
-  } else if (s.stack && s.stack.by === 'p') {
-    html = `<div class="thinking"><span class="spinner"></span>Resolving ${esc(cardName(card(s.stack.iid)))}…</div>`;
+  } else if (s.pstack) {
+    html = `<div class="thinking"><span class="spinner"></span>Resolving ${esc(cardName(card(s.pstack.iid)))}…</div>`;
   } else if (s.stack) {
     const c = card(s.stack.iid);
+    const arena = G.settings.arenaMode;
+    const responses = arena ? cardsIn('p', 'hand').concat(cardsIn('p', 'command')).filter(respondable).length : 0;
     html = `<div class="stack">
       <div class="stack-card">${cardHTML(c)}</div>
       <div class="stack-copy"><span class="eyebrow">AI is casting</span><h3>${esc(cardName(c))}</h3>
       <p>${esc(oracle(c)).replace(/\n/g, '<br>')}</p>
+      ${arena ? `<p class="hint">${responses ? `You have ${responses} instant-speed card${responses > 1 ? 's' : ''} you can afford (glowing in your hand) — double-click one to respond, or let it resolve.` : 'You have nothing you can cast in response.'}</p>` : ''}
       <div class="btns"><button class="primary" data-act="resolve">Let it resolve <kbd>Enter</kbd></button>
-      <button data-act="counter">Counter it</button></div></div></div>`;
+      ${arena ? '' : '<button data-act="counter" title="Tabletop mode: counter it by hand">Counter it</button>'}</div></div></div>`;
   } else if (s.combat && s.combat.by === 'p') {
     const cb = s.combat;
     if (cb.stage === 'declare') {
@@ -371,12 +426,33 @@ hooks.wait = (ms) => new Promise((r) => setTimeout(r, ms));
 hooks.respond = (iid) => {
   setPreview(iid, null);
   if (!G.settings.pauseOnAiSpells) return new Promise((r) => setTimeout(() => r('resolve'), Math.max(500, G.settings.aiSpeed)));
-  return new Promise((r) => (pendingRespond = r));
+  return new Promise((r) => {
+    pendingRespond = r;
+    render(); // light up the cards you can respond with
+  });
 };
 hooks.askBlocks = () =>
   new Promise((r) => {
     pendingBlocks = r;
     render();
+  });
+// Attacking planeswalkers and battles: choose what each attacker goes after.
+hooks.attackTargets = (attackers, options) =>
+  new Promise((resolve) => {
+    const sel = (iid) => `<select data-atk="${iid}">${options.map((o) => `<option value="${o.id}">${esc(o.label)}</option>`).join('')}</select>`;
+    const dlg = openDialog(`<span class="eyebrow">Declare attackers</span><h3>What is each creature attacking?</h3>
+      <div class="atk-targets">${attackers.map((i) => `<label class="atk-row"><span>${esc(cardName(card(i)))} <small>${power(card(i))}/${toughness(card(i))}</small></span>${sel(i)}</label>`).join('')}</div>
+      <div class="btns"><button class="primary" id="at-ok">Attack</button><button id="at-cancel">Back</button></div>`, { onClose: () => resolve(null) });
+    $('#at-ok', dlg).addEventListener('click', () => {
+      const out = {};
+      $$('select[data-atk]', dlg).forEach((el) => (out[el.dataset.atk] = el.value));
+      closeDialog(true);
+      resolve(out);
+    });
+    $('#at-cancel', dlg).addEventListener('click', () => {
+      closeDialog(true);
+      resolve(null);
+    });
   });
 hooks.turnStarted = (pid) => {
   if (pid === 'p') flash('Your turn');
@@ -427,6 +503,76 @@ export const playerChooser = {
   scry({ n: count, surveil }) {
     return scryDialog(count, surveil ? 'surveil' : 'scry', true);
   },
+  choose(req) {
+    return new Promise((resolve) => {
+      const dlg = openDialog(`<h3>${esc(req.prompt)}</h3>
+        <div class="choices">${req.options
+          .map((o, k) => `<button class="choice" data-k="${k}"><b>${esc(o.label)}</b>${o.detail ? `<span>${esc(o.detail)}</span>` : ''}</button>`)
+          .join('')}</div>`, { noClose: true });
+      dlg.addEventListener('click', (e) => {
+        const b = e.target.closest('.choice');
+        if (!b) return;
+        closeDialog(true);
+        resolve(+b.dataset.k);
+      });
+    });
+  },
+  async payUnless(amount, what, ward) {
+    const src = manaSources('p');
+    const pay = payCost(`{${amount}}`, src);
+    if (!pay) return false;
+    const body = ward ? `${what} — pay {${amount}} or your spell or ability is countered.` : `${what} — pay {${amount}} or your spell is countered.`;
+    const yes = await confirmDialog({ title: `Pay {${amount}}?`, body }, `Pay {${amount}}`, 'Let it be countered');
+    if (yes) applyPayment('p', pay);
+    return yes;
+  },
+  confirm(title, body, info = {}) {
+    const extra = info && info.cost ? ` (${String(info.cost).replace(/[{}]/g, '')})` : '';
+    return confirmDialog({ title, body }, info && info.cost ? `Pay${extra}` : 'Yes', info && info.cost ? "Don't" : 'No');
+  },
+  chooseNumber(req) {
+    return askNumber(req.prompt, req.min ?? 0, { min: req.min ?? 0 }).then((v) => {
+      if (v === null) throw new Cancelled();
+      return Math.max(req.min ?? 0, Math.min(req.max ?? 99, v));
+    });
+  },
+  chooseModes(req) {
+    return new Promise((resolve, reject) => {
+      const chosen = [];
+      const dlg = openDialog(`<span class="eyebrow">${esc(req.src ? cardName(req.src) : '')}</span><h3>${esc(req.prompt)}</h3>
+        <div class="choices modes">${req.modes
+          .map((m, k) => `<button class="choice" data-k="${k}"><b>${esc(m.replace(/~/g, req.src ? cardName(req.src).split(',')[0] : 'it'))}</b></button>`)
+          .join('')}</div>
+        ${req.escalate ? `<p class="hint">Escalate: each mode after the first costs ${esc(req.escalate)} more.</p>` : ''}
+        <div class="btns"><button class="primary" id="md-ok"></button><button id="md-cancel">Cancel</button></div>`, { noClose: true });
+      const sync = () => {
+        $$('.choice', dlg).forEach((b) => b.classList.toggle('on', chosen.includes(+b.dataset.k)));
+        const ok = $('#md-ok', dlg);
+        ok.disabled = chosen.length < (req.min ?? 1) || chosen.length > req.max;
+        ok.textContent = chosen.length ? `Choose ${chosen.length}` : 'Choose';
+      };
+      dlg.addEventListener('click', (e) => {
+        const b = e.target.closest('.choice');
+        if (!b) return;
+        const k = +b.dataset.k;
+        if (chosen.includes(k)) chosen.splice(chosen.indexOf(k), 1);
+        else {
+          if (req.max === 1) chosen.length = 0;
+          if (chosen.length < req.max) chosen.push(k);
+        }
+        sync();
+      });
+      $('#md-ok', dlg).addEventListener('click', () => {
+        closeDialog(true);
+        resolve(chosen.sort((a, b) => a - b));
+      });
+      $('#md-cancel', dlg).addEventListener('click', () => {
+        closeDialog(true);
+        reject(new Cancelled());
+      });
+      sync();
+    });
+  },
 };
 hooks.playerChooser = playerChooser;
 T.choosers = { p: playerChooser, ai: aiChooser };
@@ -455,7 +601,8 @@ function pickCardsDialog(req, resolve, reject) {
   const groups = [];
   for (const iid of req.cards) {
     const c = card(iid);
-    const key = c.def + ':' + (c.face || 0);
+    // legend-rule choices show every copy separately (their counters may differ)
+    const key = req.purpose === 'legend' ? iid : c.def + ':' + (c.face || 0);
     let g = groups.find((x) => x.key === key);
     if (!g) groups.push((g = { key, ids: [] }));
     g.ids.push(iid);
@@ -544,31 +691,63 @@ function canActNow() {
   return !!(pendingRespond || pendingBlocks);
 }
 
-// Pay a mana cost with your untapped lands, rocks and dorks. Returns tapped iids, or null if cancelled.
-async function autoPay(cost, label, opts = {}) {
-  const src = manaSources('p').filter((m) => !(opts.exclude || []).includes(m.iid));
+// Pay a mana cost with your mana pool, untapped lands, rocks and dorks (and convoke/delve/improvise
+// when the spell has them). Returns {payers, special, sacs, x}, or null if cancelled.
+async function playerPay(pid, cost, label, opts = {}) {
+  if (pid !== 'p') return aiPay(pid, cost, label, opts);
+  cost = cost || '';
+  const src = manaSources('p', opts).filter((m) => !(opts.exclude || []).includes(m.iid));
   const extra = opts.extraGeneric || 0;
   let x = 0;
   let pay;
   if (/\{X\}/.test(cost)) {
     const xs = (cost.match(/\{X\}/g) || []).length;
-    const base = payCost(cost.replace(/\{X\}/g, ''), src, { extraGeneric: extra });
-    const max = base ? Math.floor((totalMana(src) - base.payers.length) / xs) : 0;
-    const v = await askNumber(`Choose X for ${label}`, Math.max(0, max), { min: 0, hint: `Your untapped mana can pay up to X = ${Math.max(0, max)}.` });
-    if (v === null) return null;
-    x = v;
+    if (opts.xFixed !== undefined) x = opts.xFixed;
+    else {
+      const base = payCost(cost.replace(/\{X\}/g, ''), src, { extraGeneric: extra });
+      const used = base ? base.payers.length + base.special.length : 0;
+      const max = base ? Math.floor((totalMana(src) - used) / xs) : 0;
+      const v = await askNumber(`Choose X for ${label}`, Math.max(0, max), { min: 0, hint: `Your untapped mana can pay up to X = ${Math.max(0, max)}.` });
+      if (v === null) return null;
+      x = v;
+    }
     pay = payCost(cost.replace(/\{X\}/g, ''), src, { extraGeneric: extra + x * xs });
   } else pay = payCost(cost, src, { extraGeneric: extra });
   if (!pay) {
+    const shown = (cost.replace(/[{}]/g, '') || '0') + (extra > 0 ? ` + ${extra}` : extra < 0 ? ` − ${-extra}` : '');
     const ok = await confirmDialog(
-      { title: 'Not enough mana', body: `You can't pay ${cost.replace(/[{}]/g, '') || '0'}${extra ? ` + ${extra} commander tax` : ''} for ${label} with your untapped permanents.` },
+      { title: 'Not enough mana', body: `You can't pay ${shown} for ${label} with your untapped permanents.` },
       'Do it anyway', 'Cancel'
     );
     if (!ok) return null;
-    pay = { payers: [] };
+    pay = { payers: [], special: [], sacs: [] };
   }
-  return { payers: pay.payers, x };
+  return { ...pay, x };
 }
+
+function playerEnv(extra = {}) {
+  return {
+    choosers: { p: playerChooser, ai: aiChooser },
+    pay: playerPay,
+    render: () => render(),
+    wait: (ms) => hooks.wait(ms),
+    aiCounter: (spell) => aiMaybeCounter(spell, hooks),
+    say: (text) => {
+      toast(text);
+      return false;
+    },
+    ...extra,
+  };
+}
+hooks.payFor = playerPay;
+hooks.envFor = (pid) => (pid === 'p' ? playerEnv() : aiEnv(hooks));
+T.castFree = (pid, iid, o = {}) => castFree(pid, iid, hooks.envFor(pid), o);
+T.payMana = async (pid, cost, label) => {
+  const p = await hooks.envFor(pid).pay(pid, cost, label, {});
+  if (!p) return false;
+  applyPayment(pid, p);
+  return true;
+};
 
 // Run fn with an undo point; if the player cancels (Esc / Cancel), roll everything back.
 async function withRollback(fn) {
@@ -584,15 +763,15 @@ async function withRollback(fn) {
     await fn();
   } catch (e) {
     if (!(e instanceof Cancelled)) throw e;
-    eventQueue.length = queued; // the cancelled spell never happened, so nothing triggers
-    G.s = JSON.parse(G.undo[depth - 1]);
+    if (eventQueue.length > queued) eventQueue.length = queued; // the cancelled spell never happened, so nothing triggers
+    restoreInPlace(G.undo[depth - 1]); // same object, so a paused AI turn carries on
     G.undo.length = depth - 1;
     G.redo = [];
     toast('Cancelled');
   } finally {
     casting = false;
     pendingTarget = null;
-    if (G.s.stack && G.s.stack.by === 'p') G.s.stack = null;
+    if (G.s) G.s.pstack = null;
     stateBased();
     render();
     refreshViewer();
@@ -601,47 +780,73 @@ async function withRollback(fn) {
 
 async function castByPlayer(iid, opts = {}) {
   await castInner(iid, opts);
+  // your counterspell hit the AI's spell: let the AI's turn move on
+  if (G.s.stack && G.s.stack.countered && pendingRespond) {
+    const r = pendingRespond;
+    pendingRespond = null;
+    r('resolve');
+  }
   settle();
+}
+
+// Cards that glow while the AI waits on you: things you can cast right now and afford.
+function respondable(c) {
+  if (!G.settings.arenaMode || !G.s || c.owner !== 'p' || !['hand', 'command', 'graveyard', 'exile'].includes(c.zone)) return false;
+  if (!(pendingRespond || pendingBlocks)) return false;
+  return castOptions('p', c).some((o) => timingOk('p', c, o) && affordable(c, o));
+}
+function affordable(c, o) {
+  const eff = effectiveCost('p', c, o);
+  return !!payCost((o.cost || '').replace(/\{X\}/g, ''), manaSources('p', { convoke: hasKw(c, 'convoke'), improvise: hasKw(c, 'improvise'), delve: hasKw(c, 'delve'), self: c.iid }), { extraGeneric: eff.generic });
+}
+
+// Pick one of several ways to cast a card (adventure, flashback, dash, kicker-less…).
+function chooseOption(c, options) {
+  if (options.length === 1) return Promise.resolve(options[0]);
+  return new Promise((resolve) => {
+    const dlg = openDialog(`<span class="eyebrow">${esc(cardName(c))}</span><h3>How do you want to play it?</h3>
+      <div class="choices">${options
+        .map((o, k) => `<button class="choice" data-k="${k}"><b>${esc(o.label)}</b>${o.cost ? `<span>${manaSymbols(o.cost)}</span>` : ''}${o.why ? `<span>${esc(o.why)}</span>` : ''}</button>`)
+        .join('')}</div>`, { onClose: () => resolve(null) });
+    dlg.addEventListener('click', (e) => {
+      const b = e.target.closest('.choice');
+      if (!b) return;
+      closeDialog(true);
+      resolve(options[+b.dataset.k]);
+    });
+  });
 }
 
 async function castInner(iid, opts = {}) {
   const c = card(iid);
   if (!c) return;
-  const d = DB[c.def];
-  if (!G.settings.arenaMode || isLand(c) || opts.faceDown || opts.tapped || opts.free) return playFromHand(iid, opts);
+  if (!G.settings.arenaMode || opts.faceDown || opts.tapped || opts.free) return playFromHand(iid, opts);
   if (!canActNow()) return toast('Wait until the AI gives you a chance to respond.');
-  const fromCmd = c.zone === 'command';
-  const tax = fromCmd ? commanderTax('p', iid) : 0;
+  if (G.s.pstack) return toast('Finish the spell you are casting first.');
   const name = cardName(c);
-  const paid = await autoPay(costOf(c), name, { extraGeneric: tax });
-  if (!paid) return;
-  await withRollback(async () => {
-    paid.payers.forEach((i) => card(i) && (card(i).tapped = true));
-    if (fromCmd) G.s.players.p.tax[iid] = (G.s.players.p.tax[iid] || 0) + 1;
-    G.s.stack = { iid, by: 'p' };
-    log('p', `You cast ${nameTag(c)}${fromCmd ? ` from the command zone (tax now +${commanderTax('p', iid)})` : ''}${paid.x ? ` (X = ${paid.x})` : ''}.`);
-    fire({ type: 'cast', iid, def: c.def, controller: 'p' });
-    render();
-    const ctx = { me: 'p', x: paid.x, choosers: { p: playerChooser, ai: aiChooser } };
-    if (isPermanentCard(d)) {
-      // Auras pick their creature while still on the stack
-      let auraDid = [];
-      if (hasSubtype(c, 'Aura')) auraDid = await attachAura(c, 'p', playerChooser);
-      G.s.stack = null;
-      toBattlefield(iid, 'p', opts.pos || {});
-      if (isType(c, 'Planeswalker')) c.counters.loyalty = parseInt(face(c).loyalty, 10) || 0;
-      if (auraDid.length) log('p', `${nameTag(c)} ${auraDid.join('; ')}.`);
-      const etb = etbText(c);
-      if (etb) {
-        render();
-        const did = await resolveEffects(etb, c, ctx);
-        log('p', did.length ? `${nameTag(c)} enters: ${did.join('; ')}.` : `${nameTag(c)} has an enters ability that isn't automated — apply it by hand.`);
-      }
-    } else {
-      const did = await resolveEffects(spellText(c), c, ctx);
-      move(iid, 'graveyard');
-      log('p', did.length ? `${nameTag(c)} resolves: ${did.join('; ')}.` : `${nameTag(c)} resolves — its effect isn't automated, apply it by hand.`);
+  // lands (and the land side of modal double-faced cards)
+  const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p') ? landOptions('p', c) : [];
+  const casts = castOptions('p', c);
+  const options = [
+    ...lands.map((l) => ({ ...l, land: true, label: l.label })),
+    ...casts,
+  ];
+  if (!options.length) return toast(`There's no way to cast ${name} from here — use the right-click menu to move it by hand.`);
+  const opt = opts.option || (await chooseOption(c, options));
+  if (!opt) return;
+  if (opt.land) {
+    const s = G.s;
+    if (!(s.active === 'p' && (s.step === 'main1' || s.step === 'main2') && !s.stack && !run.aiBusy)) return toast('Lands can only be played in your main phase.');
+    if ((s.landsPlayed || 0) >= landsAllowed('p')) {
+      const ok = await confirmDialog({ title: 'Extra land?', body: "You've already played your land for this turn." }, 'Play it anyway', 'Cancel');
+      if (!ok) return;
     }
+    act(() => playLand('p', iid, opt.face, opts.pos || {}));
+    return;
+  }
+  if (!timingOk('p', c, opt)) return toast(`${name} can only be cast in your main phase when nothing else is happening.`);
+  await withRollback(async () => {
+    await castSpell('p', iid, opt, playerEnv({ pos: opts.pos }));
   });
 }
 
@@ -652,44 +857,29 @@ async function activate(c, ab) {
 
 async function activateInner(c, ab) {
   if (!canActNow()) return toast('Wait until the AI gives you a chance to respond.');
-  const name = cardName(c);
-  if (ab.kind === 'loyalty') {
-    const loyalty = c.counters.loyalty || 0;
-    if (loyalty + ab.cost < 0) return toast(`${name} doesn't have enough loyalty.`);
-    return withRollback(async () => {
-      c.counters.loyalty = loyalty + ab.cost;
-      log('p', `${nameTag(c)} uses ${ab.label}.`);
-      render();
-      const did = await resolveEffects(ab.text, c, { me: 'p', choosers: { p: playerChooser, ai: aiChooser } });
-      log('p', did.length ? `${nameTag(c)}: ${did.join('; ')}.` : `${nameTag(c)}: apply “${esc(ab.text.slice(0, 80))}” by hand.`);
-      if (c.counters.loyalty <= 0) move(c.iid, 'graveyard');
-    });
-  }
-  if (ab.kind === 'equip') {
-    const cands = cardsIn('p', 'battlefield').filter((x) => isCreature(x) && x.iid !== c.attachedTo);
-    if (!cands.length) return toast('You have no creature to equip.');
-    const paid = await autoPay(ab.mana, `equip ${name}`);
-    if (!paid) return;
-    return withRollback(async () => {
-      paid.payers.forEach((i) => (card(i).tapped = true));
-      const pick = await playerChooser.target({ prompt: `Choose a creature to equip with ${name}`, candidates: cands.map((x) => x.iid), src: c });
-      if (!pick || !pick.iid) throw new Cancelled();
-      attachTo(c, card(pick.iid));
-      log('p', `You equip ${nameTag(c)} to ${nameTag(card(pick.iid))}.`);
-    });
-  }
-  if (ab.tap && c.tapped) return toast(`${name} is already tapped.`);
-  const paid = ab.mana ? await autoPay(ab.mana, name, { exclude: ab.tap ? [c.iid] : [] }) : { payers: [], x: 0 };
-  if (!paid) return;
+  if (ab.sorcery && !(G.s.active === 'p' && (G.s.step === 'main1' || G.s.step === 'main2') && !run.aiBusy)) return toast('Activate only as a sorcery.');
   return withRollback(async () => {
-    paid.payers.forEach((i) => (card(i).tapped = true));
-    if (ab.tap) c.tapped = true;
-    log('p', `You activate ${nameTag(c)}: <i>${esc(ab.costText.replace(/~/g, cardName(c).split(',')[0]))}</i>.`);
-    if (ab.sac) move(c.iid, 'graveyard');
-    render();
-    const did = await resolveEffects(ab.text, c, { me: 'p', x: paid.x, choosers: { p: playerChooser, ai: aiChooser } });
-    log('p', did.length ? `${nameTag(c)}: ${did.join('; ')}.` : `Apply “${esc(ab.text.slice(0, 90))}” by hand.`);
+    const ok = await activateAbility('p', c, ab, playerEnv());
+    if (ok === false) throw new Cancelled();
   });
+}
+
+async function zoneAbility(c, ab) {
+  if (!canActNow()) return toast('Wait until the AI gives you a chance to respond.');
+  if (ab.sorcery && !(G.s.active === 'p' && (G.s.step === 'main1' || G.s.step === 'main2') && !run.aiBusy)) return toast('Only at sorcery speed.');
+  await withRollback(async () => {
+    const ok = await useZoneAbility('p', c.iid, ab, playerEnv());
+    if (ok === false) throw new Cancelled();
+  });
+  settle();
+}
+
+async function specialAction(fn) {
+  await withRollback(async () => {
+    const ok = await fn(playerEnv());
+    if (ok === false) throw new Cancelled();
+  });
+  settle();
 }
 
 // ------------------------------------------------------------ player actions
@@ -706,11 +896,13 @@ function playFromHand(iid, opts = {}) {
     }
     if (isLand(c) && !opts.faceDown) {
       if (G.s.landPlayed && G.s.active === 'p') toast('That is your second land this turn.');
-      if (G.s.active === 'p') G.s.landPlayed = true;
+      if (G.s.active === 'p') {
+        G.s.landsPlayed = (G.s.landsPlayed || 0) + 1;
+        G.s.landPlayed = true;
+      }
     }
     toBattlefield(iid, 'p', { faceDown: !!opts.faceDown, tapped: !!opts.tapped, ...(opts.pos || {}) });
-    if (isType(c, 'Planeswalker') && !opts.faceDown) c.counters.loyalty = parseInt(face(c).loyalty, 10) || 0;
-    log('p', `You ${isLand(c) && !opts.faceDown ? 'play' : 'cast'} ${opts.faceDown ? 'a card face down' : nameTag(c)}${fromCmd ? ` from the command zone (tax now +${commanderTax('p', iid)})` : ''}.`);
+    log('p', `You ${isLand(c) && !opts.faceDown ? 'play' : 'put'} ${opts.faceDown ? 'a card face down' : nameTag(c)}${fromCmd ? ` from the command zone (tax now +${commanderTax('p', iid)})` : ''}${isLand(c) ? '' : ' onto the battlefield'}.`);
   });
 }
 
@@ -1040,14 +1232,24 @@ function menuForCard(c, x, y) {
       const abs = activatedAbilities(c);
       for (const ab of abs) {
         const short = cardName(c).split(',')[0];
-        const label = (ab.kind === 'loyalty' ? `${ab.label}: ${ab.text}` : ab.kind === 'equip' ? `Equip ${ab.mana}` : `${ab.costText}: ${ab.text}`).replace(/~/g, short);
+        const label = (ab.kind === 'loyalty' ? `${ab.label}: ${ab.text}`
+          : ab.kind === 'equip' ? `Equip ${ab.mana}` : ab.kind === 'reconfigure' ? `Reconfigure ${ab.mana}`
+          : ab.kind === 'crew' ? `Crew ${ab.n}` : ab.kind === 'saddle' ? `Saddle ${ab.n}` : ab.kind === 'station' ? 'Station (tap a creature)'
+          : ab.kind === 'levelup' ? `Level up ${ab.mana}` : ab.kind === 'classlevel' ? `${ab.mana}: Level ${ab.level}`
+          : `${ab.costText}: ${ab.text}`).replace(/~/g, short);
         items.push({ label: `<span class="ab">${esc(label.length > 70 ? label.slice(0, 68) + '…' : label)}</span>`, fn: () => activate(c, ab) });
       }
       if (abs.length) items.push('-');
     }
     items.push({ label: c.tapped ? 'Untap' : 'Tap', key: 'T', fn: () => toggleTap(c.iid) });
     if (d.doubleFaced || d.faces.length > 1) items.push({ label: 'Transform / flip', key: 'F', fn: () => act(() => (c.face = c.face ? 0 : 1)) });
-    items.push({ label: c.faceDown ? 'Turn face up' : 'Turn face down', fn: () => act(() => (c.faceDown = !c.faceDown)) });
+    if (c.faceDown && G.settings.arenaMode && /(?:^|\n)(?:Morph|Megamorph|Disguise) \{/.test(oracle({ ...c, faceDown: false }))) {
+      const m = oracle({ ...c, faceDown: false }).match(/(?:^|\n)(Morph|Megamorph|Disguise) ((?:\{[^}]+\})+)/);
+      items.push({ label: `Turn face up — ${m[1]} ${manaSymbols(m[2])}`, fn: () => specialAction((env) => turnFaceUp('p', c, env)) });
+    }
+    if (c.faceDown && G.settings.arenaMode && c.manifested && /Creature/.test(DB[c.def].faces[0].typeLine))
+      items.push({ label: `Turn face up — pay ${manaSymbols(DB[c.def].faces[0].manaCost)}`, fn: () => specialAction((env) => turnFaceUp('p', c, env)) });
+    items.push({ label: c.faceDown ? 'Turn face up (free)' : 'Turn face down', fn: () => act(() => (c.faceDown = !c.faceDown)) });
     items.push('-', ...counterItems(c));
     if (isCreature(c)) {
       items.push({
@@ -1064,25 +1266,43 @@ function menuForCard(c, x, y) {
     items.push({
       label: 'Create a token copy',
       fn: () => act(() => {
-        createToken(c.def, 'p', 1);
+        const [t] = createToken(c.def, 'p', 1);
+        card(t).face = c.face || 0;
         log('p', `You create a token copy of ${nameTag(c)}.`);
       }),
     });
+    if (isLegendary(c))
+      items.push({
+        label: "Create a token copy that isn't legendary",
+        fn: () => act(() => {
+          const [t] = createToken(c.def, 'p', 1);
+          Object.assign(card(t), { face: c.face || 0, notLegendary: true });
+          log('p', `You create a non-legendary token copy of ${nameTag(c)}.`);
+        }),
+      });
     if (G.s.combat && G.s.combat.by === 'p' && G.s.combat.stage === 'declare' && isCreature(c))
       items.push({ label: G.s.combat.attackers.includes(c.iid) ? 'Remove from attack' : 'Attack with this', fn: () => toggleAttacker(c.iid) });
     items.push('-');
   }
+  if (mine && ['hand', 'command', 'graveyard', 'exile'].includes(c.zone) && G.settings.arenaMode) {
+    const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p') ? landOptions('p', c) : [];
+    for (const l of lands) items.push({ label: esc(l.label), fn: () => castByPlayer(c.iid, { option: { ...l, land: true } }) });
+    for (const o of castOptions('p', c)) items.push({ label: `${esc(o.label)}${o.cost && !/\{/.test(o.label) ? ' ' + manaSymbols(o.cost) : ''}`, fn: () => castByPlayer(c.iid, { option: o }) });
+    for (const ab of zoneAbilities(c)) items.push({ label: `<span class="ab">${esc(ab.label)}</span>`, fn: () => zoneAbility(c, ab) });
+    if (c.zone === 'command' && c.isCompanion) items.push({ label: 'Put companion into your hand ({3})', fn: () => specialAction((env) => companionToHand('p', c, env)) });
+    if (items.length > 1) items.push('-');
+  }
   if (c.zone === 'hand' && mine) {
-    items.push({ label: isLand(c) ? 'Play land' : G.settings.arenaMode ? 'Cast' : isPermanentCard(d) ? 'Cast' : 'Cast (to graveyard)', fn: () => castByPlayer(c.iid) });
+    if (!G.settings.arenaMode) items.push({ label: isLand(c) ? 'Play land' : isPermanentCard(d) ? 'Cast' : 'Cast (to graveyard)', fn: () => castByPlayer(c.iid) });
     if (G.settings.arenaMode && !isLand(c))
       items.push({ label: isPermanentCard(d) ? 'Put onto battlefield (no cost, no effects)' : 'Cast without effects (to graveyard)', fn: () => playFromHand(c.iid, { free: true }) });
     if (isPermanentCard(d)) items.push({ label: 'Put onto battlefield tapped', fn: () => playFromHand(c.iid, { tapped: true }) });
-    items.push({ label: 'Play face down', fn: () => playFromHand(c.iid, { faceDown: true }) });
+    items.push({ label: 'Put onto battlefield face down', fn: () => playFromHand(c.iid, { faceDown: true }) });
     items.push({ label: 'Reveal to the log', fn: () => act(() => log('p', `You reveal ${nameTag(c)}.`)) });
     items.push('-');
   }
   if (c.zone === 'command' && mine) {
-    items.push({ label: `Cast commander (tax +${commanderTax('p', c.iid)})`, fn: () => castByPlayer(c.iid) });
+    if (!G.settings.arenaMode && c.isCommander) items.push({ label: `Cast commander (tax +${commanderTax('p', c.iid)})`, fn: () => castByPlayer(c.iid) });
     if (G.settings.arenaMode) items.push({ label: 'Put onto battlefield (no cost)', fn: () => playFromHand(c.iid, { free: true }) });
     items.push('-');
   }
@@ -1417,6 +1637,7 @@ export function bindEvents() {
     }
     const b = t.closest('button');
     if (!b) return;
+    if (b.dataset.dungeon) return dungeonDialog(b.dataset.dungeon);
     if (b.dataset.life) {
       const [pid, d] = b.dataset.life.split(':');
       const delta = +d * (e.shiftKey ? 5 : 1);
