@@ -939,6 +939,1130 @@ ${basics(5, 'Plains')}
 ${basics(5, 'Swamp')}
 ${basics(5, 'Mountain')}`,
   },
+  dft_eternal: {
+    label: 'Eternal Might (Temmet, Naktamun\'s Will)',
+    set: 'Aetherdrift Commander',
+    bracket: 2,
+    text: `Commander
+1 Temmet, Naktamun's Will
+
+Deck
+1 Hashaton, Scarab's Fist
+1 On Wings of Gold
+1 Priest of the Crossing
+1 Renewed Solidarity
+1 Wizened Mentor
+1 Prophet of the Scarab
+1 Rhet-Tomb Mystic
+1 Lost Monarch of Ifnir
+1 Accursed Duneyard
+1 Commence the Endgame
+1 Cryptbreaker
+1 Grave Titan
+1 Gravecrawler
+1 Midnight Reaper
+1 Murderous Rider
+1 Zombie Master
+1 Angel of Sanctions
+1 Dusk // Dawn
+1 God-Eternal Oketra
+1 Timeless Dragon
+1 Champion of Wits
+1 Forgotten Creation
+1 Pull from Tomorrow
+1 Vizier of Many Faces
+1 Archfiend of Ifnir
+1 Cemetery Reaper
+1 Crowded Crypt
+1 Damn
+1 Dread Summons
+1 Dreadhorde Invasion
+1 Liliana, Death's Majesty
+1 Never // Return
+1 Plague Belcher
+1 Rot Hulk
+1 The Scarab God
+1 God-Pharaoh's Gift
+1 Maskwood Nexus
+1 Adarkar Wastes
+1 Caves of Koilos
+1 Drowned Catacomb
+1 Exotic Orchard
+1 Fetid Pools
+1 Glacial Fortress
+1 Irrigated Farmland
+1 Isolated Chapel
+1 Prairie Stream
+1 Sunken Hollow
+1 Temple of Deceit
+1 Temple of Silence
+1 Underground River
+1 Unholy Grotto
+1 Swords to Plowshares
+1 Corpse Augur
+1 Corpse Knight
+1 Arcane Signet
+1 Sol Ring
+1 Command Tower
+1 Path of Ancestry
+1 Binding Mummy
+1 Cast Out
+1 Eternal Skylord
+1 Fleshbag Marauder
+1 Gempalm Polluter
+1 Lord of the Accursed
+1 Twisted Abomination
+1 Undead Augur
+1 Despark
+1 Gleaming Overseer
+1 Lazotep Chancellor
+1 Wayward Servant
+1 Bontu's Monument
+1 Commander's Sphere
+1 Dimir Signet
+1 Gate to the Afterlife
+1 Orzhov Signet
+1 Talisman of Dominance
+1 Talisman of Hierarchy
+1 Arcane Sanctum
+1 Ash Barrens
+1 Desert of the Glorified
+1 Desert of the Mindful
+1 Desert of the True
+1 Evolving Wilds
+1 Orzhov Basilica
+1 Terramorphic Expanse
+${basics(5, 'Plains')}
+${basics(4, 'Island')}
+${basics(5, 'Swamp')}`,
+  },
+  blc_squirrels: {
+    label: 'Squirreled Away (Hazel of the Rootbloom)',
+    set: 'Bloomburrow Commander',
+    bracket: 2,
+    text: `Commander
+1 Hazel of the Rootbloom
+
+Deck
+1 The Odd Acorn Gang
+1 Garruk, Cursed Huntsman
+1 Chittering Witch
+1 Insatiable Frugivore
+1 Moonstone Eulogist
+1 Swarmyard Massacre
+1 Hazel's Brewmaster
+1 Woe Strider
+1 Saw in Half
+1 Ogre Slumlord
+1 Decree of Pain
+1 Gourmand's Talent
+1 Rootcast Apprenticeship
+1 Scurry of Squirrels
+1 End-Raze Forerunners
+1 Arasta of the Endless Web
+1 Deep Forest Hermit
+1 Toski, Bearer of Secrets
+1 Beastmaster Ascension
+1 Second Harvest
+1 Shamanic Revelation
+1 Chatterfang, Squirrel General
+1 Temple of Malady
+1 Casualties of War
+1 Windgrace's Judgment
+1 Maskwood Nexus
+1 Academy Manufactor
+1 Woodland Cemetery
+1 Necroblossom Snarl
+1 Oran-Rief, the Vastwood
+1 Swarmyard
+1 Exotic Orchard
+1 Llanowar Wastes
+1 Grim Backwoods
+1 Viridescent Bog
+1 Twilight Mire
+1 Gilded Goose
+1 Chitterspitter
+1 Maelstrom Pulse
+1 Beledros Witherbloom
+1 Idol of Oblivion
+1 Sword of the Squeak
+1 Morbid Opportunist
+1 Nadier's Nightblade
+1 Plumb the Forbidden
+1 Bastion of Remembrance
+1 Plaguecrafter
+1 Cache Grab
+1 Chatterstorm
+1 Poison-Tip Archer
+1 Moldervine Reclamation
+1 Ravenous Squirrel
+1 Skyfisher Spider
+1 Binding the Old Gods
+1 Golgari Rot Farm
+1 Jungle Hollow
+1 Haunted Mire
+1 Nested Shambler
+1 Deadly Dispute
+1 Zulaport Cutthroat
+1 Squirrel Sovereign
+1 Prosperous Innkeeper
+1 Haywire Mite
+1 Tireless Provisioner
+1 Squirrel Nest
+1 Honored Dreyleader
+1 Tear Asunder
+1 Wolfwillow Haven
+1 Putrefy
+1 Arcane Signet
+1 Golgari Signet
+1 Talisman of Resilience
+1 Sol Ring
+1 Skullclamp
+1 Terramorphic Expanse
+1 Path of Ancestry
+1 Evolving Wilds
+1 Command Tower
+1 Tranquil Thicket
+1 Bojuka Bog
+1 Tainted Wood
+1 Barren Moor
+${basics(8, 'Swamp')}
+${basics(9, 'Forest')}`,
+  },
+  m3c_overdrive: {
+    label: 'Graveyard Overdrive (Disa the Restless)',
+    set: 'Modern Horizons 3 Commander',
+    bracket: 2,
+    text: `Commander
+1 Disa the Restless
+
+Deck
+1 Coram, the Undertaker
+1 Bloodbraid Challenger
+1 Broodmate Tyrant
+1 Tempt with Mayhem
+1 Gluttonous Hellkite
+1 Pyrogoyf
+1 Polygoyf
+1 Barrowgoyf
+1 Sawhorn Nemesis
+1 Infested Thrinax
+1 Final Act
+1 Siege-Gang Lieutenant
+1 Tarmogoyf Nest
+1 Exterminator Magmarch
+1 Liliana, Death's Majesty
+1 Maelstrom Pulse
+1 Junji, the Midnight Sky
+1 Garruk, Apex Predator
+1 The Reaver Cleaver
+1 Temple of Malady
+1 Deadbridge Chant
+1 Kolaghan's Command
+1 Izoni, Thousand-Eyed
+1 Lhurgoyf
+1 Selvala, Heart of the Wilds
+1 Kessig Wolf Run
+1 Archon of Cruelty
+1 Maskwood Nexus
+1 Grist, the Hunger Tide
+1 Ignoble Hierarch
+1 Necrogoyf
+1 Mortivore
+1 Chandra's Ignition
+1 Viridescent Bog
+1 Find // Finality
+1 Mossfire Valley
+1 Ziatora, the Incinerator
+1 Canyon Slough
+1 Cinder Glade
+1 Exotic Orchard
+1 Shadowblood Ridge
+1 Sheltered Thicket
+1 Smoldering Marsh
+1 Temple of Abandon
+1 Temple of Malice
+1 Raging Ravine
+1 Terminate
+1 Demolition Field
+1 Command Tower
+1 Twisted Landscape
+1 Grisly Salvage
+1 Yavimaya Elder
+1 Bituminous Blast
+1 Bloodbraid Elf
+1 Eternal Witness
+1 Savage Lands
+1 Tainted Wood
+1 Burnished Hart
+1 Deathreap Ritual
+1 Arcane Signet
+1 Syr Konrad, the Grim
+1 Grapple with the Past
+1 Dakmor Salvage
+1 Accursed Marauder
+1 Brawn
+1 Faithless Looting
+1 Rampant Growth
+1 Anger
+1 Tranquil Thicket
+1 Stitcher's Supplier
+1 Graveshifter
+1 Talisman of Resilience
+1 Altar of the Goyf
+1 Syphon Mind
+1 Talisman of Indulgence
+1 Sakura-Tribe Elder
+1 Terramorphic Expanse
+1 Tainted Peak
+1 Riveteers Overlook
+1 Riveteers Charm
+1 Forgotten Cave
+1 Path of Ancestry
+1 Lightning Greaves
+1 Myriad Landscape
+1 Sol Ring
+1 Talisman of Impulse
+1 Evolving Wilds
+${basics(4, 'Swamp')}
+${basics(3, 'Mountain')}
+${basics(5, 'Forest')}`,
+  },
+  otc_desert: {
+    label: 'Desert Bloom (Yuma, Proud Protector)',
+    set: 'Outlaws of Thunder Junction Commander',
+    bracket: 2,
+    text: `Commander
+1 Yuma, Proud Protector
+
+Deck
+1 Kirri, Talented Sprout
+1 Scavenger Grounds
+1 Sun Titan
+1 Omnath, Locus of Rage
+1 Descend upon the Sinful
+1 Chromatic Lantern
+1 Marshal's Anthem
+1 Sheltered Thicket
+1 Scute Swarm
+1 Hour of Promise
+1 Oracle of Mul Daya
+1 Ramunap Excavator
+1 Scattered Groves
+1 World Shaper
+1 Nesting Dragon
+1 Turntimber Sower
+1 Sevinne's Reclamation
+1 Ancient Greenwarden
+1 Titania, Protector of Argoth
+1 Return of the Wildspeaker
+1 Perennial Behemoth
+1 Avenger of Zendikar
+1 Hazezon, Shaper of Sand
+1 Escape to the Wilds
+1 Heaven // Earth
+1 Genesis Hydra
+1 Sunscorched Divide
+1 The Mending of Dominaria
+1 Decimate
+1 Sand Scout
+1 Embrace the Unknown
+1 Dune Chanter
+1 Cataclysmic Prospecting
+1 Vengeful Regrowth
+1 Angel of Indemnity
+1 Cactus Preserve
+1 Rumbleweed
+1 Terramorphic Expanse
+1 Evolving Wilds
+1 Swiftfoot Boots
+1 Explore
+1 Sol Ring
+1 Satyr Wayfinder
+1 Perpetual Timepiece
+1 Crawling Sensation
+1 Painted Bluffs
+1 Command Tower
+1 Magmatic Insight
+1 Krosan Verge
+1 Desert of the True
+1 Skullwinder
+1 Desert of the Indomitable
+1 Jungle Shrine
+1 Bitter Reunion
+1 Desert of the Fervent
+1 Valorous Stance
+1 Dunes of the Dead
+1 Shefet Dunes
+1 Hashep Oasis
+1 Elvish Rejuvenator
+1 Winding Way
+1 Springbloom Druid
+1 Arcane Signet
+1 Unholy Heat
+1 Thrilling Discovery
+1 Electric Revelation
+1 Eccentric Farmer
+1 Harrow
+1 Ramunap Ruins
+1 Path to Exile
+1 Requisition Raid
+1 Bovine Intervention
+1 Map the Frontier
+1 Conduit Pylons
+1 Mirage Mesa
+1 Wreck and Rebuild
+1 Angel of the Ruins
+1 Bristling Backwoods
+1 Creosote Heath
+1 Abraded Bluffs
+1 Scaretiller
+1 Nantuko Cultivator
+${basics(6, 'Plains')}
+${basics(4, 'Mountain')}
+${basics(7, 'Forest')}`,
+  },
+  otc_wanted: {
+    label: 'Most Wanted (Olivia, Opulent Outlaw)',
+    set: 'Outlaws of Thunder Junction Commander',
+    bracket: 2,
+    text: `Commander
+1 Olivia, Opulent Outlaw
+
+Deck
+1 Vihaan, Goldwaker
+1 Council's Judgment
+1 Heliod's Intervention
+1 Angelic Sell-Sword
+1 We Ride at Dawn
+1 Massacre Girl
+1 Fain, the Broker
+1 Witch of the Moors
+1 Nighthawk Scavenger
+1 Curtains' Call
+1 Misfortune Teller
+1 Painful Truths
+1 Kamber, the Plunderer
+1 Ogre Slumlord
+1 Hex
+1 Mari, the Killing Quill
+1 Discreet Retreat
+1 Charred Graverobber
+1 Back in Town
+1 Marshland Bloodcaster
+1 Veinwitch Coven
+1 Rankle, Master of Pranks
+1 Dire Fleet Ravager
+1 Mirror Entity
+1 Dire Fleet Daredevil
+1 Captain Lannery Storm
+1 Seize the Spotlight
+1 Grenzo, Havoc Raiser
+1 Angrath's Marauders
+1 Captivating Crew
+1 Rain of Riches
+1 Laurine, the Diversion
+1 Mass Mutiny
+1 Dead Before Sunrise
+1 Graywater's Fixer
+1 Life Insurance
+1 Breena, the Demagogue
+1 Queen Marchesa
+1 Idol of Oblivion
+1 Academy Manufactor
+1 Bounty Board
+1 Fetid Heath
+1 Command Beacon
+1 Vault of the Archangel
+1 Dragonskull Summit
+1 Temple of Silence
+1 Temple of Malice
+1 Exotic Orchard
+1 Temple of Triumph
+1 Clifftop Retreat
+1 Isolated Chapel
+1 Bonders' Enclave
+1 Caves of Koilos
+1 Battlefield Forge
+1 Sulfurous Springs
+1 Rugged Prairie
+1 Desolate Mire
+1 Shadowblood Ridge
+1 Canyon Slough
+1 Smoldering Marsh
+1 Blackcleave Cliffs
+1 Mistmeadow Skulk
+1 Requisition Raid
+1 Changeling Outcast
+1 Feed the Swarm
+1 Deadly Dispute
+1 Morbid Opportunist
+1 Aetherborn Marauder
+1 Tenured Inkcaster
+1 Shoot the Sheriff
+1 Lightning Greaves
+1 Impulsive Pilferer
+1 Shiny Impetus
+1 Humble Defector
+1 Glittering Stockpile
+1 Boros Charm
+1 Arcane Signet
+1 Trailblazer's Boots
+1 Bandit's Haul
+1 Orzhov Signet
+1 Sol Ring
+1 Rakdos Signet
+1 Command Tower
+1 Bojuka Bog
+1 Path of Ancestry
+1 Rogue's Passage
+1 Demolition Field
+1 Tainted Peak
+1 Sunhome, Fortress of the Legion
+1 Nomad Outpost
+1 Temple of the False God
+${basics(2, 'Plains')}
+${basics(4, 'Swamp')}
+${basics(2, 'Mountain')}`,
+  },
+  mkc_disguise: {
+    label: 'Deadly Disguise (Kaust, Eyes of the Glade)',
+    set: 'Murders at Karlov Manor Commander',
+    bracket: 2,
+    text: `Commander
+1 Kaust, Eyes of the Glade
+
+Deck
+1 Duskana, the Rage Mother
+1 True Identity
+1 Unexplained Absence
+1 Veiled Ascension
+1 Boltbender
+1 Showstopping Surprise
+1 Tesak, Judith's Hellhound
+1 Experiment Twelve
+1 Printlifter Ooze
+1 Panoptic Projektor
+1 Ransom Note
+1 Ugin's Mastery
+1 Austere Command
+1 Dusk // Dawn
+1 Exalted Angel
+1 Fell the Mighty
+1 Hidden Dragonslayer
+1 Master of Pearls
+1 Mastery of the Unseen
+1 Mirror Entity
+1 Welcoming Vampire
+1 Akroma, Angel of Fury
+1 Ashcloud Phoenix
+1 Chaos Warp
+1 Imperial Hellkite
+1 Jeska's Will
+1 Neheb, the Eternal
+1 Scourge of the Throne
+1 Beast Whisperer
+1 Deathmist Raptor
+1 Den Protector
+1 Hooded Hydra
+1 Krosan Cloudscraper
+1 Krosan Colossus
+1 Obscuring Aether
+1 Ohran Frostfang
+1 Return of the Wildspeaker
+1 Root Elemental
+1 Saryth, the Viper's Fang
+1 Seedborn Muse
+1 Temur War Shaman
+1 Thelonite Hermit
+1 Toski, Bearer of Secrets
+1 Trail of Mystery
+1 Whisperwood Elemental
+1 Yedora, Grave Gardener
+1 Decimate
+1 Sidar Kondo of Jamuraa
+1 Lifecrafter's Bestiary
+1 Scroll of Fate
+1 Canopy Vista
+1 Cinder Glade
+1 Exotic Orchard
+1 Fortified Village
+1 Furycalm Snarl
+1 Game Trail
+1 Kessig Wolf Run
+1 Mossfire Valley
+1 Mosswort Bridge
+1 Scattered Groves
+1 Sheltered Thicket
+1 Shrine of the Forsaken Gods
+1 Sungrass Prairie
+1 Temple of Abandon
+1 Temple of Plenty
+1 Temple of Triumph
+1 Path to Exile
+1 Ainok Survivalist
+1 Broodhatch Nantuko
+1 Nervous Gardener
+1 Nantuko Vigilante
+1 Nature's Lore
+1 Sakura-Tribe Elder
+1 Salt Road Ambushers
+1 Three Visits
+1 Wild Growth
+1 Arcane Signet
+1 Sol Ring
+1 Boros Garrison
+1 Command Tower
+1 Branch of Vitu-Ghazi
+1 Gruul Turf
+1 Jungle Shrine
+1 Krosan Verge
+1 Sacred Peaks
+1 Selesnya Sanctuary
+1 Temple of the False God
+1 Zoetic Cavern
+${basics(4, 'Plains')}
+${basics(3, 'Mountain')}
+${basics(4, 'Forest')}`,
+  },
+  who_evil: {
+    label: 'Masters of Evil (Davros, Dalek Creator)',
+    set: 'Doctor Who Commander',
+    bracket: 2,
+    text: `Commander
+1 Davros, Dalek Creator
+
+Deck
+1 Missy
+1 Auton Soldier
+1 The Flood of Mars
+1 Cyber Conversion
+1 Hunted by The Family
+1 Dalek Drone
+1 Vashta Nerada
+1 Time Reaper
+1 Doomsday Confluence
+1 The Toymaker's Trap
+1 Vislor Turlough
+1 Genesis of the Daleks
+1 This Is How It Ends
+1 Death in Heaven
+1 Delete
+1 Ensnared by the Mara
+1 Day of the Moon
+1 The Master, Multiplied
+1 The Master, Mesmerist
+1 Rassilon, the War President
+1 The Master, Gallifrey's End
+1 The Valeyard
+1 Weeping Angel
+1 The Beast, Deathless Prince
+1 The Rani
+1 Sycorax Commander
+1 The Cyber-Controller
+1 Cult of Skaro
+1 The Dalek Emperor
+1 Ashad, the Lone Cyberman
+1 Blink
+1 The Master, Formed Anew
+1 Cybermen Squadron
+1 Cybership
+1 Wound Reflection
+1 Blasphemous Act
+1 Solemn Simulacrum
+1 The Sound of Drums
+1 River of Tears
+1 Foreboding Ruins
+1 Shadowblood Ridge
+1 Smoldering Marsh
+1 Temple of Deceit
+1 Choked Estuary
+1 Sunken Hollow
+1 Darkwater Catacombs
+1 Fetid Pools
+1 Temple of Malice
+1 Canyon Slough
+1 Exotic Orchard
+1 Temple of Epiphany
+1 Frostboil Snarl
+1 Stormcarved Coast
+1 Fiery Islet
+1 Lavaclaw Reaches
+1 Shipwreck Marsh
+1 Drowned Catacomb
+1 Haunted Ridge
+1 Dragonskull Summit
+1 Creeping Tar Pit
+1 Gallifrey Council Chamber
+1 Renegade Silent
+1 Zygon Infiltrator
+1 Don't Blink
+1 Exterminate!
+1 Dalek Squadron
+1 Sontaran General
+1 Great Intelligence's Plan
+1 Cyberman Patrol
+1 Cybermat
+1 Clockwork Droid
+1 Midnight Crusader Shuttle
+1 Laser Screwdriver
+1 Arcane Signet
+1 Sol Ring
+1 Thought Vessel
+1 Mind Stone
+1 Lightning Greaves
+1 Propaganda
+1 Feed the Swarm
+1 Snuff Out
+1 Commander's Sphere
+1 Wayfarer's Bauble
+1 Talisman of Dominance
+1 Talisman of Indulgence
+1 Command Tower
+1 Terramorphic Expanse
+1 Thriving Moor
+1 Path of Ancestry
+1 Temple of the False God
+1 Reliquary Tower
+1 Crumbling Necropolis
+1 Ominous Cemetery
+${basics(2, 'Island')}
+${basics(2, 'Swamp')}
+${basics(2, 'Mountain')}`,
+  },
+  woc_virtue: {
+    label: 'Virtue and Valor (Ellivere of the Wild Court)',
+    set: 'Wilds of Eldraine Commander',
+    bracket: 2,
+    text: `Commander
+1 Ellivere of the Wild Court
+
+Deck
+1 Gylwain, Casting Director
+1 Liberated Livestock
+1 Ox Drover
+1 Songbirds' Blessing
+1 Unfinished Business
+1 Giant Inheritance
+1 Knickknack Ouphe
+1 Loamcrafter Faun
+1 Timber Paladin
+1 Ajani's Chosen
+1 Angelic Destiny
+1 Archon of Sun's Grace
+1 Austere Command
+1 Celestial Archon
+1 Daybreak Coronet
+1 Eidolon of Countless Battles
+1 Kor Spiritdancer
+1 Mantle of the Ancients
+1 Realm-Cloaked Giant // Cast Off
+1 Retether
+1 Shalai, Voice of Plenty
+1 Starfield Mystic
+1 Sun Titan
+1 Timely Ward
+1 Tithe Taker
+1 Umbra Mystic
+1 Winds of Rath
+1 Bear Umbra
+1 Eidolon of Blossoms
+1 Enchantress's Presence
+1 Indomitable Might
+1 Rishkar's Expertise
+1 Sanctum Weaver
+1 Setessan Champion
+1 Verdant Embrace
+1 Canopy Vista
+1 Castle Ardenvale
+1 Fortified Village
+1 Hall of Heliod's Generosity
+1 Sungrass Prairie
+1 Temple of Plenty
+1 Danitha Capashen, Paragon
+1 Ethereal Armor
+1 Generous Gift
+1 Sage's Reverie
+1 Spectral Steel
+1 Swords to Plowshares
+1 Transcendent Envoy
+1 Ancestral Mask
+1 Aura Gnarlid
+1 Careful Cultivation
+1 Destiny Spinner
+1 Fertile Ground
+1 Kenrith's Transformation
+1 Paradise Druid
+1 Snake Umbra
+1 Sylvan Ranger
+1 Utopia Sprawl
+1 Warbriar Blessing
+1 Jukai Naturalist
+1 Pollenbright Wings
+1 Siona, Captain of the Pyleas
+1 Arcane Signet
+1 Sol Ring
+1 Command Tower
+1 Krosan Verge
+1 Myriad Landscape
+1 Vitu-Ghazi, the City-Tree
+1 Tanglespan Lookout
+1 Syr Armont, the Redeemer
+${basics(15, 'Forest')}
+${basics(14, 'Plains')}`,
+  },
+  ltc_food: {
+    label: 'Food and Fellowship (Frodo & Sam)',
+    set: 'The Lord of the Rings Commander',
+    bracket: 2,
+    text: `Commander
+1 Frodo, Adventurous Hobbit
+1 Sam, Loyal Attendant
+
+Deck
+1 Field-Tested Frying Pan
+1 The Gaffer
+1 Gwaihir, Greatest of the Eagles
+1 Of Herbs and Stewed Rabbit
+1 Gollum, Obsessed Stalker
+1 Lobelia, Defender of Bag End
+1 Rapacious Guest
+1 Assemble the Entmoot
+1 Feasting Hobbit
+1 Motivated Pony
+1 Prize Pig
+1 Banquet Guests
+1 Bilbo, Birthday Celebrant
+1 Farmer Cotton
+1 Merry, Warden of Isengard
+1 Pippin, Warden of Isengard
+1 Treebeard, Gracious Host
+1 Hithlain Rope
+1 Call for Unity
+1 Dawn of Hope
+1 Dusk // Dawn
+1 Fell the Mighty
+1 Fumigate
+1 Mentor of the Meek
+1 Sanguine Bond
+1 Toxic Deluge
+1 Birds of Paradise
+1 Gilded Goose
+1 Woodfall Primus
+1 Anguished Unmaking
+1 Chromatic Lantern
+1 Trading Post
+1 Well of Lost Dreams
+1 Brushland
+1 Canopy Vista
+1 Exotic Orchard
+1 Fortified Village
+1 Isolated Chapel
+1 Murmuring Bosk
+1 Necroblossom Snarl
+1 Scattered Groves
+1 Shineshadow Snarl
+1 Sunpetal Grove
+1 Woodland Cemetery
+1 Eagles of the North
+1 Landroval, Horizon Witness
+1 Rosie Cotton of South Lane
+1 Shire Shirriff
+1 Mirkwood Bats
+1 Generous Ent
+1 Path to Exile
+1 Swords to Plowshares
+1 Revive the Shire
+1 Butterbur, Bree Innkeeper
+1 Crypt Incursion
+1 Go for the Throat
+1 Night's Whisper
+1 Cultivate
+1 Essence Warden
+1 Farseek
+1 Great Oak Guardian
+1 Harmonize
+1 Orchard Strider
+1 Prosperous Innkeeper
+1 Shire Terrace
+1 Tireless Provisioner
+1 Mortify
+1 Savvy Hunter
+1 Arcane Signet
+1 Commander's Sphere
+1 Pristine Talisman
+1 Sol Ring
+1 Access Tunnel
+1 Ash Barrens
+1 Command Tower
+1 Evolving Wilds
+1 Ghost Quarter
+1 Graypelt Refuge
+1 Path of Ancestry
+1 Rogue's Passage
+1 Sandsteppe Citadel
+1 Scoured Barrens
+${basics(4, 'Plains')}
+${basics(4, 'Swamp')}
+${basics(8, 'Forest')}`,
+  },
+  moc_threat: {
+    label: 'Growing Threat (Brimaz, Blight of Oreskos)',
+    set: 'March of the Machine Commander',
+    bracket: 2,
+    text: `Commander
+1 Brimaz, Blight of Oreskos
+
+Deck
+1 Moira and Teshar
+1 Ichor Elixir
+1 Blight Titan
+1 Darksteel Splicer
+1 Excise the Imperfect
+1 Filigree Vector
+1 Path of the Schemer
+1 Bitterthorn, Nissa's Animus
+1 Vulpine Harvester
+1 Cataclysmic Gearhulk
+1 Massacre Wurm
+1 Noxious Gearhulk
+1 Phyrexian Scriptures
+1 Phyrexian Triniform
+1 Soul of New Phyrexia
+1 Ancient Stone Idol
+1 Angel of the Ruins
+1 Blade Splicer
+1 Coveted Jewel
+1 Duplicant
+1 Exotic Orchard
+1 Fetid Heath
+1 Karn's Bastion
+1 Myr Battlesphere
+1 Nettlecyst
+1 Phyrexian Delver
+1 Phyrexian Rebirth
+1 Psychosis Crawler
+1 Scrap Trawler
+1 Sculpting Steel
+1 Scytheclaw
+1 Shineshadow Snarl
+1 Spire of Industry
+1 Temple of Silence
+1 Utter End
+1 Vault of the Archangel
+1 Yawgmoth's Vile Offering
+1 Bojuka Bog
+1 Command Tower
+1 Commander's Sphere
+1 Evolving Wilds
+1 First-Sphere Gargantua
+1 Fractured Powerstone
+1 Goldmire Bridge
+1 Night's Whisper
+1 Orzhov Locket
+1 Orzhov Signet
+1 Path of Ancestry
+1 Phyrexian Ghoul
+1 Phyrexian Rager
+1 Silverquill Campus
+1 Terramorphic Expanse
+1 Wayfarer's Bauble
+1 Hedron Archive
+1 Ambition's Cost
+1 Arcane Signet
+1 Bloodline Pretender
+1 Bone Shredder
+1 Burnished Hart
+1 Despark
+1 Go for the Throat
+1 Graveshifter
+1 Keskit, the Flesh Sculptor
+1 Master Splicer
+1 Meteor Golem
+1 Mind Stone
+1 Mortify
+1 Shattered Angel
+1 Shimmer Myr
+1 Sol Ring
+1 Swords to Plowshares
+1 Tainted Field
+1 Talisman of Hierarchy
+1 Victimize
+1 Compleated Huntmaster
+1 Phyrexian Gargantua
+${basics(10, 'Plains')}
+${basics(13, 'Swamp')}`,
+  },
+  clb_party: {
+    label: 'Party Time (Nalia de\'Arnise)',
+    set: 'Battle for Baldur\'s Gate Commander',
+    bracket: 2,
+    text: `Commander
+1 Nalia de'Arnise
+
+Deck
+1 Burakos, Party Leader
+1 Folk Hero
+1 Deep Gnome Terramancer
+1 Harper Recruiter
+1 Seasoned Dungeoneer
+1 Stick Together
+1 Black Market Connections
+1 Solemn Doomguide
+1 Multiclass Baldric
+1 Archpriest of Iona
+1 Austere Command
+1 Bygone Bishop
+1 Dusk // Dawn
+1 Eight-and-a-Half-Tails
+1 Frontline Medic
+1 Galepowder Mage
+1 Glorious Protector
+1 Jazal Goldmane
+1 Magus of the Balance
+1 Mikaeus, the Lunarch
+1 Mirror Entity
+1 Order of Whiteclay
+1 Selfless Spirit
+1 Sevinne's Reclamation
+1 Solemn Recruit
+1 Squad Commander
+1 Unbreakable Formation
+1 Bloodsoaked Champion
+1 Butcher of Malakir
+1 Calculating Lich
+1 Dire Fleet Ravager
+1 Gonti, Lord of Luxury
+1 Grim Haruspex
+1 Grim Hireling
+1 Mardu Strike Leader
+1 Mindblade Render
+1 Nighthawk Scavenger
+1 Pontiff of Blight
+1 Puppeteer Clique
+1 Felisa, Fang of Silverquill
+1 Firja's Retribution
+1 High Priest of Penance
+1 Maskwood Nexus
+1 Castle Locthwain
+1 Mutavault
+1 Shambling Vent
+1 Temple of Silence
+1 Vault of the Archangel
+1 War Room
+1 Windbrisk Heights
+1 Arcane Signet
+1 Command Tower
+1 Aven Mindcensor
+1 Crib Swap
+1 Irregular Cohort
+1 Mage's Attendant
+1 Mother of Runes
+1 Priest of Ancient Lore
+1 Rumor Gatherer
+1 Valiant Changeling
+1 Changeling Outcast
+1 Corpse Augur
+1 Malakir Blood-Priest
+1 Thwart the Grave
+1 Zulaport Cutthroat
+1 Despark
+1 Orzhov Signet
+1 Skullclamp
+1 Sol Ring
+1 Talisman of Hierarchy
+1 Ash Barrens
+1 Bojuka Bog
+1 Mortuary Mire
+1 Myriad Landscape
+1 Orzhov Basilica
+1 Path of Ancestry
+1 Snowfield Sinkhole
+1 Starlit Sanctum
+1 Tainted Field
+${basics(10, 'Plains')}
+${basics(10, 'Swamp')}`,
+  },
+  nec_buckle: {
+    label: 'Buckle Up (Kotori, Pilot Prodigy)',
+    set: 'Kamigawa: Neon Dynasty Commander',
+    bracket: 2,
+    text: `Commander
+1 Kotori, Pilot Prodigy
+
+Deck
+1 Shorikai, Genesis Engine
+1 Jace, Architect of Thought
+1 Aerial Surveyor
+1 Drumbellower
+1 Ironsoul Enforcer
+1 Cyberdrive Awakener
+1 Imposter Mech
+1 Kappa Cannoneer
+1 Katsumasa, the Animator
+1 Research Thief
+1 Imperial Recovery Unit
+1 Mobilizer Mech
+1 Prodigy's Prototype
+1 Surgehacker Mech
+1 Aeronaut Admiral
+1 Cataclysmic Gearhulk
+1 Indomitable Archangel
+1 Myrsmith
+1 Parhelion II
+1 Sram, Senior Edificer
+1 Teshar, Ancestor's Apostle
+1 Emry, Lurker of the Loch
+1 Etherium Sculptor
+1 Master of Etherium
+1 Organic Extinction
+1 Release to Memory
+1 Swift Reconfiguration
+1 Access Denied
+1 Universal Surveillance
+1 Armed and Armored
+1 Crush Contraband
+1 Dispatch
+1 Generous Gift
+1 Swords to Plowshares
+1 Reality Shift
+1 Thoughtcast
+1 Dance of the Manse
+1 Riddlesmith
+1 Sai, Master Thopterist
+1 Thopter Spy Network
+1 Vedalken Engineer
+1 Whirler Rogue
+1 Arcanist's Owl
+1 Hanna, Ship's Navigator
+1 Raff Capashen, Ship's Mage
+1 Arcane Signet
+1 Azorius Signet
+1 Colossal Plow
+1 Cultivator's Caravan
+1 Fellwar Stone
+1 Foundry Inspector
+1 Gold Myr
+1 Mirage Mirror
+1 Peacewalker Colossus
+1 Raiders' Karve
+1 Shimmer Myr
+1 Silver Myr
+1 Skysovereign, Consul Flagship
+1 Smuggler's Copter
+1 Sol Ring
+1 Solemn Simulacrum
+1 Weatherlight
+1 Command Tower
+1 Exotic Orchard
+1 Port Town
+1 Prairie Stream
+1 Skycloud Expanse
+1 Spire of Industry
+1 Temple of Enlightenment
+${basics(15, 'Plains')}
+${basics(15, 'Island')}`,
+  },
 };
 
 export const SAMPLE_DECKS = {

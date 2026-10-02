@@ -1092,6 +1092,7 @@ export async function turnFaceUp(pid, c, env) {
   if (!p) return false;
   applyPayment(pid, p);
   c.faceDown = false;
+  c.turnedUpTurn = G.s.turn;
   delete c.wardTwo;
   if (m[1] === 'Megamorph') addCounters(c, '+1/+1', 1);
   log(pid, `${nameTag(c)} is turned face up.`);

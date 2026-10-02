@@ -339,8 +339,14 @@ function initSetup() {
     .then((r) => r.json())
     .then((v) => {
       const el = $('#version');
-      if (el && v.version) el.textContent = `Version ${v.version}${v.source === 'just updated' ? ' · just updated' : ''}`;
-      if (v.source === 'just updated') toast(`Updated to version ${v.version}.`);
+      if (el && v.version) {
+        el.innerHTML = `<button type="button" class="linkish" title="See what's new">Version ${esc(v.version)}${v.source === 'just updated' ? ' · just updated' : ''} · What's new</button>`;
+        el.querySelector('button').addEventListener('click', () => showPatchNotes(v.version, null));
+      }
+      // patch notes after an update: everything newer than the last version this player saw
+      const seen = store.get('seenVersion', null);
+      if (v.version && (seen ? cmpVersion(v.version, seen) > 0 : v.source === 'just updated')) showPatchNotes(v.version, seen || prevVersion(v.version));
+      if (v.version) store.set('seenVersion', v.version);
     })
     .catch(() => {});
   const st = store.get('settings', {});
@@ -474,3 +480,33 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 export { emit };
+
+// ------------------------------------------------------------ patch notes
+function cmpVersion(a, b) {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  return 0;
+}
+function prevVersion(v) {
+  const p = String(v).split('.').map(Number);
+  p[p.length - 1] -= 1;
+  return p.join('.');
+}
+// since = null shows the latest few releases; otherwise every release newer than `since`
+async function showPatchNotes(current, since) {
+  let notes = [];
+  try {
+    notes = await fetch('patch-notes.json', { cache: 'no-store' }).then((r) => r.json());
+  } catch (e) {
+    return;
+  }
+  const list = since ? notes.filter((n) => cmpVersion(n.version, since) > 0 && cmpVersion(n.version, current) <= 0) : notes.slice(0, 6);
+  if (!list.length) return;
+  openDialog(`<div class="patch-notes">
+    <h3>${since ? `Updated to version ${esc(current)}` : "What's new"}</h3>
+    ${list.map((n) => `<section><h4>${esc(n.version)}${n.title ? ` <span>${esc(n.title)}</span>` : ''}</h4><ul>${n.notes.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></section>`).join('')}
+    <div class="row-end"><button class="primary" data-close>Got it</button></div>
+  </div>`);
+}
+

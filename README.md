@@ -42,6 +42,8 @@ npm run dist         # build an installer for this computer → dist/
 
 ## Updates without reinstalling
 
+After an update the app shows a **patch notes** window listing what changed; click the version number on the start screen to see it again. Patch notes live in `public/patch-notes.json` (newest first) — add an entry there with each new version.
+
 The desktop app updates the game itself (rules, AI, cards, screens — everything in `public/`) from the GitHub repository **Starpilot25/MTG-EDH-AI-playtester**. Each time it opens it reads `update.json` from the repository; if that lists a newer version, it downloads just the changed files, checks each one against its fingerprint, and switches over. If GitHub can't be reached it keeps the version it has. The version is shown at the bottom of the start screen.
 
 To publish an update:
@@ -92,6 +94,17 @@ Then open **http://localhost:5173** in your browser. Stop the server with Ctrl+C
   - Teenage Mutant Ninja Turtles Commander: Turtle Power! (Leonardo, the Balance; pick a second Character select turtle from the partner dropdown if you like)
   - Edge of Eternities Commander: World Shaper (Hearthhull, the Worldseed)
   - Tarkir: Dragonstorm Commander: Mardu Surge (Zurgo Stormrender)
+  - Aetherdrift Commander: Eternal Might (Temmet, Naktamun's Will)
+  - Bloomburrow Commander: Squirreled Away (Hazel of the Rootbloom)
+  - Modern Horizons 3 Commander: Graveyard Overdrive (Disa the Restless)
+  - Outlaws of Thunder Junction Commander: Desert Bloom (Yuma, Proud Protector), Most Wanted (Olivia, Opulent Outlaw)
+  - Murders at Karlov Manor Commander: Deadly Disguise (Kaust, Eyes of the Glade)
+  - Doctor Who Commander: Masters of Evil (Davros, Dalek Creator)
+  - Wilds of Eldraine Commander: Virtue and Valor (Ellivere of the Wild Court)
+  - The Lord of the Rings Commander: Food and Fellowship (Frodo, Adventurous Hobbit & Sam, Loyal Attendant)
+  - March of the Machine Commander: Growing Threat (Brimaz, Blight of Oreskos)
+  - Battle for Baldur's Gate Commander: Party Time (Nalia de'Arnise)
+  - Kamigawa: Neon Dynasty Commander: Buckle Up (Kotori, Pilot Prodigy)
 - **Mirror** (AI only) — the AI plays a copy of your deck.
 
 Partners, Partner with, Friends Forever, Doctor's companions and Backgrounds are supported: mark both commanders in your list (deck links do this automatically). If no commander is marked, one is picked from the list — a legend with a matching partner or Background if there is one — and you can change both from the dropdowns. Each commander has its own tax and its own commander-damage count (Backgrounds don't deal commander damage, so they get no counter).

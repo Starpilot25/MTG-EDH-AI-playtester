@@ -240,8 +240,10 @@ export function move(iid, zone, opts = {}) {
       });
     } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token, fromBattlefield: true });
     queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone, wasAttacking: !!c.attacking });
+    if (requested === 'graveyard' && isCreature(c)) (s.ts[c.controller].diedTypes = s.ts[c.controller].diedTypes || []).push(typeLine(c));
   }
   if (fromZone === 'graveyard' && zone !== 'graveyard') s.ts[c.owner].cardsLeftGy++;
+  if (zone === 'graveyard' && fromZone !== 'graveyard' && !c.token) queueEvent({ type: 'toGraveyard', iid, def: c.def, owner: c.owner, from: fromZone, controller: fromZone === 'battlefield' ? c.controller : c.owner });
   // remove from old zone
   if (fromZone) {
     const arr = s.players[fromCtl].zones[fromZone];

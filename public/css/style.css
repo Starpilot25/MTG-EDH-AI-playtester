@@ -675,3 +675,15 @@ ol.rooms li.been { color: var(--muted); }
 .save-row button, .saved-row button { white-space: nowrap; }
 
 .version { opacity: .6; margin-right: auto; }
+
+/* patch notes */
+.linkish { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
+.linkish:hover { text-decoration-color: currentColor; }
+.patch-notes { max-height: 70vh; overflow-y: auto; padding-right: 4px; }
+.patch-notes h3 { margin: 0 0 12px; }
+.patch-notes section { border-top: 1px solid var(--line); padding: 10px 0 4px; }
+.patch-notes h4 { margin: 0 0 6px; font: 700 15px var(--f-display); color: var(--brass); }
+.patch-notes h4 span { color: var(--ink); font-weight: 600; margin-left: 6px; }
+.patch-notes ul { margin: 0; padding-left: 18px; }
+.patch-notes li { margin: 4px 0; line-height: 1.45; }
+.patch-notes .row-end { display: flex; justify-content: flex-end; margin-top: 12px; }

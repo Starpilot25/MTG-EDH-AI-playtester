@@ -1,0 +1,90 @@
+[
+  {
+    "version": "1.2.0",
+    "title": "Patch notes and twelve more precons",
+    "notes": [
+      "New: this patch notes window. It opens after the app updates itself; click the version number on the start screen to see it again.",
+      "Twelve new precons: Eternal Might, Squirreled Away, Graveyard Overdrive, Desert Bloom, Most Wanted, Deadly Disguise, Masters of Evil (Doctor Who), Virtue and Valor, Food and Fellowship, Growing Threat, Party Time and Buckle Up.",
+      "Fixed commanders: Yuma (Desert cards make Plants), Disa (Lhurgoyfs come back), Brimaz, Blight of Oreskos (proliferate after a Phyrexian dies), Davros (Dalek and villainous choice), Hazel of the Rootbloom (Squirrels copied twice), Kaust, Ellivere, Nalia de'Arnise (full party), Frodo (Ring-bearer draw).",
+      "Also fixed: \"whenever a … card is put into your graveyard from anywhere\" triggers (The Gitrog Monster, Centaur Vinecrasher, Titania).",
+      "Triggers whose condition isn't met no longer ask you to apply them by hand."
+    ]
+  },
+  {
+    "version": "1.1.4",
+    "title": "Mardu Surge, tokens that enter attacking",
+    "notes": [
+      "New precon: Mardu Surge (Zurgo Stormrender).",
+      "Adeline, Hero of Bladehold, Zurgo and every mobilize card now create their tokens tapped and attacking.",
+      "Zurgo Stormrender's token trigger works: draw if the token was attacking, otherwise each opponent loses 1 life.",
+      "\"Do X if … Otherwise, do Y\" now checks the condition instead of doing both."
+    ]
+  },
+  {
+    "version": "1.1.3",
+    "title": "TMNT and World Shaper precons",
+    "notes": [
+      "New precons: Turtle Power! (Leonardo, the Balance) and World Shaper (Hearthhull, the Worldseed).",
+      "Partner—Character select commanders can be paired with each other.",
+      "Fixed: Korvold's counter-and-draw, Mayhem Devil, Mazirek, Szarel, Splinter, Rat King, Heroes in a Half Shell, April O'Neil, Ray Fillet, Casey Jones, Omnath, God-Eternal Bontu."
+    ]
+  },
+  {
+    "version": "1.1.2",
+    "title": "Space Beleren",
+    "notes": [
+      "Space sculptor works: creatures get alpha, beta or gamma sectors (shown as α β γ), and all three of Space Beleren's abilities work."
+    ]
+  },
+  {
+    "version": "1.1.1",
+    "title": "Foundations Commander precons",
+    "notes": [
+      "The Precon tab has the five Foundations Commander decks."
+    ]
+  },
+  {
+    "version": "1.1.0",
+    "title": "Second screen",
+    "notes": [
+      "Pop the AI's board out into its own window with the ⧉ Pop out button (desktop app 1.1.0 or newer).",
+      "Fixed: Otherworldly Journey, Eerie Interlude, Semester's End, Ghostway and other end-step returns; Oubliette; Teferi, Master of Time."
+    ]
+  },
+  {
+    "version": "1.0.6",
+    "title": "More sample decks",
+    "notes": [
+      "Six new sample decks at Bracket 1, Bracket 4 and cEDH, grouped by bracket.",
+      "New Precon tab."
+    ]
+  },
+  {
+    "version": "1.0.5",
+    "title": "Blink effects",
+    "notes": [
+      "Fixed: Cloudshift, Ephemerate, Brago, Oblivion Ring, Journey to Nowhere, Fiend Hunter, Detention Sphere; the AI picks sensible flicker targets."
+    ]
+  },
+  {
+    "version": "1.0.4",
+    "title": "Dragonstorms",
+    "notes": [
+      "The Dragonstorm enchantments return to your hand when a Dragon you control enters."
+    ]
+  },
+  {
+    "version": "1.0.3",
+    "title": "Changelings",
+    "notes": [
+      "Changelings such as Firdoch Core count as every creature type, so The Ur-Dragon and other Dragon cost reducers apply to them."
+    ]
+  },
+  {
+    "version": "1.0.2",
+    "title": "First update",
+    "notes": [
+      "Fixed: Sunbird's Invocation, Faeburrow Elder, Archnemesis and a crash on some attack triggers."
+    ]
+  }
+]

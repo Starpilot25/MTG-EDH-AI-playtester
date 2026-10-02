@@ -120,6 +120,14 @@ export function triggersOf(c, defOverride) {
       if (m[1]) add('leaves', m[4], { self: true });
       add('leaves', m[4], { mine: true, nontoken: !!m[2], kind: m[3].toLowerCase(), other: true });
     }
+    else if ((m = line.match(/^Whenever (?:a|an|one or more) ([A-Za-z ]+?) cards? (?:is|are) put into your graveyard from anywhere( other than the battlefield)?, (.+)$/i)))
+      add('toGraveyard', m[3], { kind: m[1].toLowerCase(), notFromBf: !!m[2], mine: true });
+    else if ((m = line.match(/^Whenever (?:a|an) (land|creature|artifact|enchantment|permanent) you control is put into a graveyard from the battlefield, (.+)$/i)))
+      add('toGraveyard', m[2], { kind: m[1].toLowerCase(), fromBf: true, mine: true });
+    else if ((m = line.match(/^Whenever a creature you control that was turned face up this turn deals combat damage to a player, (.+)$/i)))
+      add('combatDamagePlayer', m[1], { anyOfMine: true, faceUpTurn: true });
+    else if ((m = line.match(/^Whenever an enchanted creature you control deals combat damage to a player, (.+)$/i)))
+      add('combatDamagePlayer', m[1], { anyOfMine: true, enchanted: true });
     else if ((m = line.match(/^Whenever one or more (?:other )?cards? (?:are put into|leave) your graveyard(?: from anywhere)?, (.+)$/i)))
       add('putIntoGraveyard', m[1], { mine: true });
     // combat
@@ -628,6 +636,24 @@ function matches(ev) {
       }
       break;
     }
+    case 'toGraveyard': {
+      const gc = card(ev.iid);
+      if (!gc) break;
+      const tl = (DB[gc.def].faces[0].typeLine || DB[gc.def].typeLine || '');
+      each((c, trig) => {
+        if (trig.event !== 'toGraveyard') return;
+        if (trig.mine && c.controller !== (trig.fromBf ? ev.controller : ev.owner)) return;
+        if (trig.notFromBf && ev.from === 'battlefield') return;
+        if (trig.fromBf && ev.from !== 'battlefield') return;
+        const ok = trig.kind.split(/\s+/).every((w) => {
+          if (w === 'permanent') return /Artifact|Creature|Enchantment|Land|Planeswalker|Battle/.test(tl);
+          if (w === 'card') return true;
+          return new RegExp('\\b' + w.replace(/s$/, ''), 'i').test(tl) || (/^[a-z]+$/.test(w) && hasSubtype({ ...gc, zone: 'battlefield' }, w));
+        });
+        if (ok) out.push({ src: c, trig, it: { iid: ev.iid } });
+      });
+      break;
+    }
     case 'putIntoGraveyard': {
       // noncreature permanents: "When ~ is put into a graveyard from the battlefield"
       const gone = card(ev.iid);
@@ -640,7 +666,7 @@ function matches(ev) {
         if (trig.event !== 'combatDamagePlayer') return;
         const atk = card(ev.iid);
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player });
-        else if (trig.anyOfMine && c.controller === ev.controller && (!trig.kind || (atk && matchesFilter(atk, trig.kind))) && (!trig.withCounter || (atk && Object.entries(atk.counters || {}).some(([k, v]) => v > 0 && (trig.withCounter === 'any' || k === trig.withCounter))))) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid } });
+        else if (trig.anyOfMine && c.controller === ev.controller && (!trig.kind || (atk && matchesFilter(atk, trig.kind))) && (!trig.faceUpTurn || (atk && atk.turnedUpTurn === G.s.turn)) && (!trig.enchanted || (atk && Object.values(G.s.cards).some((a) => a.attachedTo === atk.iid && a.zone === 'battlefield' && /Aura/.test(typeLine(a))))) && (!trig.withCounter || (atk && Object.entries(atk.counters || {}).some(([k, v]) => v > 0 && (trig.withCounter === 'any' || k === trig.withCounter))))) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid } });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid } });
       });
       // ciphered spells cast a copy
@@ -1045,7 +1071,7 @@ async function resolveTrigger(hit, controller, ev) {
   }
   const did = await resolveEffects(text, src, ctx);
   if (did.length) log(controller, `${nameTag(src)} ${trig.event === 'chapter' ? 'chapter' : 'triggers'}: ${did.join('; ')}.`);
-  else if (!trig.kw) log(controller, `${nameTag(src)} triggers: <i>${esc(text.slice(0, 140))}</i> — apply it by hand.`);
+  else if (!trig.kw && !did.skipped) log(controller, `${nameTag(src)} triggers: <i>${esc(text.slice(0, 140))}</i> — apply it by hand.`);
   stateBased();
   T.render();
 }

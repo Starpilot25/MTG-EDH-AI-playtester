@@ -487,6 +487,17 @@ export function evalCond(cond, env) {
   if (/~ (?:isn't|is not) monstrous/.test(c)) return !(env.src && env.src.monstrous);
   if (/~ is saddled|it's saddled/.test(c)) return !!(env.src && env.src.saddledTurn === G.s.turn);
   if (/^it was attacking$/.test(c) && env.wasAttacking !== undefined) return !!env.wasAttacking;
+  if ((m = c.match(/^an? ([a-z]+) died under your control this turn$/))) return ((ts[me] || {}).diedTypes || []).some((t) => new RegExp('\\b' + m[1], 'i').test(t));
+  if (/^you have a full party$/.test(c)) return partySize(me) >= 4;
+  if (/^~ is your ring-bearer$/.test(c)) return !!(env.src && card(env.src.iid) && card(env.src.iid).ringBearer);
+  if ((m = c.match(/^the ring has tempted you (\w+) or more times this game$/))) return (s.players[me].ring || 0) >= n(m[1]);
+  if ((m = c.match(/^an opponent lost (\w+) or more life this turn$/))) return ((ts[them] || {}).lifeLost || 0) >= n(m[1]);
+  // "A and B": both halves must hold
+  if (/ and /.test(c) && !/\band\/or\b/.test(c)) {
+    const parts = c.split(/ and /);
+    const vals = parts.map((p) => evalCond(p, env));
+    if (vals.every((v) => v !== null)) return vals.every(Boolean);
+  }
   if (/(?:~|it) (?:is|was) attacking/.test(c)) return !!(env.src && env.src.attacking);
   if (/its toughness is (\d+) or less/.test(c)) return env.src ? toughness(env.src) <= +c.match(/(\d+)/)[1] : false;
   return null;
@@ -2352,6 +2363,51 @@ on(/^attach (~|it|target [^.]+?) to (.+?)(?:\.|$)/, async (m, env) => {
   }
 });
 
+// Disa the Restless: "put it onto the battlefield"
+on(/^put (it|that card) onto the battlefield( tapped)?( under your control)?$/, async (m, env) => {
+  const c = env.it && env.it.iid ? card(env.it.iid) : null;
+  if (!c || c.zone === 'battlefield') return;
+  toBattlefield(c.iid, m[3] ? env.me : c.owner, { tapped: !!m[2] });
+  env.did.push(`puts ${nameTag(c)} onto the battlefield`);
+}, { first: true });
+// Davros: "each opponent who lost 3 or more life this turn faces a villainous choice — A, or B"
+on(/^each opponent (?:who lost (\w+) or more life this turn )?faces a villainous choice — (.+?), or (.+)$/, async (m, env) => {
+  const them = opp(env.me);
+  if (m[1] && ((G.s.ts[them] || {}).lifeLost || 0) < n(m[1])) return;
+  const raw = env.sentence.split(' — ')[1] || '';
+  const opts = [m[2], m[3]];
+  const k = await env.choosers[them].choose({
+    prompt: `${cardName(env.src)}: villainous choice`,
+    options: opts.map((o) => ({ label: o[0].toUpperCase() + o.slice(1) })),
+    aiPick: () => (/discards?/.test(opts[1]) && cardsIn(them, 'hand').length > 2 ? 1 : 0),
+  });
+  env.thatPlayer = them;
+  env.it = { player: them };
+  env.did.push(`${who(them)} ${s_(them, 'choose')}: ${opts[k]}`);
+  void raw;
+  await runSentence(opts[k].replace(/^that player /, 'target opponent '), env);
+}, { first: true });
+// Hazel of the Rootbloom: "If that token is a Squirrel, instead create two tokens that are copies of it."
+on(/^if that token is an? ([a-z]+), instead create (\w+) tokens that are copies of it/, async (m, env) => {
+  const t = env.it && env.it.iid ? card(env.it.iid) : null;
+  if (!t || !hasSubtype(t, m[1])) return;
+  const extra = Math.max(0, n(m[2]) - 1);
+  const made = createToken(t.def, env.me, extra);
+  for (const i of made) card(i).face = t.face || 0;
+  env.did.push(`creates ${extra} more cop${extra === 1 ? 'y' : 'ies'} (it's a ${m[1]})`);
+}, { first: true });
+function partySize(pid) {
+  const roles = ['Cleric', 'Rogue', 'Warrior', 'Wizard'];
+  const cs = cardsIn(pid, 'battlefield').filter(isCreature);
+  let best = 0;
+  const go = (i, used, k) => {
+    if (i === roles.length) return void (best = Math.max(best, k));
+    go(i + 1, used, k);
+    for (const c of cs) if (!used.has(c.iid) && hasSubtype(c, roles[i])) go(i + 1, new Set([...used, c.iid]), k + 1);
+  };
+  go(0, new Set(), 0);
+  return best;
+}
 // --- vote / villainous choice: the AI answers for itself, you choose for yourself
 on(/^(?:will of the council|council's dilemma)? ?(?:—|-)? ?starting with you, each player votes for (.+?)(?:\.|$)/, async (m, env) => {
   const options = m[1].split(/ or /).map((x) => x.trim());
@@ -2474,7 +2530,8 @@ async function runSentence(sentence, env) {
   const low = s.toLowerCase();
   // conditions
   let m = low.match(/^if (.+?), (.+)$/);
-  if (m && !/^if you do\b|^if you don't\b/.test(low)) {
+  const condHandled = m && H.some((h) => !h.never && h.re.test(low) && /^\^if /.test(h.re.source));
+  if (m && !/^if you do\b|^if you don't\b/.test(low) && !condHandled) {
     const instead = /instead$/.test(m[2]);
     const c = evalCond(m[1], env);
     if (c === null) {
@@ -2482,7 +2539,10 @@ async function runSentence(sentence, env) {
       return;
     }
     env.lastCond = !!c;
-    if (!c) return;
+    if (!c) {
+      env.condFalse = true;
+      return;
+    }
     return runSentence(s.slice(s.indexOf(',', m[1].length + 2) + 1).replace(/ instead$/i, '').trim(), env) || (instead ? undefined : undefined);
   }
   // "Draw a card if it was attacking." — a trailing condition the engine can check
@@ -2685,6 +2745,7 @@ export async function resolveEffects(text, src, ctx) {
     if (v !== null) env.x = v;
   }
   await runText(env.fullText, env);
+  if (env.condFalse && !env.did.length && !env.unknown.length) env.did.skipped = true;
   stateBased();
   if (ctx.unknownOut) ctx.unknownOut.push(...env.unknown);
   if (G.unknownSink && env.unknown.length) G.unknownSink.push(...env.unknown);
