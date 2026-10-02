@@ -309,7 +309,10 @@ function initSetup() {
     $('.in-paste', el).value = store.get(pid + ':paste', '');
     $('.in-sample', el).value = store.get(pid + ':sample', pid === 'p' ? 'gruul' : 'golgari');
     const precons = Object.entries(PRECON_DECKS);
-    $('.in-precon', el).innerHTML = precons.map(([k, v]) => `<option value="${k}">${esc(v.label)}${v.set ? ` (${esc(v.set)})` : ''}</option>`).join('');
+    const sets = [...new Set(precons.map(([, v]) => v.set || 'Other'))];
+    $('.in-precon', el).innerHTML = sets
+      .map((set) => `<optgroup label="${esc(set)}">${precons.filter(([, v]) => (v.set || 'Other') === set).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</optgroup>`)
+      .join('');
     $('.in-precon', el).hidden = !precons.length;
     $('.precon-tip', el).hidden = !!precons.length;
     if (precons.length) $('.in-precon', el).value = store.get(pid + ':precon', precons[0][0]);

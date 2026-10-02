@@ -87,7 +87,8 @@ Then open **http://localhost:5173** in your browser. Stop the server with Ctrl+C
   - Bracket 3: Gruul Stompy (Xenagos), Golgari Value (Meren)
   - Bracket 4: Jund Sacrifice (Korvold), Four-Color Counters (Atraxa)
   - Bracket 5 (cEDH): Simic Combo (Kinnan), Four-Color Blitz (Thrasios & Tymna)
-- **Precon**: official preconstructed Commander decks (coming soon).
+- **Precon**: official preconstructed Commander decks, grouped by product:
+  - Foundations Commander: Calling All Angels (Giada, Font of Hope), Keen Engineering (Sai, Master Thopterist), Wretched Ranks (Ghoulcaller Gisa), Reign of Dragons (Lathliss, Dragon Queen), Tramplesaurus Rex (Ghalta, Primal Hunger)
 - **Mirror** (AI only) — the AI plays a copy of your deck.
 
 Partners, Partner with, Friends Forever, Doctor's companions and Backgrounds are supported: mark both commanders in your list (deck links do this automatically). If no commander is marked, one is picked from the list — a legend with a matching partner or Background if there is one — and you can change both from the dropdowns. Each commander has its own tax and its own commander-damage count (Backgrounds don't deal commander damage, so they get no counter).
