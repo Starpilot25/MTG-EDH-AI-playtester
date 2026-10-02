@@ -87,6 +87,27 @@ export const aiChooser = {
     }
     const byThreat = (a, b) => threat(b) - threat(a);
     const plife = G.s.players[P].life;
+    if (req.purpose === 'blink') {
+      // flicker our own permanents that get something out of it: enters-the-battlefield effects, a reset
+      const val = (c) => {
+        if (c.controller !== AI) return -1;
+        if (c.token) return -100;
+        const o = oracle(c);
+        let v = 0;
+        if (/When(?:ever)? (?:~|this [a-z]+|[^,.]*?) enters(?! tapped)[^.]*?,/i.test(o.split(DB[c.def].name).join('~'))) v += 6;
+        if (c.tapped) v += 1;
+        if (c.damage > 0) v += 1;
+        if ((c.counters || {})['-1/-1']) v += 2;
+        if (Object.values(G.s.cards).some((a) => a.attachedTo === c.iid && a.controller !== AI)) v += 4;
+        if ((c.counters || {})['+1/+1']) v -= 2 * c.counters['+1/+1'];
+        if (Object.values(G.s.cards).some((a) => a.attachedTo === c.iid && a.controller === AI)) v -= 3;
+        if (isLand(c)) v -= 0.5;
+        return v;
+      };
+      const best = cands.map((c) => [c, val(c)]).sort((a, b) => b[1] - a[1])[0];
+      if (best && (best[1] > 0 || (req.forced && !req.optional))) return { iid: best[0].iid };
+      return null;
+    }
     if (req.harm) {
       // burn to the face when it's lethal
       if (req.amount !== undefined && req.players && req.players.includes(P) && req.amount >= plife) return { player: P };

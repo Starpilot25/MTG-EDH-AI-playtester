@@ -556,7 +556,7 @@ async function pickTargets(env, phrase, opts = {}) {
     const pick = await env.choosers[me].target({
       ...(env.forced ? { forced: true } : {}),
       prompt: opts.prompt || `Choose ${count > 1 && count < 99 ? `target ${k + 1} of ${count}` : 'a target'}: ${kind}`,
-      candidates: left.map((c) => c.iid), players: pl, harm: opts.harm !== undefined ? opts.harm : true, amount: opts.amount, src: env.src,
+      candidates: left.map((c) => c.iid), players: pl, harm: opts.harm !== undefined ? opts.harm : true, amount: opts.amount, src: env.src, purpose: opts.purpose,
       optional: optional || k > 0 || (!left.length && !pl.length),
     });
     if (!pick) break;
@@ -804,16 +804,24 @@ on(/^exile (target player's graveyard|each opponent's graveyard|all graveyards|a
   ids.forEach((i) => move(i, 'exile'));
   env.did.push(`exiles ${ids.length} card${ids.length === 1 ? '' : 's'} from graveyard${ids.length === 1 ? '' : 's'}`);
 });
-on(/^exile (.+?), then return (?:it|that card|them|those cards) to the battlefield(?: tapped)? under (?:its|their) (?:owner's|owners'|your) control/, async (m, env) => {
-  const objs = await objects(env, m[1], { harm: false });
+const BLINK_RE = /^exile (.+?),? then return (?:it|that card|them|those cards|the exiled card|that permanent|those permanents) to the battlefield( tapped)? under (?:(?:its|their) (?:owner's|owners'|owner's) |your |their )control/;
+on(BLINK_RE, async (m, env) => {
+  const objs = await objects(env, m[1], { harm: false, purpose: 'blink' });
+  const back = [];
   for (const c of objs) {
-    const owner = /your control/.test(env.sentence) ? env.me : c.owner;
+    const owner = /under your control/.test(env.sentence) ? env.me : c.owner;
     const iid = c.iid;
     const tok = c.token;
     move(iid, 'exile');
-    if (!tok && card(iid)) toBattlefield(iid, owner, { tapped: /battlefield tapped/.test(env.sentence) });
+    if (!tok && card(iid)) {
+      toBattlefield(iid, owner, { tapped: !!m[2] });
+      back.push(iid);
+    }
     env.did.push(`flickers ${nameTag(card(iid) || c)}`);
   }
+  env.them_ = back;
+  env.it = back[0] ? { iid: back[0] } : null;
+  if (!objs.length) env.lastMay = false;
 });
 on(/^exile (.+?)\. (?:at the beginning of the next end step, )?return (?:it|that card|them) to the battlefield/, async (m, env) => {
   const objs = await objects(env, m[1], { harm: false });
@@ -829,10 +837,13 @@ on(/^exile (.+?)(?: until ~ leaves the battlefield)?$/, async (m, env) => {
   if (/top|graveyard|cards from|until you exile/.test(m[1])) return;
   const objs = await objects(env, m[1].replace(/ face down$/, ''), { harm: true });
   const until = /until ~ leaves the battlefield/.test(env.sentence);
+  // Oblivion Ring, Journey to Nowhere, Fiend Hunter: a separate "leaves the battlefield" trigger brings it back
+  const linked = env.src && /leaves the battlefield, return the exiled (?:card|cards|creature|permanent)s?\b/i.test(oracle(env.src) || '');
   for (const c of objs) {
     const nm = `${whose(c)} ${nameTag(c)}`;
     move(c.iid, 'exile', { faceDown: /face down/.test(m[1]) });
     if (until && card(c.iid)) card(c.iid).exiledBy = env.src.iid;
+    else if (linked && card(c.iid)) card(c.iid).exiledLinked = env.src.iid;
     if (objs.length <= 3) env.did.push(`exiles ${nm}`);
   }
   if (objs.length > 3) env.did.push(`exiles ${objs.length} permanents`);
@@ -1754,11 +1765,16 @@ on(/^put (\w+) cards? from your hand on (?:top|the bottom) of your library(?: in
   env.did.push(`puts ${k} card${k > 1 ? 's' : ''} back`);
 });
 // --- flicker and delayed returns
-on(/^return (it|that card|the exiled card|them|those cards|the exiled cards|that creature|each card exiled this way) to the battlefield( transformed)?(?: under (its owner's|their owners'|your|its controller's) control)?( tapped)?( at the beginning of the next end step)?$/, async (m, env) => {
-  const ids = env.them_ && env.them_.length && /them|those|each/.test(m[1]) ? env.them_ : env.it && env.it.iid ? [env.it.iid] : env.them_ || [];
+on(/^return (it|that card|the exiled card|them|those cards|the exiled cards|that creature|each card exiled this way) to the battlefield( transformed)?(?: under (its owner's|their owners'|their owner's|your|its controller's) control)?( tapped)?( at the beginning of the next end step)?$/, async (m, env) => {
+  let ids = env.them_ && env.them_.length && /them|those|each/.test(m[1]) ? env.them_ : env.it && env.it.iid ? [env.it.iid] : env.them_ || [];
+  // Oblivion Ring & co.: "the exiled card" is whatever this permanent exiled
+  const src = env.src && env.src.iid;
+  const linked = /exiled/.test(m[1]) && src ? Object.values(G.s.cards).filter((x) => x.zone === 'exile' && x.exiledLinked === src) : [];
+  if (linked.length) ids = linked.map((x) => x.iid);
   for (const i of ids) {
     const c = card(i);
     if (!c || c.zone === 'battlefield') continue;
+    delete c.exiledLinked;
     const ctlr = m[3] === 'your' ? env.me : c.owner;
     if (m[5]) {
       G.s.delayed.push({ at: 'endStep', kind: 'returnFromExile', iid: i, pid: ctlr });
@@ -2449,7 +2465,7 @@ async function runSentence(sentence, env) {
   }
   // "Draw a card, then discard a card." / "Scry 1, then draw a card."
   const parts = s.split(/,? then (?=[a-z])/i);
-  if (parts.length > 1 && !/^search/i.test(s)) {
+  if (parts.length > 1 && !/^search/i.test(s) && !BLINK_RE.test(s.toLowerCase())) {
     for (const p of parts) await runSentence(p, env);
     return;
   }
