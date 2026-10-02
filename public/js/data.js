@@ -258,6 +258,9 @@ export function secondCandidates(deck, firstId) {
 // ------------------------------------------------------------ samples
 const basics = (n, name) => `${n} ${name}`;
 
+// Official preconstructed Commander decks: { key: { label, set, text } } (same decklist format as the samples)
+export const PRECON_DECKS = {};
+
 export const SAMPLE_DECKS = {
   gruul: {
     label: 'Sample deck · Bracket 3 — Gruul Stompy (Xenagos)',
@@ -534,5 +537,569 @@ Deck
 1 Command Tower
 ${basics(15, 'Island')}
 ${basics(15, 'Mountain')}`,
+  },
+  cats: {
+    label: 'Sample deck · Bracket 1 — Selesnya Cats (Arahbo)',
+    bracket: 1,
+    text: `Commander
+1 Arahbo, Roar of the World
+
+Deck
+1 Sol Ring
+1 Arcane Signet
+1 Selesnya Signet
+1 Rampant Growth
+1 Cultivate
+1 Kodama's Reach
+1 Wood Elves
+1 Farhaven Elf
+1 Explore
+1 Harrow
+1 Ajani's Pridemate
+1 Adorned Pouncer
+1 Brimaz, King of Oreskos
+1 Pride Sovereign
+1 Regal Caracal
+1 Leonin Warleader
+1 Qasali Pridemage
+1 Qasali Slingers
+1 Sacred Cat
+1 Prowling Serpopard
+1 Feline Sovereign
+1 Fleecemane Lion
+1 Mirri, Weatherlight Duelist
+1 Kemba, Kha Regent
+1 Seht's Tiger
+1 Leonin Skyhunter
+1 Leonin Relic-Warder
+1 Steppe Lynx
+1 Savannah Lions
+1 Silvercoat Lion
+1 Raksha Golden Cub
+1 Kaheera, the Orphanguard
+1 Jedit Ojanen of Efrava
+1 Felidar Guardian
+1 Felidar Sovereign
+1 Felidar Cub
+1 Felidar Retreat
+1 Qasali Ambusher
+1 Pridemalkin
+1 Mirri, Cat Warrior
+1 Wild Nacatl
+1 Nacatl War-Pride
+1 King of the Pride
+1 Whitemane Lion
+1 Leonin of the Lost Pride
+1 Leonin Elder
+1 Leonin Den-Guard
+1 Taj-Nar Swordsmith
+1 Sabertooth Nishoba
+1 Coat of Arms
+1 Herald's Horn
+1 Vanquisher's Banner
+1 Swords to Plowshares
+1 Beast Within
+1 Generous Gift
+1 Heroic Intervention
+1 Return to Dust
+1 Harmonize
+1 Rishkar's Expertise
+1 Overrun
+1 Wrath of God
+1 Lightning Greaves
+1 Swiftfoot Boots
+1 Command Tower
+1 Path of Ancestry
+1 Unclaimed Territory
+1 Selesnya Sanctuary
+1 Blossoming Sands
+${basics(15, 'Plains')}
+${basics(16, 'Forest')}`,
+  },
+  goblins: {
+    label: 'Sample deck · Bracket 1 — Mono-Red Goblins (Krenko, Tin Street Kingpin)',
+    bracket: 1,
+    text: `Commander
+1 Krenko, Tin Street Kingpin
+
+Deck
+1 Sol Ring
+1 Arcane Signet
+1 Mind Stone
+1 Fire Diamond
+1 Ruby Medallion
+1 Thought Vessel
+1 Hedron Archive
+1 Wayfarer's Bauble
+1 Goblin Instigator
+1 Beetleback Chief
+1 Mogg War Marshal
+1 Goblin Warchief
+1 Goblin Chieftain
+1 Goblin King
+1 Goblin Piledriver
+1 Siege-Gang Commander
+1 Legion Warboss
+1 Goblin Rabblemaster
+1 Goblin Ringleader
+1 Goblin Trashmaster
+1 Battle Cry Goblin
+1 Mogg Fanatic
+1 Mogg Flunkies
+1 Goblin Cratermaker
+1 Goblin Arsonist
+1 Goblin Heelcutter
+1 Foundry Street Denizen
+1 Goblin Lackey
+1 Goblin Guide
+1 Goblin Dark-Dwellers
+1 Goblin Motivator
+1 Goblin Kaboomist
+1 Conspicuous Snoop
+1 Gempalm Incinerator
+1 Volley Veteran
+1 Goblin Chainwhirler
+1 Reckless Bushwhacker
+1 Goblin Bushwhacker
+1 Frenzied Goblin
+1 Goblin Wardriver
+1 Fanatical Firebrand
+1 Ib Halfheart, Goblin Tactician
+1 Goblin Shortcutter
+1 Ember Hauler
+1 Skirk Commando
+1 Goblin Gaveleer
+1 Purphoros, God of the Forge
+1 Impact Tremors
+1 Goblin Bombardment
+1 Krenko's Command
+1 Dragon Fodder
+1 Hordeling Outburst
+1 Goblin Rally
+1 Boggart Shenanigans
+1 Goblin War Strike
+1 Goblin Warrens
+1 Lightning Bolt
+1 Abrade
+1 Chaos Warp
+1 Blasphemous Act
+1 Shock
+1 Light Up the Stage
+1 Outpost Siege
+1 Faithless Looting
+1 Lightning Greaves
+1 Command Tower
+1 Castle Embereth
+${basics(32, 'Mountain')}`,
+  },
+  korvold: {
+    label: 'Sample deck · Bracket 4 — Jund Sacrifice (Korvold, Fae-Cursed King)',
+    bracket: 4,
+    text: `Commander
+1 Korvold, Fae-Cursed King
+
+Deck
+1 Sol Ring
+1 Mana Vault
+1 Arcane Signet
+1 Talisman of Indulgence
+1 Talisman of Impulse
+1 Talisman of Resilience
+1 Birds of Paradise
+1 Llanowar Elves
+1 Elvish Mystic
+1 Fyndhorn Elves
+1 Three Visits
+1 Nature's Lore
+1 Farseek
+1 Sakura-Tribe Elder
+1 Gilded Goose
+1 Tireless Provisioner
+1 Prosperous Innkeeper
+1 Academy Manufactor
+1 Grim Hireling
+1 Prosper, Tome-Bound
+1 Mayhem Devil
+1 Pitiless Plunderer
+1 Ashnod's Altar
+1 Phyrexian Altar
+1 Viscera Seer
+1 Carrion Feeder
+1 Blood Artist
+1 Zulaport Cutthroat
+1 Bastion of Remembrance
+1 Mirkwood Bats
+1 Woe Strider
+1 Gravecrawler
+1 Bloodghast
+1 Reassembling Skeleton
+1 Nether Traitor
+1 Tireless Tracker
+1 Savvy Hunter
+1 Professional Face-Breaker
+1 Goldspan Dragon
+1 Revel in Riches
+1 Skullclamp
+1 Village Rites
+1 Deadly Dispute
+1 Plumb the Forbidden
+1 Demonic Tutor
+1 Vampiric Tutor
+1 Diabolic Intent
+1 Eldritch Evolution
+1 Chord of Calling
+1 Green Sun's Zenith
+1 Gamble
+1 Worldly Tutor
+1 Assassin's Trophy
+1 Abrupt Decay
+1 Toxic Deluge
+1 Feed the Swarm
+1 Chaos Warp
+1 Deadly Rollick
+1 Infernal Grasp
+1 Go for the Throat
+1 Beast Within
+1 Kolaghan's Command
+1 Lightning Greaves
+1 Swiftfoot Boots
+1 Living Death
+1 Command Tower
+1 Exotic Orchard
+1 Savage Lands
+1 Ziatora's Proving Ground
+1 Overgrown Tomb
+1 Blood Crypt
+1 Stomping Ground
+1 Bloodstained Mire
+1 Wooded Foothills
+1 Verdant Catacombs
+1 Dragonskull Summit
+1 Woodland Cemetery
+1 Rootbound Crag
+1 Cinder Glade
+1 Smoldering Marsh
+1 Twilight Mire
+1 Fire-Lit Thicket
+1 Graven Cairns
+1 Bojuka Bog
+1 Gaea's Cradle
+1 Haunted Ridge
+1 Ignoble Hierarch
+1 Witch's Oven
+${basics(4, 'Forest')}
+${basics(4, 'Swamp')}
+${basics(3, 'Mountain')}`,
+  },
+  atraxa: {
+    label: 'Sample deck · Bracket 4 — Four-Color Counters (Atraxa, Praetors\' Voice)',
+    bracket: 4,
+    text: `Commander
+1 Atraxa, Praetors' Voice
+
+Deck
+1 Sol Ring
+1 Mana Vault
+1 Arcane Signet
+1 Chrome Mox
+1 Fellwar Stone
+1 Talisman of Dominance
+1 Talisman of Unity
+1 Talisman of Progress
+1 Talisman of Resilience
+1 Birds of Paradise
+1 Noble Hierarch
+1 Farseek
+1 Nature's Lore
+1 Three Visits
+1 Cultivate
+1 Smothering Tithe
+1 Doubling Season
+1 Hardened Scales
+1 Winding Constrictor
+1 Corpsejack Menace
+1 Branching Evolution
+1 Vorinclex, Monstrous Raider
+1 Evolution Sage
+1 Flux Channeler
+1 Karn's Bastion
+1 Contagion Engine
+1 Inexorable Tide
+1 Deepglow Skate
+1 Oath of Teferi
+1 The Chain Veil
+1 Teferi, Hero of Dominaria
+1 Teferi, Temporal Archmage
+1 Garruk Wildspeaker
+1 Vraska, Golgari Queen
+1 Nissa, Who Shakes the World
+1 Tamiyo, Field Researcher
+1 Narset, Parter of Veils
+1 Oko, Thief of Crowns
+1 Ajani, Mentor of Heroes
+1 Swords to Plowshares
+1 Path to Exile
+1 Counterspell
+1 Anguished Unmaking
+1 Assassin's Trophy
+1 Vindicate
+1 Cyclonic Rift
+1 Supreme Verdict
+1 Toxic Deluge
+1 Teferi's Protection
+1 Heroic Intervention
+1 Arcane Denial
+1 Swan Song
+1 Mana Drain
+1 Force of Will
+1 Rhystic Study
+1 Mystic Remora
+1 Sylvan Library
+1 Demonic Tutor
+1 Vampiric Tutor
+1 Enlightened Tutor
+1 Mystical Tutor
+1 Command Tower
+1 City of Brass
+1 Mana Confluence
+1 Exotic Orchard
+1 Breeding Pool
+1 Hallowed Fountain
+1 Watery Grave
+1 Overgrown Tomb
+1 Godless Shrine
+1 Temple Garden
+1 Flooded Strand
+1 Polluted Delta
+1 Misty Rainforest
+1 Verdant Catacombs
+1 Windswept Heath
+1 Marsh Flats
+1 Spara's Headquarters
+1 Raffine's Tower
+1 Indatha Triome
+1 Sandsteppe Citadel
+1 Arcane Sanctum
+1 Seaside Citadel
+1 Opulent Palace
+1 Pernicious Deed
+1 Generous Gift
+1 Rishkar, Peema Renegade
+1 The Ozolith
+1 Lightning Greaves
+1 Sylvan Caryatid
+${basics(2, 'Plains')}
+${basics(2, 'Island')}
+${basics(2, 'Swamp')}
+${basics(3, 'Forest')}`,
+  },
+  kinnan: {
+    label: 'Sample deck · Bracket 5 (cEDH) — Simic Combo (Kinnan, Bonder Prodigy)',
+    bracket: 5,
+    text: `Commander
+1 Kinnan, Bonder Prodigy
+
+Deck
+1 Sol Ring
+1 Mana Vault
+1 Grim Monolith
+1 Basalt Monolith
+1 Chrome Mox
+1 Mox Diamond
+1 Mox Opal
+1 Mox Amber
+1 Lotus Petal
+1 Arcane Signet
+1 Fellwar Stone
+1 Talisman of Curiosity
+1 Birds of Paradise
+1 Llanowar Elves
+1 Elvish Mystic
+1 Fyndhorn Elves
+1 Arbor Elf
+1 Delighted Halfling
+1 Utopia Sprawl
+1 Wild Growth
+1 Gilded Goose
+1 Devoted Druid
+1 Incubation Druid
+1 Paradise Druid
+1 Bloom Tender
+1 Priest of Titania
+1 Isochron Scepter
+1 Dramatic Reversal
+1 Freed from the Real
+1 Pemmin's Aura
+1 Umbral Mantle
+1 Walking Ballista
+1 Hullbreaker Horror
+1 Worldly Tutor
+1 Mystical Tutor
+1 Survival of the Fittest
+1 Green Sun's Zenith
+1 Finale of Devastation
+1 Eldritch Evolution
+1 Fauna Shaman
+1 Force of Will
+1 Force of Negation
+1 Fierce Guardianship
+1 Pact of Negation
+1 Mental Misstep
+1 Swan Song
+1 Flusterstorm
+1 Mana Drain
+1 Counterspell
+1 Spell Pierce
+1 An Offer You Can't Refuse
+1 Rapid Hybridization
+1 Pongify
+1 Snap
+1 Cyclonic Rift
+1 Rhystic Study
+1 Mystic Remora
+1 Sylvan Library
+1 Ponder
+1 Preordain
+1 Brainstorm
+1 Gitaxian Probe
+1 Trinket Mage
+1 Tezzeret the Seeker
+1 Displacer Kitten
+1 Breeding Pool
+1 Misty Rainforest
+1 Flooded Strand
+1 Polluted Delta
+1 Windswept Heath
+1 Wooded Foothills
+1 Verdant Catacombs
+1 Yavimaya Coast
+1 Hinterland Harbor
+1 Waterlogged Grove
+1 Command Tower
+1 Gaea's Cradle
+1 Ancient Tomb
+1 Boseiju, Who Endures
+1 Otawara, Soaring City
+1 Tropical Island
+1 Mana Confluence
+1 City of Brass
+1 Talon Gates of Madara
+1 Elvish Spirit Guide
+1 Springleaf Drum
+1 Dryad Arbor
+1 Training Grounds
+1 Thousand-Year Elixir
+1 Jeweled Amulet
+1 Wall of Roots
+1 Sylvan Scrying
+${basics(4, 'Forest')}
+${basics(3, 'Island')}`,
+  },
+  tnt: {
+    label: 'Sample deck · Bracket 5 (cEDH) — Four-Color Blitz (Thrasios & Tymna)',
+    bracket: 5,
+    text: `Commander
+1 Thrasios, Triton Hero
+1 Tymna the Weaver
+
+Deck
+1 Sol Ring
+1 Mana Vault
+1 Chrome Mox
+1 Mox Diamond
+1 Lotus Petal
+1 Arcane Signet
+1 Fellwar Stone
+1 Talisman of Dominance
+1 Birds of Paradise
+1 Noble Hierarch
+1 Elvish Mystic
+1 Llanowar Elves
+1 Fyndhorn Elves
+1 Delighted Halfling
+1 Carpet of Flowers
+1 Dark Ritual
+1 Cabal Ritual
+1 Demonic Tutor
+1 Vampiric Tutor
+1 Imperial Seal
+1 Mystical Tutor
+1 Enlightened Tutor
+1 Worldly Tutor
+1 Wishclaw Talisman
+1 Grim Tutor
+1 Force of Will
+1 Force of Negation
+1 Pact of Negation
+1 Mana Drain
+1 Counterspell
+1 Swan Song
+1 Flusterstorm
+1 Silence
+1 Swords to Plowshares
+1 Path to Exile
+1 Assassin's Trophy
+1 Abrupt Decay
+1 Drannith Magistrate
+1 Opposition Agent
+1 Rhystic Study
+1 Mystic Remora
+1 Necropotence
+1 Sylvan Library
+1 Esper Sentinel
+1 Dark Confidant
+1 Ad Nauseam
+1 Brainstorm
+1 Ponder
+1 Preordain
+1 Gitaxian Probe
+1 Thassa's Oracle
+1 Demonic Consultation
+1 Tainted Pact
+1 Dramatic Reversal
+1 Isochron Scepter
+1 Spell Pierce
+1 Mental Misstep
+1 Grand Abolisher
+1 Deathrite Shaman
+1 Gilded Goose
+1 Command Tower
+1 City of Brass
+1 Mana Confluence
+1 Forbidden Orchard
+1 Breeding Pool
+1 Hallowed Fountain
+1 Watery Grave
+1 Overgrown Tomb
+1 Godless Shrine
+1 Temple Garden
+1 Flooded Strand
+1 Polluted Delta
+1 Misty Rainforest
+1 Verdant Catacombs
+1 Windswept Heath
+1 Marsh Flats
+1 Scalding Tarn
+1 Bloodstained Mire
+1 Wooded Foothills
+1 Arid Mesa
+1 Ancient Tomb
+1 Gaea's Cradle
+1 Tropical Island
+1 Underground Sea
+1 Bayou
+1 Scrubland
+1 Savannah
+1 Tundra
+1 Gemstone Caverns
+1 Elvish Spirit Guide
+1 Mox Amber
+1 Toxic Deluge
+1 Faerie Mastermind
+1 Spellseeker
+${basics(1, 'Island')}
+${basics(1, 'Swamp')}
+${basics(1, 'Forest')}
+${basics(1, 'Plains')}`,
   },
 };

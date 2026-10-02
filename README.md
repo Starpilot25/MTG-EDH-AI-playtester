@@ -62,7 +62,13 @@ Then open **http://localhost:5173** in your browser. Stop the server with Ctrl+C
 - **Deck link** — paste a public Moxfield or Archidekt deck URL.
 - **Paste list** — any plain-text export works (`1 Sol Ring`, `1x Sol Ring (CMR) 472`, a "Commander" section header, or `*CMDR*` after the commander).
 - **Saved** — decks you've saved. After loading any deck, type a name under it and press **Save deck** (your commander choice is kept). In the desktop app they're kept in the app's data folder. In the browser version they're kept in `saved-decks.json` next to `server.js`, so they survive restarts and work in any browser on this computer.
-- **Sample** — four built-in decks, labelled with their power bracket: two Bracket 2 decks (Mono-White Tokens with Adeline, Izzet Spells with Niv-Mizzet, Parun) and two upgraded Bracket 3 decks (Gruul Stompy with Xenagos, Golgari Value with Meren).
+- **Sample**: ten built-in decks, grouped by power bracket:
+  - Bracket 1: Selesnya Cats (Arahbo), Mono-Red Goblins (Krenko, Tin Street Kingpin)
+  - Bracket 2: Mono-White Tokens (Adeline), Izzet Spells (Niv-Mizzet, Parun)
+  - Bracket 3: Gruul Stompy (Xenagos), Golgari Value (Meren)
+  - Bracket 4: Jund Sacrifice (Korvold), Four-Color Counters (Atraxa)
+  - Bracket 5 (cEDH): Simic Combo (Kinnan), Four-Color Blitz (Thrasios & Tymna)
+- **Precon**: official preconstructed Commander decks (coming soon).
 - **Mirror** (AI only) — the AI plays a copy of your deck.
 
 Partners, Partner with, Friends Forever, Doctor's companions and Backgrounds are supported: mark both commanders in your list (deck links do this automatically). If no commander is marked, one is picked from the list — a legend with a matching partner or Background if there is one — and you can change both from the dropdowns. Each commander has its own tax and its own commander-damage count (Backgrounds don't deal commander damage, so they get no counter).

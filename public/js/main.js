@@ -1,6 +1,6 @@
 // Setup screen, game start, mulligans.
 import {
-  DB, parseDecklist, importFromUrl, resolveDeck, legendaryCandidates, secondCandidates, canPair, wantsPair, SAMPLE_DECKS,
+  DB, parseDecklist, importFromUrl, resolveDeck, legendaryCandidates, secondCandidates, canPair, wantsPair, SAMPLE_DECKS, PRECON_DECKS,
   listSaved, saveDeck, deleteSaved, deckToText,
 } from './data.js';
 import { G, newGame, cardsIn, move, log, esc, emit } from './state.js';
@@ -133,6 +133,13 @@ async function loadSlot(pid) {
       parsed = parseDecklist(entry.text);
       parsed.name = entry.name;
       slots[pid].source = entry.source || '';
+    } else if (mode === 'precon') {
+      const key = $('.in-precon', el).value;
+      if (!key || !PRECON_DECKS[key]) throw new Error('No precons have been added yet.');
+      store.set(pid + ':precon', key);
+      parsed = parseDecklist(PRECON_DECKS[key].text);
+      parsed.name = PRECON_DECKS[key].label;
+      slots[pid].source = 'precon:' + key;
     } else {
       const key = $('.in-sample', el).value;
       store.set(pid + ':sample', key);
@@ -291,12 +298,21 @@ function readSettings() {
 function initSetup() {
   for (const pid of ['p', 'ai']) {
     const el = slotEl(pid);
-    $('.in-sample', el).innerHTML = Object.entries(SAMPLE_DECKS)
-      .map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`)
+    const BRACKETS = { 1: 'Bracket 1 · Exhibition', 2: 'Bracket 2 · Core', 3: 'Bracket 3 · Upgraded', 4: 'Bracket 4 · Optimized', 5: 'Bracket 5 · cEDH' };
+    $('.in-sample', el).innerHTML = [1, 2, 3, 4, 5]
+      .map((b) => {
+        const list = Object.entries(SAMPLE_DECKS).filter(([, v]) => v.bracket === b);
+        return list.length ? `<optgroup label="${BRACKETS[b]}">${list.map(([k, v]) => `<option value="${k}">${esc(v.label.replace(/^Sample deck · /, ''))}</option>`).join('')}</optgroup>` : '';
+      })
       .join('');
     $('.in-link', el).value = store.get(pid + ':link', '');
     $('.in-paste', el).value = store.get(pid + ':paste', '');
     $('.in-sample', el).value = store.get(pid + ':sample', pid === 'p' ? 'gruul' : 'golgari');
+    const precons = Object.entries(PRECON_DECKS);
+    $('.in-precon', el).innerHTML = precons.map(([k, v]) => `<option value="${k}">${esc(v.label)}${v.set ? ` (${esc(v.set)})` : ''}</option>`).join('');
+    $('.in-precon', el).hidden = !precons.length;
+    $('.precon-tip', el).hidden = !!precons.length;
+    if (precons.length) $('.in-precon', el).value = store.get(pid + ':precon', precons[0][0]);
     setMode(pid, store.get(pid + ':mode', pid === 'p' ? 'link' : 'sample'));
     $$('.seg button', el).forEach((b) => b.addEventListener('click', () => setMode(pid, b.dataset.mode)));
     $('.load', el).addEventListener('click', () => loadSlot(pid));
