@@ -618,4 +618,4 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
 }
 
 // handed to statics.js so it can test types without importing this module's state
-export const helpers = { typeLine, hasSubtype, isCreature };
+export const helpers = { typeLine, hasSubtype, isCreature, power, toughness };

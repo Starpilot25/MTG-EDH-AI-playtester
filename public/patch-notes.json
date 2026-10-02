@@ -1,9 +1,10 @@
 [
   {
-    "version": "1.2.4",
-    "title": "Unnatural Growth",
+    "version": "1.2.5",
+    "title": "Unnatural Growth and Ghalta",
     "notes": [
-      "Unnatural Growth doubles the power and toughness of each creature you control at the beginning of each combat. Other \"double the power (and toughness) of …\" cards work too."
+      "Unnatural Growth doubles the power and toughness of each creature you control at the beginning of each combat. Other \"double the power (and toughness) of …\" cards work too.",
+      "Ghalta, Primal Hunger costs {X} less where X is the total power of your creatures (from your hand or the command zone). Other \"total power\" and \"greatest power among creatures you control\" amounts are counted too."
     ]
   },
   {

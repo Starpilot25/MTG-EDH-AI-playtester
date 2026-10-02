@@ -332,6 +332,23 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   // "for each tapped land your opponents control", "for each Goblin on the battlefield", "creature card in your graveyard"
   p = p.replace(/^((?:[\w-]+ ){0,3}?)([\w-]*[^s\s]) (you control|your opponents control|an opponent controls|on the battlefield)$/, '$1$2s $3')
     .replace(/\bcard (in|from) /, 'cards $1 ');
+  // Ghalta: "the total power of creatures you control"; also "greatest power among creatures you control"
+  {
+    const pm = p.match(/^(?:total |the total )?(power|toughness) of ((?:other )?(?:[\w-]+ ){0,2}?creatures) (you control|your opponents control|on the battlefield)$/);
+    if (pm && G.s && helpers) {
+      const who = pm[3] === 'you control' ? [pid] : pm[3] === 'on the battlefield' ? ['p', 'ai'] : [pid === 'p' ? 'ai' : 'p'];
+      const words = pm[2].replace(/creatures$/, '').trim();
+      const f = filterFrom(words);
+      return who.flatMap((w) => G.s.players[w].zones.battlefield.map((i) => G.s.cards[i]))
+        .filter((c) => c && !c.phasedOut && helpers.isCreature(c) && (!/other/.test(words) || c.iid !== srcIid) && matchesFilter(c, f, helpers))
+        .reduce((a, c) => a + Math.max(0, pm[1] === 'power' ? helpers.power(c) : helpers.toughness(c)), 0);
+    }
+    const gm = p.match(/^(?:the )?greatest (power|toughness|mana value) among (?:other )?creatures you control$/);
+    if (gm && G.s && helpers) {
+      const cs = G.s.players[pid].zones.battlefield.map((i) => G.s.cards[i]).filter((c) => c && helpers.isCreature(c));
+      return cs.reduce((a, c) => Math.max(a, gm[1] === 'power' ? helpers.power(c) : gm[1] === 'toughness' ? helpers.toughness(c) : DB[c.def].cmc || 0), 0);
+    }
+  }
   {
     const nm = p.match(/^cards? named (.+?) in (?:each|all) graveyards?$/);
     if (nm && G.s) return ['p', 'ai'].flatMap((w) => G.s.players[w].zones.graveyard).filter((i) => G.s.cards[i] && DB[G.s.cards[i].def].name.toLowerCase() === nm[1]).length;
