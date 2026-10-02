@@ -1,0 +1,4 @@
+node_modules/
+dist/
+saved-decks.json
+.DS_Store

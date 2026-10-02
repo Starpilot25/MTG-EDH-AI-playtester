@@ -1,0 +1,71 @@
+{
+  "name": "edh-playtester",
+  "productName": "EDH Playtester",
+  "version": "1.0.2",
+  "description": "Playtest your Commander decks against an AI opponent.",
+  "main": "electron-main.js",
+  "author": "EDH Playtester",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "server": "node server.js",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
+    "manifest": "node tools/make-manifest.js"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "app.edhplaytester.desktop",
+    "productName": "EDH Playtester",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron-main.js",
+      "updater.js",
+      "server.js",
+      "update.json",
+      "public/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "EDH Playtester"
+    },
+    "mac": {
+      "target": [
+        "zip"
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.games"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png",
+      "category": "Game"
+    },
+    "publish": null,
+    "electronLanguages": [
+      "en-US"
+    ],
+    "compression": "maximum"
+  }
+}
