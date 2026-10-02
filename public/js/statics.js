@@ -251,6 +251,10 @@ function selfBuffs(c, helpers, out) {
   }
 }
 
+const NOT_CREATURE_TYPE = /^(creature|artifact|enchantment|land|planeswalker|battle|kindred|tribal|legendary|snow|basic|permanent|card|aura|equipment|vehicle|saga|class|case|room|food|treasure|clue|spell|nonland|token)s?$/;
+function isChangelingDef(d) {
+  return (d.keywords || []).includes('changeling') || /(?:^|\n)Changeling\b/.test((d.faces[0] || {}).oracle || '');
+}
 function spellFits(filter, d) {
   if (!filter) return true;
   const tl = d.faces[0].typeLine;
@@ -263,7 +267,9 @@ function spellFits(filter, d) {
     if (w === 'instant' || w === 'sorcery') return /Instant|Sorcery/.test(tl);
     if (w === 'historic') return /Legendary|Artifact|Saga/.test(tl);
     if (w === 'commander') return true;
-    return new RegExp('\\b' + w.replace(/s$/, ''), 'i').test(tl);
+    if (new RegExp('\\b' + w.replace(/s$/, ''), 'i').test(tl)) return true;
+    // changelings (Firdoch Core, Mirror Entity…) are every creature type
+    return isChangelingDef(d) && /Creature|Kindred|Tribal/.test(tl.split('—')[0]) && !NOT_CREATURE_TYPE.test(w);
   });
 }
 

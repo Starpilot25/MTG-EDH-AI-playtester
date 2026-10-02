@@ -32,7 +32,7 @@ export function hasSubtype(inst, t) {
   const parts = typeLine(inst).split('—');
   if (parts.length > 1 && new RegExp('\\b' + t + 's?\\b', 'i').test(parts.slice(1).join(' '))) return true;
   // changeling (intrinsic only, so lords can't loop back into themselves)
-  if (!inst.faceDown && isCreature(inst) && (DB[inst.def].keywords.includes('changeling') || (inst.grants || []).includes('changeling') || /(?:^|\n)Changeling\b/.test((DB[inst.def].faces[inst.face || 0] || {}).oracle || '')) &&
+  if (!inst.faceDown && (isCreature(inst) || /\b(?:Kindred|Tribal)\b/.test(typeLine(inst).split('—')[0])) && (DB[inst.def].keywords.includes('changeling') || (inst.grants || []).includes('changeling') || /(?:^|\n)Changeling\b/.test((DB[inst.def].faces[inst.face || 0] || {}).oracle || '')) &&
       !/^(aura|equipment|vehicle|saga|class|case|room|food|treasure|clue)$/i.test(t)) return true;
   return false;
 }
