@@ -5,16 +5,25 @@ Play 1v1 Commander against an AI opponent to test your decks. It's a free-form t
 - **Import any deck.** Paste a Moxfield or Archidekt link, or a plain-text list.
 - **Built-in AI opponent.** It runs locally, with no account or API key. It simulates combat, holds up counterspells and plays at instant speed.
 - **Real rules.** The engine reads each card's rules text and covers keyword mechanics from across Magic's history.
-- **Sample decks** at Bracket 2 and Bracket 3, plus saved decks.
+- **Sample decks** from Bracket 1 to cEDH, plus saved decks.
+- **Second screen:** pop the AI's board out into its own window.
 - **Desktop app** for Windows, Mac and Linux that updates itself from this repository.
 
 ## Download
 
-**Windows:** go to [**Releases**](https://github.com/Starpilot25/MTG-EDH-AI-playtester/releases/latest) and download `EDH Playtester Setup 1.0.1.exe` (or the newest version listed). Run it to install the app with a desktop shortcut.
+**Windows:** go to [**Releases**](https://github.com/Starpilot25/MTG-EDH-AI-playtester/releases/latest) and download the newest `EDH Playtester Setup <version>.exe`. Run it to install the app with a desktop shortcut.
 
 The app isn't code-signed, so Windows may say it's from an unknown publisher. Click **More info → Run anyway**.
 
 Your saved decks are kept in the app's own data folder, so reinstalling or updating doesn't lose them.
+
+**Installing from split files:** an installer sent as several pieces (`EDH-Playtester-Setup-<version>.part0`, `.part1`, …) together with `Install EDH Playtester <version>.bat`:
+
+1. Put all the files in one folder.
+2. Double-click `Install EDH Playtester <version>.bat`. It joins the pieces into `EDH Playtester Setup <version>.exe` and starts it.
+3. Install as usual. Installing over an existing copy updates it and keeps your saved decks.
+
+**Do I need a new installer?** Usually not. The app updates itself every time it opens (see [Updates without reinstalling](#updates-without-reinstalling)), so card fixes, AI changes and new sample decks arrive automatically. A new installer is only needed when the app's shell changes: the window, the local server or the updater. When that happens, older installs keep working and still get card fixes; only the new shell features need the new installer. For example, the **Pop out** button needs version 1.1.0 or newer, and older versions show a message saying so.
 
 **Mac or Linux:** build it yourself (below).
 
@@ -42,7 +51,17 @@ To publish an update:
 3. Run `npm run manifest` to regenerate `update.json`.
 4. Upload `update.json` **last**, after the files it lists, so no app downloads a half-finished update.
 
-Changes to `server.js`, `electron-main.js` or `updater.js` need a new installer: build it with `npm run dist:win` and attach it to a new Release. Set `minAppVersion` in `update.json` so older apps wait for that installer instead of loading files they can't run.
+### Publishing a new installer
+
+Changes to `server.js`, `electron-main.js` or `updater.js` need a new installer.
+
+1. Build it with `npm run dist:win`, or join the split pieces with the `.bat` file as above. You get `EDH Playtester Setup <version>.exe`.
+2. On the repository page, open **Releases → Draft a new release**.
+3. Create a tag for the version, such as `v1.1.0`.
+4. Drag the `.exe` into the attachments box and click **Publish release**.
+5. Optionally, delete the previous release so only the newest one is listed.
+
+If older apps can't run the new game files at all, raise `minAppVersion` in `update.json`. They then keep their current version until they're reinstalled, instead of loading files they can't run.
 
 > The installer is too big for the repository itself (GitHub's limit is 25 MB through the website). Installers go in **Releases**, which allow files up to 2 GB.
 
