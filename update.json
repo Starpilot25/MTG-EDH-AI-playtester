@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "899a5b73a8f3a18ec1a0b8223c127d6de4deebe09d6949d2a809db38927bead2",
@@ -15,7 +15,7 @@
     "public/js/rules.js": "cca75812af4e3bf711420f8592879b848db323a5c0a62f1a3f05d791d59ad923",
     "public/js/state.js": "be087d2aeae40229a54596698311b1fe1c7bfd9f0508ca7e6b83724f96aa8092",
     "public/js/statics.js": "f86e0805be3f0ba3acc46e8537f515a79dcbeac751d4758a78ca6f74022f6c29",
-    "public/js/triggers.js": "aa16f78ab738f0f6d74008ba923687005d734f0fe13e9a3f428d19a7521e335b",
+    "public/js/triggers.js": "870c6d5c5d6ac3b202356789edebef5a130e5d7997cb014140cd99c875aa8b94",
     "public/js/ui.js": "0e16ca9641158d49bbbbbece09b7ebe8a9a3caa94795c7ca8aba337b8fddd236"
   }
 }

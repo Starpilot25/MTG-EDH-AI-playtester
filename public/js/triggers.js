@@ -92,7 +92,7 @@ export function triggersOf(c, defOverride) {
     } else if ((m = line.match(/^When(?:ever)? ~ or another (nontoken )?(creature|artifact|enchantment|permanent|[A-Z]\w+) (?:you control )?enters(?: the battlefield)?(?: under your control)?, (.+)$/i))) {
       add('enters', m[3], { self: true });
       add('enters', m[3], { other: true, kind: m[2].toLowerCase(), mine: true, nontoken: !!m[1] });
-    } else if ((m = line.match(/^Whenever (another|a|an|one or more|one or more other) (nontoken )?((?:[\w-]+ ){0,3}?)(creature|artifact|enchantment|land|permanent|planeswalker|token|[A-Z][\w-]+)s? (?:you control )?(with [^,]+? )?enters?(?: the battlefield)?( under your control| under an opponent's control)?, (.+)$/i))) {
+    } else if ((m = line.match(/^When(?:ever)? (another|a|an|one or more|one or more other) (nontoken )?((?:[\w-]+ ){0,3}?)(creature|artifact|enchantment|land|permanent|planeswalker|token|[A-Z][\w-]+)s? (?:you control )?(with [^,]+? )?enters?(?: the battlefield)?( under your control| under an opponent's control)?, (.+)$/i))) {
       const theirs = /opponent/.test(m[6] || '');
       const mine = /under your control/.test(m[6] || '') || /you control/i.test(line.split(',')[0]);
       add('enters', m[7], { other: /another|other/.test(m[1]), kind: ((m[3] + m[4]).toLowerCase().trim() + (m[5] ? ' ' + m[5].trim() : '')).trim(), mine, theirs, nontoken: !!m[2], once: /one or more/.test(m[1]) });
