@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.7",
+    "title": "AI crewing",
+    "notes": [
+      "Fixed: the AI tapped every creature it had to crew a vehicle, then attacked with almost nothing. It now taps only the creatures it needs, using ones that can't attack well (summoning sick, low value) first.",
+      "The AI no longer crews a vehicle that came in this turn and can't attack yet."
+    ]
+  },
+  {
     "version": "1.2.6",
     "title": "Ilysian Caryatid",
     "notes": [

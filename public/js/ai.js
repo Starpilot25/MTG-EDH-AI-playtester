@@ -853,6 +853,8 @@ export async function aiPrepareCombat(h) {
     for (const ab of activatedAbilities(v)) {
       if (ab.kind !== 'crew' && ab.kind !== 'saddle') continue;
       if (ab.kind === 'crew' && (isCreature(v) || v.crewedTurn === G.s.turn)) continue;
+      // a vehicle that just came in can't attack, so don't tap creatures to crew it
+      if (ab.kind === 'crew' && v.sick && !hasKw(v, 'haste')) continue;
       if (ab.kind === 'saddle' && v.saddledTurn === G.s.turn) continue;
       const helpers = cardsIn(AI, 'battlefield').filter((x) => isCreature(x) && !x.tapped && x.iid !== v.iid && (x.sick || power(x) < (ab.n || 0) || !canAttack(x)));
       const total = helpers.reduce((a, x) => a + Math.max(0, power(x)), 0);

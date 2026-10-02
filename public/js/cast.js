@@ -1000,7 +1000,31 @@ export async function activateAbility(pid, c, ab, env) {
       const pool = cardsIn(pid, 'battlefield').filter((x) => isCreature(x) && !x.tapped && x.iid !== c.iid && (ab.kind !== 'saddle' || !x.attacking));
       if (!pool.length) return env.say('No untapped creatures.');
       const need = ab.n || 0;
-      const picks = await ch.pickCards({
+      // the AI taps as little as it can: creatures that can't attack well this turn first, and only up to the power it needs
+      const aiPicks = () => {
+        const order = [...pool].sort((x, y) => {
+          const bad = (z) => (z.sick && !hasKw(z, 'haste') ? 0 : 1);
+          return bad(x) - bad(y) || cardValue(x) - cardValue(y) || power(y) - power(x);
+        });
+        const out = [];
+        let sum = 0;
+        if (ab.kind === 'station') return order.length ? [order.sort((x, y) => power(y) - power(x)).find((z) => z.sick) ? order.find((z) => z.sick).iid : order[0].iid] : [];
+        for (const z of order) {
+          if (sum >= need) break;
+          out.push(z.iid);
+          sum += Math.max(0, power(z));
+        }
+        // drop any creature that isn't actually needed
+        for (const i of [...out].reverse()) {
+          const rest = sum - Math.max(0, power(card(i)));
+          if (rest >= need && out.length > 1) {
+            out.splice(out.indexOf(i), 1);
+            sum = rest;
+          }
+        }
+        return out;
+      };
+      const picks = pid === 'ai' ? aiPicks() : await ch.pickCards({
         prompt: ab.kind === 'station' ? `Station: tap a creature to put charge counters equal to its power on ${name}` : `${ab.kind === 'crew' ? 'Crew' : 'Saddle'} ${need}: tap creatures with total power ${need} or more`,
         cards: pool.map((x) => x.iid), min: 1, max: ab.kind === 'station' ? 1 : pool.length, purpose: 'crew', src: c, aiScore: (x) => power(x) - cardValue(x) / 2,
       });
