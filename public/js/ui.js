@@ -6,7 +6,7 @@ import {
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, esc, snapshot, undo, redo, shuffle, mill, libTop,
   setLife, toBattlefield, createToken, stateBased, commanderTax, cardName, makeCard, CARD_W, CARD_H,
-  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace,
+  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace, sacrifice,
 } from './state.js';
 import {
   hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn,
@@ -21,7 +21,7 @@ import { DUNGEONS, venture, takeInitiative } from './dungeon.js';
 import {
   Cancelled, activatedAbilities, zoneAbilities,
 } from './effects.js';
-import { payCost, totalMana, sculptors, SECTORS, SECTOR_SIGN } from './rules.js';
+import { payCost, totalMana, sculptors, SECTORS, SECTOR_SIGN, manaAbility } from './rules.js';
 
 // Boards can be popped out into their own windows; lookups search those windows too.
 const popouts = new Map(); // pid -> { win, doc }
@@ -914,9 +914,43 @@ function playFromHand(iid, opts = {}) {
 }
 
 function toggleTap(iid) {
+  const c = card(iid);
+  // Arena-style: tapping your own mana source adds its mana to your pool ("floating" mana)
+  if (G.settings.arenaMode && c && c.controller === 'p' && !c.tapped && manaAbility(c)) return floatMana(c);
   act(() => {
-    const c = card(iid);
+    // untapping a land you just tapped for mana takes that mana back out of the pool
+    if (c.tapped && c.floated && c.floated.step === G.s.step && c.floated.turn === G.s.turn && G.s.pool) {
+      for (const x of c.floated.syms) {
+        const i = G.s.pool.p.lastIndexOf(x);
+        if (i >= 0) G.s.pool.p.splice(i, 1);
+      }
+      delete c.floated;
+    }
     c.tapped = !c.tapped;
+  });
+}
+
+async function floatMana(c) {
+  const m = manaAbility(c);
+  let syms = [];
+  if (m.each) syms = [...m.each];
+  else {
+    let col = m.colors[0];
+    if (m.colors.length > 1) {
+      const names = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green', C: 'Colorless' };
+      const k = await playerChooser.choose({ prompt: `Tap ${cardName(c)} for which color?`, options: m.colors.map((x) => ({ label: names[x] || x })), aiPick: () => 0 });
+      if (k === null || k === undefined || k < 0) return;
+      col = m.colors[k] || col;
+    }
+    syms = Array.from({ length: m.amount || 1 }, () => col);
+  }
+  act(() => {
+    G.s.pool = G.s.pool || { p: [], ai: [] };
+    G.s.pool.p.push(...syms);
+    c.tapped = true;
+    c.floated = { syms, step: G.s.step, turn: G.s.turn };
+    log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${x}}`).join(''))}.`);
+    if (m.sac) sacrifice(c.iid);
   });
 }
 

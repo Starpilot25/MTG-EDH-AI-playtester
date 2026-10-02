@@ -168,7 +168,7 @@ Click **⧉ Pop out** next to the AI's name to move its board (life, piles, hand
 | Action | How |
 | --- | --- |
 | Play a card | Drag it to the battlefield, or double-click it |
-| Tap / untap | Click a card on your battlefield |
+| Tap / untap | Click a card on your battlefield. With Arena-style casting on, clicking a land, mana rock or mana creature taps it for mana into your pool (floating mana); click it again in the same step to undo |
 | Card options | Right-click any card (counters, flip, face down, P/T modifiers, token copy, move to zone) |
 | Library options | Right-click your library: draw X, scry, surveil, mill, look at top X, search, exile top… |
 | Browse a zone | Click a graveyard or exile pile |

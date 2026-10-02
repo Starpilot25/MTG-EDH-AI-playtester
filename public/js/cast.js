@@ -59,7 +59,10 @@ export function applyPayment(pid, pay) {
 }
 
 export function emptyPools() {
-  if (G.s && G.s.pool) G.s.pool = { p: [], ai: [] };
+  if (!G.s || !G.s.pool) return;
+  const left = G.s.pool.p || [];
+  if (left.length) log('p', `Unused mana empties from your pool (${left.length}).`);
+  G.s.pool = { p: [], ai: [] };
 }
 
 // ------------------------------------------------------------ ways to cast a card
