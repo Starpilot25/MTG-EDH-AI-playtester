@@ -445,9 +445,23 @@ export function totalMana(sources) {
 // ------------------------------------------------------------ combat
 const LANDWALK = { swampwalk: 'Swamp', islandwalk: 'Island', forestwalk: 'Forest', mountainwalk: 'Mountain', plainswalk: 'Plains' };
 
+// Space sculptor (Space Beleren): creatures live in the alpha, beta or gamma sector.
+export const SECTORS = ['alpha', 'beta', 'gamma'];
+export const SECTOR_SIGN = { alpha: 'α', beta: 'β', gamma: 'γ' };
+export function sculptors() {
+  if (!G.s) return [];
+  const out = [];
+  for (const pid of ['p', 'ai']) for (const i of G.s.players[pid].zones.battlefield) {
+    const c = G.s.cards[i];
+    if (c && !c.phasedOut && /(?:^|\n)Space sculptor\b/i.test(oracle(c))) out.push(c);
+  }
+  return out;
+}
+
 export function canBlock(blocker, attacker) {
   if (!isCreature(blocker) || blocker.tapped || blocker.pacifiedBy || blocker.phasedOut) return false;
   if (G.s && blocker.detainedUntil && blocker.detainedUntil > G.s.turn) return false;
+  if (G.s && G.s.sectorBlockTurn === G.s.turn && attacker && blocker.sector !== attacker.sector) return false;
   if (G.s && blocker.noBlockUntil && blocker.noBlockUntil > G.s.turn) return false;
   if (blocker.cantBlockTurn === (G.s && G.s.turn)) return false;
   const bo = oracle(blocker);

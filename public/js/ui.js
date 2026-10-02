@@ -21,7 +21,7 @@ import { DUNGEONS, venture, takeInitiative } from './dungeon.js';
 import {
   Cancelled, activatedAbilities, zoneAbilities,
 } from './effects.js';
-import { payCost, totalMana } from './rules.js';
+import { payCost, totalMana, sculptors, SECTORS, SECTOR_SIGN } from './rules.js';
 
 // Boards can be popped out into their own windows; lookups search those windows too.
 const popouts = new Map(); // pid -> { win, doc }
@@ -103,6 +103,7 @@ function cardHTML(c, opts = {}) {
     badges.push(`<span class="pt ${mod ? 'mod' : ''} ${c.damage ? 'hurt' : ''}">${p}/${t - (c.damage || 0)}${c.damage ? '' : ''}</span>`);
   }
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
+  if (c.sector && c.zone === 'battlefield' && sculptors().length) badges.push(`<span class="badge sector" title="${c.sector} sector">${SECTOR_SIGN[c.sector]}</span>`);
   if (c.zone === 'battlefield' && c.sick && isCreature(c) && c.controller === G.s.active && !hasKw(c, 'haste') && G.s.phase === 'play')
     badges.push('<span class="badge sick" title="Summoning sick">zz</span>');
   if (cb) {
@@ -1258,6 +1259,8 @@ function menuForCard(c, x, y) {
     if (c.faceDown && G.settings.arenaMode && c.manifested && /Creature/.test(DB[c.def].faces[0].typeLine))
       items.push({ label: `Turn face up — pay ${manaSymbols(DB[c.def].faces[0].manaCost)}`, fn: () => specialAction((env) => turnFaceUp('p', c, env)) });
     items.push({ label: c.faceDown ? 'Turn face up (free)' : 'Turn face down', fn: () => act(() => (c.faceDown = !c.faceDown)) });
+    if (isCreature(c) && sculptors().length)
+      for (const sec of SECTORS) if (c.sector !== sec) items.push({ label: `Move to ${SECTOR_SIGN[sec]} ${sec} sector`, fn: () => act(() => (c.sector = sec)) });
     items.push('-', ...counterItems(c));
     if (isCreature(c)) {
       items.push({

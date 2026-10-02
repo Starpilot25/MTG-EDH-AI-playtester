@@ -1,21 +1,21 @@
 {
-  "version": "1.1.1",
+  "version": "1.1.2",
   "minAppVersion": "1.0.0",
   "files": {
-    "public/css/style.css": "f5bdc1be0ce4e7355044924340fcb1302ab68837e9338ca443e92475eb66a50e",
+    "public/css/style.css": "92c7d7550ce0ef18d1c3f817588d2716ea982e13d0588677781b911b57244946",
     "public/index.html": "c46584473e4d851108ec0b6ae6a0d3824184d63b25eb16e3a4ad4d05f7913df6",
     "public/js/ai.js": "df54a3de6d334edfc8f6d907e5a103cd41af754e73d62069b690fc383c410350",
     "public/js/aicombat.js": "996059c7fc99c2dada46726f4b59c544c3c6f0fc3f58f49183040ad7c499f830",
     "public/js/cast.js": "01fb5b6f015cafc794441fba7e57b38066ba5c4d12b482c1059efb91b5904bdf",
     "public/js/data.js": "56f511e2b67f884ced17b8923dd3e52c839a6d5d68348167198765de182ec810",
     "public/js/dungeon.js": "1b3319684da8d53c21dac40ff1bc72187ba09b9ea46d0865d0c5bdba1b227dfa",
-    "public/js/effects.js": "e4a076f891815bc59e2bee5702d97ff93a91ae22af79a422c2097994d24f86ef",
+    "public/js/effects.js": "80a3bfb021ff88551749e85106e019104f825d0ea8d360d85d49ebb5629aae1e",
     "public/js/game.js": "628bcde4f8e78b62c195ef64626e5a261076182626843f798c98ef1149b7fd5f",
     "public/js/main.js": "f216676fdb0e8edee383cff348c786d7055a9aeaf6a72191ee5787af9d5572db",
-    "public/js/rules.js": "cca75812af4e3bf711420f8592879b848db323a5c0a62f1a3f05d791d59ad923",
-    "public/js/state.js": "6a7741083a96795b3430fc151b59c3b9803d8137e5fed4ee0d55dc1eebe9c7cb",
+    "public/js/rules.js": "872a2a253248df14aee86c74767695738de3b7793e8390e2dbfd40f4fd3e0000",
+    "public/js/state.js": "fc0548a336a937b0c72d50bcf078069144dfa462422c5bf85f734409365707ed",
     "public/js/statics.js": "f86e0805be3f0ba3acc46e8537f515a79dcbeac751d4758a78ca6f74022f6c29",
-    "public/js/triggers.js": "d979a7837efde3135c2cfec447f32d0418b91817e6a0b5d3015ccee772bdde97",
-    "public/js/ui.js": "f2ca1f02d2efdc97d324cc96a263b0b1bc1af9eb4905e4b79cd192035d6f480f"
+    "public/js/triggers.js": "0bb0bc7b4a0dc51c42c951332faf4d23d2aa29e004e11b079117f2e987f217cd",
+    "public/js/ui.js": "2fdda406bf6e3a89e19869e9a700d5afecdc2d9a1c8378c89a2be2f8b7058337"
   }
 }

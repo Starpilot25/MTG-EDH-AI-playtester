@@ -2,7 +2,7 @@
 // permanent whose rules text (or keyword) triggers on each event and resolves it.
 import { DB } from './data.js';
 import {
-  isCreature, isLand, isType, oracle, face, hasKw, kwNum, power, toughness, cardValue, hasSubtype, payCost, typeLine,
+  isCreature, sculptors, SECTORS, SECTOR_SIGN, isLand, isType, oracle, face, hasKw, kwNum, power, toughness, cardValue, hasSubtype, payCost, typeLine,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, log, nameTag, eventQueue, queueEvent, stateBased, cardName, move, toBattlefield, addCounters,
@@ -956,6 +956,7 @@ export async function settle() {
         }
       }
     }
+    if (G.s === s0) await assignSectors();
   } finally {
     running = false;
     if (G.s === s0) {
@@ -1019,3 +1020,36 @@ async function resolveTrigger(hit, controller, ev) {
 }
 
 export { isCreature, isLand, isType, oracle, face, spellText, payCost };
+
+// Space sculptor: every creature needs a sector; its controller picks one (opponents of the sculptor's controller first).
+export async function assignSectors() {
+  const sc = sculptors();
+  if (!sc.length) return;
+  const owner = sc[0].controller;
+  for (const pid of [opp(owner), owner]) {
+    let all = null;
+    for (const iid of [...G.s.players[pid].zones.battlefield]) {
+      const c = card(iid);
+      if (!c || c.phasedOut || !isCreature(c) || c.sector) continue;
+      const count = (sec, who) => G.s.players[who].zones.battlefield.map(card).filter((x) => x && isCreature(x) && x.sector === sec).length;
+      if (all) {
+        c.sector = all;
+        continue;
+      }
+      const left = G.s.players[pid].zones.battlefield.map(card).filter((x) => x && !x.phasedOut && isCreature(x) && !x.sector).length;
+      const opts = SECTORS.map((sec) => ({ label: `${SECTOR_SIGN[sec]} ${sec[0].toUpperCase() + sec.slice(1)}`, detail: `yours: ${count(sec, pid)}, theirs: ${count(sec, opp(pid))}` }));
+      if (left > 1) SECTORS.forEach((sec) => opts.push({ label: `All ${left} unassigned → ${SECTOR_SIGN[sec]} ${sec}` }));
+      const k = await T.choosers[pid].choose({
+        prompt: `Space sculptor: choose a sector for ${cardName(c)}`,
+        options: opts,
+        // the AI spreads its creatures out so one sector wipe can't take them all
+        aiPick: () => SECTORS.map((sec, i) => [i, count(sec, pid)]).sort((a, b) => a[1] - b[1])[0][0],
+      });
+      if (k >= 3) {
+        all = SECTORS[k - 3];
+        c.sector = all;
+      } else c.sector = SECTORS[k] || 'alpha';
+    }
+  }
+  T.render && T.render();
+}

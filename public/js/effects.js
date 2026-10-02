@@ -4,7 +4,7 @@
 import { DB } from './data.js';
 import {
   hasSubtype, isLand, isCreature, isType, oracle, hasKw, power, toughness, cardValue, face, typeLine, colorsOf,
-  isProtectedFrom, kwCost, payCost, manaValueOf, isPermanentCard,
+  isProtectedFrom, SECTORS, SECTOR_SIGN, kwCost, payCost, manaValueOf, isPermanentCard,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef,
@@ -2301,6 +2301,34 @@ export function addMana(pid, syms) {
   G.s.pool[pid].push(...syms);
 }
 
+// --- Space sculptor sectors (Space Beleren)
+async function chooseSector(env, what, score) {
+  const inSec = (sec) => [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((c) => isCreature(c) && c.sector === sec);
+  const k = await env.choosers[env.me].choose({
+    prompt: `${cardName(env.src)}: choose a sector — ${what}`,
+    options: SECTORS.map((sec) => {
+      const cs = inSec(sec);
+      return { label: `${SECTOR_SIGN[sec]} ${sec[0].toUpperCase() + sec.slice(1)}`, detail: cs.length ? cs.map((c) => cardName(c) + (c.controller === 'p' ? ' (you)' : ' (AI)')).join(', ') : 'no creatures' };
+    }),
+    aiPick: () => SECTORS.map((sec, i) => [i, score(inSec(sec))]).sort((a, b) => b[1] - a[1])[0][0],
+  });
+  const sec = SECTORS[k] || 'alpha';
+  return { sec, cards: inSec(sec) };
+}
+on(/^creatures in each sector can be blocked this turn only by creatures in the same sector/, async (m, env) => {
+  G.s.sectorBlockTurn = G.s.turn;
+  env.did.push('creatures can only be blocked by creatures in the same sector this turn');
+}, { first: true });
+on(/^put an? \+1\/\+1 counter on each creature in the sector of your choice/, async (m, env) => {
+  const { sec, cards } = await chooseSector(env, 'put a +1/+1 counter on each creature there', (cs) => cs.reduce((a, c) => a + (c.controller === env.me ? 1 : -1), 0));
+  for (const c of cards) addCounters(c, '+1/+1', 1, { silent: true });
+  env.did.push(`puts a +1/+1 counter on each creature in the ${sec} sector (${cards.length})`);
+}, { first: true });
+on(/^destroy all creatures in the sector of your choice/, async (m, env) => {
+  const { sec, cards } = await chooseSector(env, 'destroy all creatures there', (cs) => cs.reduce((a, c) => a + (c.controller === env.me ? -1 : 1) * (cardValue(c) + 1), 0));
+  for (const c of cards) destroy(c.iid);
+  env.did.push(`destroys all creatures in the ${sec} sector (${cards.length})`);
+}, { first: true });
 // --- auras, equipment, attaching
 on(/^(?:you may )?attach (?:this aura|~) to (that player|target player|target opponent|you)$/, async (m, env) => {
   const pl = m[1] === 'you' ? env.me : m[1] === 'that player' ? env.thatPlayer || opp(env.me) : opp(env.me);
