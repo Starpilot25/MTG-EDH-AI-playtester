@@ -2355,6 +2355,15 @@ on(/^sacrifice any number of (lands|creatures|artifacts|permanents)(?: you contr
   env.lastAmount = chosen.length;
   env.did.push(`sacrifices ${chosen.length} ${chosen.length === 1 ? kind : m[1]}`);
 });
+on(/^if you control a creature with power (\d+) or greater, add (two|three) mana of any one color instead$/, async (m, env) => {
+  if (!cardsIn(env.me, 'battlefield').some((c) => isCreature(c) && power(c) >= +m[1])) return;
+  const pool = (G.s.pool && G.s.pool[env.me]) || [];
+  const i = pool.lastIndexOf('ANY');
+  if (i >= 0) pool.splice(i, 1);
+  const k = n(m[2]);
+  addMana(env.me, Array.from({ length: k }, () => 'ANY'));
+  env.did.push(`adds ${k} mana of one color instead`);
+}, { first: true });
 on(/^add (one|two|three|x|\d+) mana of any (?:one )?color/, async (m, env) => {
   const k = n(m[1], env.x);
   addMana(env.me, Array.from({ length: k }, () => 'ANY'));

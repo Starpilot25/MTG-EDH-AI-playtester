@@ -374,6 +374,12 @@ export function manaAbility(inst) {
   }
   if (!produced.length) return null;
   let m = o.match(/\{T\}: Add ([^.]+)\./);
+  // Ilysian Caryatid: "If you control a creature with power 4 or greater, add two mana of any one color instead."
+  {
+    const im = o.match(/If you control a creature with power (\d+) or greater, add (two|three) mana of any one color instead/i);
+    if (im && G.s && G.s.players[inst.controller].zones.battlefield.some((i) => G.s.cards[i] && isCreature(G.s.cards[i]) && power(G.s.cards[i]) >= +im[1]))
+      return { colors: produced.length ? produced : ['W', 'U', 'B', 'R', 'G'], amount: im[2] === 'three' ? 3 : 2 };
+  }
   if (m) {
     let amount = 1;
     const syms = m[1].match(/\{[WUBRGC]\}/g);
