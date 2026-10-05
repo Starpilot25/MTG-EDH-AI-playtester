@@ -397,7 +397,17 @@ export async function castSpell(pid, iid, opt, env) {
   await settle();
   if (G.s !== s) return false;
   // storm / gravestorm / replicate / casualty copies, cascade
-  const copies = (hasKw(c, 'storm') ? ts.spells - 1 + s.ts[opp(pid)].spells : 0) + info.replicate + (info.casualty ? 1 : 0);
+  let copies = (hasKw(c, 'storm') ? ts.spells - 1 + s.ts[opp(pid)].spells : 0) + info.replicate + (info.casualty ? 1 : 0);
+  // Way of the Cryomancer: "When you next cast an instant or sorcery spell this turn, copy that spell."
+  if (s.copyNext && s.copyNext.length && !opt.copy) {
+    const tl = (d.faces[fIdx] || d.faces[0]).typeLine || d.typeLine;
+    const k = s.copyNext.findIndex((e) => e.pid === pid && e.turn === s.turn && new RegExp(e.types.join('|'), 'i').test(tl));
+    if (k >= 0) {
+      copies += 1;
+      s.copyNext.splice(k, 1);
+      log(pid, `${nameTag(c)} is copied.`);
+    }
+  }
   let cascades = (oracle({ ...c, face: fIdx }).replace(/\([^)]*\)/g, '').match(/(?:^|\n|, )cascade\b/gi) || []).length;
   // --- responses
   let countered = false;

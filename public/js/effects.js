@@ -1125,6 +1125,31 @@ on(/^put a \+1\/\+1 counter or a loyalty counter on (it|that creature|that perma
   env.did.push(`puts a ${kind} counter on ${nameTag(c)}`);
 }, { first: true });
 // --- sweep fixes
+// Way of the Cryomancer: "When you next cast an instant or sorcery spell this turn, copy that spell."
+on(/^when you next cast an? (instant or sorcery|instant|sorcery|creature|noncreature) spell this turn, copy that spell$/, async (m, env) => {
+  G.s.copyNext = [...(G.s.copyNext || []), { pid: env.me, turn: G.s.turn, types: m[1] === 'instant or sorcery' ? ['Instant', 'Sorcery'] : [m[1][0].toUpperCase() + m[1].slice(1)] }];
+  env.did.push(`will copy ${who(env.me) === 'you' ? 'your' : 'its'} next ${m[1]} spell this turn`);
+}, { first: true });
+// Way of the Warlord: "~ deals 2 damage to up to one target creature or planeswalker and 2 damage to target player"
+on(/^(~|it|this planeswalker) deals (\d+|x) damage to ([^.]+?) and (\d+|x) damage to ([^.]+)$/, async (m, env) => {
+  await runSentence(`${m[1]} deals ${m[2]} damage to ${m[3]}`, env);
+  await runSentence(`${m[1]} deals ${m[4]} damage to ${m[5]}`, env);
+}, { first: true });
+// Way of the Healer, Hexhaven Battalion: "create a 2/2 colorless Wizard Soldier creature token named Cadet"
+on(/^create (.+?) tokens? named ([a-z][a-z' -]*?)(?: with ([^.]+))?$/, async (m, env) => {
+  const at = env.sentence.toLowerCase().indexOf(' named ');
+  const nm = env.sentence.slice(at + 7, at + 7 + m[2].length).replace(/\b\w/g, (x) => x.toUpperCase());
+  env.them_ = null;
+  await makeTokens(env, `${m[1]}${m[3] ? ' with ' + m[3] : ''}`, null);
+  for (const i of env.them_ || []) {
+    const c = card(i);
+    const base = DB[c.def];
+    const id = `${base.id}-named-${nm.replace(/\s+/g, '_')}`;
+    if (!DB[id]) DB[id] = { ...base, id, name: nm, faces: base.faces.map((f, k) => (k ? f : { ...f, name: nm })) };
+    c.def = id;
+  }
+  if (env.did.length) env.did[env.did.length - 1] = env.did[env.did.length - 1].replace(/creates (\d+) .+? tokens?$/, (x, k) => `creates ${k} ${nm} token${+k === 1 ? '' : 's'}`);
+}, { first: true });
 // Chittering Witch: "Create a number of 1/1 black Rat creature tokens equal to the number of opponents you have."
 on(/^create a number of (.+?) tokens? equal to (.+)$/, async (m, env) => {
   const ph = m[2].replace(/^the number of /, '');

@@ -1,15 +1,15 @@
 {
-  "version": "1.2.19",
+  "version": "1.2.20",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "b6d068ef94e1f5a594066cd87b1673a2dcd68a15fd3273aa44d6180bf3a58607",
     "public/index.html": "c46584473e4d851108ec0b6ae6a0d3824184d63b25eb16e3a4ad4d05f7913df6",
     "public/js/ai.js": "41961413f1be93c6a81be52ec427c644f530022c7fb9b5236583f2cbdd02d1ea",
     "public/js/aicombat.js": "996059c7fc99c2dada46726f4b59c544c3c6f0fc3f58f49183040ad7c499f830",
-    "public/js/cast.js": "20c57115cd87b3076e4929cbb24fbc169a0860143ba9d12fb0661002b3fb327c",
+    "public/js/cast.js": "88d8c85b740d99fb424f37bac7bcd45cfcc0b7eafc2525e10f8ce088313d0486",
     "public/js/data.js": "93d106898d84419283a5963ab64c3fe0fce14c5d3e0042d3632ddb17714cdb81",
     "public/js/dungeon.js": "1b3319684da8d53c21dac40ff1bc72187ba09b9ea46d0865d0c5bdba1b227dfa",
-    "public/js/effects.js": "712535bff437e5433773696af608e81c089cfbd98ba0d5f542346c045175d9d9",
+    "public/js/effects.js": "548767e615843210e24b590a6002c90c6b6291b016b0029a71948a4b9182c11d",
     "public/js/game.js": "b6fd320a49cce09797cb22b85bd16cab44880006ae8cd068bba97b7d40630c0f",
     "public/js/main.js": "dc00d02d3d553fb9094553f728c40a3030c78998f8fb903e97087449805d178e",
     "public/js/rules.js": "0d596b32d64b1713fd4e094d9c6f95dad20f82b1e8690ad1f460323812cda368",
@@ -17,6 +17,6 @@
     "public/js/statics.js": "6370877fa505df68ebd136613592eb83b00dfe95de37f9cfcf3638fbd9c65abe",
     "public/js/triggers.js": "906baf9e1bd240ad3c4ba269b882645804e9a446acedb83276648ad9791ab339",
     "public/js/ui.js": "f68207c712802f821c9e593350855198f964a0e70e75b7be39132bd55552e3a8",
-    "public/patch-notes.json": "19445122bde61b2092944cdefa94ae89bd0155aa3e475a39f03d14dd53a7429d"
+    "public/patch-notes.json": "14933700c6d842f80a1726ab191a9ae842faee1b84bd8a504d60149c980002d4"
   }
 }

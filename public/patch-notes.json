@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.20",
+    "title": "The rest of the Way cards",
+    "notes": [
+      "Way of the Healer: the granted −2 now creates the 2/2 Cadet token (named tokens like Cadet work everywhere, e.g. Hexhaven Battalion).",
+      "Way of the Warlord: the granted −4 deals its 2 damage to the player as well as the creature or planeswalker.",
+      "Way of the Cryomancer: the granted −3 copies your next instant or sorcery spell that turn.",
+      "Checked: Way of the Deathbringer, Wildspeaker, Pyromancer, Necromancer."
+    ]
+  },
+  {
     "version": "1.2.19",
     "title": "Assemble the Legion, loyalty triggers",
     "notes": [
