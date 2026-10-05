@@ -221,7 +221,7 @@ const RESET = ['chosenCardType', 'tapped', 'damage', 'deathtouched', 'auraBuffs'
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'castMode', 'xPaid', 'impending',
   'ringBearer', 'addTypes', 'extraText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
-  'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'mayPlayFree', 'suspended',
+  'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFree', 'suspended',
   'rebound', 'encodedOn', 'hiddenBy', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
@@ -325,6 +325,10 @@ export function move(iid, zone, opts = {}) {
   } else if (typeof opts.to === 'number') arr.splice(opts.to, 0, iid);
   else arr.push(iid);
   if (zone === 'battlefield' && fromZone !== 'battlefield') entering(c, opts);
+  // theft (Jhoira, Control Magic, Treachery…): remember it so the player gets a popup naming the card
+  if (zone === 'battlefield' && s.phase === 'play' && !c.token && c.controller !== c.owner && (fromZone !== 'battlefield' || fromCtl !== c.controller)) {
+    s.stealNotes = [...(s.stealNotes || []), { iid, by: c.controller, from: c.owner, fromZone }];
+  }
   return c;
 }
 

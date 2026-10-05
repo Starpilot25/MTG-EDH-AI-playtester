@@ -153,6 +153,31 @@ function cardHTML(c, opts = {}) {
 export function render() {
   if (!G.s) return;
   withReadCache(renderAll);
+  showStealNotes();
+}
+
+// "The AI gained control of your Sol Ring" — a popup whenever a card changes hands
+function showStealNotes() {
+  const s = G.s;
+  if (!s.stealNotes || !s.stealNotes.length) return;
+  const wrap = $('#dialog');
+  if (!wrap || !wrap.hidden) return; // don't cover a choice the player is making; try again on the next render
+  const notes = s.stealNotes.splice(0).filter((n) => card(n.iid) && card(n.iid).zone === 'battlefield');
+  if (!notes.length) return;
+  const where = (z) => (z === 'library' ? ' library' : z === 'graveyard' ? ' graveyard' : z === 'hand' ? ' hand' : z === 'exile' ? ' exile' : '');
+  const line = (n) => {
+    const c = card(n.iid);
+    const nm = `<b>${esc(cardName(c))}</b>`;
+    return n.by === 'p' ? `You gained control of ${nm} from the AI's${where(n.fromZone) || ' battlefield'}.` : `The AI gained control of your ${nm}${n.fromZone !== 'battlefield' ? ` (from your${where(n.fromZone)})` : ''}.`;
+  };
+  const theirs = notes.some((n) => n.by === 'ai');
+  const dlg = openDialog(`
+    <span class="eyebrow">${theirs && notes.every((n) => n.by === 'ai') ? 'Stolen' : 'Gained control'}</span>
+    <h3>${notes.length === 1 ? esc(cardName(card(notes[0].iid))) : `${notes.length} cards changed hands`}</h3>
+    <div class="steal-cards">${notes.map((n) => `<div class="steal-card">${DB[card(n.iid).def].faces[0].img ? `<img src="${DB[card(n.iid).def].faces[card(n.iid).face || 0].img || DB[card(n.iid).def].faces[0].img}" alt="${esc(cardName(card(n.iid)))}">` : cardHTML(card(n.iid))}</div>`).join('')}</div>
+    <p>${notes.map(line).join('<br>')}</p>
+    <div class="btns"><button class="primary" id="steal-ok">OK</button></div>`, { small: notes.length === 1 });
+  $('#steal-ok', dlg).addEventListener('click', () => closeDialog());
 }
 function renderAll() {
   const s = G.s;

@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.79",
+    "title": "Stolen-card popup and King Narfi's Betrayal",
+    "notes": [
+      "When a card changes hands (Jhoira, Control Magic, Hostage Taker, casting an opponent's exiled card…), a popup now shows the card and says who took it from where.",
+      "King Narfi's Betrayal works. Chapter I mills four from each player and lets you exile a creature or planeswalker card from each graveyard. Chapters II and III let you cast those cards that turn, spending mana as though it were any color. The AI can cast your exiled cards too, and your own exile panel lists the ones you can cast."
+    ]
+  },
+  {
     "version": "1.2.78",
     "title": "AI uses Currency Converter",
     "notes": [

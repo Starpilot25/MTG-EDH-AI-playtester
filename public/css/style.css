@@ -801,3 +801,9 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .sl-act .card { --cw: 46px; --ch: 64px; flex: none; }
 .sl-act span { font-size: 12.5px; }
 .sl-hint { margin: 4px 0 0; font-size: 11.5px; color: var(--brass); }
+
+/* theft popup */
+.steal-cards { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
+.steal-card { width: 200px; max-width: 45vw; }
+.steal-card img { width: 100%; border-radius: 10px; display: block; box-shadow: 0 6px 24px rgba(0, 0, 0, .45); }
+.steal-card .card { width: 100%; }

@@ -1336,6 +1336,28 @@ on(/^(?:you )?draw (a|one|two|three) cards? and (?:you )?(lose|gain) (\d+) life$
   changeLife(env.me, m[2] === 'lose' ? -+m[3] : +m[3], false);
   env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${k} and ${s_(env.me, m[2])} ${m[3]} life`);
 }, { first: true });
+// King Narfi's Betrayal I: "Then you may exile a creature or planeswalker card from each graveyard."
+on(/^(?:then )?(?:you may )?exile (?:a|an|up to one) ([a-z ]+?) card from each graveyard$/, async (m, env) => {
+  const kinds = m[1].split(/ or /).map((x) => x.trim());
+  const got = [];
+  for (const pid of [opp(env.me), env.me]) {
+    const pool = cardsIn(pid, 'graveyard').filter((c) => kinds.some((k) => matchesAny(c, k)));
+    if (!pool.length) continue;
+    const [pick] = await env.choosers[env.me].pickCards({ prompt: `You may exile a ${m[1]} card from ${pid === 'p' ? 'your' : "the AI's"} graveyard`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'gy-exile', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
+    if (!pick) continue;
+    move(pick, 'exile');
+    if (card(pick) && env.src) card(pick).exiledWith = env.src.iid;
+    got.push(pick);
+  }
+  env.them_ = got;
+  env.did.push(got.length ? `exiles ${got.map((i) => nameTag(card(i))).join(' and ')}` : 'exiles nothing');
+}, { first: true });
+// King Narfi's Betrayal II, III
+on(/^(?:until end of turn, )?you may cast spells from among cards exiled with ~(, and you may spend mana as though it were mana of any color to cast those spells)?(?: until end of turn)?$/, async (m, env) => {
+  const ids = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && env.src && c.exiledWith === env.src.iid);
+  for (const c of ids) Object.assign(c, { mayPlay: env.me, mayPlayUntil: G.s.turn, anyColorMana: !!m[1] });
+  env.did.push(ids.length ? `may cast ${ids.map(nameTag).join(', ')} this turn${m[1] ? ' (with mana of any color)' : ''}` : 'has no exiled cards');
+}, { first: true });
 // Hoarder's Greed: lose 2, draw 2, clash; repeat while you win
 on(/^you lose (\d+) life and draw (\w+) cards?, then clash with an opponent\. if you win, repeat this process$/, async (m, env) => {
   const o = opp(env.me);
@@ -4154,7 +4176,7 @@ async function runSentence(sentence, env) {
     if (env.lastCond) return;
     return runSentence(s.slice(s.indexOf(',') + 1).trim(), env);
   }
-  if ((m = low.match(/^you may (.+)$/)) && !/^you may (?:cast|play) (?:it|that card|those cards|them|the exiled card)/.test(low)) {
+  if ((m = low.match(/^you may (.+)$/)) && !/^you may (?:cast|play) (?:it|that card|those cards|them|the exiled card|spells from among)/.test(low)) {
     const yes = await mayAsk(env, s.slice(8));
     if (!yes) return;
     return runSentence(s.slice(8), env);

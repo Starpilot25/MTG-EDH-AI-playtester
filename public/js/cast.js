@@ -188,7 +188,7 @@ export function castOptions(pid, c) {
     }
     if (c.plotted && c.plottedTurn < s.turn) add({ mode: 'plotted', label: 'Cast plotted card (free)', cost: '', free: true, sorcery: true });
     if (c.onAdventure) add({ mode: 'normal', label: `Cast ${f0.name} (from Adventure)`, cost: f0.manaCost });
-    if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn && !isLandFace(f0)) add({ mode: 'impulse', label: 'Cast from exile', cost: f0.manaCost || d.manaCost });
+    if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn && !isLandFace(f0)) add({ mode: 'impulse', label: c.anyColorMana ? 'Cast from exile (mana of any color)' : 'Cast from exile', cost: c.anyColorMana ? anyColorCost(f0.manaCost || d.manaCost) : f0.manaCost || d.manaCost });
     if (c.mayPlayFree === pid && !isLandFace(f0)) add({ mode: 'hideaway', label: 'Cast for free', cost: '', free: true });
     if (c.warped) add({ mode: 'normal', label: 'Cast (warped earlier)', cost: f0.manaCost });
   }
@@ -208,6 +208,19 @@ function altPayable(pid, c, text) {
   if ((m = t.match(/pay (\d+) life/)) && G.s.players[pid].life < +m[1]) return false;
   if ((m = t.match(/exile (?:a|an) ([a-z ]+?) card from your hand/)) && !cardsIn(pid, 'hand').some((x) => x.iid !== c.iid && matchesFilter(x, m[1]))) return false;
   return true;
+}
+
+// "You may spend mana as though it were mana of any color to cast those spells": colored symbols become generic
+function anyColorCost(cost) {
+  let gen = 0;
+  const keep = [];
+  for (const sym of String(cost || '').match(/\{[^}]+\}/g) || []) {
+    const v = sym.slice(1, -1);
+    if (/^\d+$/.test(v)) gen += +v;
+    else if (/^[WUBRG](?:\/[WUBRGP])?$|^[WUBRG]\/P$|^2\/[WUBRG]$/.test(v)) gen += /^2\//.test(v) ? 2 : 1;
+    else keep.push(sym);
+  }
+  return keep.join('') + (gen ? `{${gen}}` : keep.length ? '' : '{0}');
 }
 
 // Generic mana added or removed by the card itself and the battlefield.

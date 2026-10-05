@@ -466,6 +466,8 @@ function options(filter = () => true) {
     ...cardsIn(AI, 'command').filter((c) => c.isCommander),
     ...cardsIn(AI, 'graveyard'),
     ...cardsIn(AI, 'exile'),
+    // King Narfi's Betrayal & co.: the player's exiled cards the AI may cast
+    ...cardsIn(P, 'exile').filter((c) => c.mayPlay === AI),
     // Sen Triplets: spells from your hand, cast with the AI's mana
     ...(handControl(AI, P) ? cardsIn(P, 'hand').filter((c) => !isLand(c) || DB[c.def].faces.length > 1) : []),
   ];
