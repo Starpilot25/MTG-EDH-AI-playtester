@@ -944,7 +944,8 @@ export function aiChooseAttackers() {
 // Which player/planeswalker/battle each attacker goes after.
 export function aiAttackTargets(attackers) {
   const targets = {};
-  const pws = cardsIn(P, 'battlefield').filter((c) => isType(c, 'Planeswalker')).sort((a, b) => (b.counters.loyalty || 0) - (a.counters.loyalty || 0));
+  const jaceSafe = G.s.noAttackJace && G.s.noAttackJace.turn === G.s.turn && G.s.noAttackJace.owner === P;
+  const pws = cardsIn(P, 'battlefield').filter((c) => isType(c, 'Planeswalker') && !(jaceSafe && hasSubtype(c, 'Jace'))).sort((a, b) => (b.counters.loyalty || 0) - (a.counters.loyalty || 0));
   const battles = cardsIn(AI, 'battlefield').concat(cardsIn(P, 'battlefield')).filter((c) => isType(c, 'Battle') && c.controller === P);
   const totalPower = attackers.reduce((a, i) => a + Math.max(0, power(card(i))), 0);
   const lethal = totalPower >= G.s.players.p.life;

@@ -4,7 +4,7 @@
 // "at the beginning of the next end step" clean-ups (dash, blitz, unearth, warp, mobilize…).
 import { DB } from './data.js';
 import {
-  oracle, isCreature, hasKw, power, combatDamage, canBlock, isLand, isType, kwCost, canAttack, mustAttack, face, parseCost,
+  oracle, hasSubtype, isCreature, hasKw, power, combatDamage, canBlock, isLand, isType, kwCost, canAttack, mustAttack, face, parseCost,
 } from './rules.js';
 import {
   G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
@@ -461,7 +461,8 @@ export function toggleAttacker(iid) {
 export function attackOptions(attackerPid) {
   const def = opp(attackerPid);
   const out = [{ id: def, label: def === 'ai' ? 'The AI' : 'You' }];
-  for (const c of cardsIn(def, 'battlefield')) if (isType(c, 'Planeswalker')) out.push({ id: c.iid, label: `${cardName(c)} (${c.counters.loyalty || 0} loyalty)` });
+  const jaceSafe = G.s.noAttackJace && G.s.noAttackJace.turn === G.s.turn && G.s.noAttackJace.owner === def;
+  for (const c of cardsIn(def, 'battlefield')) if (isType(c, 'Planeswalker') && !(jaceSafe && hasSubtype(c, 'Jace'))) out.push({ id: c.iid, label: `${cardName(c)} (${c.counters.loyalty || 0} loyalty)` });
   // battles: attack the ones your opponent protects (in 1v1, battles you control are protected by the AI)
   for (const c of [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')])
     if (isType(c, 'Battle') && (c.protector || opp(c.controller)) === def) out.push({ id: c.iid, label: `${cardName(c)} (${c.counters.defense || 0} defense)` });

@@ -71,9 +71,12 @@ export function triggersOf(c, defOverride) {
     } else if ((m = line.match(/^Whenever (?:enchanted|equipped) creature is dealt damage, (.+)$/i))) {
       add('dealtDamage', m[1], { attachedTo: true });
     } else if ((m = line.match(/^Whenever ~ deals damage(?: to a player| to an opponent)?, (.+)$/i)) && !/combat damage/i.test(line)) {
-      add(/to a player|to an opponent/i.test(line) ? 'dealsDamagePlayer' : 'dealsDamage', m[1], { self: true });
+      add(/to a player|to an opponent/i.test(line) ? 'dealsDamagePlayer' : 'dealsDamage', m[1], { self: true, oppOnly: /to an opponent/i.test(line) });
     } else if ((m = line.match(/^Whenever (?:enchanted|equipped) creature deals damage, (.+)$/i))) {
       add('dealsDamage', m[1], { attachedTo: true });
+    } else if ((m = line.match(/^Whenever (?:enchanted|equipped) creature deals damage to (a player|an opponent), (.+)$/i))) {
+      // Curiosity, Ophidian Eye, Sigil of Sleep: any damage, combat or not
+      add('dealsDamagePlayer', m[2], { attachedTo: true, oppOnly: /opponent/i.test(m[1]) });
     } else if ((m = line.match(/^Whenever ~ deals combat damage to a creature, (.+)$/i))) {
       add('combatDamageCreature', m[1], { self: true });
     } else if ((m = line.match(/^Whenever ~ and at least (two|three|\d+) other creatures attack, (.+)$/i))) {
@@ -768,6 +771,7 @@ function matches(ev) {
     case 'combatDamageCreature':
       each((c, trig) => {
         if (trig.event !== ev.type) return;
+        if (trig.oppOnly && ev.player === c.controller) return;
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player, it: ev.other ? { iid: ev.other } : null });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player, it: { iid: ev.iid } });
       });

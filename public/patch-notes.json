@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.2.13",
+    "title": "Bontu, Rakdos Charm, Empower Jace, Curiosity",
+    "notes": [
+      "God-Eternal Bontu: sacrifice any number of other permanents, then draw that many (it drew nothing before). When it dies or is exiled it goes third from the top of your library, not on top.",
+      "Rakdos Charm: \"exile all cards from target player's graveyard\" exiles the whole graveyard, and \"each creature deals 1 damage to its controller\" works. The AI now picks the mode that fits the board instead of always destroying an artifact; the same smarter mode choice applies to every modal spell.",
+      "Empower Jace: puts loyalty counters on your Jace token, creating the blue Jace planeswalker token (−1: Surveil 1, −3: Draw a card) first if you don't have one.",
+      "Jace, Multiverse Architect: its combat trigger asks the opponent to pay {2} or be unable to attack your Jaces that turn; the −3 reveals until a creature or planeswalker and puts it onto the battlefield, the rest on the bottom.",
+      "\"Reveal cards from the top of your library until you reveal a … card\" effects now work in general.",
+      "Curiosity, Ophidian Eye, Sigil of Sleep and other \"whenever enchanted/equipped creature deals damage to an opponent\" auras trigger, including on noncombat damage.",
+      "Checked: Amass works (creates the Army or grows the one you have)."
+    ]
+  },
+  {
     "version": "1.2.12",
     "title": "Maximum hand size",
     "notes": [
