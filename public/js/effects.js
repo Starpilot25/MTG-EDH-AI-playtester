@@ -2689,6 +2689,7 @@ on(/^(?:have )?(~|target creature you control) becomes? a copy of (it|that creat
   const [model] = await objects(env, m[2], { harm: false });
   if (!self || !model || self.iid === model.iid) return;
   const keepName = /its name is/i.test(m[4] || '') ? cardName(self) : null;
+  const wasName = nameTag(self);
   if (!self.origDef) {
     self.origDef = self.def;
     self.origFace = self.face || 0;
@@ -2698,7 +2699,7 @@ on(/^(?:have )?(~|target creature you control) becomes? a copy of (it|that creat
   if (m[3]) self.copyUntil = 'eot';
   if (keepName) self.nameOverride = keepName;
   if (/it's legendary|is legendary/i.test(m[4] || '')) self.addTypes = ((self.addTypes || '') + ' Legendary').trim();
-  env.did.push(`${keepName || nameTag(self)} becomes a copy of ${nameTag(model)}${m[3] ? ' until end of turn' : ''}`);
+  env.did.push(`${keepName || wasName} becomes a copy of ${nameTag(model)}${m[3] ? ' until end of turn' : ''}`);
 });
 // "Put a permanent card with mana value less than or equal to that damage from your hand (or graveyard) onto the battlefield"
 on(/^put (?:a|an|up to one) ([a-z ]*?)cards? with mana value (\d+|x|less than or equal to [^,]+?|[a-z ]+? or less) from your (hand|graveyard|hand or graveyard) onto the battlefield( tapped)?(?: under your control)?$/, async (m, env) => {
@@ -3274,9 +3275,23 @@ async function runText(text, env) {
   const mm = text.match(/^([\s\S]*?)Choose (one|two|three|one or both|one or more|any number|up to (?:one|two|three)|one that hasn't been chosen)(?: or more)?(?:\. You may choose the same mode more than once)?(?: at random)?(?: ?(?:—|-)|\.)\s*\n?((?:\s*•[^\n]*\n?)+)([\s\S]*)$/i);
   if (mm) {
     if (mm[1].trim()) await runText(mm[1], env);
-    const modes = mm[3].split('•').map((x) => x.trim()).filter(Boolean);
+    let modes = mm[3].split('•').map((x) => x.trim()).filter(Boolean);
     const want = mm[2].toLowerCase();
-    let max = /^one$/.test(want) ? 1 : /^two$/.test(want) ? 2 : /^three$/.test(want) ? 3 : modes.length;
+    // "choose one that hasn't been chosen" (Silent Hallcreeper, the Hidden Ones…): each mode once per object
+    let fresh = null;
+    if (/hasn't been chosen/.test(want)) {
+      const holder = (env.src && card(env.src.iid)) || env.src;
+      const used = (holder && holder.modesUsed) || [];
+      fresh = { holder, idx: modes.map((t, k) => k).filter((k) => !used.includes(modes[k])) };
+      if (!fresh.idx.length) {
+        env.did.push('every mode has already been chosen');
+        if (mm[4].trim()) await runText(mm[4], env);
+        return;
+      }
+    }
+    const allModes = modes;
+    if (fresh) modes = fresh.idx.map((k) => allModes[k]);
+    let max = /^one(?: that hasn't been chosen)?$/.test(want) ? 1 : /^two$/.test(want) ? 2 : /^three$/.test(want) ? 3 : modes.length;
     if (/up to one/.test(want)) max = 1;
     if (/up to two/.test(want)) max = 2;
     if (env.entwined) max = modes.length;
@@ -3287,6 +3302,7 @@ async function runText(text, env) {
       aiScore: (t) => modeValue(t, env),
     }));
     env.modesChosen = picks;
+    if (fresh && fresh.holder) fresh.holder.modesUsed = [...(fresh.holder.modesUsed || []), ...picks.map((k) => modes[k])];
     for (const k of picks) {
       let t = modes[k];
       t = t.replace(/^\+((?:\{[^}]+\})+) — /, ''); // spree costs are paid when casting

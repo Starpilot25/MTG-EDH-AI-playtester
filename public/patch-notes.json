@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.40",
+    "title": "Silent Hallcreeper",
+    "notes": [
+      "Silent Hallcreeper picks one mode each time it deals combat damage to a player, instead of doing all three at once. A mode it has already used isn't offered again. Once it becomes a copy of another creature, it no longer has the trigger. Any \"choose one that hasn't been chosen\" card works the same way."
+    ]
+  },
+  {
     "version": "1.2.39",
     "title": "Dungeon map moved",
     "notes": [
