@@ -1467,7 +1467,7 @@ function scryDialog(n, mode = 'scry', inEffect = false, who = 'p') {
         .map((st, k) => `<div class="scry-row" data-k="${k}">
           <div class="scry-card">${cardHTML(card(st.iid), { small: true })}</div>
           <div class="scry-name">${esc(cardName(card(st.iid)))}</div>
-          <div class="seg">${['top', 'bottom', ...(mode === 'surveil' ? ['graveyard'] : [])]
+          <div class="seg">${(mode === 'surveil' ? ['top', 'graveyard'] : ['top', 'bottom'])
             .map((d) => `<button class="${st.dest === d ? 'on' : ''}" data-dest="${d}">${d === 'top' ? 'Top' : d === 'bottom' ? 'Bottom' : 'Graveyard'}</button>`)
             .join('')}</div>
           <div class="seg arrows"><button data-move="-1" aria-label="Move up">↑</button><button data-move="1" aria-label="Move down">↓</button></div>

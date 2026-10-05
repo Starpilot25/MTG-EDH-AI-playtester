@@ -481,8 +481,9 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
     for (const c of bf(pid)) for (const mm of ((DB[c.def].faces[c.face || 0] || {}).manaCost || DB[c.def].manaCost).matchAll(/\{([^}]+)\}/g)) if (syms.some((y) => mm[1].includes(y))) k++;
     return k;
   }
-  if (/^cards? in your hand/.test(p)) return s.players[pid].zones.hand.length;
-  if (/^cards? in (?:target opponent's|an opponent's|each opponent's) hand/.test(p)) return s.players[opp].zones.hand.length;
+  const inHand = (w) => s.players[w].zones.hand.filter((i) => !((s.stack && s.stack.iid === i) || (s.pstack && s.pstack.iid === i) || (s.resolving || []).includes(i))).length;
+  if (/^cards? in your hand/.test(p)) return inHand(pid);
+  if (/^cards? in (?:target opponent's|an opponent's|each opponent's) hand/.test(p)) return inHand(opp);
   if (/^cards? in all graveyards/.test(p)) return gy('p').length + gy('ai').length;
   if (/^creature cards in all graveyards/.test(p)) return [...gy('p'), ...gy('ai')].filter((c) => /Creature/.test(DB[c.def].typeLine)).length;
   if (/^creature cards in your graveyard/.test(p)) return gy(pid).filter((c) => /Creature/.test(DB[c.def].typeLine)).length;

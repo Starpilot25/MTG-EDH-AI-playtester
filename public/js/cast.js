@@ -525,9 +525,12 @@ export async function castSpell(pid, iid, opt, env) {
   for (; cascades > 0; cascades--) await cascade(pid, DB[c.def].cmc, env);
   for (let k = 0; k < copies; k++) await resolveCopy(pid, c, fIdx, info, env);
   // --- resolve
+  // while it resolves, the spell isn't in its old zone as far as effects can see ("put two cards from your hand…")
+  s.resolving = [...(s.resolving || []), iid];
   try {
     await resolveSpell(pid, c, opt, info, env);
   } finally {
+    s.resolving = (s.resolving || []).filter((x) => x !== iid);
     if (env.choosers[pid] && env.choosers[pid].plan) env.choosers[pid].plan = null;
   }
   stateBased();

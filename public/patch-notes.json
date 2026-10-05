@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.75",
+    "title": "Brainstorm, Brainsurge and surveil",
+    "notes": [
+      "Fixed: Brainstorm, Brainsurge and similar spells let you pick the spell itself to put back, because the game still counted it as being in your hand while it resolved. A spell on the stack no longer counts as in your hand for any effect. This also fixes discards, \"cards in your hand\" counts and \"shuffle your hand into your library\" effects that could include the spell.",
+      "Brainstorm-style choices now show the cards you just drew first, and say which card ends up on top.",
+      "Surveil now offers only Top or Graveyard, as the rules say. It no longer offers Bottom.",
+      "Fixed a hidden crash risk in a few \"cast it without paying its mana cost\" effects."
+    ]
+  },
+  {
     "version": "1.2.74",
     "title": "Omnath, Locus of the Void and Proteus Staff",
     "notes": [

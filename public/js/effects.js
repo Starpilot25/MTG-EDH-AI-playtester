@@ -7,10 +7,26 @@ import {
   isProtectedFrom, SECTORS, SECTOR_SIGN, kwCost, payCost, manaValueOf, isPermanentCard, manaAbility,
 } from './rules.js';
 import {
-  G, card, cardsIn, zoneOf, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef, namedTokenDef,
+  G, card, cardsIn as cardsInZone, zoneOf as zoneOfRaw, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef, namedTokenDef,
   stateBased, shuffle, cardName, opp, addCounters, destroy, sacrifice, discard as discardCard, mill as millCards,
   libTop, queueEvent, winGame, loseGame, esc, makeCard,
 } from './state.js';
+// A spell being cast stays in its zone until it resolves; effects must not see it in the hand
+// (Brainsurge can't put itself back, Windfall doesn't shuffle itself away, "cards in hand" counts exclude it).
+// triggers.js's shared hooks (castFree, render…), loaded lazily to avoid a circular import
+let T = {};
+import('./triggers.js').then((m) => {
+  T = m.T;
+}).catch(() => {});
+const onStackIid = (i) => !!(G.s && ((G.s.stack && G.s.stack.iid === i) || (G.s.pstack && G.s.pstack.iid === i) || (G.s.resolving || []).includes(i)));
+function cardsIn(pid, z) {
+  const out = cardsInZone(pid, z);
+  return z === 'hand' ? out.filter((c) => !onStackIid(c.iid)) : out;
+}
+function zoneOf(pid, z) {
+  const out = zoneOfRaw(pid, z);
+  return z === 'hand' ? out.filter((i) => !onStackIid(i)) : out;
+}
 import { countPhrase, kwList } from './statics.js';
 import { helpers, damageMods, redirectTarget, playerProtectedFrom } from './rules.js';
 import { venture, takeInitiative } from './dungeon.js';
@@ -3162,7 +3178,8 @@ on(/^put (\w+) cards? from your hand on (?:top|the bottom) of your library(?: in
   const k = Math.min(n(m[1], env.x), hand.length);
   if (!k) return;
   const lands = cardsIn(env.me, 'battlefield').filter(isLand).length;
-  const picks = await env.choosers[env.me].pickCards({ forced: true, prompt: `Put ${k} card${k > 1 ? 's' : ''} from your hand ${/bottom/.test(env.sentence) ? 'on the bottom of' : 'on top of'} your library`, cards: hand.map((c) => c.iid), min: k, max: k, purpose: 'putBack', src: env.src, aiScore: (c) => (isLand(c) ? (lands >= 5 ? 10 : -5) : DB[c.def].cmc - lands) });
+  if (T.render) T.render(); // show the cards just drawn before choosing
+  const picks = await env.choosers[env.me].pickCards({ forced: true, prompt: `Put ${k} card${k > 1 ? 's' : ''} from your hand ${/bottom/.test(env.sentence) ? 'on the bottom of' : 'on top of'} your library${k > 1 && !/bottom/.test(env.sentence) ? ' (the last one you pick ends up on top)' : ''}`, cards: hand.map((c) => c.iid), min: k, max: k, purpose: 'putBack', src: env.src, aiScore: (c) => (isLand(c) ? (lands >= 5 ? 10 : -5) : DB[c.def].cmc - lands) });
   for (const i of picks) move(i, 'library', /bottom/.test(env.sentence) ? { to: 'bottom' } : {});
   env.did.push(`puts ${k} card${k > 1 ? 's' : ''} back`);
 });
