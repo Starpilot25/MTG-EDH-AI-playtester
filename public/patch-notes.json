@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.46",
+    "title": "Displacer Beast, ability words, landwalk AI",
+    "notes": [
+      "Activated abilities with an ability word in front of them now work, like Displacer Beast's \"Displacement — {3}{U}: Return this to its owner's hand\". Before, the game didn't see them at all.",
+      "The AI knows islandwalk, swampwalk, forestwalk, mountainwalk and plainswalk make a creature unblockable when you control that land type, and plans its attacks with that in mind. Blocking rules for fear, intimidate, shadow, horsemanship, skulk and landwalk were checked and already worked."
+    ]
+  },
+  {
     "version": "1.2.45",
     "title": "See what the AI's spell is targeting",
     "notes": [

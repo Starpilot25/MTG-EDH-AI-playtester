@@ -92,7 +92,12 @@ export function activatedAbilities(c) {
   const out = [];
   for (const raw of t.split('\n')) {
     // "Exhaust — {4}: …" (activate only once): parse the ability after the label
-    const line = raw.trim().replace(/^Exhaust\s*[—-]\s*/i, '');
+    let line = raw.trim().replace(/^Exhaust\s*[—-]\s*/i, '');
+    // ability words in front of an activated ability: "Displacement — {3}{U}: Return ~ to its owner's hand."
+    {
+      const aw = line.match(/^([A-Z][\w' -]{2,30}?) — (?=\{|(?:Sacrifice|Tap|Remove|Pay|Discard|Exile|Return|Put)\b[^:]*:)/);
+      if (aw && !KEYWORD_LINE.test(aw[1]) && /:/.test(line)) line = line.slice(aw[0].length);
+    }
     const loyal = line.match(/^([+−\-]?\d+|0|[+−\-]X):\s*(.+)$/);
     if (loyal && isType(c, 'Planeswalker')) {
       out.push({ kind: 'loyalty', cost: /X/.test(loyal[1]) ? 0 : parseInt(loyal[1].replace('−', '-'), 10) || 0, label: loyal[1], text: unjoin(loyal[2]), raw: line, x: /X/.test(loyal[1]) });

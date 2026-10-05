@@ -67,7 +67,10 @@ function threatRaw(c) {
 export function evasive(c) {
   const o = oracle(c);
   return hasKw(c, 'flying') || hasKw(c, 'shadow') || hasKw(c, 'horsemanship') || hasKw(c, 'fear') || hasKw(c, 'intimidate') ||
-    /can't be blocked(?!\s+by creatures with power| as long as)/i.test(o) || hasKw(c, 'menace');
+    /can't be blocked(?!\s+by creatures with power| as long as)/i.test(o) || hasKw(c, 'menace') ||
+    // landwalk: unblockable while the defender has that land
+    Object.entries({ islandwalk: 'Island', swampwalk: 'Swamp', forestwalk: 'Forest', mountainwalk: 'Mountain', plainswalk: 'Plains' }).some(([kw, land]) =>
+      hasKw(c, kw) && G.s && G.s.players[c.controller === 'p' ? 'ai' : 'p'].zones.battlefield.some((i) => G.s.cards[i] && new RegExp(land).test(DB[G.s.cards[i].def].typeLine || '')));
 }
 
 // ------------------------------------------------------------ combat simulator
