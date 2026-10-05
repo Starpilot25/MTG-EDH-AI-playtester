@@ -889,6 +889,29 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
 }
 
 // ------------------------------------------------------------ abilities from hand / graveyard
+// The AI's activated abilities use the stack too: you get a chance to respond (and see what it's aimed at).
+// Mana abilities don't use the stack, so they never stop here.
+async function announceAbility(pid, c, text, env) {
+  const s = G.s;
+  if (pid !== 'ai' || !env.respond || !G.settings.pauseOnAiSpells || s.stack || s.pstack) return false;
+  if (/^add\b/i.test(String(text || '').trim())) return false;
+  const ch0 = env.choosers[pid];
+  if (ch0) ch0.plan = null;
+  const tg = await predictTargets(pid, c, c.face || 0, { ...env.choosers, [opp(pid)]: ch0 }, 0, text).catch(() => []);
+  if (ch0 && tg.length) ch0.plan = tg.slice();
+  s.stack = { iid: c.iid, by: pid, face: c.face || 0, ability: text, targets: tg };
+  env.render();
+  let countered = false;
+  try {
+    await env.respond(c.iid);
+    countered = !!(G.s === s && s.stack && s.stack.countered);
+  } finally {
+    if (G.s === s) s.stack = null;
+  }
+  if (countered) log(opp(pid), `The ability of ${nameTag(c)} is countered.`);
+  return countered;
+}
+
 // One loyalty ability a turn; Oath of Teferi makes it two; each The Chain Veil activation adds one more.
 export function loyaltyAllowed(pid) {
   const s = G.s;
@@ -1103,7 +1126,13 @@ export async function activateAbility(pid, c, ab, env) {
       if (cost > 0) queueEvent({ type: 'counterPut', iid: c.iid, kind: 'loyalty', n: cost, controller: c.controller });
       await settle();
       const copiers = abilityCopiers(pid);
-      const did = await resolveEffects(ab.text, c, ctx({ x }));
+      if (await announceAbility(pid, c, ab.text, env)) return true;
+      let did;
+      try {
+        did = await resolveEffects(ab.text, c, ctx({ x }));
+      } finally {
+        if (env.choosers[pid] && env.choosers[pid].plan) env.choosers[pid].plan = null;
+      }
       log(pid, `${nameTag(c)}: ${did.join('; ') || '<i>' + esc(ab.text.slice(0, 90)) + '</i> — apply by hand'}.`);
       await copyAbility(pid, ab.text, c, ctx({ x }), copiers); // loyalty abilities aren't mana abilities either
       return true;
@@ -1264,7 +1293,14 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.sac) sacrifice(c.iid);
   if (ab.returnToHand) move(c.iid, 'hand');
   const copiers = abilityCopiers(pid);
-  const did = await resolveEffects(ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim(), srcSnap, ctx({ x }));
+  const abText = ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim();
+  if (await announceAbility(pid, srcSnap, abText, env)) return true;
+  let did;
+  try {
+    did = await resolveEffects(abText, srcSnap, ctx({ x }));
+  } finally {
+    if (env.choosers[pid] && env.choosers[pid].plan) env.choosers[pid].plan = null;
+  }
   log(pid, did.length ? `${nameTag(srcSnap)}: ${did.join('; ')}.` : `Apply “${esc(ab.text.slice(0, 90))}” by hand.`);
   await copyAbility(pid, ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim(), srcSnap, ctx({ x }), copiers);
   return true;

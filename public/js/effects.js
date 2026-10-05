@@ -798,6 +798,12 @@ on(/^counter (target [^.]*?spell(?:,? activated ability, or triggered ability| o
   const tgt = env.stackTarget && card(env.stackTarget);
   const filter = m[1].replace(/^target /, '').replace(/spell.*$/, '');
   if (!tgt) return env.did.push('has no spell to counter');
+  // an activated ability on the stack: only "counter target … ability" can counter it
+  if (G.s.stack && G.s.stack.ability) {
+    if (!/ability/.test(m[1])) return env.did.push(`can't counter an ability (only spells)`);
+    G.s.stack.countered = true;
+    return env.did.push(`counters ${nameTag(tgt)}'s ability`);
+  }
   if (!spellFilterOk(filter, tgt)) return env.did.push(`can't counter ${nameTag(tgt)} (wrong kind of spell)`);
   if (cantBeCountered(tgt)) return env.did.push(`${nameTag(tgt)} can't be countered`);
   if (m[2]) {
@@ -3895,10 +3901,10 @@ export { makeCard, manaValueOf, payCost, H as HANDLERS, runText, prep };
 
 // What the AI's spell will target, worked out as it's cast so you can see it before you respond.
 // Returns [{iid}|{player}]; the same picks are then used when the spell resolves (chooser.plan).
-export async function predictTargets(pid, c, face, choosers, x = 0) {
+export async function predictTargets(pid, c, face, choosers, x = 0, textOverride = null) {
   let text;
   try {
-    text = prep(spellText({ ...c, face: face || 0 }), c).toLowerCase();
+    text = prep(textOverride != null ? textOverride : spellText({ ...c, face: face || 0 }), c).toLowerCase();
   } catch (e) {
     return [];
   }

@@ -597,8 +597,8 @@ function renderBanner() {
     const responses = arena ? cardsIn('p', 'hand').concat(cardsIn('p', 'command')).filter(respondable).length : 0;
     html = `<div class="stack">
       <div class="stack-card">${cardHTML(c)}</div>
-      <div class="stack-copy"><span class="eyebrow">AI is casting</span><h3>${esc(cardName(c))}</h3>
-      <p>${esc(oracle(c)).replace(/\n/g, '<br>')}</p>
+      <div class="stack-copy"><span class="eyebrow">${s.stack.ability ? 'AI is activating an ability' : 'AI is casting'}</span><h3>${esc(cardName(c))}</h3>
+      <p>${esc(s.stack.ability || oracle(c)).replace(/~/g, esc(cardName(c))).replace(/\n/g, '<br>')}</p>
       ${(s.stack.targets || []).length ? `<p class="stack-targets">Targeting: ${s.stack.targets.map((t) => t.player ? `<b>${t.player === 'p' ? 'you' : 'the AI'}</b>` : card(t.iid) ? `<b>${card(t.iid).controller === 'p' ? 'your' : 'its own'} ${esc(cardName(card(t.iid)))}</b>` : '').filter(Boolean).join(', ')}</p>` : ''}
       ${arena ? `<p class="hint">${responses ? `You have ${responses} instant-speed card${responses > 1 ? 's' : ''} you can afford (glowing in your hand) — double-click one to respond, or let it resolve.` : 'You have nothing you can cast in response.'}</p>` : ''}
       <div class="btns"><button class="primary" data-act="resolve">Let it resolve <kbd>Enter</kbd></button>

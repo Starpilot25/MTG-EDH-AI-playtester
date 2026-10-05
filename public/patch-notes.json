@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.56",
+    "title": "Respond to the AI's activated abilities",
+    "notes": [
+      "When the AI activates an ability (anything except a mana ability), you can respond, the same as with its spells. The box says \"AI is activating an ability\", shows the ability's text, and says what it's targeting. The target glows red. Cast instants or use abilities in response, then let it resolve.",
+      "A counterspell that only counters spells can't counter an ability. Cards that say \"counter target activated ability\" can.",
+      "If \"Let me respond to AI spells\" is turned off, AI abilities resolve right away without pausing."
+    ]
+  },
+  {
     "version": "1.2.55",
     "title": "Commander damage from an animated Background",
     "notes": [
