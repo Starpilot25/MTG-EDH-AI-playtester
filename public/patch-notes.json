@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.42",
+    "title": "Venturing fixed",
+    "notes": [
+      "Venturing and taking the initiative now move you exactly one room each time. The game used to read each dungeon's rooms from the card's text on Scryfall, and when that text didn't come through as expected, the dungeon could finish all at once. All four dungeons (Lost Mine of Phandelver, Dungeon of the Mad Mage, Tomb of Annihilation and Undercity) are now built into the game, room by room, so they always work the same way. The dungeon map now stays on screen while you're in a dungeon."
+    ]
+  },
+  {
     "version": "1.2.41",
     "title": "Contagion Engine, Dungeon Delver",
     "notes": [
