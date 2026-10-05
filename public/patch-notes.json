@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.87",
+    "title": "Escape to the Wilds",
+    "notes": [
+      "Escape to the Wilds now lets you play the five exiled cards, lands included, until the end of your next turn. They show in your \"From exile\" panel. Before, it exiled them and you had to apply the rest by hand. Other \"you may play cards exiled this way\" effects work too."
+    ]
+  },
+  {
     "version": "1.2.86",
     "title": "See who blocks whom",
     "notes": [

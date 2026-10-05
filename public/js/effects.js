@@ -1824,6 +1824,13 @@ on(/^they draw (a|one|two|three) cards?$/, async (m, env) => {
   draw(pid, k, true);
   env.did.push(`${who(pid)} ${s_(pid, 'draw')} ${k}`);
 }, { first: true });
+// Escape to the Wilds & co.: "You may play cards exiled this way until the end of your next turn."
+on(/^(?:you may )?(play|cast) (?:the )?cards exiled this way( until the end of your next turn| this turn| until end of turn)?$/, async (m, env) => {
+  const ids = (env.them_ || []).filter((i) => card(i) && card(i).zone === 'exile');
+  const until = /next turn/.test(m[2] || '') ? G.s.turn + (G.s.active === env.me ? 2 : 1) : G.s.turn;
+  grantPlay(ids, env.me, { until, castOnly: m[1] === 'cast' });
+  env.did.push(`may play ${ids.length} exiled card${ids.length === 1 ? '' : 's'} ${/next turn/.test(m[2] || '') ? 'until the end of its next turn' : 'this turn'}`);
+}, { first: true });
 // Hoarder's Greed: lose 2, draw 2, clash; repeat while you win
 on(/^you lose (\d+) life and draw (\w+) cards?, then clash with an opponent\. if you win, repeat this process$/, async (m, env) => {
   const o = opp(env.me);
@@ -4649,7 +4656,7 @@ async function runSentence(sentence, env) {
     if (env.lastCond) return;
     return runSentence(s.slice(s.indexOf(',') + 1).trim(), env);
   }
-  if ((m = low.match(/^you may (.+)$/)) && !/^you may (?:cast|play) (?:it|that card|those cards|them|the exiled card|spells from among)/.test(low)) {
+  if ((m = low.match(/^you may (.+)$/)) && !/^you may (?:cast|play) (?:it|that card|those cards|them|the exiled card|spells from among|(?:the )?cards exiled (?:this way|with))/.test(low)) {
     const yes = await mayAsk(env, s.slice(8));
     if (!yes) return;
     return runSentence(s.slice(8), env);
