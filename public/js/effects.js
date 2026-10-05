@@ -7,7 +7,7 @@ import {
   isProtectedFrom, SECTORS, SECTOR_SIGN, kwCost, payCost, manaValueOf, isPermanentCard, manaAbility,
 } from './rules.js';
 import {
-  G, card, cardsIn, zoneOf, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef,
+  G, card, cardsIn, zoneOf, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef, namedTokenDef,
   stateBased, shuffle, cardName, opp, addCounters, destroy, sacrifice, discard as discardCard, mill as millCards,
   libTop, queueEvent, winGame, loseGame, esc, makeCard,
 } from './state.js';
@@ -46,9 +46,12 @@ const ctl = (c) => (c.zone === 'battlefield' ? c.controller : c.owner);
 // ------------------------------------------------------------ text helpers
 export function stripName(text, c) {
   const name = cardName(c);
-  let t = String(text || '').split(name).join('~');
+  // whole words only: "Ginger" must not eat the start of "Gingerbrute"
+  const esc_ = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const word = (x) => new RegExp('(?<![A-Za-z])' + esc_(x) + '(?![A-Za-z])', 'g');
+  let t = String(text || '').replace(word(name), '~');
   const short = name.split(',')[0];
-  if (short.length > 3 && short !== name) t = t.split(short).join('~');
+  if (short.length > 3 && short !== name) t = t.replace(word(short), '~');
   // legends called by their first name: "Ureni of the Unwritten" → "Ureni", "Thrakkus the Butcher" → "Thrakkus"
   else if (short === name && c && DB[c.def] && /Legendary/.test(DB[c.def].typeLine || '')) {
     const fm = name.match(/^([A-Z][\w'-]{2,}) (?:of|the|from|and)\b/);
@@ -2521,6 +2524,7 @@ async function makeTokens(env, desc, attachPhrase) {
     if (w) kws.push(...kwList(w[1]).filter((k) => /^(flying|trample|haste|vigilance|reach|lifelink|deathtouch|menace|first strike|double strike|defender|hexproof|indestructible|infect|prowess|ward \{\d\}|decayed|changeling|toxic \d)$/.test(k)));
     defId = genericTokenDef(pw, tg, label, colors, { keywords: kws, types: mm[4].trim().replace(/\b\w/g, (x) => x.toUpperCase()) });
   }
+  if (!defId && (mm = d.match(/\b(gingerbrute)\b/))) defId = namedTokenDef('Gingerbrute');
   if (!defId) defId = genericTokenDef(1, 1, 'Token');
   const made = createToken(defId, me, count, { tapped });
   if (forcedPT) for (const i of made) if (card(i)) card(i).setPT = { ...forcedPT };
@@ -2713,8 +2717,12 @@ on(/^(.+?) can't block this turn/, async (m, env) => {
 });
 on(/^(.+?) can't be blocked this turn/, async (m, env) => {
   const objs = await objects(env, m[1], { harm: false });
-  objs.forEach((c) => (c.unblockableTurn = G.s.turn));
-  env.did.push(`${objs.map(nameTag).join(', ')} can't be blocked this turn`);
+  const ex = env.sentence.match(/except by creatures with ([a-z ]+?)\.?$/i);
+  objs.forEach((c) => {
+    c.unblockableTurn = G.s.turn;
+    c.unblockableExcept = ex ? ex[1].toLowerCase() : null;
+  });
+  env.did.push(`${objs.map(nameTag).join(', ')} can't be blocked this turn${ex ? ' except by creatures with ' + ex[1].toLowerCase() : ''}`);
 });
 on(/^(.+?) (can't attack or block|can't block|can't attack)(?:,? and its activated abilities can't be activated)? until your next turn/, async (m, env) => {
   const objs = await objects(env, m[1]);

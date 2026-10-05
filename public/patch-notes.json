@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.70",
+    "title": "Ginger, Queen of Sweets",
+    "notes": [
+      "Ginger, Queen of Sweets now makes real Gingerbrute tokens: 1/1 haste Food Golems that can sacrifice for 3 life. Before, it made a blank 1/1 token because the game mistook the \"Ginger\" in \"Gingerbrute\" for the card's own name. This also fixes other cards whose name is the start of a longer word in their text.",
+      "\"Can't be blocked this turn except by creatures with haste\" (and similar) now lets those creatures block. Before, it made the attacker fully unblockable."
+    ]
+  },
+  {
     "version": "1.2.69",
     "title": "Sephara and alternative costs",
     "notes": [

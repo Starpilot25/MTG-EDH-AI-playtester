@@ -56,7 +56,8 @@ function parseStatics(text, selfName) {
     if (/^(when|whenever|at the beginning|\{|[+−-]?\d+:|level|station)/.test(l)) continue;
     let m;
     // buffs to this creature itself: "~ gets +1/+1 for each …", "As long as …, ~ gets +2/+2 and has flying"
-    const sl = (me ? l.split(me).join('~') : l).split(short && short.length > 3 ? short : '\u0000').join('~').replace(/\bthis (?:creature|permanent|vehicle|artifact|enchantment)\b/g, '~');
+    const wd = (x) => new RegExp('(?<![a-z])' + x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![a-z])', 'g');
+    const sl = (me ? l.replace(wd(me), '~') : l).replace(short && short.length > 3 ? wd(short) : /\u0000/g, '~').replace(/\bthis (?:creature|permanent|vehicle|artifact|enchantment)\b/g, '~');
     if ((m = sl.match(/^~ gets ([+-]\d+)\/([+-]\d+) for each (.+?)\.?$/))) {
       out.self.push({ p: +m[1], t: +m[2], each: m[3], grants: [] });
       continue;

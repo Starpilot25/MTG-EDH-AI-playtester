@@ -883,7 +883,8 @@ export function canBlock(blocker, attacker) {
   for (const [kw, land] of Object.entries(LANDWALK)) {
     if (hasKw(attacker, kw) && G.s && G.s.players[blocker.controller].zones.battlefield.some((i) => G.s.cards[i] && typeLine(G.s.cards[i]).includes(land))) return false;
   }
-  if (/(?:^|\n|\. )[^.\n]*can't be blocked\.?(?:$|\n)/.test(ao) || attacker.unblockableTurn === (G.s && G.s.turn)) return false;
+  if (/(?:^|\n|\. )[^.\n]*can't be blocked\.?(?:$|\n)/.test(ao)) return false;
+  if (attacker.unblockableTurn === (G.s && G.s.turn) && !(attacker.unblockableExcept && hasKw(blocker, attacker.unblockableExcept))) return false;
   let m;
   // "can't be blocked as long as it's attacking alone" (Yuan-Ti Malison), "... as long as you're the monarch / have the initiative"
   if ((m = ao.match(/can't be blocked as long as ([^.\n]+)/i))) {

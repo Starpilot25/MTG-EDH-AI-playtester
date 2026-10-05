@@ -996,6 +996,22 @@ const ROLE_TOKENS = {
   'Young Hero': 'Enchant creature\nEnchanted creature has "Whenever this creature attacks, if its toughness is 3 or less, put a +1/+1 counter on it."',
   Cursed: 'Enchant creature\nEnchanted creature has base power and toughness 1/1.',
 };
+// Named creature tokens whose stats aren't written on the card that makes them
+const NAMED_CREATURE_TOKENS = {
+  Gingerbrute: { p: 1, t: 1, typeLine: 'Token Artifact Creature — Food Golem', oracle: "Haste\n{1}: This token can't be blocked this turn except by creatures with haste.\n{2}, {T}, Sacrifice this token: You gain 3 life.", keywords: ['haste'] },
+};
+export function namedTokenDef(label) {
+  const n = NAMED_CREATURE_TOKENS[label];
+  if (!n) return null;
+  const id = `gen-named-${label}`;
+  if (!DB[id]) {
+    DB[id] = {
+      id, name: label, layout: 'token', cmc: 0, manaCost: '', typeLine: n.typeLine, colors: [], ci: [], keywords: n.keywords || [], produced: [], tokens: [], doubleFaced: false, isToken: true,
+      faces: [{ name: label, manaCost: '', typeLine: n.typeLine, oracle: n.oracle, power: String(n.p), toughness: String(n.t), img: null, imgLarge: null }],
+    };
+  }
+  return id;
+}
 export function genericTokenDef(p, t, label, color, extra = {}) {
   const art = ARTIFACT_TOKENS[label];
   const role = ROLE_TOKENS[label.replace(/ Role$/, '')];
