@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.82",
+    "title": "Full update log",
+    "notes": [
+      "New: a full update log with every version's notes and a search box, so you can type a card name to find its fix. Open it from \"Full update log\" next to the version number on the setup screen, from the in-game menu (☰ → Update log), or from the button on the what's-new popup."
+    ]
+  },
+  {
     "version": "1.2.81",
     "title": "Theft deck: the last details",
     "notes": [

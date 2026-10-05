@@ -807,3 +807,9 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .steal-card { width: 200px; max-width: 45vw; }
 .steal-card img { width: 100%; border-radius: 10px; display: block; box-shadow: 0 6px 24px rgba(0, 0, 0, .45); }
 .steal-card .card { width: 100%; }
+
+/* full update log */
+.update-log .ul-count { font: 500 13px var(--f-body, inherit); color: var(--muted, #9aa); margin-left: 8px; }
+.update-log .ul-search { width: 100%; box-sizing: border-box; margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: inherit; font: inherit; }
+.update-log .ul-list section[hidden] { display: none; }
+.patch-notes .row-end { gap: 12px; align-items: center; }

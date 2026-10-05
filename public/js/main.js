@@ -349,8 +349,9 @@ function initSetup() {
     .then((v) => {
       const el = $('#version');
       if (el && v.version) {
-        el.innerHTML = `<button type="button" class="linkish" title="See what's new">Version ${esc(v.version)}${v.source === 'just updated' ? ' · just updated' : ''} · What's new</button>`;
-        el.querySelector('button').addEventListener('click', () => showPatchNotes(v.version, null));
+        el.innerHTML = `<button type="button" class="linkish" data-v="new" title="See what's new">Version ${esc(v.version)}${v.source === 'just updated' ? ' · just updated' : ''} · What's new</button> · <button type="button" class="linkish" data-v="log" title="Every update so far">Full update log</button>`;
+        el.querySelector('[data-v=new]').addEventListener('click', () => showPatchNotes(v.version, null));
+        el.querySelector('[data-v=log]').addEventListener('click', () => showUpdateLog());
       }
       // patch notes after an update: everything newer than the last version this player saw
       const seen = store.get('seenVersion', null);
@@ -476,6 +477,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#gm-restart').addEventListener('click', () => beginGame());
   $('#gm-decks').addEventListener('click', () => showSetup());
+  $('#gm-log').addEventListener('click', () => {
+    $('#game-menu').hidden = true;
+    showUpdateLog();
+  });
   $('#gm-pause').addEventListener('change', (e) => (G.settings.pauseOnAiSpells = e.target.checked));
   $('#gm-arena').addEventListener('change', (e) => (G.settings.arenaMode = e.target.checked));
   $('#gm-speed').addEventListener('change', (e) => (G.settings.aiSpeed = +e.target.value));
@@ -533,6 +538,36 @@ function prevVersion(v) {
   return p.join('.');
 }
 // since = null shows the latest few releases; otherwise every release newer than `since`
+// The full update log: every version's notes, newest first, with a search box (find a card's fix by name)
+async function showUpdateLog() {
+  let notes = [];
+  try {
+    notes = await fetch('patch-notes.json', { cache: 'no-store' }).then((r) => r.json());
+  } catch (e) {
+    toast('Could not load the update log.');
+    return;
+  }
+  const dlg = openDialog(`<div class="patch-notes update-log">
+    <h3>Update log <span class="ul-count">${notes.length} updates</span></h3>
+    <input type="search" class="ul-search" placeholder="Search updates (a card name, a feature…)" aria-label="Search updates">
+    <div class="ul-list">${notes.map((n) => `<section data-text="${esc((n.version + ' ' + (n.title || '') + ' ' + n.notes.join(' ')).toLowerCase())}"><h4>${esc(n.version)}${n.title ? ` <span>${esc(n.title)}</span>` : ''}</h4><ul>${n.notes.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></section>`).join('')}</div>
+    <p class="hint ul-none" hidden>No updates match.</p>
+    <div class="row-end"><button class="primary" data-close>Close</button></div>
+  </div>`, { wide: true });
+  const input = dlg.querySelector('.ul-search');
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    let shown = 0;
+    dlg.querySelectorAll('.ul-list section').forEach((sec) => {
+      const ok = !q || sec.dataset.text.includes(q);
+      sec.hidden = !ok;
+      if (ok) shown++;
+    });
+    dlg.querySelector('.ul-none').hidden = shown > 0;
+  });
+  input.focus();
+}
+
 async function showPatchNotes(current, since) {
   let notes = [];
   try {
@@ -545,7 +580,9 @@ async function showPatchNotes(current, since) {
   openDialog(`<div class="patch-notes">
     <h3>${since ? `Updated to version ${esc(current)}` : "What's new"}</h3>
     ${list.map((n) => `<section><h4>${esc(n.version)}${n.title ? ` <span>${esc(n.title)}</span>` : ''}</h4><ul>${n.notes.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></section>`).join('')}
-    <div class="row-end"><button class="primary" data-close>Got it</button></div>
+    <div class="row-end"><button class="linkish pn-all">Full update log</button><button class="primary" data-close>Got it</button></div>
   </div>`);
+  const all = document.querySelector('#dialog .pn-all');
+  if (all) all.addEventListener('click', () => showUpdateLog());
 }
 
