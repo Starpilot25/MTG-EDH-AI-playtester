@@ -61,6 +61,14 @@ function manaSymbols(cost) {
     .replace(/\{([^}]+)\}/g, (m, s) => `<span class="ms ms-${s.replace('/', '').toLowerCase()}">${s}</span>`);
 }
 
+// Teferi's Talent / Teferi, Temporal Archmage emblem, Jace's Machinations: loyalty abilities on any player's turn
+function instantLoyalty(c) {
+  const pl = G.s.players[c.controller];
+  if ((pl.emblems || []).some((e) => /activate loyalty abilities of planeswalkers you control on any player's turn/i.test(e))) return true;
+  const il = G.s.instantLoyalty;
+  return !!(il && il.pid === c.controller && il.turn === G.s.turn && (!il.subtype || hasSubtype(c, il.subtype)));
+}
+
 // same rule as cast.js: one loyalty ability a turn, two with Oath of Teferi, +1 for The Chain Veil
 function loyaltyUsesLeft(c) {
   const s = G.s;
@@ -121,7 +129,7 @@ function cardHTML(c, opts = {}) {
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
   if (c.sector && c.zone === 'battlefield' && sculptors().length) badges.push(`<span class="badge sector" title="${c.sector} sector">${SECTOR_SIGN[c.sector]}</span>`);
   // planeswalkers: can this one still use a loyalty ability this turn?
-  if (c.zone === 'battlefield' && isType(c, 'Planeswalker') && !isCreature(c) && c.controller === G.s.active && G.s.phase === 'play') {
+  if (c.zone === 'battlefield' && isType(c, 'Planeswalker') && !isCreature(c) && (c.controller === G.s.active || instantLoyalty(c)) && G.s.phase === 'play') {
     const left = loyaltyUsesLeft(c);
     if (left > 0) {
       cls.push('pw-ready');

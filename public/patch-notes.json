@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.33",
+    "title": "Planeswalker indicator on opponents' turns",
+    "notes": [
+      "When you can use loyalty abilities on other players' turns — the emblem from Teferi's Talent or Teferi, Temporal Archmage, or Jace's Machinations for your Jaces that turn — your planeswalkers show the ⚡ ready / ✓ used tag on the AI's turn too. Without one of those, the tag only shows on your own turn."
+    ]
+  },
+  {
     "version": "1.2.32",
     "title": "Shark Typhoon",
     "notes": [

@@ -1216,7 +1216,9 @@ on(/^for each planeswalker you control, you may activate one of its loyalty abil
   env.did.push('each planeswalker may use another loyalty ability this turn');
 }, { first: true });
 // Jace's Machinations / Teferi emblem: loyalty abilities at instant speed (the table already lets you; nothing to enforce)
-on(/^until end of turn, you may activate loyalty abilities of [^.]+ on any player's turn any time you could cast an instant$/, async (m, env) => {
+on(/^until end of turn, you may activate loyalty abilities of ([^.]+?) on any player's turn any time you could cast an instant$/, async (m, env) => {
+  const sub = (m[1].match(/^([A-Z]?\w+) planeswalkers/i) || [])[1];
+  G.s.instantLoyalty = { pid: env.me, turn: G.s.turn, subtype: sub && !/^planeswalkers?$/i.test(sub) ? sub : null };
   env.did.push('loyalty abilities can be used at instant speed this turn');
 }, { first: true });
 // Jace, Memory Adept −7: "Any number of target players each draw twenty cards."
