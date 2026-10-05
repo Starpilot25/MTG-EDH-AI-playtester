@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.88",
+    "title": "Zara, Renegade Recruiter",
+    "notes": [
+      "Zara, Renegade Recruiter: when you attack with her, the log now lists the AI's whole hand (it used to just say she looked), then you choose a creature to put in attacking. The stolen-card popup no longer shows the card sideways."
+    ]
+  },
+  {
     "version": "1.2.87",
     "title": "Escape to the Wilds",
     "notes": [

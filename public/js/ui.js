@@ -220,7 +220,7 @@ function showStealNotes() {
   const dlg = openDialog(`
     <span class="eyebrow">${theirs && notes.every((n) => n.by === 'ai') ? 'Stolen' : 'Gained control'}</span>
     <h3>${notes.length === 1 ? esc(cardName(card(notes[0].iid))) : `${notes.length} cards changed hands`}</h3>
-    <div class="steal-cards">${notes.map((n) => `<div class="steal-card">${DB[card(n.iid).def].faces[0].img ? `<img src="${DB[card(n.iid).def].faces[card(n.iid).face || 0].img || DB[card(n.iid).def].faces[0].img}" alt="${esc(cardName(card(n.iid)))}">` : cardHTML(card(n.iid))}</div>`).join('')}</div>
+    <div class="steal-cards">${notes.map((n) => `<div class="steal-card">${DB[card(n.iid).def].faces[0].img ? `<img src="${DB[card(n.iid).def].faces[card(n.iid).face || 0].img || DB[card(n.iid).def].faces[0].img}" alt="${esc(cardName(card(n.iid)))}">` : cardHTML({ ...card(n.iid), tapped: false, sick: false })}</div>`).join('')}</div>
     <p>${notes.map(line).join('<br>')}</p>
     <div class="btns"><button class="primary" id="steal-ok">OK</button></div>`, { small: notes.length === 1 });
   $('#steal-ok', dlg).addEventListener('click', () => closeDialog());

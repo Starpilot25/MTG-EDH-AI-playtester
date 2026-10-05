@@ -1663,7 +1663,7 @@ on(/^exile all creature cards from target player's graveyard\. you may cast spel
 on(/^look at defending player's hand\. you may put a creature card from it onto the battlefield under your control tapped and attacking that player or a planeswalker they control\. return that creature to its owner's hand at the beginning of the next end step$/, async (m, env) => {
   const o = env.thatPlayer || opp(env.me);
   const pool = cardsIn(o, 'hand').filter((c) => /Creature/.test(DB[c.def].typeLine || ''));
-  env.did.push(`looks at ${o === 'p' ? 'your' : "the AI's"} hand`);
+  env.did.push(`looks at ${o === 'p' ? 'your' : "the AI's"} hand${env.me === 'p' ? ': ' + (cardsIn(o, 'hand').map(nameTag).join(', ') || 'empty') : ''}`);
   if (!pool.length) return;
   const [pick] = await env.choosers[env.me].pickCards({ prompt: 'Put a creature card from their hand onto the battlefield attacking', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'steal', src: env.src, aiScore: (c) => cardValue(c) });
   if (!pick) return;
