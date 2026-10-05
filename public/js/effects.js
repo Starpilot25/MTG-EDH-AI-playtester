@@ -1168,6 +1168,7 @@ on(/^(you |target player |each player |that player |target opponent |each oppone
       });
     }
     env.discardedNonland = picks.some((i) => !isLand(card(i)));
+    env.discarded = [...(env.discarded || []), ...picks];
     env.did.push(`${who(pid)} ${s_(pid, 'discard')} ${picks.map((i) => nameTag(card(i))).join(', ')}`);
     picks.forEach((i) => discardCard(i));
   }
@@ -2718,6 +2719,11 @@ async function runText(text, env) {
 
 async function runSentence(sentence, env) {
   let s = sentence.trim().replace(/\.$/, '').replace(/^then,? /i, '');
+  // X that depends on something done earlier in this same effect (Spellbound Dragon: "where X is the discarded card's mana value")
+  {
+    const dm = s.match(/, where X is (?:the discarded card's|that card's|the total) mana value(?: of the discarded cards| of those cards)?$/i);
+    if (dm && env.discarded && env.discarded.length) env.x = env.discarded.reduce((a, i) => a + ((DB[card(i).def] || {}).cmc || 0), 0);
+  }
   // X was worked out up front: "create X tokens, where X is …"
   if (/^(?!where)/i.test(s) && /, where X is [^.]+$/i.test(s) && env.x !== undefined) s = s.replace(/, where X is [^.]+$/i, '');
   // "When you do, X" (reflexive trigger) works like "If you do, X"

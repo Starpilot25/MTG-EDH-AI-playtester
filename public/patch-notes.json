@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.14",
+    "title": "Spellbound Dragon",
+    "notes": [
+      "Spellbound Dragon gets +X/+0 equal to the mana value of the card you actually discarded (it always got +0 before). Other \"where X is the discarded card's mana value\" effects are fixed too."
+    ]
+  },
+  {
     "version": "1.2.13",
     "title": "Bontu, Rakdos Charm, Empower Jace, Curiosity",
     "notes": [
