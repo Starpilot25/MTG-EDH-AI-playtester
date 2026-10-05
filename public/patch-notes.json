@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.26",
+    "title": "Smarter auto-tapping",
+    "notes": [
+      "Auto-pay now searches for the best way to tap instead of grabbing the first land that fits. It never fails to pay a cost that can be paid (like {W}{W}{U} off a Hallowed Fountain, a Plains and an Island).",
+      "It taps basics before dual lands and Command Tower-style lands, uses Sol Ring and bounce lands' extra mana, pays colored costs without hurting you from pain lands when it can, and saves Treasures, mana creatures and lands with other abilities for last.",
+      "Generic costs are paid with the colors the rest of your hand needs least, so the right colors stay open for your next spell. Mana already floating in your pool is always spent first.",
+      "The AI uses the same, smarter payment."
+    ]
+  },
+  {
     "version": "1.2.25",
     "title": "Extra turn counter",
     "notes": [

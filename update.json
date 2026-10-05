@@ -1,5 +1,5 @@
 {
-  "version": "1.2.25",
+  "version": "1.2.26",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "c18296c87d71e13ef7cb881d1f8d8e0b6e32616bc886af6e66fd1abb66077e46",
@@ -12,11 +12,11 @@
     "public/js/effects.js": "f12b106679c8cb784738e70464c2d1269a1cff539af688982c02ba3ca6f7d0d9",
     "public/js/game.js": "d024d073a37326350c331d6e7ecb528c01c5628c7e291080aa4def31bbb90779",
     "public/js/main.js": "18545251737c3515fe3f6cc1b035762286c269a1c892acc98192b6484522f9a5",
-    "public/js/rules.js": "a0e1804c53e4f9acc984458dfb5baefe0d681c50308d2f7d21a115cf1e9951f4",
+    "public/js/rules.js": "2c621354cd68943336d2ad625f0748a0826d06da27f65ecf51d2d8541bfef2a9",
     "public/js/state.js": "94f6478ca82f751ac9129e337623ae5feb9656ab72087a39d91a621af11d73b4",
     "public/js/statics.js": "e19d081226b34fc09d46c03eb4f9f9c539a01004c3b0d11dade67a41c947217a",
     "public/js/triggers.js": "c92d591a4faace83d8aa83e9289ecc4c189f8d413e3cfa3b3ed92c1ee19e3ae2",
     "public/js/ui.js": "3a4bdf0400fe6d9d2cf658fdce31d2e789028a025e33c9ecf00384fbc24219ac",
-    "public/patch-notes.json": "d9597b2125c9653ccd6cafa78bb2f863da7f4e7bd28d0f0bd25fab0fac89a130"
+    "public/patch-notes.json": "ee6abd0d133d84f503eec041fddbf63826c91c0ecf4ee528e0fc1404400c0747"
   }
 }

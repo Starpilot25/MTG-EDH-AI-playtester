@@ -533,7 +533,7 @@ export function payCost(cost, sources, opts = {}) {
   for (let mask = 1; mask < 1 << n && !best; mask++) {
     const on = filters.filter((_, k) => mask & (1 << k));
     const extra = on.reduce((a, s) => a + s.activation, 0);
-    const r = payCostRaw(cost, [...plain, ...on.map((s) => ({ ...s, kind: '' }))], { ...opts, extraGeneric: (opts.extraGeneric || 0) + extra, signets: on.map((s) => s.iid) });
+    const r = payCostRaw(cost, [...plain, ...on.map((s) => ({ ...s, kind: '' }))], { ...opts, extraGeneric: (opts.extraGeneric || 0) + extra, signets: on.map((s) => s.iid), nodeCap: 4000 });
     if (!r) continue;
     // a signet can't pay for its own activation: the units it made must all go to the spell
     const fromOthers = r.unitsUsed.filter((u) => !on.some((s) => s.iid === u)).length;
@@ -542,88 +542,161 @@ export function payCost(cost, sources, opts = {}) {
   }
   return best;
 }
+// Mana payment, optimised: colored pips are matched by a small search that minimises a "cost" of tapping each
+// source (keep dual lands, rocks with other uses, creatures and Treasures for later; avoid pain), then generic mana
+// is paid with whatever is least valuable to keep, saving the colors still needed for the rest of the hand.
 function payCostRaw(cost, sources, opts = {}) {
   const c = parseCost(cost);
   const extra = opts.extraGeneric || 0;
   const units = [];
   for (const s of sources) {
-    if (s.each) for (const col of s.each) units.push({ iid: s.iid, colors: [col], sac: !!s.sac, kind: s.kind || '', act: !!s.activation });
-    else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '', pain: s.pain || null });
+    if (s.each) for (const col of s.each) units.push({ iid: s.iid, colors: [col], sac: !!s.sac, kind: s.kind || '', act: !!s.activation, multi: true });
+    else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '', pain: s.pain || null, multi: s.amount > 1 });
   }
+  // quick no: not enough mana at all, or a color nobody makes
+  if (units.length < c.pips.length + c.generic + extra + (opts.minX || 0) * c.x) return null;
+  for (const pip of c.pips) if (!pip.includes('ANY') && !pip.includes('2GEN') && !units.some((u) => u.colors.some((col) => pip.includes(col)))) return null;
   const pains = [];
-  // a unit that can only make this pip's colors by hurting
+  const ALL = ['C', 'W', 'U', 'B', 'R', 'G'];
   const hurts = (u, want) => !!(u.pain && u.pain.length && !u.colors.some((col) => want.includes(col) && !u.pain.includes(col)));
-  // spend real mana before treasures, convoke/improvise/delve last
-  const rank = (u) => (u.kind === 'pool' ? -1 : u.kind ? 2 : u.sac ? 1 : 0);
-  const used = new Array(units.length).fill(false);
-  const pips = [...c.pips].sort((a, b) => a.length - b.length);
-  let genericFromHybrid = 0;
-  for (const pip of pips) {
-    if (pip.includes('ANY')) {
-      const i = units.findIndex((u, k) => !used[k]);
-      if (i < 0) return null;
-      used[i] = true;
-      continue;
+  const cardOf = (iid) => (G.s && !String(iid).startsWith('pool:') ? G.s.cards[iid] : null);
+  // colors the controller still needs for other cards in hand (keep those sources for later)
+  const owner = (units.map((u) => cardOf(u.iid)).find(Boolean) || {}).controller;
+  const need = {};
+  if (owner && G.s) {
+    for (const iid of G.s.players[owner].zones.hand) {
+      const h = G.s.cards[iid];
+      if (!h || h.iid === opts.self) continue;
+      for (const m of (DB[h.def].manaCost || '').matchAll(/\{([WUBRG])\}/g)) need[m[1]] = (need[m[1]] || 0) + 1;
     }
+  }
+  const supply = {};
+  for (const u of units) for (const col of u.colors) supply[col] = (supply[col] || 0) + 1;
+  // what it costs to spend this unit (lower is better)
+  const srcCost = new Map();
+  const baseCost = (u) => {
+    if (srcCost.has(u.iid)) return srcCost.get(u.iid);
+    let v = 0;
+    if (u.kind === 'pool') v = -100;
+    else if (u.kind === 'convoke') v = 30;
+    else if (u.kind === 'improvise') v = 25;
+    else if (u.kind === 'delve') v = 35;
+    else {
+      const cc = cardOf(u.iid);
+      if (u.sac) v += 40; // Treasures, Lotus Petal
+      if (cc && isCreature(cc)) v += 6; // dorks can still attack or block
+      if (cc && !isLand(cc)) v += 0.5;
+      // sources with other things to do (utility lands, rocks with abilities)
+      if (cc && /(?:^|\n)[^\n:]*\{[^}]+\}[^\n:]*: (?!Add\b)/.test(oracle(cc))) v += 3;
+      v += (u.colors.length - 1) * 1.2; // keep flexible sources
+      if (u.colors.every((col) => col === 'C')) v -= 1; // colorless rocks pay generic first
+      if (u.multi) v -= 0.6; // one tap, several mana (Sol Ring, bounce lands)
+      if (u.act) v -= 4;
+    }
+    srcCost.set(u.iid, v);
+    return v;
+  };
+  const unitCost = (u, want, tapped) => {
+    if (tapped.has(u.iid) && u.multi) return -50; // the source already made this mana
+    let v = baseCost(u);
+    if (want && hurts(u, want)) v += 12;
+    return v;
+  };
+  // --- colored pips: search for the cheapest assignment
+  const pips = c.pips.filter((p) => !p.includes('ANY'));
+  const anyPips = c.pips.length - pips.length;
+  const cands = pips.map((pip) => {
     const want = pip.filter((p) => p !== '2GEN');
-    let best = -1;
-    let bestScore = 1e9;
-    units.forEach((u, k) => {
-      if (used[k]) return;
-      if (!u.colors.some((col) => want.includes(col))) return;
-      const sc = rank(u) * 100 + u.colors.length + (hurts(u, want) ? 50 : 0) - (u.act ? 60 : 0);
-      if (sc < bestScore) {
-        best = k;
-        bestScore = sc;
-      }
-    });
-    if (best < 0) {
-      if (pip.includes('2GEN')) {
-        genericFromHybrid += 2;
-        continue;
-      }
-      return null;
+    return units.map((u, k) => k).filter((k) => units[k].colors.some((col) => want.includes(col)));
+  });
+  const orderIdx = pips.map((_, i) => i).sort((a, b) => cands[a].length - cands[b].length);
+  let best = null;
+  let nodes = 0;
+  const used = new Array(units.length).fill(false);
+  const pick = new Array(pips.length).fill(-1);
+  const tapped = new Map();
+  const dfs = (d, acc, gen2) => {
+    if (++nodes > (opts.nodeCap || 40000)) return;
+    if (best && acc >= best.cost) return;
+    if (d === orderIdx.length) {
+      best = { cost: acc, pick: [...pick], gen2 };
+      return;
     }
-    used[best] = true;
-    if (hurts(units[best], want)) pains.push(units[best].iid);
-  }
-  const generic = Math.max(0, c.generic + genericFromHybrid + extra);
-  // generic mana: spend colorless first, then the most plentiful colors, keeping scarce colors for later
-  const plenty = {};
-  units.forEach((u, k) => !used[k] && u.colors.forEach((col) => (plenty[col] = (plenty[col] || 0) + 1)));
-  const keepScore = (u) => (u.colors.length ? Math.min(...u.colors.map((col) => plenty[col] || 0)) : 1e6) - u.colors.length * 0.1;
-  const order = units
-    .map((u, k) => k)
-    .filter((k) => !used[k])
-    .sort((a, b) => rank(units[a]) - rank(units[b]) || (units[b].act ? 1 : 0) - (units[a].act ? 1 : 0) || (hurts(units[a], ['C', 'W', 'U', 'B', 'R', 'G']) ? 1 : 0) - (hurts(units[b], ['C', 'W', 'U', 'B', 'R', 'G']) ? 1 : 0) || keepScore(units[b]) - keepScore(units[a]));
-  if (order.length < generic) return null;
-  for (let k = 0; k < generic; k++) {
-    used[order[k]] = true;
-    if (hurts(units[order[k]], ['C', 'W', 'U', 'B', 'R', 'G'])) pains.push(units[order[k]].iid);
-  }
+    const pi = orderIdx[d];
+    const want = pips[pi].filter((p) => p !== '2GEN');
+    const opts2 = cands[pi].filter((k) => !used[k]).map((k) => ({ k, v: unitCost(units[k], want, tapped) })).sort((a, b) => a.v - b.v);
+    for (const { k, v } of opts2) {
+      used[k] = true;
+      pick[pi] = k;
+      tapped.set(units[k].iid, (tapped.get(units[k].iid) || 0) + 1);
+      dfs(d + 1, acc + v, gen2);
+      if (tapped.get(units[k].iid) === 1) tapped.delete(units[k].iid);
+      else tapped.set(units[k].iid, tapped.get(units[k].iid) - 1);
+      used[k] = false;
+      pick[pi] = -1;
+    }
+    // {2/W}: pay two generic instead
+    if (pips[pi].includes('2GEN')) dfs(d + 1, acc + 4, gen2 + 2);
+  };
+  dfs(0, 0, 0);
+  if (!best) return null;
+  const finalUsed = new Array(units.length).fill(false);
+  const tappedSet = new Set();
+  best.pick.forEach((k, pi) => {
+    if (k < 0) return;
+    finalUsed[k] = true;
+    tappedSet.add(units[k].iid);
+    if (hurts(units[k], pips[pi].filter((p) => p !== '2GEN'))) pains.push(units[k].iid);
+  });
+  // --- generic (and snow/any pips), then X
+  const remaining = new Set(units.map((u, k) => k).filter((k) => !finalUsed[k]));
+  const genericCost = (k) => {
+    const u = units[k];
+    if (tappedSet.has(u.iid) && u.multi) return -50;
+    let v = baseCost(u) + (hurts(u, ALL) ? 12 : 0);
+    // keep colors that the rest of the hand needs and are in short supply
+    for (const col of u.colors) if (col !== 'C' && need[col]) v += Math.min(3, need[col] / Math.max(1, supply[col])) / u.colors.length;
+    return v;
+  };
+  const takeCheapest = () => {
+    let bk = -1;
+    let bv = Infinity;
+    for (const k of remaining) {
+      const v = genericCost(k);
+      if (v < bv) {
+        bv = v;
+        bk = k;
+      }
+    }
+    if (bk < 0) return -1;
+    remaining.delete(bk);
+    finalUsed[bk] = true;
+    tappedSet.add(units[bk].iid);
+    if (hurts(units[bk], ALL)) pains.push(units[bk].iid);
+    for (const col of units[bk].colors) supply[col] = Math.max(0, (supply[col] || 0) - 1);
+    return bk;
+  };
+  const generic = Math.max(0, c.generic + best.gen2 + extra) + anyPips;
+  for (let k = 0; k < generic; k++) if (takeCheapest() < 0) return null;
   let x = 0;
   if (c.x && opts.maxX) {
-    const left = order.length - generic;
+    const left = remaining.size;
     x = Math.floor(Math.min(left, opts.maxX * c.x) / c.x);
-    for (let k = generic; k < generic + x * c.x; k++) {
-      used[order[k]] = true;
-      if (hurts(units[order[k]], ['C', 'W', 'U', 'B', 'R', 'G'])) pains.push(units[order[k]].iid);
-    }
+    for (let k = 0; k < x * c.x; k++) takeCheapest();
   }
   if (c.x && x < (opts.minX ?? 1) && opts.maxX) return null;
   const payers = [];
   const sacs = [];
   const special = [];
-  used.forEach((u, k) => {
+  finalUsed.forEach((u, k) => {
     if (!u) return;
     if (units[k].kind) special.push({ iid: units[k].iid, kind: units[k].kind });
     else payers.push(units[k].iid);
     if (units[k].sac) sacs.push(units[k].iid);
   });
-  const unitsUsed = units.filter((u, k) => used[k]).map((u) => u.iid);
-  // switched-on signets that made no mana weren't needed after all
+  const unitsUsed = units.filter((u, k) => finalUsed[k]).map((u) => u.iid);
   if (opts.signets && opts.signets.some((i) => !unitsUsed.includes(i))) return null;
-  return { payers, x, sacs: [...new Set(sacs)], special, pains, unitsUsed };
+  return { payers, x, sacs: [...new Set(sacs)], special, pains: [...new Set(pains)], unitsUsed };
 }
 
 export function totalMana(sources) {
