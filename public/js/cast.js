@@ -40,7 +40,7 @@ export function manaSources(pid, opts = {}) {
       const ok = /^[A-Z]/.test(m.onlyFor) ? hasSubtype({ ...spell, zone: 'hand' }, m.onlyFor) : m.onlyFor === 'noncreature' ? !/Creature/.test(tl) : new RegExp(m.onlyFor.split(' or ').join('|'), 'i').test(tl);
       if (!ok) continue;
     }
-    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each });
+    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain });
   }
   if (opts.convoke)
     for (const c of cardsIn(pid, 'battlefield')) if (isCreature(c) && !c.tapped && !out.some((o) => o.iid === c.iid)) out.push({ iid: c.iid, colors: colorsOf(c).length ? colorsOf(c) : [], amount: 1, kind: 'convoke' });
@@ -65,6 +65,12 @@ export function applyPayment(pid, pay) {
   }
   if (usedPool.length && G.s.pool) G.s.pool[pid] = G.s.pool[pid].filter((_, k) => !usedPool.includes(k));
   for (const iid of pay.sacs || []) if (card(iid) && card(iid).zone === 'battlefield') sacrifice(iid);
+  // pain lands and friends: 1 damage (or life) for each colored mana they made
+  const hurt = (pay.pains || []).filter((i) => card(i));
+  if (hurt.length) {
+    changeLife(pid, -hurt.length, false);
+    log(pid, `${hurt.map((i) => nameTag(card(i))).join(', ')} ${hurt.length === 1 ? 'costs' : 'cost'} ${pid === 'p' ? 'you' : 'the AI'} ${hurt.length} life.`);
+  }
 }
 
 export function emptyPools() {
@@ -388,7 +394,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (G.s !== s) return false;
   // storm / gravestorm / replicate / casualty copies, cascade
   const copies = (hasKw(c, 'storm') ? ts.spells - 1 + s.ts[opp(pid)].spells : 0) + info.replicate + (info.casualty ? 1 : 0);
-  let cascades = (oracle({ ...c, face: fIdx }).match(/(?:^|\n|, )Cascade\b/g) || []).length;
+  let cascades = (oracle({ ...c, face: fIdx }).replace(/\([^)]*\)/g, '').match(/(?:^|\n|, )cascade\b/gi) || []).length;
   // --- responses
   let countered = false;
   const splitSecond = hasKw(c, 'split second');

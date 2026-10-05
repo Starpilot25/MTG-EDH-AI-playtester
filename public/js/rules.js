@@ -16,6 +16,7 @@ export function face(inst) {
 export function typeLine(inst) {
   if (inst.faceDown) return 'Creature';
   let t = face(inst).typeLine || DB[inst.def].typeLine;
+  if (inst.notLegendary) t = t.replace(/^Legendary /, '');
   if (inst.animated && !/Creature/.test(t.split('—')[0])) t = t.replace(/^([^—]*)/, (m) => m.trim() + ' Creature ') + (inst.animated.types ? ' ' + inst.animated.types : '');
   if (inst.addTypes) {
     const sup = /\bLegendary\b/.test(inst.addTypes) && !/^Legendary/.test(t);
@@ -342,7 +343,19 @@ export function manaValueOf(cost) {
 }
 
 // What a permanent can tap for: {colors, amount, sac?} or null.
+// Pain lands, Talismans, horizon lands, Mana Confluence: some of the colors cost 1 life to make.
 export function manaAbility(inst) {
+  const r = manaAbilityRaw(inst);
+  if (!r) return r;
+  const o = oracle(inst);
+  const painful = new Set();
+  const symsOf = (t) => (/one mana of any color/i.test(t) ? ['W', 'U', 'B', 'R', 'G'] : (t.match(/\{[WUBRGC]\}/g) || []).map((x) => x[1]));
+  for (const m of o.matchAll(/\{T\}: Add ([^.\n]+)\. [^.\n]*?deals 1 damage to you/g)) symsOf(m[1]).forEach((x) => painful.add(x));
+  for (const m of o.matchAll(/\{T\}, Pay 1 life: Add ([^.\n]+)\./g)) symsOf(m[1]).forEach((x) => painful.add(x));
+  if (!painful.size) return r;
+  return { ...r, pain: (r.colors || []).filter((x) => painful.has(x)) };
+}
+function manaAbilityRaw(inst) {
   if (inst.tapped || inst.faceDown || inst.phasedOut) return null;
   const d = DB[inst.def];
   const o = oracle(inst);
@@ -356,6 +369,23 @@ export function manaAbility(inst) {
     if (fe && G.s) {
       const k = (countPhrase(inst.controller, fe[3], helpers, inst.iid) || 0) - (+fe[1] || 0);
       return k > 0 ? { colors: [fe[2][1]], amount: k } : null;
+    }
+  }
+  // Exotic Orchard, Fellwar Stone, Reflecting Pool: "Add one mana of any color that a land an opponent controls could produce."
+  {
+    const cp = o.match(/\{T\}: Add one mana of any (color|type) that a land (an opponent controls|you control|your opponents control) could produce/i);
+    if (cp) {
+      if (!G.s) return { colors: produced, amount: 1 };
+      const pid = /you control/.test(cp[2]) && !/opponent/.test(cp[2]) ? inst.controller : inst.controller === 'p' ? 'ai' : 'p';
+      const set = new Set();
+      for (const iid of G.s.players[pid].zones.battlefield) {
+        const x = G.s.cards[iid];
+        if (!x || x.phasedOut || !isLand(x) || /could produce/.test(oracle(x))) continue;
+        const r = manaAbility({ ...x, tapped: false, sick: false });
+        if (r) for (const col of r.colors || []) set.add(col);
+      }
+      const cols = ['W', 'U', 'B', 'R', 'G', ...(cp[1] === 'type' ? ['C'] : [])].filter((x) => set.has(x));
+      return cols.length ? { colors: cols, amount: 1 } : null;
     }
   }
   if (isLand(inst)) {
@@ -418,8 +448,11 @@ export function payCost(cost, sources, opts = {}) {
   const units = [];
   for (const s of sources) {
     if (s.each) for (const col of s.each) units.push({ iid: s.iid, colors: [col], sac: !!s.sac, kind: s.kind || '' });
-    else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '' });
+    else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '', pain: s.pain || null });
   }
+  const pains = [];
+  // a unit that can only make this pip's colors by hurting
+  const hurts = (u, want) => !!(u.pain && u.pain.length && !u.colors.some((col) => want.includes(col) && !u.pain.includes(col)));
   // spend real mana before treasures, convoke/improvise/delve last
   const rank = (u) => (u.kind === 'pool' ? -1 : u.kind ? 2 : u.sac ? 1 : 0);
   const used = new Array(units.length).fill(false);
@@ -438,7 +471,7 @@ export function payCost(cost, sources, opts = {}) {
     units.forEach((u, k) => {
       if (used[k]) return;
       if (!u.colors.some((col) => want.includes(col))) return;
-      const sc = rank(u) * 100 + u.colors.length;
+      const sc = rank(u) * 100 + u.colors.length + (hurts(u, want) ? 50 : 0);
       if (sc < bestScore) {
         best = k;
         bestScore = sc;
@@ -452,6 +485,7 @@ export function payCost(cost, sources, opts = {}) {
       return null;
     }
     used[best] = true;
+    if (hurts(units[best], want)) pains.push(units[best].iid);
   }
   const generic = Math.max(0, c.generic + genericFromHybrid + extra);
   // generic mana: spend colorless first, then the most plentiful colors, keeping scarce colors for later
@@ -461,14 +495,20 @@ export function payCost(cost, sources, opts = {}) {
   const order = units
     .map((u, k) => k)
     .filter((k) => !used[k])
-    .sort((a, b) => rank(units[a]) - rank(units[b]) || keepScore(units[b]) - keepScore(units[a]));
+    .sort((a, b) => rank(units[a]) - rank(units[b]) || (hurts(units[a], ['C', 'W', 'U', 'B', 'R', 'G']) ? 1 : 0) - (hurts(units[b], ['C', 'W', 'U', 'B', 'R', 'G']) ? 1 : 0) || keepScore(units[b]) - keepScore(units[a]));
   if (order.length < generic) return null;
-  for (let k = 0; k < generic; k++) used[order[k]] = true;
+  for (let k = 0; k < generic; k++) {
+    used[order[k]] = true;
+    if (hurts(units[order[k]], ['C', 'W', 'U', 'B', 'R', 'G'])) pains.push(units[order[k]].iid);
+  }
   let x = 0;
   if (c.x && opts.maxX) {
     const left = order.length - generic;
     x = Math.floor(Math.min(left, opts.maxX * c.x) / c.x);
-    for (let k = generic; k < generic + x * c.x; k++) used[order[k]] = true;
+    for (let k = generic; k < generic + x * c.x; k++) {
+      used[order[k]] = true;
+      if (hurts(units[order[k]], ['C', 'W', 'U', 'B', 'R', 'G'])) pains.push(units[order[k]].iid);
+    }
   }
   if (c.x && x < (opts.minX ?? 1) && opts.maxX) return null;
   const payers = [];
@@ -480,7 +520,7 @@ export function payCost(cost, sources, opts = {}) {
     else payers.push(units[k].iid);
     if (units[k].sac) sacs.push(units[k].iid);
   });
-  return { payers, x, sacs: [...new Set(sacs)], special };
+  return { payers, x, sacs: [...new Set(sacs)], special, pains };
 }
 
 export function totalMana(sources) {

@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.2.15",
+    "title": "Maelstrom Wanderer, Exotic Orchard, pain lands",
+    "notes": [
+      "Maelstrom Wanderer cascades twice (it only cascaded once).",
+      "Exotic Orchard and Fellwar Stone only make colors your opponent's lands could make, and Reflecting Pool only what your own lands could make (they made any color before).",
+      "Pain lands (Battlefield Forge and friends), Talismans, horizon lands and Mana Confluence cost 1 life when they make colored mana. Paying for spells uses their painless colorless mana first when it can, and the log shows the life paid.",
+      "Miirym, Sentinel Wyrm: copies of legendary Dragons now show as nonlegendary on the card.",
+      "Checked: Repurposed Enforcer's Empower Jace X works (fixed in 1.2.13)."
+    ]
+  },
+  {
     "version": "1.2.14",
     "title": "Spellbound Dragon",
     "notes": [

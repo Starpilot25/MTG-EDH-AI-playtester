@@ -6,7 +6,7 @@ import {
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, esc, snapshot, undo, redo, shuffle, mill, libTop,
   setLife, toBattlefield, createToken, stateBased, commanderTax, cardName, makeCard, CARD_W, CARD_H,
-  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace, sacrifice,
+  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace, sacrifice, changeLife,
 } from './state.js';
 import {
   hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn,
@@ -951,6 +951,10 @@ async function floatMana(c) {
     c.floated = { syms, step: G.s.step, turn: G.s.turn };
     log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${x}}`).join(''))}.`);
     if (m.sac) sacrifice(c.iid);
+    if (m.pain && syms.some((x) => m.pain.includes(x))) {
+      changeLife('p', -1, false);
+      log('p', `${nameTag(c)} costs you 1 life.`);
+    }
   });
 }
 
