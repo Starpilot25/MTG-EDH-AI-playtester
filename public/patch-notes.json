@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.31",
+    "title": "Dusk // Dawn",
+    "notes": [
+      "Dawn (and other \"return all creature cards with power 2 or less / mana value 3 or less from your graveyard\" effects) only returns the creatures that fit — it was bringing back everything.",
+      "Dusk checked: destroys only creatures with power 3 or greater; Dawn is cast from the graveyard with aftermath and exiled afterwards.",
+      "The AI judges Dusk-style partial wipes by what they actually destroy on each side, instead of treating them like a full board wipe."
+    ]
+  },
+  {
     "version": "1.2.30",
     "title": "Waterbend, exhaust, convoke",
     "notes": [

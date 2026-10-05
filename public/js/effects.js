@@ -2716,7 +2716,9 @@ on(/^return (.+?) from (your|a|target player's|an opponent's|each player's|all) 
     return;
   }
   const filter = phrase.replace(/^(?:up to \w+|another|all|each|target|other|a|an|one|two)\s+/g, '').replace(/^target /, '').replace(/cards?.*$/, '').trim();
-  const pool = pids.flatMap((pid) => cardsIn(pid, 'graveyard')).filter((c) => c.iid !== env.src.iid && matchesFilter(c, filter || 'card') && (!/permanent/.test(filter) || isPermanentCard(DB[c.def])));
+  // keep "with power 2 or less", "with mana value 3 or less" (Dawn, Sun Titan-style)
+  const withPart = (phrase.match(/cards? (with [^.]+?)$/) || [])[1] || '';
+  const pool = pids.flatMap((pid) => cardsIn(pid, 'graveyard')).filter((c) => c.iid !== env.src.iid && matchesFilter(c, filter || 'card') && (!withPart || matchesFilter(c, withPart)) && (!/permanent/.test(filter) || isPermanentCard(DB[c.def])));
   const mvMax = phrase.match(/mana value (\d+|x) or less/);
   const pool2 = mvMax ? pool.filter((c) => DB[c.def].cmc <= (mvMax[1] === 'x' ? env.x : +mvMax[1])) : pool;
   if (!pool2.length) return env.did.push('finds nothing to return');

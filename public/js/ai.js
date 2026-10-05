@@ -319,7 +319,11 @@ function scoreSpell(c, pay, opt = {}) {
     if (tgt) s += cardValue(tgt) / 2;
   }
   if (a.wipe) {
-    const diff = threatLevel(P) - threatLevel(AI);
+    // partial wipes (Dusk: "creatures with power 3 or greater") only count what they actually hit
+    const pw = text.match(/creatures with power (\d+) or (greater|less)/i);
+    const hits = (c) => isCreature(c) && (!pw || (pw[2] === 'greater' ? power(c) >= +pw[1] : power(c) <= +pw[1]));
+    const lost = (pid) => cardsIn(pid, 'battlefield').filter((c) => !isLand(c) && (pw ? hits(c) : true)).reduce((x, c) => x + threat(c), 0);
+    const diff = pw ? lost(P) - lost(AI) : threatLevel(P) - threatLevel(AI);
     if (diff < (casualAI() ? 14 : 8) && !perm) return -1;
     s += diff;
   }
