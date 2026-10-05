@@ -421,6 +421,22 @@ function keywordTriggers(c) {
       card(c.iid).chosenType = t;
       return [`chooses ${t}`];
     }, 'Choose a creature type', { self: true });
+  // Serra's Emissary: "As ~ enters, choose a card type."
+  if (/(?:^|\n)As (?:~|this [a-z]+) enters(?: the battlefield)?, choose a card type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenCardType)
+    f('enters', async () => {
+      const types = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Battle', 'Kindred'];
+      // the AI shuts off what the opponent has shown most of (usually creatures)
+      const aiPick = () => {
+        const seen = Object.values(G.s.cards).filter((y) => y.owner !== c.controller && ['battlefield', 'graveyard', 'exile', 'command'].includes(y.zone) && !/Land/.test(DB[y.def].typeLine || ''));
+        const n = types.map((t) => seen.filter((y) => new RegExp('\\b' + t + '\\b').test((DB[y.def].typeLine || '').split('—')[0])).length);
+        n[0] += 3; // creatures also stop attackers and blockers
+        return n.indexOf(Math.max(...n));
+      };
+      const k = await (T.choosers[c.controller] || T.choosers.ai).choose({ prompt: `${cardName(c)}: choose a card type`, options: types.map((x) => ({ label: x })), aiPick });
+      if (!card(c.iid)) return [];
+      card(c.iid).chosenCardType = types[k] || 'Creature';
+      return [`chooses ${card(c.iid).chosenCardType.toLowerCase()}`];
+    }, 'Choose a card type', { self: true });
   // "As ~ enters, choose a color" (Utopia Sprawl, Caged Sun, Gauntlet of Power…)
   if (/(?:^|\n)As (?:~|this [a-z]+) enters(?: the battlefield)?, choose a color/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenColor)
     f('enters', async () => {

@@ -171,6 +171,8 @@ function oracleRaw(inst) {
       for (const m of raw.matchAll(/Commander creatures you own have "([^"]+)"/g)) text += '\n' + m[1].replace(/\bthis creature\b/gi, '~');
     }
   }
+  // Serra's Emissary: "As ~ enters, choose a card type. You and creatures you control have protection from the chosen type."
+  if (inst.chosenCardType) text = text.replace(/protection from the chosen (?:card )?type/gi, `protection from ${inst.chosenCardType.toLowerCase()}s`);
   // Sieges: keep only the chosen bullet
   if (inst.chosenMode) {
     text = text.split('\n').map((l) => {
@@ -292,7 +294,16 @@ export function protections(inst) {
 
 export function isProtectedFrom(inst, src) {
   if (!src) return false;
-  for (const p of protections(inst)) {
+  return protectedByList(protections(inst), src);
+}
+// Serra's Emissary: "You … have protection from the chosen type"
+export function playerProtectedFrom(pid, src) {
+  if (!src || !G.s) return false;
+  const list = playerFlag(pid, 'protection');
+  return !!(list && list.length && protectedByList(list, src));
+}
+function protectedByList(list, src) {
+  for (const p of list) {
     if (p === 'everything') return true;
     const cols = colorsOf(src);
     if (COLOR_WORDS[p.replace(/s$/, '')] && cols.includes(COLOR_WORDS[p.replace(/s$/, '')])) return true;
@@ -306,6 +317,7 @@ export function isProtectedFrom(inst, src) {
     if (/^instants?$/.test(p) && isType(src, 'Instant')) return true;
     if (/^sorcer(?:y|ies)$/.test(p) && isType(src, 'Sorcery')) return true;
     if (/^planeswalkers?$/.test(p) && isType(src, 'Planeswalker')) return true;
+    if (/^(land|battle|kindred)s?$/.test(p) && isType(src, p.replace(/s$/, '')[0].toUpperCase() + p.replace(/s$/, '').slice(1))) return true;
     const sub = p.replace(/s$/, '');
     if (/^[a-z]+$/.test(sub) && !COLOR_WORDS[sub] && hasSubtype(src, sub)) return true;
   }
@@ -1034,6 +1046,7 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
       }
       const noPrevent = playerFlag(src.controller, 'noPrevent') || G.s.noPreventTurn === G.s.turn;
       if (fog && !noPrevent) continue;
+      if (ev.type === 'player' && !noPrevent && playerProtectedFrom(ev.to || defender, src)) continue;
       if (ev.type === 'creature') {
         const t = cards[ev.to];
         if (!t) continue;

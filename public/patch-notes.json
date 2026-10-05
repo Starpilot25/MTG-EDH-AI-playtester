@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.72",
+    "title": "Serra's Emissary",
+    "notes": [
+      "Serra's Emissary works: as it enters you choose a card type, and you and your creatures get protection from it. Your creatures can't be blocked, damaged or targeted by things of that type, and you can't be damaged or targeted by them either (for example, creatures can't deal combat damage to you). The AI usually picks creature.",
+      "\"You have protection from …\" now works on players in general."
+    ]
+  },
+  {
     "version": "1.2.71",
     "title": "Currency Converter and Nissa, Leyline Tamer",
     "notes": [

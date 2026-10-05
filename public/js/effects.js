@@ -12,7 +12,7 @@ import {
   libTop, queueEvent, winGame, loseGame, esc, makeCard,
 } from './state.js';
 import { countPhrase, kwList } from './statics.js';
-import { helpers, damageMods, redirectTarget } from './rules.js';
+import { helpers, damageMods, redirectTarget, playerProtectedFrom } from './rules.js';
 import { venture, takeInitiative } from './dungeon.js';
 
 const WORDNUM = {
@@ -658,7 +658,7 @@ async function pickTargets(env, phrase, opts = {}) {
   let players = [];
   if (playerTarget) {
     players = /opponent/.test(kind) ? [opp(me)] : [opp(me), me];
-    players = players.filter((pid) => !playerHexproof(pid, me));
+    players = players.filter((pid) => !playerHexproof(pid, me, env.src));
   }
   for (let k = 0; k < count; k++) {
     const left = cands.filter((c) => !results.some((r) => r.iid === c.iid));
@@ -739,7 +739,8 @@ function wardCost(c) {
   return { other: m[2] };
 }
 
-function playerHexproof(pid, caster) {
+function playerHexproof(pid, caster, src) {
+  if (src && playerProtectedFrom(pid, src)) return true;
   if (pid === caster) return false;
   if (G.s.players[pid].protectedUntil && G.s.turn < G.s.players[pid].protectedUntil) return true;
   return cardsIn(pid, 'battlefield').some((c) => /^You have (?:hexproof|shroud)/m.test(oracle(c)));
@@ -814,7 +815,7 @@ async function playerTarget(env, phrase, harm = true) {
   if (direct) return direct;
   const pick = await env.choosers[env.me].target({
     ...(env.forced ? { forced: true } : {}),
-    prompt: `Choose a player`, candidates: [], players: [opp(env.me), env.me].filter((p) => !playerHexproof(p, env.me)), harm, src: env.src,
+    prompt: `Choose a player`, candidates: [], players: [opp(env.me), env.me].filter((p) => !playerHexproof(p, env.me, env.src)), harm, src: env.src,
   });
   return pick && pick.player ? [pick.player] : [];
 }
@@ -2269,6 +2270,7 @@ export function damagePlayer(env, source, pid, amount) {
   if (amount <= 0) return;
   const rd = redirectTarget(pid, null);
   if (rd) return damagePermanent(env, source, rd, amount, true);
+  if (source && playerProtectedFrom(pid, source)) return env.did.push(`${who(pid)} ${pid === 'p' ? 'have' : 'has'} protection — the damage is prevented`);
   amount = damageMods(amount, source, pid, {});
   if (amount <= 0) return env.did.push(`the damage to ${who(pid)} is prevented`);
   if (G.s.players[pid] && source && hasKw(source, 'infect')) {

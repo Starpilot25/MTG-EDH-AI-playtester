@@ -99,6 +99,17 @@ function parseStatics(text, selfName) {
       out.anthems.push({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), token: true }, p: m[3] ? +m[3] : 0, t: m[4] ? +m[4] : 0, grants: kwList(m[5] || '') });
       continue;
     }
+    // Serra's Emissary: "You and creatures you control have protection from creatures."
+    if ((m = l.match(/^you and ((?:other )?(?:[\w-]+ ){0,3}?)creatures you control have (.+?)\.?$/))) {
+      out.anthems.push({ who: 'mine', other: /other/.test(m[1]), f: filterFrom(m[1]), p: 0, t: 0, grants: kwList(m[2]) });
+      const pr = m[2].match(/^protection from (.+)$/);
+      if (pr) out.player.protection = [...(out.player.protection || []), ...pr[1].split(/, and from | and from |, from | from /).map((x) => x.trim())];
+      continue;
+    }
+    if ((m = l.match(/^you have protection from (.+?)\.?$/))) {
+      out.player.protection = [...(out.player.protection || []), ...m[1].split(/, and from | and from |, from | from /).map((x) => x.trim())];
+      continue;
+    }
     // Sephara: "Other creatures you control with flying have indestructible."
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control with ([a-z ]+?) (?:have|get ([+-]\d+)\/([+-]\d+)(?: and have)?) ?(.*?)\.?$/))) {
       out.anthems.push({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), withKw: m[3] }, p: m[4] ? +m[4] : 0, t: m[5] ? +m[5] : 0, grants: kwList(m[6] || '') });
