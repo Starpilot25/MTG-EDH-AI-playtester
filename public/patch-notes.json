@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.90",
+    "title": "Author of Shadows enters trigger",
+    "notes": [
+      "Author of Shadows' enters ability now goes off whichever wording your card data uses (\"all opponents' graveyards\" or \"each opponent's graveyard\", \"that card\" or \"it\", \"any color\" or \"any type\"). It exiles the graveyard and lets you choose the nonland card to cast."
+    ]
+  },
+  {
     "version": "1.2.89",
     "title": "Author of Shadows",
     "notes": [

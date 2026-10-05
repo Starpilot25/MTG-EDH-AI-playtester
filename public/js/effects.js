@@ -1458,7 +1458,7 @@ on(/^look at the top (\w+) cards of target opponent's library, exile (\w+) of th
   env.did.push(`exiles ${k} card${k === 1 ? '' : 's'} face down from ${whoseLib(o)} library to play${env.me === 'p' ? ': ' + picks.map((i) => nameTag(card(i))).join(', ') : ''}`);
 }, { first: true, multi: true });
 // Author of Shadows
-on(/^exile all cards from all opponents' graveyards\. choose a nonland card exiled this way\. you may cast that card for as long as it remains exiled, and you may spend mana as though it were mana of any (?:color|type) to cast that spell$/, async (m, env) => {
+on(/^exile all cards from (?:all opponents'|each opponent's) graveyards?\. choose a nonland card exiled this way\. you may cast (?:that card|it) for as long as it remains exiled(?:,)? and (?:you may spend mana as though it were mana of any (?:color|type)|mana of any (?:type|color) can be spent) to cast (?:that spell|it)$/, async (m, env) => {
   const o = opp(env.me);
   const ids = zoneOf(o, 'graveyard').slice();
   ids.forEach((i) => move(i, 'exile'));
