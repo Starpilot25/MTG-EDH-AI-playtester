@@ -166,9 +166,19 @@ export function staticsOf(c) {
   return parsedCache.get(key);
 }
 
+// Emblems act like permanents for static effects (Elspeth's "+2/+2 and flying")
+function emblemObjects(pid) {
+  return (G.s.players[pid].emblems || []).map((t, k) => {
+    const id = 'emblem:' + t;
+    if (!DB[id]) DB[id] = { id, name: 'Emblem', layout: 'emblem', cmc: 0, manaCost: '', typeLine: 'Emblem', colors: [], ci: [], keywords: [], produced: [], tokens: [], faces: [{ name: 'Emblem', manaCost: '', typeLine: 'Emblem', oracle: t }] };
+    return { iid: `emblem-${pid}-${k}`, def: id, controller: pid, owner: pid, zone: 'emblem', counters: {}, face: 0 };
+  });
+}
+
 function field() {
   if (!G.s) return [];
   const out = [];
+  for (const pid of ['p', 'ai']) out.push(...emblemObjects(pid));
   for (const pid of ['p', 'ai'])
   {
     for (const iid of G.s.players[pid].zones.battlefield) {

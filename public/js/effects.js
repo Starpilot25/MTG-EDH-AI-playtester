@@ -12,7 +12,7 @@ import {
   libTop, queueEvent, winGame, loseGame, esc, makeCard,
 } from './state.js';
 import { countPhrase, kwList } from './statics.js';
-import { helpers } from './rules.js';
+import { helpers, damageMods } from './rules.js';
 import { venture, takeInitiative } from './dungeon.js';
 
 const WORDNUM = {
@@ -433,6 +433,8 @@ export function evalCond(cond, env) {
   if (/its spree|you cast it for its/.test(c)) return !!env.altCost;
   if (/(?:~|it) (?:was|is) (?:cast|dashed|blitzed|evoked|foretold|plotted|warped)/.test(c)) return !!env.castMode;
   if (/^you do$|^you did$|^you do so$/.test(c)) return !!env.lastMay;
+  if (/^you didn't activate an? loyalty ability of an? planeswalker this turn$/.test(c)) return !((G.s.ts[env.me] || {}).loyaltyActivated > 0);
+  if (/^you activated an? loyalty ability of an? planeswalker this turn$/.test(c)) return (G.s.ts[env.me] || {}).loyaltyActivated > 0;
   if (/^you don't$/.test(c)) return !env.lastMay;
   if (/it's your turn/.test(c)) return s.active === me;
   if (/it's not your turn/.test(c)) return s.active !== me;
@@ -637,6 +639,13 @@ export async function payWard(me, t, chooser, src, choosers) {
 
 function wardCost(c) {
   if (c.faceDown && c.wardTwo) return { n: 2 };
+  // Gold-Forged Thopteryx: "Each legendary permanent you control has ward {2}."
+  if (c.zone === 'battlefield' && /Legendary/.test(typeLine(c))) {
+    for (const x of cardsIn(c.controller, 'battlefield')) {
+      const wm = !x.lostAbilities && oracle(x).match(/Each legendary permanent you control has ward \{(\d+)\}/i);
+      if (wm) return { n: +wm[1] };
+    }
+  }
   const m = oracle(c).match(/\bWard (?:\{(\d+)\}|—(.+?)(?:\.|$))/m) || [...(c.grants || []), ...(c.eotGrants || [])].join('|').match(/ward \{(\d+)\}/);
   if (!m) return null;
   if (m[1]) return { n: +m[1] };
@@ -1132,6 +1141,247 @@ on(/^put a \+1\/\+1 counter or a loyalty counter on (it|that creature|that perma
   env.did.push(`puts a ${kind} counter on ${nameTag(c)}`);
 }, { first: true });
 // --- sweep fixes
+// ===== Jace deck audit =====
+// Fatehold Charm, Venser: "Return target spell or creature to its owner's hand."
+on(/^return target spell or (creature|permanent|nonland permanent) to its owner's hand$/, async (m, env) => {
+  const sp = env.stackTarget && card(env.stackTarget);
+  if (sp && sp.zone !== 'battlefield') {
+    G.s.stack.countered = true;
+    G.s.stack.bounced = true;
+    env.did.push(`returns ${nameTag(sp)} to its owner's hand`);
+    env.bounceSpell = sp.iid;
+    return;
+  }
+  await runSentence(`Return target ${m[1]} to its owner's hand`, env);
+}, { first: true });
+// Chandra, Flamecaller 0: "Discard all the cards in your hand, then draw that many cards plus one."
+on(/^discard (?:all the cards in )?your hand$/, async (m, env) => {
+  const hand = cardsIn(env.me, 'hand').map((c) => c.iid);
+  hand.forEach((i) => discardCard(i));
+  env.lastAmount = hand.length;
+  env.discarded = [...(env.discarded || []), ...hand];
+  env.did.push(`${who(env.me)} ${s_(env.me, 'discard')} ${hand.length} card${hand.length === 1 ? '' : 's'}`);
+}, { first: true });
+on(/^draw that many cards(?: plus (one|two|three))?$/, async (m, env) => {
+  const k = (env.lastAmount || 0) + (m[1] ? n(m[1]) : 0);
+  if (k) draw(env.me, k);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${k}`);
+}, { first: true });
+// The Chain Veil: "For each planeswalker you control, you may activate one of its loyalty abilities once this turn as though none of its loyalty abilities have been activated this turn."
+on(/^for each planeswalker you control, you may activate one of its loyalty abilities once this turn as though none of its loyalty abilities have been activated this turn$/, async (m, env) => {
+  const cv = G.s.chainVeil && G.s.chainVeil.pid === env.me && G.s.chainVeil.turn === G.s.turn ? G.s.chainVeil : { pid: env.me, turn: G.s.turn, n: 0 };
+  cv.n += 1;
+  G.s.chainVeil = cv;
+  env.did.push('each planeswalker may use another loyalty ability this turn');
+}, { first: true });
+// Jace's Machinations / Teferi emblem: loyalty abilities at instant speed (the table already lets you; nothing to enforce)
+on(/^until end of turn, you may activate loyalty abilities of [^.]+ on any player's turn any time you could cast an instant$/, async (m, env) => {
+  env.did.push('loyalty abilities can be used at instant speed this turn');
+}, { first: true });
+// Jace, Memory Adept −7: "Any number of target players each draw twenty cards."
+on(/^any number of target players each draw (\w+) cards?$/, async (m, env) => {
+  const k = n(m[1], env.x);
+  let pids;
+  if (env.me === 'ai') pids = [opp(env.me)]; // deck the opponent
+  else {
+    const ch = await env.choosers[env.me].choose({ prompt: `Who draws ${k}?`, options: [{ label: 'The AI' }, { label: 'You' }, { label: 'Both' }], aiPick: () => 0 });
+    pids = ch === 1 ? ['p'] : ch === 2 ? ['p', 'ai'] : ['ai'];
+  }
+  for (const pid of pids) {
+    draw(pid, k);
+    env.did.push(`${who(pid)} ${s_(pid, 'draw')} ${k}`);
+  }
+}, { first: true });
+// Jace, Reality Sculptor 0: "Exile all but the bottom card of each opponent's library."
+on(/^exile all but the bottom card of (each opponent's|target player's|target opponent's) library$/, async (m, env) => {
+  const pid = opp(env.me);
+  const lib = zoneOf(pid, 'library').slice();
+  const keep = lib[0]; // index 0 is the bottom
+  let k = 0;
+  for (const i of lib) if (i !== keep) {
+    move(i, 'exile');
+    k++;
+  }
+  env.did.push(`exiles ${k} cards from ${who(pid) === 'you' ? 'your' : "the AI's"} library`);
+}, { first: true });
+// Jace, Reality Sculptor −3 / Jace, Architect of Thought +1: attackers get −N/−0
+on(/^until your next turn, whenever a creature (an opponent controls attacks|attacks you or a planeswalker you control), it gets -(\d+)\/-0 until end of turn$/, async (m, env) => {
+  G.s.attackShrink = [...(G.s.attackShrink || []).filter((x) => x.until > G.s.turn), { owner: env.me, n: +m[2], until: G.s.turn + 2, onlyAtMe: /attacks you/.test(m[1]) }];
+  env.did.push(`until ${who(env.me) === 'you' ? 'your' : "the AI's"} next turn, attacking creatures get −${m[2]}/−0`);
+}, { first: true });
+// Jace, Architect of Thought −2: piles
+on(/^reveal the top (three|two|four|five) cards of your library\. an opponent separates those cards into two piles\. put one pile into your hand and the other on the bottom of your library in any order$/, async (m, env) => {
+  const ids = libTop(env.me, n(m[1]));
+  if (!ids.length) return;
+  const sep = opp(env.me);
+  let pile1;
+  if (sep === 'ai') {
+    // the AI puts the best card alone against the rest
+    const best = ids.slice().sort((a, b) => cardValue(card(b)) - cardValue(card(a)))[0];
+    pile1 = [best];
+  } else {
+    pile1 = await env.choosers.p.pickCards({ prompt: `Separate ${cardName(env.src)}'s cards into two piles: choose pile 1 (the rest is pile 2)`, cards: ids, min: 0, max: ids.length, purpose: 'pile', src: env.src, forced: true });
+  }
+  const pile2 = ids.filter((i) => !pile1.includes(i));
+  const val = (p) => p.reduce((a, i) => a + cardValue(card(i)) + 1, 0);
+  let take;
+  if (env.me === 'ai') take = val(pile1) >= val(pile2) ? pile1 : pile2;
+  else {
+    const k = await env.choosers.p.choose({ prompt: 'Which pile goes to your hand?', options: [{ label: `Pile 1: ${pile1.map((i) => cardName(card(i))).join(', ') || '(empty)'}` }, { label: `Pile 2: ${pile2.map((i) => cardName(card(i))).join(', ') || '(empty)'}` }], aiPick: () => 0 });
+    take = k === 1 ? pile2 : pile1;
+  }
+  const rest = ids.filter((i) => !take.includes(i));
+  take.forEach((i) => move(i, 'hand'));
+  rest.forEach((i) => move(i, 'library', { to: 'bottom' }));
+  env.did.push(`reveals ${ids.map((i) => nameTag(card(i))).join(', ')}; takes ${take.length ? take.map((i) => nameTag(card(i))).join(', ') : 'nothing'}`);
+}, { first: true, multi: true });
+// Jace, Architect of Thought −8
+on(/^for each player, search that player's library for a nonland card and exile it(?:,|\.) then that player shuffles$/, async (m, env) => {
+  env.them_ = [];
+  for (const pid of ['p', 'ai']) {
+    const pool = cardsIn(pid, 'library').filter((c) => !isLand(c));
+    if (!pool.length) continue;
+    const [pick] = await env.choosers[env.me].pickCards({ prompt: `Exile a nonland card from ${pid === 'p' ? 'your' : "the AI's"} library`, cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'tutor', src: env.src, aiScore: (c) => DB[c.def].cmc });
+    if (pick) {
+      move(pick, 'exile');
+      env.them_.push(pick);
+    }
+    shuffle(pid);
+  }
+  env.did.push(`exiles ${env.them_.map((i) => nameTag(card(i))).join(', ')}`);
+}, { first: true, multi: true });
+on(/^you may cast those cards without paying their mana costs$/, async (m, env) => {
+  const { T } = await import('./triggers.js');
+  for (const i of env.them_ || []) {
+    const c = card(i);
+    if (!c || c.zone !== 'exile') continue;
+    const yes = env.me === 'ai' ? true : await env.choosers.p.confirm(cardName(c), `Cast ${cardName(c)} without paying its mana cost?`, {});
+    if (yes && T.castFree) await T.castFree(env.me, i, {});
+  }
+}, { first: true });
+// Jace Reawakened +1: plot
+on(/^(?:you may )?exile a nonland card with mana value (\d+) or less from your hand\. if you do, it becomes plotted$/, async (m, env) => {
+  const pool = cardsIn(env.me, 'hand').filter((c) => !isLand(c) && DB[c.def].cmc <= +m[1]);
+  if (!pool.length) return env.did.push('has nothing to plot');
+  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Plot a card (mana value ${m[1]} or less)`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'plot', src: env.src, aiScore: (c) => DB[c.def].cmc });
+  if (!pick) return;
+  move(pick, 'exile');
+  Object.assign(card(pick), { plotted: true, plottedTurn: G.s.turn });
+  env.did.push(`plots ${env.me === 'p' ? nameTag(card(pick)) : 'a card'}`);
+}, { first: true, multi: true });
+// Jace Reawakened −6: "Until end of turn, whenever you cast a spell, copy it."
+on(/^until end of turn, whenever you cast a spell, copy it$/, async (m, env) => {
+  G.s.copyAll = { pid: env.me, turn: G.s.turn };
+  env.did.push(`copies every spell ${who(env.me) === 'you' ? 'you cast' : 'it casts'} this turn`);
+}, { first: true });
+// Jace, Mirror Mage 0: "Draw a card and reveal it. Remove a number of loyalty counters equal to that card's mana value from ~."
+on(/^draw a card and reveal it$/, async (m, env) => {
+  draw(env.me, 1);
+  const drawn = card(zoneOf(env.me, 'hand').slice(-1)[0]);
+  env.it = drawn ? { iid: drawn.iid } : null;
+  env.did.push(`draws and reveals ${drawn ? nameTag(drawn) : 'nothing'}`);
+}, { first: true });
+on(/^remove a number of loyalty counters equal to that card's mana value from (~|it)$/, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  const k = c ? DB[c.def].cmc : 0;
+  if (env.src) env.src.counters.loyalty = Math.max(0, (env.src.counters.loyalty || 0) - k);
+  env.did.push(`removes ${k} loyalty`);
+}, { first: true });
+// Vraska −2: "Target creature becomes a Treasure artifact … and loses all other card types and abilities."
+on(/^target creature becomes a treasure artifact with "[^"]+" and loses all other card types and abilities$/, async (m, env) => {
+  const [c] = await objects(env, 'target creature', { harm: true });
+  if (!c) return;
+  c.becameTreasure = true;
+  c.lostAbilities = true;
+  c.counters = {};
+  c.extraText = '{T}, Sacrifice this artifact: Add one mana of any color.';
+  env.did.push(`${nameTag(c)} becomes a Treasure`);
+}, { first: true });
+// Vraska −9: poison up to nine
+on(/^if target player has fewer than nine poison counters, they get a number of poison counters equal to the difference$/, async (m, env) => {
+  const [pid] = await playerTarget(env, 'target player');
+  if (!pid) return;
+  const pl = G.s.players[pid];
+  if (pl.poison < 9) pl.poison = 9;
+  env.did.push(`${who(pid)} ${pid === 'p' ? 'have' : 'has'} 9 poison counters`);
+}, { first: true });
+// Plan for All Outcomes: "the owner of up to one other target nonland permanent puts it on their choice of the top or bottom of their library"
+on(/^the owner of (up to one (?:other )?target [^.]+?|target [^.]+?) puts it on their choice of the top or bottom of their library$/, async (m, env) => {
+  const [c] = await objects(env, m[1].replace(/^up to one (?:other )?/, ''), { harm: true });
+  if (!c || c.zone !== 'battlefield') return;
+  const owner = c.owner;
+  const top = owner === 'ai' ? false : (await env.choosers.p.choose({ prompt: `Put ${cardName(c)} on top or bottom of your library?`, options: [{ label: 'Top' }, { label: 'Bottom' }], aiPick: () => 1 })) === 0;
+  move(c.iid, 'library', top ? {} : { to: 'bottom' });
+  env.did.push(`puts ${whose(c)} ${nameTag(c)} on the ${top ? 'top' : 'bottom'} of its owner's library`);
+}, { first: true });
+// Deepglow Skate, Aetheric Amplifier: double counters
+on(/^double the number of each kind of counter on (any number of target permanents|target permanent|each permanent you control)$/, async (m, env) => {
+  let objs;
+  if (/any number/.test(m[1])) {
+    const pool = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((c) => Object.values(c.counters || {}).some((v) => v > 0));
+    objs = (await env.choosers[env.me].pickCards({ prompt: 'Double the counters on which permanents?', cards: pool.map((c) => c.iid), min: 0, max: pool.length, purpose: 'counters', src: env.src,
+      aiScore: (c) => (c.controller === env.me ? 1 + Object.entries(c.counters).filter(([k]) => k !== '-1/-1' && k !== 'stun').reduce((a, [, v]) => a + v, 0) : (c.counters['-1/-1'] || 0) - 1) })).map(card);
+  } else objs = await objects(env, m[1], { harm: false });
+  for (const c of objs) {
+    for (const [k, v] of Object.entries(c.counters || {})) if (v > 0) addCounters(c, k, v);
+    env.did.push(`doubles the counters on ${nameTag(c)}`);
+  }
+}, { first: true });
+on(/^double the number of each kind of counter you have$/, async (m, env) => {
+  const pl = G.s.players[env.me];
+  if (pl.poison) pl.poison *= 2;
+  for (const k of Object.keys(pl.counters || {})) pl.counters[k] *= 2;
+  env.did.push(`doubles ${who(env.me) === 'you' ? 'your' : 'its'} counters`);
+}, { first: true });
+// Rowan Kenrith +2: "During target player's next turn, each creature that player controls attacks if able."
+on(/^during target player's next turn, each creature that player controls attacks if able$/, async (m, env) => {
+  const [pid] = await playerTarget(env, 'target player');
+  if (!pid) return;
+  G.s.mustAttackAll = { pid, from: G.s.turn + 1, until: G.s.turn + 2 };
+  env.did.push(`${who(pid) === 'you' ? 'your' : "the AI's"} creatures must attack during ${who(pid) === 'you' ? 'your' : 'its'} next turn`);
+}, { first: true });
+// Ral Zarek −7
+on(/^flip (\w+) coins\. take an extra turn after this one for each coin that comes up heads$/, async (m, env) => {
+  const k = n(m[1]);
+  let heads = 0;
+  for (let i = 0; i < k; i++) if (Math.random() < 0.5) heads++;
+  G.s.extraTurns[env.me] = (G.s.extraTurns[env.me] || 0) + heads;
+  env.did.push(`flips ${k} coins: ${heads} heads — ${heads} extra turn${heads === 1 ? '' : 's'}`);
+}, { first: true, multi: true });
+// "you lose 1 life and amass Zombies 1", "deals 1 damage to each opponent and you gain 1 life"
+on(/^(you lose \d+ life|~ deals \d+ damage to each opponent|this planeswalker deals \d+ damage to each opponent) and (amass .+|you gain \d+ life|you draw a card|draw a card|create .+)$/, async (m, env) => {
+  await runSentence(m[1].replace(/^this planeswalker/, '~'), env);
+  await runSentence(m[2], env);
+}, { first: true });
+// Chandra, Bold Pyromancer −7
+on(/^(~) deals (\d+) damage to target player and each creature and planeswalker they control$/, async (m, env) => {
+  const [pid] = await playerTarget(env, 'target player');
+  if (!pid) return;
+  const k = +m[2];
+  damagePlayer(env, env.src, pid, k);
+  const hit = cardsIn(pid, 'battlefield').filter((c) => isCreature(c) || isType(c, 'Planeswalker'));
+  for (const c of hit) damagePermanent(env, env.src, c, k);
+  env.did.push(`deals ${k} damage to ${hit.length} creatures and planeswalkers`);
+}, { first: true });
+// The Eternal Wanderer −4
+on(/^for each player, choose a creature that player controls\. each player sacrifices all creatures they control not chosen this way$/, async (m, env) => {
+  for (const pid of ['p', 'ai']) {
+    const cs = cardsIn(pid, 'battlefield').filter(isCreature);
+    if (!cs.length) continue;
+    const [keep] = await env.choosers[env.me].pickCards({ prompt: `Choose the creature ${pid === 'p' ? 'you keep' : 'the AI keeps'}`, cards: cs.map((c) => c.iid), min: 1, max: 1, purpose: 'keep', src: env.src,
+      aiScore: (c) => (pid === env.me ? cardValue(c) : -cardValue(c)) });
+    const gone = cs.filter((c) => c.iid !== keep);
+    gone.forEach((c) => sacrifice(c.iid));
+    env.did.push(`${who(pid)} ${pid === 'p' ? 'keep' : 'keeps'} ${keep ? nameTag(card(keep)) : 'nothing'} and ${s_(pid, 'sacrifice')} ${gone.length}`);
+  }
+}, { first: true, multi: true });
+// The Eternal Wanderer +1 return
+on(/^return (?:that card|it|the exiled card) to the battlefield under its owner's control at the beginning of that player's next end step$/, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  if (!c || c.zone !== 'exile') return;
+  G.s.delayed.push({ at: 'endStep', kind: 'returnFromExile', iid: c.iid, pid: c.owner, whoseEnd: c.owner });
+  env.did.push(`${nameTag(c)} returns at ${who(c.owner) === 'you' ? 'your' : "the AI's"} next end step`);
+}, { first: true });
 // Emblems: "You get an emblem with '…'" — kept on the player and shown in the log
 on(/^you get an emblem with ['"](.+)['"]$/, async (m, env) => {
   const pl = G.s.players[env.me];
@@ -1151,9 +1401,9 @@ on(/^(~|it|this planeswalker) deals (\d+|x) damage to ([^.]+?) and (\d+|x) damag
   await runSentence(`${m[1]} deals ${m[4]} damage to ${m[5]}`, env);
 }, { first: true });
 // Way of the Healer, Hexhaven Battalion: "create a 2/2 colorless Wizard Soldier creature token named Cadet"
-on(/^create (.+?) tokens? named ([a-z][a-z' -]*?)(?: with ([^.]+))?$/, async (m, env) => {
+on(/^create (.+?) tokens? named ([a-z~][a-z~' -]*?)(?: with ([^.]+))?$/, async (m, env) => {
   const at = env.sentence.toLowerCase().indexOf(' named ');
-  const nm = env.sentence.slice(at + 7, at + 7 + m[2].length).replace(/\b\w/g, (x) => x.toUpperCase());
+  const nm = env.sentence.slice(at + 7, at + 7 + m[2].length).replace(/~/g, env.src ? cardName(env.src) : '').replace(/\b(?!of\b)\w/g, (x) => x.toUpperCase());
   env.them_ = null;
   await makeTokens(env, `${m[1]}${m[3] ? ' with ' + m[3] : ''}`, null);
   for (const i of env.them_ || []) {
@@ -1343,7 +1593,8 @@ on(/^each creature deals (\d+|x) damage to its controller$/, async (m, env) => {
 }, { first: true });
 export function damagePlayer(env, source, pid, amount) {
   if (amount <= 0) return;
-  amount *= damageMult(source || {}, true);
+  amount = damageMods(amount, source, pid, {});
+  if (amount <= 0) return env.did.push(`the damage to ${who(pid)} is prevented`);
   if (G.s.players[pid] && source && hasKw(source, 'infect')) {
     G.s.players[pid].poison += amount;
     env.did.push(`gives ${who(pid)} ${amount} poison counter${amount === 1 ? '' : 's'}`);
@@ -1364,7 +1615,8 @@ export function damagePermanent(env, source, c, amount, log_) {
     env.did.push(`${nameTag(c)} is protected`);
     return;
   }
-  amount *= damageMult(source || {}, false);
+  amount = damageMods(amount, source, c.controller, { victim: c });
+  if (amount <= 0) return env.did.push(`the damage to ${nameTag(c)} is prevented`);
   if ((c.counters || {}).shield) {
     c.counters.shield--;
     if (!c.counters.shield) delete c.counters.shield;
@@ -1500,7 +1752,8 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
   for (const i of made) {
     const tk = card(i);
     tk.face = orig.face || 0;
-    if (/isn't legendary|is not legendary/.test(except)) tk.notLegendary = true;
+    if (/isn't legendary|is not legendary|it's not legendary/.test(except)) tk.notLegendary = true;
+    { const sl = except.match(/its starting loyalty is (\d+)/); if (sl) tk.counters.loyalty = +sl[1]; }
     if (/has haste|gains haste|have haste/.test(except)) tk.grants = [...(tk.grants || []), 'haste'];
     if (/it's 1\/1|it's a 1\/1|they're 1\/1|base power and toughness 1\/1/.test(except)) tk.setPT = { p: 1, t: 1 };
     if (/and attacking/.test(m[1]) && G.s.combat) {
@@ -2974,6 +3227,19 @@ async function runText(text, env) {
     if (skip.has(i)) continue;
     if (G.s.winner || env.wardCountered) return;
     env.next = sentences[i + 1] || '';
+    // handlers written for several sentences at once (marked multi): "Reveal the top three cards… An opponent separates…"
+    let joinedRun = false;
+    for (let k = 3; k >= 1 && !joinedRun; k--) {
+      if (i + k >= sentences.length) continue;
+      const joined = sentences.slice(i, i + k + 1).map((x) => x.trim().replace(/\.$/, '')).join('. ');
+      const low = joined.toLowerCase();
+      if (H.some((h) => h.multi && h.re.test(low))) {
+        await runSentence(joined, env);
+        i += k;
+        joinedRun = true;
+      }
+    }
+    if (joinedRun) continue;
     const consumed = await runSentence(sentences[i], env);
     if (consumed === 'rest') return;
   }
@@ -3077,7 +3343,7 @@ async function runSentence(sentence, env) {
   }
   // "Draw a card, then discard a card." / "Scry 1, then draw a card."
   const parts = s.split(/,? then (?=[a-z])/i);
-  if (parts.length > 1 && !/^search/i.test(s) && !BLINK_RE.test(s.toLowerCase())) {
+  if (parts.length > 1 && !/^search/i.test(s) && !BLINK_RE.test(s.toLowerCase()) && !H.some((h) => h.first && !h.never && h.re.test(s.toLowerCase()) && /then/.test(h.re.source))) {
     for (const p of parts) await runSentence(p, env);
     return;
   }
@@ -3219,7 +3485,9 @@ export async function resolveEffects(text, src, ctx) {
   env.text = env.fullText.toLowerCase();
   // X defined in the text ("where X is the number of …")
   const xm = env.text.match(/where x is (half |twice )?(?:the number of |your |the total number of |the greatest )?([^.]+?)(?:, rounded (up|down))?(?:\.|$)/);
-  if (xm) {
+  // Shark Typhoon: "where X is that spell's mana value"
+  if (xm && /^that spell's mana value$/.test(xm[2].trim()) && ctx.it && card(ctx.it.iid)) env.x = DB[card(ctx.it.iid).def].cmc || 0;
+  else if (xm) {
     const v = countPhrase(env.me, xm[2], helpers, src.iid);
     if (v !== null) env.x = xm[1] === 'half ' ? (xm[3] === 'up' ? Math.ceil(v / 2) : Math.floor(v / 2)) : xm[1] === 'twice ' ? v * 2 : v;
   }
@@ -3420,3 +3688,4 @@ export function modeValue(t, env) {
 }
 
 export const _whichHandler = (s) => H.findIndex((h) => !h.never && h.re.test(s.toLowerCase())) >= 0 ? String(H.find((h) => !h.never && h.re.test(s.toLowerCase())).re).slice(0, 120) : null;
+export const _wardCost = (c) => wardCost(c);

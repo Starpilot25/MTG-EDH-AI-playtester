@@ -224,6 +224,7 @@ function statusLine(pid) {
   if (s.monarch === pid) bits.push('<span class="st monarch" title="Draws a card at the beginning of their end step; combat damage to them steals it">♛ Monarch</span>');
   if (pl.cityBlessing) bits.push('<span class="st" title="City\'s blessing">City\'s blessing</span>');
   if (pl.speed) bits.push(`<span class="st" title="Speed">Speed ${pl.speed}${pl.speed >= 4 ? ' (max)' : ''}</span>`);
+  for (const e of pl.emblems || []) bits.push(`<span class="st" title="${esc(e)}">Emblem: ${esc(e.length > 28 ? e.slice(0, 26) + '…' : e)}</span>`);
   if (pl.ring) bits.push(`<span class="st" title="The Ring has tempted ${pid === 'p' ? 'you' : 'the AI'} ${pl.ring} time(s)">Ring ${pl.ring}</span>`);
   const names = { energy: 'Energy', experience: 'Experience', rad: 'Rad', ticket: 'Tickets' };
   for (const [k, v] of Object.entries(pl.counters || {})) if (v) bits.push(`<span class="st">${esc(names[k] || k)} ${v}</span>`);

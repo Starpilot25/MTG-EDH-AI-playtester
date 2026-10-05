@@ -303,7 +303,7 @@ async function endStepThings(pid) {
       if (card(c.iid)) card(c.iid).warped = true;
     }
   }
-  for (const d of s.delayed.filter((x) => x.at === 'endStep')) {
+  for (const d of s.delayed.filter((x) => x.at === 'endStep' && (!x.whoseEnd || x.whoseEnd === s.active))) {
     s.delayed.splice(s.delayed.indexOf(d), 1);
     const c = card(d.iid);
     if (!c) continue;
@@ -471,6 +471,39 @@ export function attackOptions(attackerPid) {
   return out;
 }
 
+// "No more than one creature can attack ~ each combat" (The Eternal Wanderer, Tomik's grant): extras go at the player instead.
+function attackLimits(cb, attackerPid) {
+  const seen = {};
+  for (const a of cb.attackers) {
+    const t = (cb.targets || {})[a];
+    const tc = t && t !== 'p' && t !== 'ai' ? card(t) : null;
+    if (!tc || !/No more than one creature can attack (?:~|this planeswalker|[^.]+?) each combat/i.test(oracle(tc))) continue;
+    if (seen[t]) {
+      cb.targets[a] = opp(attackerPid);
+      log(attackerPid, `Only one creature can attack ${nameTag(tc)}; ${nameTag(card(a))} attacks ${opp(attackerPid) === 'p' ? 'you' : 'the AI'} instead.`);
+    } else seen[t] = true;
+  }
+}
+
+// Propaganda, Ghostly Prison, Sphere of Safety: what attacking costs
+export function attackTax(attackers, targets, attackerPid) {
+  const def = opp(attackerPid);
+  let total = 0;
+  const enchantments = cardsIn(def, 'battlefield').filter((c) => isType(c, 'Enchantment')).length;
+  for (const x of cardsIn(def, 'battlefield')) {
+    const o = oracle(x);
+    let m = o.match(/Creatures can't attack you(?: or planeswalkers you control)? unless their controller pays \{(\d+|X)\} for each (?:creature they control that's attacking you|of those creatures)/i);
+    if (!m) continue;
+    const per = m[1] === 'X' ? (/number of enchantments you control/i.test(o) ? enchantments : 0) : +m[1];
+    const andPws = /or planeswalkers you control/i.test(o);
+    for (const a of attackers) {
+      const t = (targets || {})[a] || def;
+      if (t === def || (andPws && card(t) && card(t).controller === def)) total += per;
+    }
+  }
+  return total;
+}
+
 function attackRestrictions(attackers) {
   for (const iid of attackers) {
     const c = card(iid);
@@ -502,6 +535,20 @@ export async function confirmAttacks() {
       return hooks.render();
     }
   } else cb.targets = Object.fromEntries(cb.attackers.map((i) => [i, 'ai']));
+  attackLimits(cb, 'p');
+  {
+    const tax = attackTax(cb.attackers, cb.targets, 'p');
+    if (tax > 0) {
+      const ok = T.payMana ? await T.payMana('p', `{${tax}}`, `Attack tax ({${tax}})`) : true;
+      if (G.s !== s) return;
+      if (!ok) {
+        log('p', `You can't pay the {${tax}} attack tax.`);
+        cb.stage = 'declare';
+        return hooks.render();
+      }
+      log('p', `You pay {${tax}} to attack.`);
+    }
+  }
   declareAttack(cb, 'p');
   cb.stage = 'triggers';
   hooks.render();
@@ -698,6 +745,26 @@ async function aiCombat() {
   }
   s.combat = { by: 'ai', attackers, blocks: {}, targets: {}, stage: 'blocks', selected: null };
   s.combat.targets = aiAttackTargets(attackers);
+  attackLimits(s.combat, 'ai');
+  {
+    // the AI pays attack taxes, dropping its weakest attackers until it can afford them
+    let tax = attackTax(attackers, s.combat.targets, 'ai');
+    while (tax > 0) {
+      const p = await envFor('ai').pay('ai', `{${tax}}`, 'Attack tax', {});
+      if (p) {
+        applyPayment('ai', p);
+        log('ai', `AI pays {${tax}} to attack.`);
+        break;
+      }
+      attackers = attackers.slice().sort((x, y) => power(card(y)) - power(card(x))).slice(0, -1);
+      s.combat.attackers = attackers;
+      tax = attackTax(attackers, s.combat.targets, 'ai');
+    }
+    if (!attackers.length) {
+      await endCombat('ai');
+      return;
+    }
+  }
   declareAttack(s.combat, 'ai');
   hooks.render();
   fireAttacks(attackers, 'ai', 'p');

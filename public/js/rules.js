@@ -15,6 +15,7 @@ export function face(inst) {
 }
 export function typeLine(inst) {
   if (inst.faceDown) return 'Creature';
+  if (inst.becameTreasure) return 'Artifact — Treasure'; // Vraska, Betrayal's Sting
   let t = face(inst).typeLine || DB[inst.def].typeLine;
   if (inst.notLegendary) t = t.replace(/^Legendary /, '');
   if (inst.animated && !/Creature/.test(t.split('—')[0])) t = t.replace(/^([^—]*)/, (m) => m.trim() + ' Creature ') + (inst.animated.types ? ' ' + inst.animated.types : '');
@@ -96,6 +97,7 @@ export function sections(text, kind) {
 export function oracle(inst) {
   if (!inst || inst.faceDown) return '';
   const f = face(inst);
+  if (inst.becameTreasure) return inst.extraText || '';
   let text = f.oracle || '';
   // Spacecraft written as "2+ | {1}, {T}: …" instead of "STATION 2+" sections
   if (/(?:^|\n)Station\b/i.test(text) && /^\d+\+ \| /m.test(text)) text = text.replace(/^(\d+)\+ \| /gm, 'STATION $1+\n');
@@ -143,6 +145,16 @@ export function oracle(inst) {
         for (const ab of [m[1], m[2]].filter(Boolean)) text += '\n' + ab.replace(/^\[([+−-]?\d+|[+−-]?X)\]:/, '$1:').replace(/\bthis planeswalker\b/gi, '~');
       }
     }
+  }
+  // Sieges: keep only the chosen bullet
+  if (inst.chosenMode) {
+    text = text.split('\n').map((l) => {
+      const bm = l.match(/^• ([A-Z][a-z]+) — (.+)$/);
+      if (!bm) return l;
+      return bm[1] === inst.chosenMode ? bm[2] : null;
+    }).filter((l) => l !== null).join('\n');
+  } else if (/(?:^|\n)As [^,\n]+ enters(?: the battlefield)?, choose ([A-Z][a-z]+) or ([A-Z][a-z]+)\./.test(text)) {
+    text = text.split('\n').filter((l) => !/^• [A-Z][a-z]+ — /.test(l)).join('\n'); // nothing chosen yet
   }
   // "As ~ enters, choose a creature type" (Herald's Horn, Vanquisher's Banner…): write the choice into the text
   if (inst.chosenType) {
@@ -633,7 +645,7 @@ export function canAttack(inst) {
 
 export function mustAttack(inst) {
   const all = G.s && G.s.mustAttackAll;
-  if (all && all.pid === inst.controller && G.s.turn < all.until) return true;
+  if (all && all.pid === inst.controller && G.s.turn < all.until && (!all.from || G.s.turn >= all.from)) return true;
   return !!inst.goaded || /attacks each (?:combat|turn) if able/i.test(oracle(inst));
 }
 
@@ -650,6 +662,36 @@ export function isDead(inst) {
  * Returns events: {type:'player'|'permanent'|'creature', from, to, amount, ...}
  * Applies damage, -1/-1 counters, shield counters and protection to creatures; caller applies the rest.
  */
+// Damage replacement: Fiery Emancipation & co. (sources you control), Gisela (double to opponents, half to you),
+// The Wanderer (no noncombat damage to you or your other permanents).
+export function damageMods(amount, src, victimPid, opts = {}) {
+  if (!G.s || amount <= 0) return amount;
+  const srcCtl = src ? src.controller || src.owner : null;
+  let a = amount;
+  for (const pid of ['p', 'ai']) {
+    for (const iid of G.s.players[pid].zones.battlefield) {
+      const x = G.s.cards[iid];
+      if (!x || x.phasedOut || x.faceDown || x.lostAbilities) continue;
+      const o = oracle(x);
+      if (!/damage/i.test(o)) continue;
+      if (pid === srcCtl && /If a source you control would deal damage to (?:a permanent or player|an opponent or a permanent an opponent controls), it deals (double|triple) that damage/i.test(o)
+        && (!/an opponent/i.test(o.match(/If a source you control would deal damage to ([^,]+),/i)[1]) || victimPid !== pid)) a *= /it deals triple/i.test(o) ? 3 : 2;
+      if (/If a source would deal damage to an opponent or a permanent an opponent controls, that source deals double that damage/i.test(o) && victimPid && victimPid !== pid) a *= 2;
+    }
+  }
+  for (const pid of ['p', 'ai']) {
+    if (victimPid !== pid) continue;
+    for (const iid of G.s.players[pid].zones.battlefield) {
+      const x = G.s.cards[iid];
+      if (!x || x.phasedOut || x.faceDown || x.lostAbilities) continue;
+      const o = oracle(x);
+      if (/If a source would deal damage to you or a permanent you control, prevent half that damage, rounded up/i.test(o)) a = Math.floor(a / 2);
+      if (!opts.combat && /Prevent all noncombat damage that would be dealt to you and other permanents you control/i.test(o) && (!opts.victim || opts.victim.iid !== x.iid)) a = 0;
+    }
+  }
+  return a;
+}
+
 export function combatDamage(cards, attackers, blocks, defender, ownerOf, targets = {}) {
   const events = [];
   const fs = (i) => hasKw(i, 'first strike') || hasKw(i, 'double strike');
@@ -695,6 +737,11 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
       if (ev.amount <= 0) continue;
       const src = cards[ev.from];
       if (!src) continue;
+      {
+        const victim = ev.type === 'player' ? ev.to || defender : cards[ev.to] ? cards[ev.to].controller : null;
+        ev.amount = damageMods(ev.amount, src, victim, { combat: true, victim: ev.type === 'player' ? null : cards[ev.to] });
+        if (ev.amount <= 0) continue;
+      }
       const noPrevent = playerFlag(src.controller, 'noPrevent') || G.s.noPreventTurn === G.s.turn;
       if (fog && !noPrevent) continue;
       if (ev.type === 'creature') {

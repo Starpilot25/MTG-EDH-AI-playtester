@@ -208,6 +208,9 @@ export function triggersOf(c, defOverride) {
       add('lifeLost', m[2], { who: m[1].toLowerCase() });
     else if ((m = line.match(/^Whenever a land (?:you control enters|enters(?: the battlefield)? under your control)[^,]*, (.+)$/i)))
       add('landfall', m[1]);
+    else if ((m = line.match(/^Whenever an? ([A-Z][\w-]+) token you control with power (\d+) or greater attacks, (.+)$/i)))
+      add('attacks', m[3], { anyOfMine: true, kind: `${m[1].toLowerCase()} token with power ${m[2]} or greater` });
+    else if ((m = line.match(/^Whenever you activate an ability that isn't a mana ability, copy it/i))) void 0; // handled when the ability resolves
     else if ((m = line.match(/^Whenever you activate a loyalty ability(?: of a [A-Za-z]+ planeswalker| of a planeswalker)?, (.+)$/i)))
       add('loyaltyActivated', m[1]);
     else if ((m = line.match(/^Whenever you put one or more loyalty counters on a planeswalker(?: you control)?, (.+)$/i)))
@@ -348,6 +351,21 @@ function keywordTriggers(c) {
     }
     return [];
   }, 'Evolve', { other: true, mine: true, kind: 'creature' });
+  // Sieges (Windcrag Siege, Outpost Siege…): "As this enchantment enters, choose Mardu or Jeskai."
+  {
+    const sm = (DB[c.def].faces[c.face || 0].oracle || '').match(/(?:^|\n)As (?:~|this [a-z]+|[^,\n]+) enters(?: the battlefield)?, choose ([A-Z][a-z]+) or ([A-Z][a-z]+)\./);
+    if (sm && !c.chosenMode)
+      f('enters', async () => {
+        const opts = [sm[1], sm[2]];
+        const raw = DB[c.def].faces[c.face || 0].oracle || '';
+        // the AI takes the mode that does something every turn
+        const aiPick = () => (new RegExp(`• ${opts[1]} — At the beginning`).test(raw) ? 1 : 0);
+        const k = await (T.choosers[c.controller] || T.choosers.ai).choose({ prompt: `${cardName(c)}: choose ${opts[0]} or ${opts[1]}`, options: opts.map((x) => ({ label: x })), aiPick });
+        if (!card(c.iid)) return [];
+        card(c.iid).chosenMode = opts[k === 1 ? 1 : 0];
+        return [`chooses ${card(c.iid).chosenMode}`];
+      }, 'Choose a mode', { self: true });
+  }
   if (/(?:^|\n)As (?:~|this [a-z]+) enters(?: the battlefield)?, choose a creature type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenType)
     f('enters', async () => {
       const t = await chooseCreatureType(c.controller, `${cardName(c)}: choose a creature type`);
@@ -820,7 +838,7 @@ function matches(ev) {
       break;
     case 'cycle': {
       const sc = card(ev.iid);
-      if (sc) for (const trig of triggersOf(sc)) if (trig.event === 'cycle' && trig.self) out.push({ src: sc, trig, controller: ev.pid });
+      if (sc) for (const trig of triggersOf(sc)) if (trig.event === 'cycle' && trig.self) out.push({ src: sc, trig, controller: ev.pid, x: ev.x });
       each((c, trig) => trig.event === 'cycle' && !trig.self && (trig.anyPlayer || (trig.oppOnly ? c.controller !== ev.pid : c.controller === ev.pid)) && out.push({ src: c, trig, thatPlayer: ev.pid }));
       break;
     }
@@ -897,6 +915,17 @@ function matches(ev) {
 // ------------------------------------------------------------ special events
 async function specialEvent(ev) {
   const ch = T.choosers;
+  // Jace, Reality Sculptor / Architect of Thought: attackers get −N/−0 until end of turn
+  if (ev.type === 'attacks' && G.s.attackShrink && G.s.attackShrink.length) {
+    const a = card(ev.iid);
+    for (const sh of G.s.attackShrink) {
+      if (!a || sh.until <= G.s.turn || sh.owner === ev.controller) continue;
+      const tgt = ev.target || ev.defender;
+      if (sh.onlyAtMe && !(tgt === sh.owner || (card(tgt) && card(tgt).controller === sh.owner))) continue;
+      a.eot = { p: (a.eot ? a.eot.p : 0) - sh.n, t: a.eot ? a.eot.t : 0 };
+      log(sh.owner, `${nameTag(a)} gets −${sh.n}/−0 as it attacks.`);
+    }
+  }
   if (ev.type === 'payToUntap') {
     const c = card(ev.iid);
     if (!c || c.zone !== 'battlefield' || !c.tapped) return true;
@@ -1013,7 +1042,18 @@ export async function settle() {
       if (!ev) continue;
       if (G.s !== s0) break;
       if (await specialEvent(ev)) continue;
-      for (const hit of matches(ev)) {
+      let hits = matches(ev);
+      // Windcrag Siege (Mardu), Isshin: attack triggers trigger an additional time
+      if (ev.type === 'attacks' && hits.length) {
+        const extra = [];
+        for (const h of hits) {
+          const ctl = h.controller || h.src.controller;
+          const n = cardsIn(ctl, 'battlefield').filter((x) => /If a creature attacking causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time/i.test(oracle(x))).length;
+          for (let k = 0; k < n; k++) extra.push(h);
+        }
+        hits = hits.concat(extra);
+      }
+      for (const hit of hits) {
         const controller = hit.controller || hit.src.controller;
         if (controller === 'p' && !G.settings.arenaMode) {
           log('p', `${nameTag(hit.src)} triggers: <i>${esc(hit.trig.text || hit.trig.raw)}</i>`);
@@ -1077,7 +1117,7 @@ async function resolveTrigger(hit, controller, ev) {
   }
   const ctx = {
     me: controller, choosers: T.choosers, forced: true, thatPlayer: hit.thatPlayer, it: hit.it || null, wasAttacking: hit.wasAttacking, castFree: T.castFree, deadCounters: ev && ev.counters,
-    kicked: src.kicked, x: src.xPaid || 0, castMode: src.castMode, castFrom: src.castFrom, event: ev,
+    kicked: src.kicked, x: hit.x !== undefined ? hit.x : src.xPaid || 0, castMode: src.castMode, castFrom: src.castFrom, event: ev,
   };
   if (hit.amount !== undefined) {
     ctx.lastAmount = hit.amount;

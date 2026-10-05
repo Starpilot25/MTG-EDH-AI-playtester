@@ -402,6 +402,11 @@ export async function castSpell(pid, iid, opt, env) {
   // storm / gravestorm / replicate / casualty copies, cascade
   let copies = (hasKw(c, 'storm') ? ts.spells - 1 + s.ts[opp(pid)].spells : 0) + info.replicate + (info.casualty ? 1 : 0);
   // Way of the Cryomancer: "When you next cast an instant or sorcery spell this turn, copy that spell."
+  // Jace Reawakened −6: copy every spell this turn
+  if (s.copyAll && s.copyAll.pid === pid && s.copyAll.turn === s.turn && !opt.copy) {
+    copies += 1;
+    log(pid, `${nameTag(c)} is copied.`);
+  }
   if (s.copyNext && s.copyNext.length && !opt.copy) {
     const tl = (d.faces[fIdx] || d.faces[0]).typeLine || d.typeLine;
     const k = s.copyNext.findIndex((e) => e.pid === pid && e.turn === s.turn && new RegExp(e.types.join('|'), 'i').test(tl));
@@ -414,8 +419,15 @@ export async function castSpell(pid, iid, opt, env) {
   let cascades = (oracle({ ...c, face: fIdx }).replace(/\([^)]*\)/g, '').match(/(?:^|\n|, )cascade\b/gi) || []).length;
   // --- responses
   let countered = false;
+  // Jace, Unraveler of Secrets emblem: "Whenever an opponent casts their first spell each turn, counter that spell."
+  if (!opt.copy && ts.spells === 1 && !cantBeCountered(c) && ((s.players[opp(pid)].emblems || []).some((e) => /Whenever an opponent casts their first spell each turn, counter that spell/i.test(e)))) {
+    log(opp(pid), `The emblem counters ${nameTag(c)} (first spell this turn).`);
+    s[stackSlot] = s[stackSlot] || {};
+    s[stackSlot].countered = true;
+    countered = true;
+  }
   const splitSecond = hasKw(c, 'split second');
-  if (!splitSecond && !cantBeCountered(c)) {
+  if (!countered && !splitSecond && !cantBeCountered(c)) {
     if (pid === 'ai' && env.respond) {
       const verdict = await env.respond(iid);
       if (G.s !== s) return false;
@@ -425,11 +437,12 @@ export async function castSpell(pid, iid, opt, env) {
     }
   }
   const exileCountered = s[stackSlot] && s[stackSlot].exileCountered;
+  const bounced = s[stackSlot] && s[stackSlot].bounced;
   const counteredByEffect = !!(s[stackSlot] && s[stackSlot].countered);
   s[stackSlot] = null;
   if (countered) {
     if (pid === 'ai' && !counteredByEffect) log(opp(pid), `You counter ${nameTag(c)}.`);
-    move(iid, exileCountered || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard');
+    move(iid, bounced ? 'hand' : exileCountered || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard');
     env.render();
     return true;
   }
@@ -853,14 +866,15 @@ export async function useZoneAbility(pid, iid, ab, env) {
     const p = await env.pay(pid, cost, cardName(c), { ability: true });
     if (!p) return false;
     applyPayment(pid, p);
-    return true;
+    return p;
   };
   switch (ab.kind) {
     case 'cycling': {
       if (ab.other && !(await payOtherCost(pid, ab.other, c, env))) return false;
-      if (!(await payM(ab.mana))) return false;
+      const cp = await payM(ab.mana);
+      if (!cp) return false;
       discardCard(iid);
-      queueEvent({ type: 'cycle', iid, pid });
+      queueEvent({ type: 'cycle', iid, pid, x: (cp && cp.x) || 0 });
       if (ab.type) {
         const typ = ab.type;
         const lib = zoneOf(pid, 'library').map(card).filter((x) => (typ === 'land' ? isLand(x) : typ === 'basic land' || typ === 'basiclanding' ? /Basic/.test(DB[x.def].typeLine) : new RegExp(typ, 'i').test(DB[x.def].typeLine)));
@@ -1000,7 +1014,14 @@ export async function activateAbility(pid, c, ab, env) {
   const ctx = (extra = {}) => ({ me: pid, choosers: env.choosers, castFree: (p, i) => castFree(p, i, env), stackTarget: pid === 'p' && s.stack ? s.stack.iid : null, ...extra });
   switch (ab.kind) {
     case 'loyalty': {
-      if (c.usedLoyaltyTurn === s.turn && !/activate loyalty abilities of [^.]+ twice/i.test(cardsIn(pid, 'battlefield').map(oracle).join('\n'))) return env.say('Only one loyalty ability per turn.');
+      {
+        // one loyalty ability per turn; Oath of Teferi makes it two, The Chain Veil adds one more
+        const all = cardsIn(pid, 'battlefield').map(oracle).join('\n');
+        let allowed = /activate (?:the )?loyalty abilities of [^.]+ twice/i.test(all) ? 2 : 1;
+        if (s.chainVeil && s.chainVeil.pid === pid && s.chainVeil.turn === s.turn) allowed += s.chainVeil.n;
+        const used = c.loyaltyUses && c.loyaltyUses.turn === s.turn ? c.loyaltyUses.n : c.usedLoyaltyTurn === s.turn ? 1 : 0;
+        if (used >= allowed) return env.say(allowed > 1 ? `${name} has already used ${allowed} loyalty abilities this turn.` : 'Only one loyalty ability per turn.');
+      }
       let cost = ab.cost;
       let x = 0;
       if (ab.x) {
@@ -1008,8 +1029,19 @@ export async function activateAbility(pid, c, ab, env) {
         cost = ab.label.startsWith('+') ? x : -x;
       }
       if ((c.counters.loyalty || 0) + cost < 0) return env.say(`${name} doesn't have enough loyalty.`);
+      {
+        const req = (ab.raw || ab.text || '').match(/Activate only if there are ([\w-]+) or more loyalty counters among ([\w~]+?)s? you control/i);
+        if (req) {
+          if (req[2] === '~') req[2] = name.split(/[ ,]/)[0];
+          const need = { 'twenty-five': 25, twenty: 20, ten: 10 }[req[1].toLowerCase()] || +req[1] || 0;
+          const have = cardsIn(pid, 'battlefield').filter((x) => isType(x, 'Planeswalker') && hasSubtype(x, req[2])).reduce((a, x) => a + (x.counters.loyalty || 0), 0);
+          if (have < need) return env.say(`Needs ${need} loyalty among your ${req[2]}s (you have ${have}).`);
+        }
+      }
       c.counters.loyalty = (c.counters.loyalty || 0) + cost;
+      c.loyaltyUses = { turn: s.turn, n: (c.loyaltyUses && c.loyaltyUses.turn === s.turn ? c.loyaltyUses.n : 0) + 1 };
       c.usedLoyaltyTurn = s.turn;
+      if (s.ts[pid]) s.ts[pid].loyaltyActivated = (s.ts[pid].loyaltyActivated || 0) + 1;
       log(pid, `${nameTag(c)} uses ${ab.label}.`);
       // "whenever you activate a loyalty ability" (Way of the Paradox / Mind Sculptor) and "whenever you put loyalty counters on a planeswalker"
       queueEvent({ type: 'loyaltyActivated', iid: c.iid, controller: pid, cost });

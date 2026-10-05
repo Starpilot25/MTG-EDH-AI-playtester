@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.22",
+    "title": "Jace deck audit",
+    "notes": [
+      "Went through every card in a Jace superfriends list. Planeswalkers: Jace, Memory Adept (−7), Jace, Reality Sculptor (all three abilities, including the 25-loyalty check), Jace, Architect of Thought (attackers −1/−0, the two-pile split, −8), Jace Reawakened (plot, copy every spell), Jace, Mirror Mage (kicker copy at 1 loyalty, the 0), The Eternal Wanderer (+1 return, −4, only one attacker at a time), Vraska, Betrayal's Sting (−2 Treasure, −9 poison), Rowan Kenrith (+2 forced attacks), Ral Zarek (−7 coin flips), Chandra, Bold Pyromancer (−7), Chandra, Flamecaller (0).",
+      "Static effects: Gisela (double damage to opponents, half to you), The Wanderer (no noncombat damage), Propaganda and Sphere of Safety (attack taxes — you're asked to pay, the AI pays or attacks with fewer), Oath of Gideon (+1 loyalty), Oath of Teferi (two loyalty abilities a turn), The Chain Veil (end-step life loss and its extra activation), Sanctum Lurker (planeswalkers survive at 0), Gold-Forged Thopteryx (ward on legendaries), Tomik (one attacker per planeswalker).",
+      "Emblems now work and show on the player panel: Elspeth's +2/+2 and flying, Jace, Unraveler of Secrets' counter-the-first-spell, Teferi's instant-speed loyalty.",
+      "Also: Windcrag Siege and other Sieges ask Mardu or Jeskai (Mardu doubles attack triggers), Theorist's Sanctum enters untapped if you can behold a Jace, Shark Typhoon makes the right-sized Shark (cast and cycled), Plan for All Outcomes, Deepglow Skate and Aetheric Amplifier (double counters), Kher Keep's Kobolds, Fatehold Charm's bounce mode, Dreadhorde Invasion's lifelink, and damage doublers now apply in combat too."
+    ]
+  },
+  {
     "version": "1.2.21",
     "title": "Casual AI, attack targets, craft",
     "notes": [

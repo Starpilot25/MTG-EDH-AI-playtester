@@ -97,7 +97,7 @@ function newPlayer(name) {
 }
 
 export function freshTurnStats() {
-  const one = () => ({ spells: 0, noncreatureSpells: 0, lifeLost: 0, lifeGained: 0, damagedOpp: false, attacked: false, landsPlayed: 0, drawn: 0, cardsLeftGy: 0, permLeft: false, speedUp: false, discarded: [] });
+  const one = () => ({ loyaltyActivated: 0, spells: 0, noncreatureSpells: 0, lifeLost: 0, lifeGained: 0, damagedOpp: false, attacked: false, landsPlayed: 0, drawn: 0, cardsLeftGy: 0, permLeft: false, speedUp: false, discarded: [] });
   return { p: one(), ai: one(), creatureDied: false, warped: false };
 }
 
@@ -206,8 +206,8 @@ const RESET = ['tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrant
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'lostAbilities', 'endOfTurn', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'castMode', 'xPaid', 'impending',
-  'ringBearer', 'addTypes', 'extraText', 'controlWhile', 'craftedFrom', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
-  'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
+  'ringBearer', 'addTypes', 'extraText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
+  'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'mayPlayFree', 'suspended',
   'rebound', 'encodedOn', 'hiddenBy', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
@@ -339,6 +339,17 @@ export function entersTapped(c, o = oracle(c).replace(/\([^)]*\)/g, '')) {
   const others = cardsIn(pid, 'battlefield').filter((x) => x.iid !== c.iid);
   let m;
   if ((m = line.match(/you may pay (\d+) life\. If you don't, (?:it|~|this land|[^,.]+) enters tapped/i))) return { ask: true, life: +m[1] };
+  // Theorist's Sanctum: "As this land enters, you may behold a Jace. If you don't, this land enters tapped."
+  if ((m = o.match(/you may behold an? ([A-Z][\w-]+|[a-z]+)\. If you don't, (?:it|~|this land|[^,.]+) enters tapped/i))) {
+    const k = m[1];
+    const fits = (x) => hasSubtype({ ...x, zone: 'battlefield' }, k) || new RegExp('\\b' + k + '\\b', 'i').test(typeLine({ ...x, zone: 'battlefield' }));
+    const seen = others.find(fits) || cardsIn(pid, 'hand').find(fits);
+    if (seen) {
+      log(pid, `${pid === 'p' ? 'You behold' : 'The AI beholds'} ${nameTag(seen)}, so ${nameTag(c)} enters untapped.`);
+      return false;
+    }
+    return true;
+  }
   if (/you may reveal (?:a|an) ([^.]+?) card from your hand/i.test(line)) {
     const kinds = line.match(/you may reveal (?:a|an) ([^.]+?) card from your hand/i)[1];
     const inHand = cardsIn(pid, 'hand').some((x) => permMatches({ ...x, zone: 'battlefield' }, kinds) || kinds.split(/ or (?:a |an )?/).some((k) => new RegExp('\\b' + k.trim() + '\\b', 'i').test(typeLine(x))));
@@ -388,6 +399,12 @@ function entering(c, opts) {
     const k = nW === 'x' ? c.xPaid || 0 : words[nW] || parseInt(nW, 10) || 0;
     if (k) addCounters(c, mm[2].toLowerCase(), k, { silent: true });
   }
+  // Oath of Gideon: "Each planeswalker you control enters with an additional loyalty counter on it."
+  if (isType(c, 'Planeswalker'))
+    for (const iid of s.players[c.controller].zones.battlefield) {
+      const src = s.cards[iid];
+      if (src && src.iid !== c.iid && !src.phasedOut && /Each planeswalker you control enters with an additional loyalty counter/i.test(oracle(src))) c.counters.loyalty = (c.counters.loyalty || 0) + 1;
+    }
   // Dragonstorm Globe, Grumgully, Metallic Mimic: "Each [other] <kind> you control enters with an additional +1/+1 counter on it"
   for (const iid of s.players[c.controller].zones.battlefield) {
     const src = s.cards[iid];
@@ -739,7 +756,8 @@ export function stateBased() {
       for (const c of cardsIn(pid, 'battlefield')) {
         if (isCreature(c) && toughness(c) <= 0) died.push({ c, zero: true });
         else if (isCreature(c) && isDead(c)) died.push({ c });
-        else if (isType(c, 'Planeswalker') && !isCreature(c) && (c.counters.loyalty || 0) <= 0 && c.enteredTurn !== undefined) died.push({ c, zero: true, pw: true });
+        else if (isType(c, 'Planeswalker') && !isCreature(c) && (c.counters.loyalty || 0) <= 0 && c.enteredTurn !== undefined
+          && !s.players[c.controller].zones.battlefield.some((i) => s.cards[i] && !s.cards[i].phasedOut && /Planeswalkers you control aren't put into their owners' graveyards for having 0 loyalty/i.test(oracle(s.cards[i])))) died.push({ c, zero: true, pw: true });
         else if (isType(c, 'Battle') && (c.counters.defense || 0) <= 0 && c.counters.defense !== undefined) died.push({ c, battle: true });
       }
     }
