@@ -1,6 +1,6 @@
 // Rules helpers: card faces, types, keywords, power/toughness, mana, evasion, combat damage.
 import { DB } from './data.js';
-import { G } from './state.js';
+import { G, readCache, cacheTwin } from './state.js';
 import { staticMods, setTextFn, countPhrase, playerFlag } from './statics.js';
 
 export const COLORS = ['W', 'U', 'B', 'R', 'G', 'C'];
@@ -26,8 +26,11 @@ export function typeLine(inst) {
   }
   return t;
 }
+const typeRe = new Map();
 export function isType(inst, t) {
-  return new RegExp('\\b' + t + '\\b', 'i').test(typeLine(inst).split('—')[0]);
+  let re = typeRe.get(t);
+  if (!re) typeRe.set(t, (re = new RegExp('\\b' + t + '\\b', 'i')));
+  return re.test(typeLine(inst).split('—')[0]);
 }
 // Subtypes live after the dash: "Enchantment — Aura", "Artifact — Equipment". Changelings have them all.
 export function hasSubtype(inst, t) {
@@ -96,6 +99,17 @@ export function sections(text, kind) {
 
 export function oracle(inst) {
   if (!inst || inst.faceDown) return '';
+  const twin = readCache.on ? cacheTwin(inst) : null;
+  if (twin) {
+    const hit = readCache.oracle.get(twin);
+    if (hit !== undefined) return hit;
+    const v = oracleRaw(twin);
+    readCache.oracle.set(twin, v);
+    return v;
+  }
+  return oracleRaw(inst);
+}
+function oracleRaw(inst) {
   const f = face(inst);
   if (inst.becameTreasure) return inst.extraText || '';
   let text = f.oracle || '';
@@ -169,7 +183,19 @@ setTextFn(oracle);
 
 // "Flying, trample" lines and keywords from Scryfall's list, limited to the active text.
 const KW_LINE = /^[A-Za-z][A-Za-z' -]*(?: \d+| \{[^}]+\}+| from [a-z ]+)?(?:, [A-Za-z][A-Za-z' -]*(?: \d+| \{[^}]+\}+| from [a-z ]+)?)*$/;
+// keyword lookups in rules text are pure, so remember them (texts repeat a lot: tokens, copies)
+const kwMemo = new Map();
 function kwInText(text, kw) {
+  const key = kw + '\u0000' + text;
+  let v = kwMemo.get(key);
+  if (v === undefined) {
+    if (kwMemo.size > 20000) kwMemo.clear();
+    v = kwInTextRaw(text, kw);
+    kwMemo.set(key, v);
+  }
+  return v;
+}
+function kwInTextRaw(text, kw) {
   for (const l of text.split('\n')) {
     const line = l.replace(/\([^)]*\)/g, '').trim();
     if (!KW_LINE.test(line)) continue;
@@ -188,6 +214,21 @@ export function grantsOf(inst) {
 export function hasKw(inst, kw) {
   if (!inst) return false;
   kw = kw.toLowerCase();
+  if (readCache.on) {
+    const twin = cacheTwin(inst);
+    if (twin && twin.grants === inst.grants && twin.eotGrants === inst.eotGrants && twin.auraBuffs === inst.auraBuffs) {
+      let m = readCache.kw;
+      if (!m) m = readCache.kw = new WeakMap();
+      let per = m.get(twin);
+      if (!per) m.set(twin, (per = new Map()));
+      let v = per.get(kw);
+      if (v === undefined) per.set(kw, (v = hasKwRaw(inst, kw)));
+      return v;
+    }
+  }
+  return hasKwRaw(inst, kw);
+}
+function hasKwRaw(inst, kw) {
   if (inst.lostAbilities) return (inst.eotGrants || []).includes(kw);
   for (const g of grantsOf(inst)) if (g === kw || g.startsWith(kw + ' ')) return true;
   if (inst.faceDown) return false;

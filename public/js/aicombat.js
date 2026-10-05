@@ -6,11 +6,25 @@ import { DB } from './data.js';
 import {
   isCreature, isType, isLand, oracle, hasKw, power, toughness, canBlock, canAttack, mustAttack, manaAbility, kwNum,
 } from './rules.js';
-import { G, card, cardsIn, opp, casualAI } from './state.js';
+import { G, card, cardsIn, opp, casualAI, readCache, cacheTwin } from './state.js';
 
 // ------------------------------------------------------------ how dangerous is it?
 export function threat(c) {
   if (!c) return 0;
+  // memoised while the AI plans (nothing changes in between)
+  const twin = readCache.on ? cacheTwin(c) : null;
+  if (twin && !c.damage === !twin.damage) {
+    let m = readCache.threat;
+    if (!m) m = readCache.threat = new WeakMap();
+    const hit = m.get(twin);
+    if (hit !== undefined) return hit;
+    const v = threatRaw(c);
+    m.set(twin, v);
+    return v;
+  }
+  return threatRaw(c);
+}
+function threatRaw(c) {
   const o = oracle(c);
   let t = 0;
   if (isCreature(c)) {
@@ -259,37 +273,60 @@ export function planAttack(pid) {
   const all = mine.map((c) => c.iid);
   if (!all.length) return [];
   const score = (ids) => scoreAttack(pid, ids).score;
+  // identical creatures (a pile of tokens) are interchangeable: only try one of each kind per step
+  const kindOf = (i) => {
+    const c = card(i);
+    return [c.def, power(c), toughness(c), c.isCommander ? i : '', JSON.stringify(c.counters || {}), (c.grants || []).join(','), (c.eotGrants || []).join(','), c.attachedTo || '',
+      Object.values(G.s.cards).some((a) => a.attachedTo === i) ? i : ''].join('|');
+  };
+  const kinds = {};
+  for (const i of all) kinds[i] = kindOf(i);
+  // moves take 1, half or all of one kind at a time, so a pile of 40 tokens doesn't mean 40 steps
+  const sizes = (n) => [...new Set([1, Math.ceil(n / 2), n])].filter((k) => k >= 1 && k <= n);
+  const groupIn = (ids, skip) => {
+    const g = {};
+    for (const i of ids) {
+      if (skip && skip(i)) continue;
+      (g[kinds[i]] = g[kinds[i]] || []).push(i);
+    }
+    return Object.values(g);
+  };
   // top-down
   let down = [...all];
   let best = score(down);
   for (let guard = 0; guard < all.length; guard++) {
-    let pick = null;
-    for (const i of down) {
-      if (forced.includes(i)) continue;
-      const v = score(down.filter((x) => x !== i));
-      if (v > best + 0.01) {
-        best = v;
-        pick = i;
+    let move = null;
+    for (const grp of groupIn(down, (x) => forced.includes(x))) {
+      for (const k of sizes(grp.length)) {
+        const drop = new Set(grp.slice(0, k));
+        const cand = down.filter((x) => !drop.has(x));
+        const v = score(cand);
+        if (v > best + 0.01) {
+          best = v;
+          move = cand;
+        }
       }
     }
-    if (!pick) break;
-    down = down.filter((x) => x !== pick);
+    if (!move) break;
+    down = move;
   }
   // bottom-up
   let up = [...forced];
   let bestUp = score(up);
   for (let guard = 0; guard < all.length; guard++) {
-    let pick = null;
-    for (const i of all) {
-      if (up.includes(i)) continue;
-      const v = score([...up, i]);
-      if (v > bestUp + 0.01) {
-        bestUp = v;
-        pick = i;
+    let move = null;
+    for (const grp of groupIn(all, (x) => up.includes(x))) {
+      for (const k of sizes(grp.length)) {
+        const cand = [...up, ...grp.slice(0, k)];
+        const v = score(cand);
+        if (v > bestUp + 0.01) {
+          bestUp = v;
+          move = cand;
+        }
       }
     }
-    if (!pick) break;
-    up.push(pick);
+    if (!move) break;
+    up = move;
   }
   let chosen = bestUp > best ? up : down;
   // Casual AI: no all-in swings. Unless the attack is lethal, keep enough creatures home to block

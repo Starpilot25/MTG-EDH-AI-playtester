@@ -8,7 +8,7 @@ import {
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, log, nameTag, opp, cardName, checkLoss, discard as discardCard, restoreInPlace, eventQueue, entersTapped,
- casualAI } from './state.js';
+ casualAI, withReadCache } from './state.js';
 import {
   spellFilterOk, analyze, etbText, spellText, costOf, legalTargets, activatedAbilities, aiHelpers, knownEffect, zoneAbilities,
   Cancelled,
@@ -785,7 +785,7 @@ export async function aiMainPhase(h, post = false) {
   if (playLand(h)) await wait();
   await upgrades(h);
   for (let guard = 0; guard < 20 && G.s === s0 && !G.s.winner; guard++) {
-    const plan = planMain(post);
+    const plan = withReadCache(() => planMain(post));
     if (!plan) break;
     await castSpell(h, plan);
     if (G.s !== s0) return;
@@ -951,11 +951,17 @@ function potentialBlockers(pid) {
 }
 
 export function aiChooseAttackers() {
+  return withReadCache(() => aiChooseAttackersRaw());
+}
+function aiChooseAttackersRaw() {
   return planAttack(AI);
 }
 
 // Which player/planeswalker/battle each attacker goes after.
 export function aiAttackTargets(attackers) {
+  return withReadCache(() => aiAttackTargetsRaw(attackers));
+}
+function aiAttackTargetsRaw(attackers) {
   const targets = {};
   const jaceSafe = G.s.noAttackJace && G.s.noAttackJace.turn === G.s.turn && G.s.noAttackJace.owner === P;
   const pws = cardsIn(P, 'battlefield').filter((c) => isType(c, 'Planeswalker') && !(jaceSafe && hasSubtype(c, 'Jace'))).sort((a, b) => (b.counters.loyalty || 0) - (a.counters.loyalty || 0));
@@ -991,6 +997,9 @@ export function aiAttackTargets(attackers) {
 }
 
 export function aiChooseBlocks(attackerIds) {
+  return withReadCache(() => aiChooseBlocksRaw(attackerIds));
+}
+function aiChooseBlocksRaw(attackerIds) {
   return planBlocks(AI, attackerIds);
 }
 

@@ -595,6 +595,36 @@ export function setLife(pid, value, reason) {
 // Casual AI: plays like a friendly pod (fewer all-in swings, saves removal and counters for real threats)
 export const casualAI = () => (G.settings.aiStyle || 'casual') !== 'competitive';
 
+// While drawing the screen nothing changes, so rules text and static effects can be computed once per card.
+export const readCache = { on: false, oracle: new WeakMap(), mods: new WeakMap(), field: null, anthems: null };
+// the real card behind a temporary copy ({...card, tapped: false}) when the copy reads the same rules text
+export function cacheTwin(inst) {
+  const o = G.s && G.s.cards[inst.iid];
+  if (!o) return null;
+  if (o === inst) return o;
+  if (o.face === inst.face && o.faceDown === inst.faceDown && o.zone === inst.zone && o.controller === inst.controller && o.counters === inst.counters
+    && o.extraText === inst.extraText && o.chosenType === inst.chosenType && o.chosenMode === inst.chosenMode && o.def === inst.def && o.lostAbilities === inst.lostAbilities) return o;
+  return null;
+}
+export function withReadCache(fn) {
+  if (readCache.on) return fn();
+  readCache.on = true;
+  readCache.oracle = new WeakMap();
+  readCache.mods = new WeakMap();
+  readCache.field = null;
+  readCache.anthems = null;
+  readCache.statics = null;
+  readCache.threat = null;
+  readCache.kw = null;
+  try {
+    return fn();
+  } finally {
+    readCache.on = false;
+    readCache.field = null;
+    readCache.anthems = null;
+  }
+}
+
 export function changeLife(pid, delta, reason) {
   setLife(pid, G.s.players[pid].life + delta, reason);
 }

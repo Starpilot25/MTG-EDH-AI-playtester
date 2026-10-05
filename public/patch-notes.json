@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.35",
+    "title": "Much faster with big boards; Rowan's emblem",
+    "notes": [
+      "Big boards no longer lag. Drawing the screen with ~300 permanents went from ~140 ms to ~20 ms, the AI's attack planning with dozens of tokens is many times faster (it treats a pile of identical tokens as one kind of attacker), and checking what triggers after each event no longer slows down as the board grows. An AI turn on a 60-creature-per-side board went from minutes to a few seconds.",
+      "Rowan Kenrith's −8 emblem works: every ability you activate that isn't a mana ability — including loyalty abilities — is copied. The AI gives the emblem to itself. Locus of Enlightenment copies the same way.",
+      "\"Target player gets an emblem\" lets you choose who gets it."
+    ]
+  },
+  {
     "version": "1.2.34",
     "title": "From-exile zone",
     "notes": [

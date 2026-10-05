@@ -1433,12 +1433,23 @@ on(/^return (?:that card|it|the exiled card) to the battlefield under its owner'
   env.did.push(`${nameTag(c)} returns at ${who(c.owner) === 'you' ? 'your' : "the AI's"} next end step`);
 }, { first: true });
 // Emblems: "You get an emblem with '…'" — kept on the player and shown in the log
-on(/^you get an emblem with ['"](.+)['"]$/, async (m, env) => {
-  const pl = G.s.players[env.me];
+on(/^(you|target player|target opponent) gets? an emblem with ['"](.+)['"]$/, async (m, env) => {
+  m = [m[0], m[2], m[1]];
+  let pid = env.me;
+  if (m[2] === 'target opponent') pid = opp(env.me);
+  else if (m[2] === 'target player') {
+    // emblems are good for whoever gets them: the AI gives them to itself; you choose
+    if (env.me === 'ai') pid = 'ai';
+    else {
+      const k = await env.choosers.p.choose({ prompt: 'Who gets the emblem?', options: [{ label: 'You' }, { label: 'The AI' }], aiPick: () => 0 });
+      pid = k === 1 ? 'ai' : 'p';
+    }
+  }
+  const pl = G.s.players[pid];
   const at = (env.fullText || '').toLowerCase().indexOf(m[1].slice(0, 30));
   const txt = at >= 0 ? env.fullText.slice(at, at + m[1].length) : m[1];
   pl.emblems = [...(pl.emblems || []), txt];
-  env.did.push(`${who(env.me)} ${s_(env.me, 'get')} an emblem: “${esc(txt)}”`);
+  env.did.push(`${who(pid)} ${s_(pid, 'get')} an emblem: “${esc(txt)}”`);
 }, { first: true });
 // Way of the Cryomancer: "When you next cast an instant or sorcery spell this turn, copy that spell."
 on(/^when you next cast an? (instant or sorcery|instant|sorcery|creature|noncreature) spell this turn, copy that spell$/, async (m, env) => {

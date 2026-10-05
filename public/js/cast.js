@@ -1063,8 +1063,10 @@ export async function activateAbility(pid, c, ab, env) {
       queueEvent({ type: 'loyaltyActivated', iid: c.iid, controller: pid, cost });
       if (cost > 0) queueEvent({ type: 'counterPut', iid: c.iid, kind: 'loyalty', n: cost, controller: c.controller });
       await settle();
+      const copiers = abilityCopiers(pid);
       const did = await resolveEffects(ab.text, c, ctx({ x }));
       log(pid, `${nameTag(c)}: ${did.join('; ') || '<i>' + esc(ab.text.slice(0, 90)) + '</i> — apply by hand'}.`);
+      await copyAbility(pid, ab.text, c, ctx({ x }), copiers); // loyalty abilities aren't mana abilities either
       return true;
     }
     case 'equip':
@@ -1222,15 +1224,27 @@ export async function activateAbility(pid, c, ab, env) {
   const srcSnap = c;
   if (ab.sac) sacrifice(c.iid);
   if (ab.returnToHand) move(c.iid, 'hand');
+  const copiers = abilityCopiers(pid);
   const did = await resolveEffects(ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim(), srcSnap, ctx({ x }));
   log(pid, did.length ? `${nameTag(srcSnap)}: ${did.join('; ')}.` : `Apply “${esc(ab.text.slice(0, 90))}” by hand.`);
-  // Locus of Enlightenment, Rings of Brighthearth-style: "Whenever you activate an ability that isn't a mana ability, copy it."
-  for (const x of cardsIn(pid, 'battlefield')) {
-    if (!/Whenever you activate an ability that isn't a mana ability, copy it/i.test(oracle(x))) continue;
-    const again = await resolveEffects(ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim(), srcSnap, ctx({ x }));
-    log(pid, `${nameTag(x)} copies the ability${again.length ? ': ' + again.join('; ') : ''}.`);
-  }
+  await copyAbility(pid, ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim(), srcSnap, ctx({ x }), copiers);
   return true;
+}
+
+// Locus of Enlightenment, Rowan Kenrith's emblem: "Whenever you activate an ability that isn't a mana ability, copy it."
+function abilityCopiers(pid) {
+  const RE = /Whenever you activate an ability that isn't a mana ability, copy it/i;
+  return [
+    ...cardsIn(pid, 'battlefield').filter((x) => RE.test(oracle(x).replace(/"[^"]*"/g, ''))).map((x) => nameTag(x)), // not Rowan's quoted emblem text
+    ...(G.s.players[pid].emblems || []).filter((e) => RE.test(e)).map(() => 'The emblem'),
+  ];
+}
+// copiers are counted when the ability is activated (an emblem it creates doesn't copy it)
+async function copyAbility(pid, text, src, cx, copiers) {
+  for (const who of copiers) {
+    const again = await resolveEffects(text, src, cx);
+    log(pid, `${who} copies the ability${again.length ? ': ' + again.join('; ') : ''}.`);
+  }
 }
 
 // Turn a face-down permanent face up (special action) — morph/megamorph/disguise/manifest.

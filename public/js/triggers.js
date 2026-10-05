@@ -7,6 +7,7 @@ import {
 import {
   G, card, cardsIn, zoneOf, log, nameTag, eventQueue, queueEvent, stateBased, cardName, move, toBattlefield, addCounters,
   createToken, genericTokenDef, sacrifice, opp, libTop, esc,
+  withReadCache,
 } from './state.js';
 import {
   resolveEffects, stripName, knownEffect, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords,
@@ -1042,7 +1043,7 @@ export async function settle() {
       if (!ev) continue;
       if (G.s !== s0) break;
       if (await specialEvent(ev)) continue;
-      let hits = matches(ev);
+      let hits = withReadCache(() => matches(ev)); // finding who triggers only reads the board
       // Windcrag Siege (Mardu), Isshin: attack triggers trigger an additional time
       if (ev.type === 'attacks' && hits.length) {
         const extra = [];

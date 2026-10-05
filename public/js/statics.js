@@ -1,7 +1,7 @@
 // Continuous effects read from permanents' rules text: anthems and lords, keyword grants,
 // cost changes, replacement effects, and counting phrases ("the number of creatures you control").
 import { DB } from './data.js';
-import { G } from './state.js';
+import { G, readCache, cacheTwin } from './state.js';
 import { evalCond } from './effects.js';
 
 const COLOR_WORDS = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
@@ -161,6 +161,19 @@ export function eminenceText(text, name) {
     .split(name).join('~');
 }
 export function staticsOf(c) {
+  const twin = readCache.on ? cacheTwin(c) : null;
+  if (twin) {
+    let m = readCache.statics;
+    if (!m) m = readCache.statics = new WeakMap();
+    const hit = m.get(twin);
+    if (hit) return hit;
+    const v = staticsOfRaw(twin);
+    m.set(twin, v);
+    return v;
+  }
+  return staticsOfRaw(c);
+}
+function staticsOfRaw(c) {
   const d = DB[c.def];
   if (!d) return { anthems: [], costs: [], repl: {}, player: {} };
   let text = textFn ? textFn(c) : (d.faces[c.face || 0] || d.faces[0]).oracle;
@@ -180,7 +193,26 @@ function emblemObjects(pid) {
   });
 }
 
+// permanents (and emblems) that have anthem-style effects, with their parsed statics
+function anthemSources() {
+  if (readCache.on && readCache.anthems) return readCache.anthems;
+  const res = [];
+  for (const src of field()) {
+    const st = staticsOf(src);
+    if (st.anthems.length) res.push([src, st]);
+  }
+  if (readCache.on) readCache.anthems = res;
+  return res;
+}
+
 function field() {
+  if (!G.s) return [];
+  if (readCache.on && readCache.field) return readCache.field;
+  const res = fieldRaw();
+  if (readCache.on) readCache.field = res;
+  return res;
+}
+function fieldRaw() {
   if (!G.s) return [];
   const out = [];
   for (const pid of ['p', 'ai']) out.push(...emblemObjects(pid));
@@ -220,10 +252,27 @@ function matchesFilter(c, f, helpers) {
 
 // Sum of anthem effects on a creature: {p, t, grants[]}
 export function staticMods(c, helpers) {
+  if (readCache.on && G.s) {
+    // a temporary copy ({...c, tapped: false}) can share the real card's answer unless some anthem cares about tapped/attacking
+    let key = G.s.cards[c.iid] === c ? c : null;
+    if (!key) {
+      const twin = cacheTwin(c);
+      if (twin && twin.auraBuffs === c.auraBuffs && !anthemSources().some(([, st]) => st.anthems.some((a) => a.f && (a.f.attacking || a.f.blocking || a.f.tapped || a.f.untapped)))) key = twin;
+    }
+    if (key) {
+      const hit = readCache.mods.get(key);
+      if (hit) return hit;
+      const v = staticModsRaw(c, helpers);
+      readCache.mods.set(key, v);
+      return v;
+    }
+  }
+  return staticModsRaw(c, helpers);
+}
+function staticModsRaw(c, helpers) {
   const out = { p: 0, t: 0, grants: [] };
   if (!G.s || c.zone !== 'battlefield') return out;
-  for (const src of field()) {
-    const st = staticsOf(src);
+  for (const [src, st] of anthemSources()) {
     for (const a of st.anthems) {
       if (a.other && src.iid === c.iid) continue;
       if (a.who === 'mine' && src.controller !== c.controller) continue;

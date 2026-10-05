@@ -6,7 +6,7 @@ import {
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, esc, snapshot, undo, redo, shuffle, mill, libTop,
   setLife, toBattlefield, createToken, stateBased, commanderTax, cardName, makeCard, CARD_W, CARD_H,
-  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace, sacrifice, changeLife,
+  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace, sacrifice, changeLife, withReadCache,
 } from './state.js';
 import {
   hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn, attackTax, attackTaxOf,
@@ -168,6 +168,10 @@ function cardHTML(c, opts = {}) {
 
 // ------------------------------------------------------------ render
 export function render() {
+  if (!G.s) return;
+  withReadCache(renderAll);
+}
+function renderAll() {
   const s = G.s;
   if (!s) return;
   document.querySelectorAll('.card.ghost').forEach((g) => (!drag || g !== drag.ghost) && g.remove());
@@ -443,34 +447,61 @@ function boardLanes(pid) {
   return pid === 'ai' ? lanes.reverse().join('') : lanes.join('');
 }
 
-// shrink a lane's cards until they fit on one line (down to 60%), then let it wrap
+// shrink a lane's cards until they fit on one line (down to 60%), then let it wrap; then make the whole board fit
+// the height. Sizes are worked out arithmetically from the lane contents, so the browser only lays out once.
 function fitLanes(root) {
   const cs = getComputedStyle(root);
   const bw = parseFloat(cs.getPropertyValue('--cw')) || 80;
   const bh = parseFloat(cs.getPropertyValue('--ch')) || 112;
-  // the whole board also has to fit the height: shrink everything together if it doesn't
-  let global = 1;
-  for (let pass = 0; pass < 6; pass++) {
-    fitLanesOnce(root, bw * global, bh * global);
-    if (root.scrollHeight <= root.clientHeight + 1 || global <= 0.55) break;
-    global = Math.max(0.55, global * Math.max(0.8, Math.min(0.95, root.clientHeight / root.scrollHeight)));
-  }
-}
-function fitLanesOnce(root, bw, bh) {
-  for (const ln of root.querySelectorAll('.lane')) {
-    const base = ln.classList.contains('lands') ? 0.78 : ln.classList.contains('others') ? 0.9 : 1;
-    let sc = base;
-    ln.classList.remove('wrap');
-    const apply = () => {
-      ln.style.setProperty('--cw', `${Math.round(bw * sc)}px`);
-      ln.style.setProperty('--ch', `${Math.round(bh * sc)}px`);
-    };
-    apply();
-    for (let k = 0; k < 8 && ln.scrollWidth > ln.clientWidth + 1 && sc > 0.6; k++) {
-      sc = Math.max(0.6, sc * Math.min(0.95, ln.clientWidth / ln.scrollWidth));
-      apply();
+  const W = root.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  const H = root.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+  const lanes = [...root.querySelectorAll('.lane')].map((ln) => {
+    const items = [...ln.children].filter((x) => !x.classList.contains('lane-sep') && !x.classList.contains('row-empty'));
+    let tapped = 0;
+    let stacked = 0;
+    let att = 0;
+    for (const it of items) {
+      const cardEl = it.classList.contains('host') ? it.lastElementChild : it;
+      if (cardEl && cardEl.classList.contains('tapped')) tapped++;
+      if (cardEl && cardEl.classList.contains('stacked')) stacked++;
+      if (it.classList.contains('host')) att = Math.max(att, +(it.style.getPropertyValue('--att') || 0));
     }
-    if (ln.scrollWidth > ln.clientWidth + 1) ln.classList.add('wrap');
+    const seps = ln.querySelectorAll(':scope > .lane-sep').length;
+    const base = ln.classList.contains('lands') ? 0.78 : ln.classList.contains('others') ? 0.9 : 1;
+    return { ln, n: items.length, tapped, stacked, att, seps, base };
+  });
+  const widthAt = (L, w, h) => L.n * w + L.tapped * (h - w) + L.stacked * 6 + Math.max(0, L.n - 1) * 8 + L.seps * 13;
+  const layout = (g) => {
+    let total = 0;
+    for (const L of lanes) {
+      if (!L.n) {
+        L.h = 0;
+        continue;
+      }
+      let sc = L.base;
+      const need = widthAt(L, bw * g * sc, bh * g * sc);
+      if (need > W) sc = Math.max(0.6, sc * (W / need));
+      const w = bw * g * sc;
+      const h = bh * g * sc;
+      const rows = Math.max(1, Math.ceil(widthAt(L, w, h) / Math.max(1, W)));
+      L.sc = sc;
+      L.rows = rows;
+      L.h = rows * (h + 6) + L.att * 18 + (rows - 1) * 10;
+      total += L.h + 10;
+    }
+    return total;
+  };
+  let g = 1;
+  let total = layout(g);
+  for (let k = 0; k < 8 && total > H && g > 0.55; k++) {
+    g = Math.max(0.55, g * Math.max(0.8, Math.min(0.97, H / total)));
+    total = layout(g);
+  }
+  for (const L of lanes) {
+    if (!L.n) continue;
+    L.ln.style.setProperty('--cw', `${Math.round(bw * g * L.sc)}px`);
+    L.ln.style.setProperty('--ch', `${Math.round(bh * g * L.sc)}px`);
+    L.ln.classList.toggle('wrap', L.rows > 1);
   }
 }
 
