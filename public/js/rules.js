@@ -451,6 +451,14 @@ function manaAbilityRaw(inst) {
     }
   }
   if (isLand(inst)) {
+    // bounce lands, Sol lands: "{T}: Add {W}{U}." makes both
+    {
+      const two = o.match(/(?:^|\n)\{T\}: Add ((?:\{[WUBRGC]\}){2,3})\./);
+      if (two) {
+        const each = two[1].match(/\{([WUBRGC])\}/g).map((x) => x[1]);
+        return { colors: [...new Set(each)], amount: each.length, each };
+      }
+    }
     if (produced.length) return { colors: produced, amount: 1 };
     {
       const tm = o.match(/(?:^|\n)\{T\}: Add ((?:\{[WUBRGC]\})+)\./);

@@ -4,7 +4,7 @@
 import { DB } from './data.js';
 import {
   hasSubtype, isLand, isCreature, isType, oracle, hasKw, power, toughness, cardValue, face, typeLine, colorsOf,
-  isProtectedFrom, SECTORS, SECTOR_SIGN, kwCost, payCost, manaValueOf, isPermanentCard,
+  isProtectedFrom, SECTORS, SECTOR_SIGN, kwCost, payCost, manaValueOf, isPermanentCard, manaAbility,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef,
@@ -1142,6 +1142,32 @@ on(/^put a \+1\/\+1 counter or a loyalty counter on (it|that creature|that perma
 }, { first: true });
 // --- sweep fixes
 // ===== Jace deck audit =====
+// Bounce lands: "return a land you control to its owner's hand" / Coral Atoll: "sacrifice it unless you return an untapped Island you control to its owner's hand"
+async function bounceOwnLand(env, kind, untapped, optional) {
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => isLand(c) && (!untapped || !c.tapped) && (kind === 'land' || hasSubtype(c, kind) || matchesFilter(c, kind)));
+  if (!pool.length) return null;
+  // the AI returns a tapped basic first (it can replay it), never the new land unless it must
+  const score = (c) => (env.src && c.iid === env.src.iid ? -5 : 0) + (c.tapped ? 3 : 0) + (/Basic/.test(typeLine(c)) ? 2 : 0) - (manaAbility({ ...c, tapped: false }) || { amount: 1 }).amount;
+  const [pick] = await env.choosers[env.me].pickCards({ forced: !optional, prompt: `Return ${untapped ? 'an untapped ' : 'a '}${kind} you control to its owner's hand`, cards: pool.map((c) => c.iid), min: optional ? 0 : 1, max: 1, purpose: 'bounceLand', src: env.src, aiScore: score });
+  if (!pick) return null;
+  const c = card(pick);
+  move(pick, 'hand');
+  env.did.push(`returns ${nameTag(c)} to ${who(env.me) === 'you' ? 'your' : "the AI's"} hand`);
+  return c;
+}
+on(/^return (?:a|an) (untapped )?(land|[a-z]+) you control to its owner's hand$/, async (m, env) => {
+  const c = await bounceOwnLand(env, m[2], !!m[1], false);
+  env.it = c ? { iid: c.iid } : null;
+  env.lastMay = !!c;
+}, { first: true });
+on(/^sacrifice (?:~|it) unless you return (?:a|an) (untapped )?(land|[a-z]+) you control to its owner's hand$/, async (m, env) => {
+  const c = env.me === 'ai' || (await env.choosers.p.confirm(cardName(env.src), `Return ${m[1] ? 'an untapped ' : 'a '}${m[2]} to your hand? If you don't, ${cardName(env.src)} is sacrificed.`, {}))
+    ? await bounceOwnLand(env, m[2], !!m[1], true) : null;
+  if (!c && env.src && env.src.zone === 'battlefield') {
+    sacrifice(env.src.iid);
+    env.did.push(`sacrifices ${nameTag(env.src)}`);
+  }
+}, { first: true });
 // Fatehold Charm, Venser: "Return target spell or creature to its owner's hand."
 on(/^return target spell or (creature|permanent|nonland permanent) to its owner's hand$/, async (m, env) => {
   const sp = env.stackTarget && card(env.stackTarget);

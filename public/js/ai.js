@@ -552,8 +552,13 @@ function playLand(h) {
   for (const c of cardsIn(AI, 'exile')) if (c.mayPlay === AI && (c.mayPlayUntil || 0) >= s.turn && isLand(c)) lands.push(c);
   if (!lands.length) return false;
   const want = neededColors();
-  lands.sort((a, b) => scoreLandForColors(b, want) - scoreLandForColors(a, want));
+  const landsOnField = cardsIn(AI, 'battlefield').filter(isLand).length;
+  // bounce lands: great with a land to pick back up, useless with none
+  const karoo = (c) => /When [^.]+ enters, return a land you control to its owner's hand/i.test(oracle(c));
+  const landScore = (c) => scoreLandForColors(c, want) + (karoo(c) ? (landsOnField ? 2 : -20) : 0);
+  lands.sort((a, b) => landScore(b) - landScore(a));
   const l = lands[0];
+  if (karoo(l) && !landsOnField) return false;
   const opts = landOptions(AI, l);
   // MDFC spell // land: only play the land side when short on lands
   const landsOut = cardsIn(AI, 'battlefield').filter(isLand).length;

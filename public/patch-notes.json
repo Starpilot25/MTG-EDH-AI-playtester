@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.24",
+    "title": "Bounce lands",
+    "notes": [
+      "Bounce lands (Azorius Chancery, Simic Growth Chamber and the rest) return a land you control to your hand when they enter (you pick; it was left to do by hand), and tap for both of their colors — two mana, not one.",
+      "Coral Atoll and the other Visions bounce lands ask you to return an untapped land of the right type, or they're sacrificed.",
+      "Lands that tap for two specific mana ({T}: Add {C}{U}, {C}{C}…) make both.",
+      "The AI won't play a bounce land as its only land, and returns a tapped basic when it plays one."
+    ]
+  },
+  {
     "version": "1.2.23",
     "title": "Signets and mobilize",
     "notes": [
