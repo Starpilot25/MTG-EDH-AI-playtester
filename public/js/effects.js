@@ -2679,10 +2679,17 @@ on(/^earthbend (\d+|x)$/, async (m, env) => {
   env.did.push(`earthbends ${nameTag(l)} (${k} counters)`);
 });
 // --- copying a spell on the stack: "Copy it", "Copy target instant or sorcery spell"
-on(/^copy (it|that spell|target (?:instant or sorcery |instant |sorcery )?spell(?: you control)?)(?: (\w+) times)?(?:\. you may choose new targets for the cop(?:y|ies))?$/, async (m, env) => {
+on(/^copy (it|that spell|target (?:instant or sorcery |instant |sorcery )?spell(?: you control)?)(?: (twice|thrice|\w+ times))?(?:\. you may choose new targets for the cop(?:y|ies))?$/, async (m, env) => {
   const target = env.it && env.it.iid && card(env.it.iid) ? card(env.it.iid) : env.stackTarget ? card(env.stackTarget) : (G.s.stack && card(G.s.stack.iid)) || (G.s.pstack && card(G.s.pstack.iid));
-  if (!target || isPermanentCard({ faces: [DB[target.def].faces[target.castFace || 0] || DB[target.def].faces[0]] })) return env.did.push('nothing to copy');
-  const times = m[2] ? n(m[2]) : 1;
+  if (!target) return env.did.push('nothing to copy');
+  const times = !m[2] ? 1 : m[2] === 'twice' ? 2 : m[2] === 'thrice' ? 3 : n(m[2].replace(/ times$/, '')) || 1;
+  // a copy of a permanent spell becomes a token (Tomb of Horrors Adventurer, Double Major…)
+  if (isPermanentCard({ faces: [DB[target.def].faces[target.castFace || 0] || DB[target.def].faces[0]] })) {
+    const made = createToken(target.def, env.me, times);
+    for (const i of made) if (card(i)) card(i).face = target.castFace || 0;
+    env.did.push(`copies ${nameTag(target)} (${made.length} token${made.length === 1 ? '' : 's'})`);
+    return;
+  }
   for (let k = 0; k < times; k++) {
     const did = await resolveEffects(spellText({ ...target, face: target.castFace || 0 }), { ...target, face: target.castFace || 0, controller: env.me }, { me: env.me, choosers: env.choosers, castFree: env.castFree, x: target.xPaid || 0, kicked: target.kicked });
     env.did.push(`copies ${nameTag(target)}${did.length ? ': ' + did.join('; ') : ''}`);
@@ -3361,6 +3368,12 @@ async function runText(text, env) {
     const dm = sm[2].match(/^(?:it|~|this spell) deals (\w+) damage(?: to (?:that|those|each of those) [a-z ]+)?$/i);
     const dr = sm[2].match(/^(?:you )?draws? (\w+) cards?$/i);
     const gm = sm[2].match(/^(?:you )?gains? (\w+) life$/i);
+    const cm = sm[2].match(/^copy (?:it|that spell) (twice|thrice|\w+ times)$/i);
+    if (cm && /^copy (?:it|that spell)\.?$/i.test(prev.trim())) {
+      sentences[i - 1] = prev.replace(/^(copy (?:it|that spell))\.?/i, `$1 ${cm[1]}.`);
+      skip.add(i);
+      continue;
+    }
     const tm = sm[2].match(/^create (\w+) of (?:those|these) tokens$/i);
     if (dm && /deals \w+ damage/i.test(prev)) {
       sentences[i - 1] = prev.replace(/deals \w+ damage/i, `deals ${dm[1]} damage`);

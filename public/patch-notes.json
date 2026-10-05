@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.47",
+    "title": "Tomb of Horrors Adventurer",
+    "notes": [
+      "Tomb of Horrors Adventurer copies your second spell each turn twice once you've completed a dungeon. Before, it did nothing in that case.",
+      "Copying a creature or other permanent spell makes a token copy of it, so Tomb of Horrors Adventurer and other \"copy that spell\" effects now work on permanent spells. Before, those copies did nothing.",
+      "\"Copy it twice\" and \"copy it three times\" work."
+    ]
+  },
+  {
     "version": "1.2.46",
     "title": "Displacer Beast, ability words, landwalk AI",
     "notes": [
