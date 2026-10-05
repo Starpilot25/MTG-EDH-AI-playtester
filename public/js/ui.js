@@ -959,6 +959,11 @@ function toggleTap(iid) {
 async function floatMana(c) {
   const m = manaAbility(c);
   let syms = [];
+  // Signets: pay their {1} out of the mana pool first
+  if (m.activation) {
+    const pool = (G.s.pool && G.s.pool.p) || [];
+    if (pool.length < m.activation) return toast(`${cardName(c)} needs {${m.activation}} to activate — tap a land for mana first, then tap ${cardName(c)}.`);
+  }
   if (m.each) syms = [...m.each];
   else {
     let col = m.colors[0];
@@ -972,6 +977,15 @@ async function floatMana(c) {
   }
   act(() => {
     G.s.pool = G.s.pool || { p: [], ai: [] };
+    if (m.activation) {
+      // spend colorless first, then whatever is most plentiful
+      for (let k = 0; k < m.activation; k++) {
+        const pool = G.s.pool.p;
+        const i = pool.indexOf('C') >= 0 ? pool.indexOf('C') : 0;
+        pool.splice(i, 1);
+      }
+      log('p', `You pay {${m.activation}} to activate ${nameTag(c)}.`);
+    }
     G.s.pool.p.push(...syms);
     c.tapped = true;
     c.floated = { syms, step: G.s.step, turn: G.s.turn };

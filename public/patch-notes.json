@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.23",
+    "title": "Signets and mobilize",
+    "notes": [
+      "Signets now work like the real thing: {1}, {T} for two mana. Paying for a spell uses another source for the {1} and gets both colors from the Signet (before, a Signet acted like two free mana of either color). Tapping one by hand spends {1} from your mana pool first.",
+      "Arcane Signet and Command Tower-style \"any color in your commander's color identity\" only make your commanders' colors.",
+      "Mobilize checked: the Warriors enter tapped and attacking the same player and are sacrificed at the end step. Fixed: Bone-Cairn Butcher's attacking tokens get deathtouch, Zurgo's Vanguard's power counts your creatures, and Zurgo, Thunder's Decree keeps its Warriors at your end step.",
+      "Cards that say \"this creature's power is equal to…\" (the newer wording) count correctly."
+    ]
+  },
+  {
     "version": "1.2.22",
     "title": "Jace deck audit",
     "notes": [

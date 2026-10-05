@@ -43,7 +43,7 @@ export function manaSources(pid, opts = {}) {
       const ok = /^[A-Z]/.test(m.onlyFor) ? hasSubtype({ ...spell, zone: 'hand' }, m.onlyFor) : m.onlyFor === 'noncreature' ? !/Creature/.test(tl) : new RegExp(m.onlyFor.split(' or ').join('|'), 'i').test(tl);
       if (!ok) continue;
     }
-    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain });
+    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, activation: m.activation || 0 });
   }
   if (opts.convoke)
     for (const c of cardsIn(pid, 'battlefield')) if (isCreature(c) && !c.tapped && !out.some((o) => o.iid === c.iid)) out.push({ iid: c.iid, colors: colorsOf(c).length ? colorsOf(c) : [], amount: 1, kind: 'convoke' });

@@ -292,6 +292,11 @@ async function endStepThings(pid) {
       log(c.controller, `${nameTag(c)} returns to its owner's hand (dash).`);
       move(c.iid, 'hand');
     } else if (what === 'sacrifice') {
+      // Zurgo, Thunder's Decree: "During your end step, Warrior tokens you control have 'This token can't be sacrificed.'"
+      if (c.token && c.controller === s.active && hasSubtype(c, 'Warrior') && allOnField(c.controller).some((x) => /During your end step, Warrior tokens you control have "This token can't be sacrificed\."/i.test(oracle(x)))) {
+        log(c.controller, `${nameTag(c)} can't be sacrificed (Zurgo) and stays.`);
+        continue;
+      }
       log(c.controller, `${nameTag(c)} is sacrificed at end of turn.`);
       sacrifice(c.iid); // blitz's "when it dies, draw a card" comes from the dies trigger
     } else if (what === 'exile') {

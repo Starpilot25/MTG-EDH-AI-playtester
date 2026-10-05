@@ -265,7 +265,7 @@ function num(v) {
 
 // Characteristic-defining abilities: "~'s power and toughness are each equal to the number of …"
 function cda(inst) {
-  const o = (face(inst).oracle || '').replace(DB[inst.def].faces[inst.face || 0].name, '~');
+  const o = (face(inst).oracle || '').replace(DB[inst.def].faces[inst.face || 0].name, '~').replace(/\bthis (?:creature|vehicle|artifact)'s\b/gi, "~'s");
   let m;
   if ((m = o.match(/~'s power and toughness are each equal to (?:the number of |your )?([^.]+?)(?: plus (\d+))?\./i))) {
     const v = countPhrase(inst.controller, m[1], helpers, inst.iid);
@@ -397,10 +397,30 @@ export function manaAbility(inst) {
   if (!painful.size) return r;
   return { ...r, pain: (r.colors || []).filter((x) => painful.has(x)) };
 }
+// Command Tower, Arcane Signet, Commander's Sphere: "any color in your commander's color identity"
+function commanderIdentity(pid) {
+  const cols = new Set();
+  if (!G.s) return ['W', 'U', 'B', 'R', 'G'];
+  for (const c of Object.values(G.s.cards)) if (c.isCommander && c.owner === pid) for (const x of (DB[c.def].ci && DB[c.def].ci.length ? DB[c.def].ci : DB[c.def].colors) || []) cols.add(x);
+  return ['W', 'U', 'B', 'R', 'G'].filter((x) => cols.has(x));
+}
 function manaAbilityRaw(inst) {
   if (inst.tapped || inst.faceDown || inst.phasedOut) return null;
   const d = DB[inst.def];
   const o = oracle(inst);
+  // Signets and other filters: "{1}, {T}: Add {W}{U}." — pay {1} from another source, get both colors
+  {
+    const sg = o.match(/(?:^|\n)\{(\d)\}, \{T\}: Add ((?:\{[WUBRGC]\}){2,3})\./);
+    if (sg && !/\{T\}: Add/.test(o.replace(sg[0], ''))) {
+      const each = sg[2].match(/\{([WUBRGC])\}/g).map((x) => x[1]);
+      return { colors: [...new Set(each)], amount: each.length, each, activation: +sg[1] };
+    }
+  }
+  if (/\{T\}: Add one mana of any color in your commander's color identity/i.test(o)) {
+    const cols = commanderIdentity(inst.controller);
+    if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
+    return cols.length ? { colors: cols, amount: 1 } : null;
+  }
   const produced = d.produced.length ? d.produced : [];
   if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste') && /\{T\}/.test(o)) {
     if (!isLand(inst)) return null;
@@ -495,12 +515,31 @@ function manaAbilityPlain(inst, o, produced) {
 }
 
 // Pay a cost with sources [{iid, colors, amount, sac?}]. Returns {payers:[iid], x} or null.
+// Signets cost {1} to activate: try paying with no signets, then with more of them switched on
 export function payCost(cost, sources, opts = {}) {
+  const filters = sources.filter((s) => s.activation);
+  const plain = sources.filter((s) => !s.activation);
+  let best = payCostRaw(cost, plain, opts);
+  if (best || !filters.length) return best;
+  const n = Math.min(filters.length, 6);
+  for (let mask = 1; mask < 1 << n && !best; mask++) {
+    const on = filters.filter((_, k) => mask & (1 << k));
+    const extra = on.reduce((a, s) => a + s.activation, 0);
+    const r = payCostRaw(cost, [...plain, ...on.map((s) => ({ ...s, kind: '' }))], { ...opts, extraGeneric: (opts.extraGeneric || 0) + extra, signets: on.map((s) => s.iid) });
+    if (!r) continue;
+    // a signet can't pay for its own activation: the units it made must all go to the spell
+    const fromOthers = r.unitsUsed.filter((u) => !on.some((s) => s.iid === u)).length;
+    if (fromOthers < extra) continue;
+    best = r;
+  }
+  return best;
+}
+function payCostRaw(cost, sources, opts = {}) {
   const c = parseCost(cost);
   const extra = opts.extraGeneric || 0;
   const units = [];
   for (const s of sources) {
-    if (s.each) for (const col of s.each) units.push({ iid: s.iid, colors: [col], sac: !!s.sac, kind: s.kind || '' });
+    if (s.each) for (const col of s.each) units.push({ iid: s.iid, colors: [col], sac: !!s.sac, kind: s.kind || '', act: !!s.activation });
     else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '', pain: s.pain || null });
   }
   const pains = [];
@@ -524,7 +563,7 @@ export function payCost(cost, sources, opts = {}) {
     units.forEach((u, k) => {
       if (used[k]) return;
       if (!u.colors.some((col) => want.includes(col))) return;
-      const sc = rank(u) * 100 + u.colors.length + (hurts(u, want) ? 50 : 0);
+      const sc = rank(u) * 100 + u.colors.length + (hurts(u, want) ? 50 : 0) - (u.act ? 60 : 0);
       if (sc < bestScore) {
         best = k;
         bestScore = sc;
@@ -548,7 +587,7 @@ export function payCost(cost, sources, opts = {}) {
   const order = units
     .map((u, k) => k)
     .filter((k) => !used[k])
-    .sort((a, b) => rank(units[a]) - rank(units[b]) || (hurts(units[a], ['C', 'W', 'U', 'B', 'R', 'G']) ? 1 : 0) - (hurts(units[b], ['C', 'W', 'U', 'B', 'R', 'G']) ? 1 : 0) || keepScore(units[b]) - keepScore(units[a]));
+    .sort((a, b) => rank(units[a]) - rank(units[b]) || (units[b].act ? 1 : 0) - (units[a].act ? 1 : 0) || (hurts(units[a], ['C', 'W', 'U', 'B', 'R', 'G']) ? 1 : 0) - (hurts(units[b], ['C', 'W', 'U', 'B', 'R', 'G']) ? 1 : 0) || keepScore(units[b]) - keepScore(units[a]));
   if (order.length < generic) return null;
   for (let k = 0; k < generic; k++) {
     used[order[k]] = true;
@@ -573,11 +612,15 @@ export function payCost(cost, sources, opts = {}) {
     else payers.push(units[k].iid);
     if (units[k].sac) sacs.push(units[k].iid);
   });
-  return { payers, x, sacs: [...new Set(sacs)], special, pains };
+  const unitsUsed = units.filter((u, k) => used[k]).map((u) => u.iid);
+  // switched-on signets that made no mana weren't needed after all
+  if (opts.signets && opts.signets.some((i) => !unitsUsed.includes(i))) return null;
+  return { payers, x, sacs: [...new Set(sacs)], special, pains, unitsUsed };
 }
 
 export function totalMana(sources) {
-  return sources.reduce((a, s) => a + s.amount, 0);
+  // a signet nets one mana (two out, one in)
+  return sources.reduce((a, s) => a + s.amount - (s.activation || 0), 0);
 }
 
 // ------------------------------------------------------------ combat

@@ -1,22 +1,22 @@
 {
-  "version": "1.2.22",
+  "version": "1.2.23",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "edb45e1faa5de07e53b1d5b5a46d7be7e6528d41440ce7697ccb4a2cac7b769e",
     "public/index.html": "793edd8464f8707ab56bacb5730f16af908e0f8937cf4c33d88f05085cab6221",
     "public/js/ai.js": "86495768b33d016c5b37e680bf9389e445299d3f7e0131c69cb66a3d5262f581",
     "public/js/aicombat.js": "29565cba18fe50c2d1cd7be66fb12a0a1b66b45937dd58efe8fe54289b9e79c1",
-    "public/js/cast.js": "c08f105e5461da614062a480d390ad6369d0f5adb8e6c438fb00a81f90bf93c1",
+    "public/js/cast.js": "4916c85c37902f132136970a46429e2c6660c7bda18fa1099379cc5ce6efd81f",
     "public/js/data.js": "93d106898d84419283a5963ab64c3fe0fce14c5d3e0042d3632ddb17714cdb81",
     "public/js/dungeon.js": "1b3319684da8d53c21dac40ff1bc72187ba09b9ea46d0865d0c5bdba1b227dfa",
     "public/js/effects.js": "ca21fc60e625e19f2b09887032da8786e2df981315cae3a1ea3c628d7b9c0677",
-    "public/js/game.js": "66caca08b67f31e3c4c8859817607f0ca9e301667f503b5acc754117a47046fe",
+    "public/js/game.js": "0284c24ff5c980a40a13aacb86b3b53af7e47b6e035d672a3e9ffcf2007b8953",
     "public/js/main.js": "18545251737c3515fe3f6cc1b035762286c269a1c892acc98192b6484522f9a5",
-    "public/js/rules.js": "5e788aff01206ba2decac932b7c4a9354d9d4e63d31d8fa5c5f81b6144f0488c",
+    "public/js/rules.js": "5adecdfdedb57451c13c60500dc07ecff5c323ca399c90e8c75dcf008591d9c0",
     "public/js/state.js": "94f6478ca82f751ac9129e337623ae5feb9656ab72087a39d91a621af11d73b4",
-    "public/js/statics.js": "65a4424f1b5c63aee8d00f57121bc61f0d90f0aa6f27376074bc16e0b126ec12",
+    "public/js/statics.js": "e19d081226b34fc09d46c03eb4f9f9c539a01004c3b0d11dade67a41c947217a",
     "public/js/triggers.js": "c92d591a4faace83d8aa83e9289ecc4c189f8d413e3cfa3b3ed92c1ee19e3ae2",
-    "public/js/ui.js": "a71597dd708a1422c37d7806bee48d0a9061e6866b21f236ffa57f4c77a3c33a",
-    "public/patch-notes.json": "a18eee32fed9ec709c5cc078a8f1d788edf8ca9d37f99fb18afc2f9ac7df526d"
+    "public/js/ui.js": "f263e85dda80ee71ee5cd07827e21d3900062d6ba1b32c8b46d7990ac2ac2b31",
+    "public/patch-notes.json": "456f0b7faee4caada6a06572d9e7fc2a0a9a1b3d73c1cb34cf4db20918510974"
   }
 }

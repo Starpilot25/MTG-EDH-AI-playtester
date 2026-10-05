@@ -85,6 +85,11 @@ function parseStatics(text, selfName) {
       out.anthems.push({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: kwList(m[5]) });
       continue;
     }
+    // Bone-Cairn Butcher: "Attacking tokens you control have deathtouch."
+    if ((m = l.match(/^(other )?((?:[\w-]+ ){0,2}?)tokens you control (?:have|get ([+-]\d+)\/([+-]\d+)(?: and have)?) ?(.*?)\.?$/))) {
+      out.anthems.push({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), token: true }, p: m[3] ? +m[3] : 0, t: m[4] ? +m[4] : 0, grants: kwList(m[5] || '') });
+      continue;
+    }
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control have (.+?)\.?$/))) {
       out.anthems.push({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: 0, t: 0, grants: kwList(m[3]) });
       continue;
