@@ -181,6 +181,11 @@ export const aiChooser = {
     return order.slice(0, Math.min(want, req.max)).map((o) => o.k).sort((a, b) => a - b);
   },
   async chooseNumber(req) {
+    if (aiChooser.nextX !== undefined && aiChooser.nextX !== null) {
+      const v = Math.max(req.min ?? 0, Math.min(req.max ?? 99, aiChooser.nextX));
+      aiChooser.nextX = null;
+      return v;
+    }
     return req.ai ?? req.min ?? 0;
   },
   // "Counter target spell unless its controller pays {N}" / ward: the AI pays when it can
@@ -560,13 +565,63 @@ async function planeswalkers(h) {
   for (const pw of cardsIn(AI, 'battlefield').filter((c) => isType(c, 'Planeswalker'))) {
     if (pw.usedLoyaltyTurn === G.s.turn || pw.zone !== 'battlefield') continue;
     const loyalty = pw.counters.loyalty || 0;
-    const abilities = activatedAbilities(pw).filter((ab) => ab.kind === 'loyalty' && !ab.x);
+    const abilities = activatedAbilities(pw).filter((ab) => ab.kind === 'loyalty');
     if (!abilities.length) continue;
     const mineCreatures = cardsIn(AI, 'battlefield').filter(isCreature).length;
     // how much damage could come at this planeswalker next turn (your creatures, minus the AI's possible blockers)
     const danger = Math.max(0, cardsIn(P, 'battlefield').filter((x) => isCreature(x) && !x.pacifiedBy).reduce((n, x) => n + Math.max(0, power(x)), 0)
       - cardsIn(AI, 'battlefield').filter((x) => isCreature(x) && !x.tapped).reduce((n, x) => n + Math.max(0, power(x)), 0) / 2);
+    // X abilities: work out the best X (and target) first, then score it like a fixed cost
+    const planX = (ab) => {
+      if (!ab.x) return null;
+      const t = ab.text.toLowerCase();
+      const up = ab.label.startsWith('+');
+      if (up) return { x: Math.max(1, Math.min(3, loyalty)), cost: Math.max(1, Math.min(3, loyalty)) };
+      const max = loyalty; // −X can use every counter, but a planeswalker left on 0 dies
+      const keep = (x) => (x >= loyalty ? -4 : 0);
+      let m;
+      if ((m = t.match(/deals x damage to (?:target|up to one target|each of up to \w+ targets?|target tapped) ?([a-z ]*)/)) && !/each creature/.test(t)) {
+        const foes = legalTargets(/planeswalker/.test(m[1]) ? 'creature or planeswalker' : 'creature', AI, pw).filter((c) => c.controller === P && !hasKw(c, 'indestructible') && (!/tapped/.test(t) || c.tapped));
+        let best = null;
+        for (const c of foes) {
+          const need = isCreature(c) ? Math.max(1, toughness(c) - (c.damage || 0)) : (c.counters.loyalty || 0);
+          if (need > max) continue;
+          const v = threat(c) - need * 0.6 + keep(need);
+          if (!best || v > best.v) best = { x: need, v, target: c.iid };
+        }
+        if (!best && /any target|player/.test(t) && max >= 2) return { x: max - 1, cost: -(max - 1), bonus: (max - 1) * 0.8 };
+        return best ? { x: best.x, cost: -best.x, bonus: best.v, target: best.target } : { x: 0, cost: 0, bonus: -99 };
+      }
+      if (/deals x damage to each creature/.test(t)) {
+        let best = { x: 0, v: -99 };
+        for (let x = 1; x <= max; x++) {
+          const loss = (pid) => cardsIn(pid, 'battlefield').filter((c) => isCreature(c) && toughness(c) - (c.damage || 0) <= x && !hasKw(c, 'indestructible')).reduce((n, c) => n + cardValue(c), 0);
+          const v = loss(P) - loss(AI) - x * 0.5 + keep(x);
+          if (v > best.v) best = { x, v };
+        }
+        return { x: best.x, cost: -best.x, bonus: best.v };
+      }
+      if ((m = t.match(/(?:mana value x|mana value equal to x)/))) {
+        // tutor/reanimate by mana value: take the best card it can reach
+        const pool = /graveyard/.test(t) ? cardsIn(AI, 'graveyard') : [];
+        const pick = pool.filter((c) => (DB[c.def].cmc || 0) < loyalty && !isLand(c)).sort((a, b) => cardValue(b) - cardValue(a))[0];
+        const x = pick ? DB[pick.def].cmc || 0 : Math.max(1, loyalty - 1);
+        return { x, cost: -x, bonus: pick ? cardValue(pick) : x * 0.8 };
+      }
+      // tokens, counters, mill, stun…: as big as possible while keeping it alive
+      const x = Math.max(1, loyalty - 1);
+      return { x, cost: -x, bonus: /create x|x \+1\/\+1 counters/.test(t) ? x * 1.6 : x * 0.6 };
+    };
     const value = (ab) => {
+      if (ab.x) {
+        const px = planX(ab);
+        if (!px || px.bonus <= -50 || loyalty + px.cost < 0) return -99;
+        ab.plan = px;
+        let v = px.bonus + px.cost * 0.8;
+        if (loyalty + px.cost === 0) v -= 4;
+        if (danger >= loyalty + px.cost && loyalty + px.cost > 0) v -= 2;
+        return v;
+      }
       if (loyalty + ab.cost < 0) return -99;
       const a = analyze(ab.text);
       let v = 0;
@@ -598,7 +653,13 @@ async function planeswalkers(h) {
     };
     const pick = [...abilities].sort((x, y) => value(y) - value(x))[0];
     if (!pick || value(pick) < -50) continue;
+    if (pick.x && pick.plan) {
+      aiChooser.nextX = pick.plan.x;
+      if (pick.plan.target) aiChooser.prefer = { iid: pick.plan.target };
+    }
     await safely(h, () => activateAbility(AI, pw, pick, aiEnv(h)));
+    aiChooser.nextX = null;
+    aiChooser.prefer = null;
     h.render();
   }
 }

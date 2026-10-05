@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.9",
+    "title": "AI uses X loyalty abilities",
+    "notes": [
+      "The AI now uses planeswalker abilities with X in the cost. It picks X to match the job: exactly enough damage to kill your best creature it can reach (Chandra Nalaar, Sorin, Grim Nemesis, Chandra, Awakened Inferno), the X that wipes the most of your board for \"each creature\" effects, or as many tokens or counters as it can while keeping the planeswalker alive (Kasmina, Tibalt)."
+    ]
+  },
+  {
     "version": "1.2.8",
     "title": "Giada, multi-token spells, planeswalker AI",
     "notes": [
