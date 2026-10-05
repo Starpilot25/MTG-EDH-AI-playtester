@@ -285,6 +285,7 @@ function readSettings() {
   G.settings.freeMulligan = $('#set-free').checked;
   G.settings.unlimitedMulligans = $('#set-unlimited').checked;
   G.settings.pauseOnAiSpells = $('#set-pause').checked;
+  G.settings.autoTreasure = $('#set-treasure').checked;
   G.settings.arenaMode = $('#set-arena').checked;
   G.settings.aiSpeed = +$('#set-speed').value;
   G.settings.aiStyle = $('#set-aistyle').value;
@@ -296,6 +297,7 @@ function readSettings() {
     freeMulligan: G.settings.freeMulligan,
     unlimitedMulligans: G.settings.unlimitedMulligans,
     pauseOnAiSpells: G.settings.pauseOnAiSpells,
+    autoTreasure: G.settings.autoTreasure,
     arenaMode: G.settings.arenaMode,
     aiSpeed: G.settings.aiSpeed,
     aiStyle: G.settings.aiStyle,
@@ -363,6 +365,7 @@ function initSetup() {
   $('#set-free').checked = st.freeMulligan ?? true;
   $('#set-unlimited').checked = st.unlimitedMulligans ?? false;
   $('#set-pause').checked = st.pauseOnAiSpells ?? true;
+  $('#set-treasure').checked = st.autoTreasure ?? true;
   $('#set-arena').checked = st.arenaMode ?? true;
   $('#set-speed').value = st.aiSpeed ?? 650;
   $('#set-aistyle').value = st.aiStyle ?? 'casual';
@@ -482,6 +485,11 @@ document.addEventListener('DOMContentLoaded', () => {
     showUpdateLog();
   });
   $('#gm-pause').addEventListener('change', (e) => (G.settings.pauseOnAiSpells = e.target.checked));
+  $('#gm-treasure').addEventListener('change', (e) => {
+    G.settings.autoTreasure = e.target.checked;
+    store.set('settings', { ...store.get('settings', {}), autoTreasure: e.target.checked });
+    $('#set-treasure').checked = e.target.checked;
+  });
   $('#gm-arena').addEventListener('change', (e) => (G.settings.arenaMode = e.target.checked));
   $('#gm-speed').addEventListener('change', (e) => (G.settings.aiSpeed = +e.target.value));
   $('#gm-layout').addEventListener('change', (e) => {
@@ -509,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#gm-autountap').addEventListener('change', (e) => (G.settings.autoUntap = e.target.checked));
   $('#btn-menu').addEventListener('click', () => {
     $('#gm-pause').checked = G.settings.pauseOnAiSpells;
+    $('#gm-treasure').checked = G.settings.autoTreasure !== false;
     $('#gm-arena').checked = G.settings.arenaMode;
     $('#gm-speed').value = G.settings.aiSpeed;
     $('#gm-aistyle').value = G.settings.aiStyle || 'casual';

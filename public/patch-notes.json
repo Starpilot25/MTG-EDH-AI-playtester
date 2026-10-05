@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.83",
+    "title": "Treasure auto-pay setting",
+    "notes": [
+      "New setting: \"Auto-sacrifice Treasures to pay\", on the setup screen and in the in-game menu. When it's on (the default), auto-pay uses Treasures after your lands and other mana, as before. When it's off, auto-pay won't touch your Treasures: if your other mana can't cover a cost, you're asked whether to sacrifice them. This also covers other sacrifice-for-mana permanents such as Lotus Petal."
+    ]
+  },
+  {
     "version": "1.2.82",
     "title": "Full update log",
     "notes": [

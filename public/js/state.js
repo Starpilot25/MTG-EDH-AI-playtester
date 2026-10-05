@@ -21,6 +21,7 @@ export const G = {
     dorks: 'last',
     aiSpeed: 650,
     pauseOnAiSpells: true,
+    autoTreasure: true,
     autoUntap: true,
     autoDraw: true,
     arenaMode: true,

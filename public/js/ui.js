@@ -1112,7 +1112,19 @@ function canActNow() {
 async function playerPay(pid, cost, label, opts = {}) {
   if (pid !== 'p') return aiPay(pid, cost, label, opts);
   cost = cost || '';
-  const src = manaSources('p', opts).filter((m) => !(opts.exclude || []).includes(m.iid));
+  const allSrc = manaSources('p', opts).filter((m) => !(opts.exclude || []).includes(m.iid));
+  // "Auto-sacrifice Treasures" off: pay without Treasures (and other sacrifice-for-mana sources) unless you agree
+  let src = allSrc;
+  if (G.settings.autoTreasure === false && allSrc.some((m) => m.sac)) {
+    const noSac = allSrc.filter((m) => !m.sac);
+    const probe = (list) => payCost(cost.replace(/\{X\}/g, ''), list, { extraGeneric: opts.extraGeneric || 0, waterbend: opts.waterbend || 0 });
+    if (probe(noSac) || /\{X\}/.test(cost)) src = noSac;
+    else if (probe(allSrc)) {
+      const need = probe(allSrc).sacs.length;
+      const ok = await confirmDialog({ title: 'Use Treasures?', body: `Your other mana can't pay for ${label}. Sacrifice ${need} Treasure${need === 1 ? '' : 's'} (or other sacrifice-for-mana permanents) to pay?` }, 'Sacrifice and pay', 'Cancel');
+      if (!ok) return null;
+    }
+  }
   const extra = opts.extraGeneric || 0;
   let x = 0;
   let pay;
