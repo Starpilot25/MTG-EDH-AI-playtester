@@ -10,7 +10,7 @@ import {
   G, card, cardsIn, zoneOf, move, log, nameTag, libTop, opp, cardName, checkLoss, discard as discardCard, restoreInPlace, eventQueue, entersTapped,
  casualAI, withReadCache, handControl } from './state.js';
 import {
-  spellFilterOk, analyze, etbText, spellText, costOf, legalTargets, activatedAbilities, aiHelpers, knownEffect, zoneAbilities,
+  spellFilterOk, analyze, etbText, spellText, costOf, legalTargets, activatedAbilities, aiHelpers, knownEffect, zoneAbilities, understood, matchesFilter,
   Cancelled,
 } from './effects.js';
 import { fire, settle } from './triggers.js';
@@ -686,8 +686,10 @@ async function planeswalkersOnce(h) {
       }
       if ((m = t.match(/(?:mana value x|mana value equal to x)/))) {
         // tutor/reanimate by mana value: take the best card it can reach
-        const pool = /graveyard/.test(t) ? cardsIn(AI, 'graveyard') : [];
+        const kind = (t.match(/for an? ([a-z ]+?) card with mana value/) || [])[1];
+        const pool = /graveyard/.test(t) ? cardsIn(AI, 'graveyard') : /search your library/.test(t) ? cardsIn(AI, 'library').filter((c) => !kind || matchesFilter(c, kind)) : [];
         const pick = pool.filter((c) => (DB[c.def].cmc || 0) < loyalty && !isLand(c)).sort((a, b) => cardValue(b) - cardValue(a))[0];
+        if (!pick && /search your library/.test(t)) return { x: 0, cost: 0, bonus: -99 };
         const x = pick ? DB[pick.def].cmc || 0 : Math.max(1, loyalty - 1);
         return { x, cost: -x, bonus: pick ? cardValue(pick) : x * 0.8 };
       }
@@ -697,6 +699,7 @@ async function planeswalkersOnce(h) {
     };
     const value = (ab) => {
       if (ab.x) {
+        if (!understood(ab.text, pw)) return -99;
         const px = planX(ab);
         if (!px || px.bonus <= -50 || loyalty + px.cost < 0) return -99;
         ab.plan = px;
@@ -727,6 +730,7 @@ async function planeswalkersOnce(h) {
       if (a.tutor) v += 2;
       if (/untap/i.test(ab.text)) v += 0.5;
       if (!knownEffect(ab.text)) v -= 3;
+      if (!understood(ab.text, pw)) return -99; // the engine can't do it properly: leave it alone
       v += ab.cost * 0.8; // loyalty is worth keeping
       if (loyalty + ab.cost === 0) v -= 4;
       // keep it alive: if your board can kill it after this ability, favour going up

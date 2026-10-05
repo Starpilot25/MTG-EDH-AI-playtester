@@ -397,6 +397,28 @@ export function analyze(text, x = 0) {
   return a;
 }
 
+// Does the engine understand every sentence of this text? (the AI avoids abilities it would have to "apply by hand")
+export function understood(text, src) {
+  const t = src ? prep(text, src) : String(text || '').replace(/\([^)]*\)/g, '');
+  const sens = splitSentences(t);
+  for (let i = 0; i < sens.length; i++) {
+    let low = sens[i].toLowerCase().trim().replace(/\.$/, '');
+    if (!low) continue;
+    low = low.replace(/^you may /, '');
+    // a handler that reads the following sentences too ("Look at the top two… Put one into your hand…")
+    const h = H.find((x) => !x.never && x.re.test(low) && (x.consumesRest || x.multi));
+    if (h) return true;
+    if (handled(low)) continue;
+    // handlers written for two or three sentences at once
+    const joined = sens.slice(i, i + 3).join(' ').toLowerCase().replace(/\.$/, '');
+    if (H.some((x) => x.multi && x.re.test(joined))) return true;
+    const cm = low.match(/^(?:if|when|as long as|until end of turn|this turn)[^,]*, (.+)$/);
+    if (cm && handled(cm[1].replace(/^you may /, ''))) continue;
+    return false;
+  }
+  return true;
+}
+
 export function knownEffect(text) {
   return Object.keys(analyze(text)).filter((k) => k !== 'counterspell').length > 0;
 }
@@ -890,6 +912,23 @@ on(/^after that turn, that player takes an extra turn$/, async (m, env) => {
   if (G.s.slaveNext) G.s.slaveNext.extraAfter = true;
   env.did.push('after that turn, that player takes an extra turn');
 }, { first: true });
+// Ajani Steadfast: "Put a +1/+1 counter on each creature you control and a loyalty counter on each other planeswalker you control."
+on(/^put a \+1\/\+1 counter on each creature you control and a loyalty counter on each other planeswalker you control$/, async (m, env) => {
+  const cr = cardsIn(env.me, 'battlefield').filter(isCreature);
+  const pw = cardsIn(env.me, 'battlefield').filter((c) => isType(c, 'Planeswalker') && c.iid !== (env.src || {}).iid);
+  cr.forEach((c) => addCounters(c, '+1/+1', 1));
+  pw.forEach((c) => addCounters(c, 'loyalty', 1));
+  env.did.push(`puts a +1/+1 counter on ${cr.length} creature${cr.length === 1 ? '' : 's'} and a loyalty counter on ${pw.length} other planeswalker${pw.length === 1 ? '' : 's'}`);
+}, { first: true });
+// Tezzeret the Seeker, Stoneforge-style: "Search your library for an artifact card with mana value X or less, put it onto the battlefield, then shuffle."
+on(/^search your library for an? ([a-z ]+?) card with mana value (x|\d+) or less, put it onto the battlefield(?: tapped)?, then shuffle$/, async (m, env) => {
+  const cap = m[2] === 'x' ? env.x || 0 : +m[2];
+  const pool = cardsIn(env.me, 'library').filter((c) => matchesFilter(c, m[1]) && (DB[c.def].cmc || 0) <= cap);
+  const [pick] = pool.length ? await env.choosers[env.me].pickCards({ prompt: `Search for a ${m[1]} card with mana value ${cap} or less`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'tutor', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 }) : [];
+  if (pick) toBattlefield(pick, env.me, { tapped: /tapped/.test(env.sentence) });
+  shuffle(env.me);
+  env.did.push(pick ? `puts ${nameTag(card(pick))} onto the battlefield` : 'finds nothing');
+}, { first: true });
 // Blood Money: "For each nontoken creature destroyed this way, create a tapped Treasure token."
 on(/^for each (nontoken |token )?(creature|permanent|artifact|enchantment|land|planeswalker) (?:destroyed|that died|that dies) this way(?:,| that you controlled,| your opponents controlled,)? (.+)$/, async (m, env) => {
   const list = (env.thisWay || []).filter((x) => (!m[1] || (m[1] === 'token ' ? x.token : !x.token)) && (m[2] !== 'creature' || x.creature)
@@ -914,6 +953,14 @@ on(/^exile (?:the top (\w+) cards? of (?:your|target player's|each player's|that
   env.them_ = ids;
   env.it = ids[0] ? { iid: ids[0] } : null;
   env.did.push(`exiles ${ids.length ? ids.map((i) => nameTag(card(i))).join(', ') : 'nothing'} from the top of ${pid === env.me ? 'the' : who(pid) + "'s"} library${/you may (?:play|cast)/.test(env.text) ? ' (playable from exile)' : ''}`);
+  // Chandra, Torch of Defiance: "You may cast that card. If you don't, …" — decide now
+  if (/you may cast that card\. if you don't/.test(env.text) && ids.length === 1) {
+    const c = card(ids[0]);
+    const aiWants = () => !isLand(c) && (DB[c.def].cmc || 0) <= cardsIn(env.me, 'battlefield').filter((x) => !x.tapped && (isLand(x) || DB[x.def].produced.length)).length;
+    const yes = isLand(c) ? false : await env.choosers[env.me].confirm(cardName(c), `Cast ${cardName(c)} this turn? If you don't, the other effect happens instead.`, { aiPick: aiWants, ...(env.me === 'ai' ? {} : {}) });
+    env.lastMay = env.me === 'ai' ? aiWants() : !!yes;
+    if (!env.lastMay) Object.assign(c, { mayPlay: null });
+  }
 });
 on(/^exile (?:cards from the top of your library until you exile (?:a|an) (nonland card|creature card|[^,.]+? card)(?: with (?:lesser |a lesser )?mana value[^,.]*)?)/, async (m, env) => {
   const lib = zoneOf(env.me, 'library');
@@ -3544,7 +3591,7 @@ async function runSentence(sentence, env) {
   }
   if ((m = low.match(/^if you don't, (.+)$/))) {
     if (env.lastMay) return;
-    return runSentence(s.slice(11).trim(), env);
+    return runSentence(s.slice(s.indexOf(',') + 1).trim(), env);
   }
   if ((m = low.match(/^if (?:they|that player|the player) (do|does|don't|doesn't), (.+)$/))) {
     if (/n't/.test(m[1]) ? env.lastMay : !env.lastMay) return;

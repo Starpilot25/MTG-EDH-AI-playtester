@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.64",
+    "title": "Smarter AI planeswalkers",
+    "notes": [
+      "The AI skips any planeswalker ability the game can't carry out fully. Before, it sometimes picked an ability that only got logged as \"apply by hand\" and lost the loyalty for nothing (Saheeli, Sublime Artificer's −2, for example). It also won't use a −X tutor when there's nothing in its library to find.",
+      "Now working: Ajani Steadfast's −2 (+1/+1 counter on each of your creatures and a loyalty counter on each other planeswalker), Tezzeret the Seeker's −X (an artifact with mana value X or less onto the battlefield), and Chandra, Torch of Defiance's +1 (cast the exiled card, or she deals 2 damage to each opponent).",
+      "Fixed \"If you don't, …\" sentences, which were being cut off partway."
+    ]
+  },
+  {
     "version": "1.2.63",
     "title": "Sen Triplets works against you too",
     "notes": [
