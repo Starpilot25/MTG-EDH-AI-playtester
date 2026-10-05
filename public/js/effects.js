@@ -837,6 +837,13 @@ on(/^destroy (.+?)(?:\.? (?:it|they) can't be regenerated)?$/, async (m, env) =>
   }
   if (objs.length > 3) env.did.push(`destroys ${k} permanent${k === 1 ? '' : 's'}`);
 });
+// Sphinx of the Second Sun: "there is an additional beginning phase after this phase" (untap, upkeep, draw — then the end step)
+on(/^there is an additional beginning phase after this phase$/, async (m, env) => {
+  const cur = G.s.extraBeginning && G.s.extraBeginning.pid === env.me && G.s.extraBeginning.turn === G.s.turn ? G.s.extraBeginning : { pid: env.me, turn: G.s.turn, n: 0 };
+  cur.n++;
+  G.s.extraBeginning = cur;
+  env.did.push('there will be an additional beginning phase (untap, upkeep, draw) after this main phase');
+}, { first: true });
 // Blood Money: "For each nontoken creature destroyed this way, create a tapped Treasure token."
 on(/^for each (nontoken |token )?(creature|permanent|artifact|enchantment|land|planeswalker) (?:destroyed|that died|that dies) this way(?:,| that you controlled,| your opponents controlled,)? (.+)$/, async (m, env) => {
   const list = (env.thisWay || []).filter((x) => (!m[1] || (m[1] === 'token ' ? x.token : !x.token)) && (m[2] !== 'creature' || x.creature)

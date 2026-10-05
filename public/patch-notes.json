@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.50",
+    "title": "Sphinx of the Second Sun",
+    "notes": [
+      "Sphinx of the Second Sun gives you an extra beginning phase after your second main phase. You untap, your upkeep triggers happen again, and you draw a card. Then the turn goes to the end step. This works for you and the AI. If you click Pass turn from your first main phase or combat, your second main phase still happens, so \"at the beginning of your postcombat main phase\" abilities still trigger."
+    ]
+  },
+  {
     "version": "1.2.49",
     "title": "Treasures from different cards stack together",
     "notes": [

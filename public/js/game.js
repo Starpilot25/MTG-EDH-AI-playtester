@@ -387,6 +387,8 @@ export async function playerNextStep() {
     if (G.s !== s) return;
     afterCombat();
   } else if (s.step === 'main2') {
+    await extraBeginningPhases('p');
+    if (G.s !== s) return;
     setStep('end');
     hooks.render();
     fire({ type: 'endStep', active: 'p' });
@@ -400,6 +402,32 @@ export async function playerNextStep() {
     return playerEndTurn();
   } else setStep('main1');
   hooks.render();
+}
+
+// Sphinx of the Second Sun: extra beginning phases after the second main phase — untap, upkeep, draw.
+export async function extraBeginningPhases(pid) {
+  const s = G.s;
+  while (s.extraBeginning && s.extraBeginning.pid === pid && s.extraBeginning.turn === s.turn && s.extraBeginning.n > 0) {
+    s.extraBeginning.n--;
+    log('sys', 'An additional beginning phase begins: untap, upkeep, draw.');
+    setStep('untap');
+    untapAll(pid);
+    setStep('upkeep');
+    hooks.render();
+    fire({ type: 'upkeep', active: pid });
+    await settle();
+    if (G.s !== s) return;
+    await upkeepKeywords(pid);
+    if (G.s !== s) return;
+    await settle();
+    if (G.s !== s) return;
+    setStep('draw');
+    draw(pid, 1);
+    fire({ type: 'drawStep', active: pid });
+    await settle();
+    if (G.s !== s) return;
+    hooks.render();
+  }
 }
 
 // After a combat: another combat if one was granted, otherwise the second main phase.
@@ -424,6 +452,15 @@ export async function playerEndTurn() {
   if (s.combat && s.combat.stage !== 'declare') return;
   s.combat = null;
   if (s.step !== 'end') {
+    // passing the turn still goes through the second main phase ("at the beginning of your postcombat main phase")
+    if (s.step !== 'main2') {
+      setStep('main2');
+      fire({ type: 'main2', active: 'p' });
+      await settle();
+      if (G.s !== s) return;
+    }
+    await extraBeginningPhases('p');
+    if (G.s !== s) return;
     setStep('end');
     fire({ type: 'endStep', active: 'p' });
     await settle();
@@ -837,6 +874,8 @@ export async function runAiTurn() {
     await settle();
     if (G.s !== s) return;
     await aiMainPhase(hooks, true);
+    if (G.s !== s) return;
+    await extraBeginningPhases('ai');
     if (G.s !== s) return;
     setStep('end');
     hooks.render();
