@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.16",
+    "title": "Sagas, per-player turn counter, card sweep",
+    "notes": [
+      "Turn counter: each player's turns are counted separately. The top bar shows the current player's turn number (hover it for both), and the log and the YOUR TURN banner use it too.",
+      "Sagas: The Eldest Reborn's chapter III, Urza's Saga (gains its mana and Construct abilities, finds a {0}/{1} artifact), The Akroan War (the stolen creature goes back when the saga leaves, creatures must attack, tapped creatures damage themselves) and Elspeth Conquers Death (cost increase, counter on the returned card) now work.",
+      "\"Gain control of … for as long as …\" effects end when the source leaves the battlefield.",
+      "Card sweep over every sample and precon card (about 1,600 cards): fixed Avenger of Zendikar and other \"create a token for each …\" cards, Chaos Warp, Blink, Living Death, Teferi's Protection, Silence, Plaguecrafter, Goblin Dark-Dwellers, Soul of Windgrace, Puppeteer Clique, Mortuary Mire, Noxious Revival, Chittering Witch, Dire Fleet Ravager, Secret Rendezvous, Ox Drover, Smothering Tithe, Sheoldred, the Apocalypse and Sanguine Bond."
+    ]
+  },
+  {
     "version": "1.2.15",
     "title": "Maelstrom Wanderer, Exotic Orchard, pain lands",
     "notes": [

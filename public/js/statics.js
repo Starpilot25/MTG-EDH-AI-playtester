@@ -288,6 +288,11 @@ export function costDelta(pid, c, fromZone) {
       delta += cm.delta;
     }
   }
+  // temporary ones (Elspeth Conquers Death: "… cost {2} more to cast until your next turn")
+  for (const t of (G.s && G.s.tempCosts) || []) {
+    if (t.until <= G.s.turn || t.owner === pid) continue;
+    if (spellFits(t.filter, d)) delta += t.delta;
+  }
   return delta;
 }
 

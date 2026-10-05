@@ -205,7 +205,7 @@ const RESET = ['tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrant
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'lostAbilities', 'endOfTurn', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'castMode', 'xPaid', 'impending',
-  'ringBearer', 'addTypes', 'extraText', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
+  'ringBearer', 'addTypes', 'extraText', 'controlWhile', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'mayPlayFree', 'suspended',
   'rebound', 'encodedOn', 'hiddenBy', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
@@ -548,6 +548,7 @@ export function setLife(pid, value, reason) {
   const pl = G.s.players[pid];
   const before = pl.life;
   if (value > before && playerFlag(pid, 'noLifeGain')) value = before;
+  if (pl.lifeLocked && G.s.turn < pl.lifeLocked) value = before; // Teferi's Protection
   pl.life = value;
   const ts = G.s.ts && G.s.ts[pid];
   if (ts) {
@@ -693,6 +694,22 @@ export function stateBased() {
   const s = G.s;
   for (let pass = 0; pass < 4; pass++) {
     let changed = false;
+    // "gain control of target creature for as long as ~ remains on the battlefield" (The Akroan War, Old Man of the Sea…)
+    for (const c of Object.values(s.cards)) {
+      if (c.zone !== 'battlefield' || !c.controlWhile) continue;
+      const src = s.cards[c.controlWhile.src];
+      const gone = !src || src.zone !== 'battlefield' || (c.controlWhile.youControl && src.controller !== c.controlWhile.by);
+      if (gone) {
+        const back = c.controlWhile.prev;
+        delete c.controlWhile;
+        if (back && back !== c.controller) {
+          move(c.iid, 'battlefield', { controller: back });
+          c.zone = 'battlefield';
+          log(back, `${nameTag(c)} returns to ${back === 'p' ? 'your' : "the AI's"} control.`);
+          changed = true;
+        }
+      }
+    }
     // auras fall off when what they enchant leaves; equipment just unattaches
     for (const a of Object.values(s.cards)) {
       if (a.zone === 'battlefield' && a.attachedTo && (!s.cards[a.attachedTo] || s.cards[a.attachedTo].zone !== 'battlefield' || s.cards[a.attachedTo].phasedOut)) {

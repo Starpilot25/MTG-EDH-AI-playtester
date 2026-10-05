@@ -219,6 +219,10 @@ export async function castSpell(pid, iid, opt, env) {
   const f = d.faces[fIdx] || d.faces[0];
   const o = stripName(f.oracle || '', c);
   const fromZone = c.zone;
+  if (s.silenced && s.silenced.pid === pid && s.silenced.turn === s.turn && !opt.copy) {
+    log(pid, `${who_(pid)} can't cast spells this turn.`);
+    return false;
+  }
   if (c.faceDown && fromZone === 'exile' && opt.mode !== 'faceDown') c.faceDown = false; // foretold / hidden cards are revealed as they're cast
   const info = { kicked: 0, x: 0, modes: null, gift: false, bargained: false, additionalPaid: false, entwined: false, buyback: false, replicate: 0, squad: 0, offspring: false, casualty: null, extraGeneric: 0, spreeCost: '' };
   const label = f.name;
@@ -1169,4 +1173,7 @@ export function identityColors(pid) {
   const cols = new Set();
   for (const c of Object.values(G.s.cards)) if (c.isCommander && c.owner === pid) for (const x of (DB[c.def].ci && DB[c.def].ci.length ? DB[c.def].ci : DB[c.def].colors) || []) cols.add(x);
   return cols.size;
+}
+function who_(pid) {
+  return pid === 'p' ? 'You' : 'The AI';
 }

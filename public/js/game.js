@@ -88,13 +88,15 @@ export async function beginTurn(pid) {
   const prevSpells = prevActive ? s.ts[prevActive].spells : -1;
   s.lastTurnSpells = { total: s.ts.p.spells + s.ts.ai.spells, max: Math.max(s.ts.p.spells, s.ts.ai.spells) };
   s.turn++;
+  s.turns = s.turns || { p: 0, ai: 0 };
+  s.turns[pid] = (s.turns[pid] || 0) + 1;
   s.active = pid;
   s.landPlayed = false;
   s.landsPlayed = 0;
   s.extraLandThisTurn = 0;
   s.combat = null;
   s.ts = freshTurnStats();
-  log('turn', `Turn ${s.turn} · ${pid === 'p' ? 'Your turn' : "AI's turn"}${s.extraTurnNow ? ' (extra turn)' : ''}`);
+  log('turn', `${pid === 'p' ? 'Your turn' : "AI's turn"} ${s.turns[pid]} (round ${Math.ceil(s.turn / 2)})${s.extraTurnNow ? ' (extra turn)' : ''}`);
   s.extraTurnNow = false;
   setStep('untap');
   phasing(pid);

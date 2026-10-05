@@ -390,6 +390,13 @@ function manaAbilityRaw(inst) {
   }
   if (isLand(inst)) {
     if (produced.length) return { colors: produced, amount: 1 };
+    {
+      const tm = o.match(/(?:^|\n)\{T\}: Add ((?:\{[WUBRGC]\})+)\./);
+      if (tm) {
+        const syms = tm[1].match(/\{([WUBRGC])\}/g).map((x) => x[1]);
+        return { colors: [...new Set(syms)], amount: syms.length };
+      }
+    }
     const t = typeLine(inst);
     const map = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
     const cs = Object.keys(map).filter((k) => t.includes(k)).map((k) => map[k]);
@@ -591,6 +598,8 @@ export function canAttack(inst) {
 }
 
 export function mustAttack(inst) {
+  const all = G.s && G.s.mustAttackAll;
+  if (all && all.pid === inst.controller && G.s.turn < all.until) return true;
   return !!inst.goaded || /attacks each (?:combat|turn) if able/i.test(oracle(inst));
 }
 

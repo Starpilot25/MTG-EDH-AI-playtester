@@ -155,7 +155,7 @@ function renderTop() {
   if (s.step === 'end') next = 'Pass turn';
   const mine = s.active === 'p' && !run.aiBusy && s.phase === 'play';
   if (!mine) next = s.phase === 'play' ? "AI's turn" : 'Mulligans';
-  $('#turninfo').innerHTML = `<span class="tnum">T${s.turn || 0}</span><span class="who ${s.active === 'ai' ? 'ai' : 'you'}">${who}</span>`;
+  $('#turninfo').innerHTML = `<span class="tnum" title="Your turns: ${(s.turns || {}).p || 0} · AI turns: ${(s.turns || {}).ai || 0}">T${((s.turns || {})[s.active]) || s.turn || 0}</span><span class="who ${s.active === 'ai' ? 'ai' : 'you'}">${who}</span>`;
   $('#steps').innerHTML = steps;
   $('#btn-next').textContent = next;
   $('#btn-next').disabled = !mine;
@@ -462,7 +462,7 @@ hooks.attackTargets = (attackers, options) =>
     });
   });
 hooks.turnStarted = (pid) => {
-  if (pid === 'p') flash('Your turn', G.s ? `Turn ${G.s.turn}` : '');
+  if (pid === 'p') flash('Your turn', G.s ? `Turn ${(G.s.turns || {}).p || G.s.turn}` : '');
 };
 
 export function cancelPending() {
