@@ -112,7 +112,7 @@ export function triggersOf(c, defOverride) {
     else if ((m = line.match(/^Whenever ~ or another (nontoken )?(creature|[A-Z][\w-]+) (you control )?dies, (.+)$/i))) {
       add('dies', m[4], { self: true });
       add('dies', m[4], { other: true, nontoken: !!m[1], mine: !!m[3], kind: m[2] === 'creature' ? '' : m[2].toLowerCase() });
-    } else if ((m = line.match(/^Whenever (another|a|one or more) (nontoken )?((?:[\w-]+ ){0,2}?)(creature|creatures|[A-Z]\w+s?) (you control )?dies?, (.+)$/i)))
+    } else if ((m = line.match(/^Whenever (another|an|a|one or more) (nontoken )?((?:[\w-]+ ){0,2}?)(creature|creatures|[A-Z]\w+s?) (you control )?dies?, (.+)$/i)))
       add('dies', m[6], { mine: !!m[5], other: m[1] === 'another', nontoken: !!m[2], kind: m[3].trim().toLowerCase() + (/^[A-Z]/.test(m[4]) ? m[4].replace(/s$/, '').toLowerCase() : '') });
     else if ((m = line.match(/^Whenever (another|a|one or more) (nontoken )?creatures? (?:an opponent controls|your opponents control) dies?, (.+)$/i)))
       add('dies', m[3], { theirs: true, nontoken: !!m[2] });
@@ -159,6 +159,14 @@ export function triggersOf(c, defOverride) {
       add('attacks', m[1], { attachedTo: true });
     else if ((m = line.match(/^Whenever (?:a|another) ((?:[\w-]+ ){0,2}?)creature you control attacks[^,]*, (.+)$/i)))
       add('attacks', m[2], { anyOfMine: true, kind: m[1].trim() });
+    else if ((m = line.match(/^Whenever (a|an|another) ([A-Z][\w-]+) you control attacks[^,]*, (.+)$/)))
+      add('attacks', m[3], { anyOfMine: true, kind: m[2].toLowerCase(), other: m[1] === 'another' });
+    else if ((m = line.match(/^Whenever (?:your commander|a commander you control) attacks[^,]*, (.+)$/i)))
+      add('attacks', m[1], { anyOfMine: true, commander: true });
+    else if ((m = line.match(/^Whenever (?:your commander|a commander you control) enters or attacks[^,]*, (.+)$/i))) {
+      add('attacks', m[1], { anyOfMine: true, commander: true });
+      add('enters', m[1], { other: true, mine: true, commander: true });
+    }
     else if ((m = line.match(/^Whenever you attack enchanted player[^,]*, (.+)$/i)))
       add('youAttack', m[1], { enchanted: true });
     else if ((m = line.match(/^Whenever (?:a player|an opponent) attacks you(?: or a planeswalker you control)?[^,]*, (.+)$/i)))
@@ -192,6 +200,8 @@ export function triggersOf(c, defOverride) {
       add('cast', m[2], { spell: m[1].toLowerCase().trim(), mine: true });
     else if ((m = line.match(/^Whenever you cast (?:a|an|another|your first|your second) ([^,]*?)spell(?: each turn| during [^,]+| from [^,]+| with [^,]+| that [^,]+| this turn)?, (.+)$/i)))
       add('cast', m[2], { spell: m[1].toLowerCase().trim(), mine: true, first: /your first/i.test(line), second: /your second/i.test(line), notSelf: /another/i.test(line), from: (line.match(/spell from (your hand|your graveyard|exile|anywhere other than your hand)/i) || [])[1] });
+    else if ((m = line.match(/^Whenever you cast an? ((?:Aura|Equipment|Vehicle|historic|[A-Z]\w+)(?:(?:,|, or| or) (?:Aura|Equipment|Vehicle|[A-Z]\w+))*)(?: spell)?, (.+)$/)))
+      add('cast', m[2], { spell: m[1].toLowerCase(), mine: true });
     else if ((m = line.match(/^When(?:ever)? an opponent casts (?:a|an|their first) ([^,]*?)spell[^,]*, (.+)$/i)))
       add('cast', m[2], { spell: m[1].toLowerCase().trim(), theirs: true });
     else if ((m = line.match(/^Whenever a player casts (?:a|an) ([^,]*?)spell[^,]*, (.+)$/i)))
@@ -203,8 +213,8 @@ export function triggersOf(c, defOverride) {
       add('discard', m[2], { who: m[1].toLowerCase() });
     else if ((m = line.match(/^Whenever you cycle(?: or discard)? (?:a|another) card, (.+)$/i)) || (m = line.match(/^When you cycle ~, (.+)$/i)))
       add('cycle', m[1], { self: /When you cycle ~/i.test(line) });
-    else if ((m = line.match(/^Whenever (you|an opponent) gains? life, (.+)$/i)))
-      add('lifeGained', m[2], { who: m[1].toLowerCase() });
+    else if ((m = line.match(/^Whenever (you|an opponent) gains? life( for the first time each turn)?, (.+)$/i)))
+      add('lifeGained', m[3], { who: m[1].toLowerCase(), ...(m[2] ? { oncePerTurn: true } : {}) });
     else if ((m = line.match(/^Whenever (you|an opponent|a player) loses? life(?: during your turn)?, (.+)$/i)))
       add('lifeLost', m[2], { who: m[1].toLowerCase() });
     else if ((m = line.match(/^Whenever a land (?:you control enters|enters(?: the battlefield)? under your control)[^,]*, (.+)$/i)))
@@ -375,6 +385,21 @@ function keywordTriggers(c) {
       card(c.iid).chosenType = t;
       return [`chooses ${t}`];
     }, 'Choose a creature type', { self: true });
+  // "As ~ enters, choose a color" (Utopia Sprawl, Caged Sun, Gauntlet of Power…)
+  if (/(?:^|\n)As (?:~|this [a-z]+) enters(?: the battlefield)?, choose a color/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenColor)
+    f('enters', async () => {
+      const cols = ['W', 'U', 'B', 'R', 'G'];
+      const names = ['white', 'blue', 'black', 'red', 'green'];
+      // the AI picks its most common color
+      const aiPick = () => {
+        const n = cols.map((x) => Object.values(G.s.cards).filter((y) => y.owner === c.controller && (DB[y.def].colors || []).includes(x)).length);
+        return n.indexOf(Math.max(...n));
+      };
+      const k = await (T.choosers[c.controller] || T.choosers.ai).choose({ prompt: `${cardName(c)}: choose a color`, options: names.map((x) => ({ label: x })), aiPick });
+      if (!card(c.iid)) return [];
+      card(c.iid).chosenColor = cols[k] || 'G';
+      return [`chooses ${names[k] || 'green'}`];
+    }, 'Choose a color', { self: true });
   if (/\bExtort\b/.test(o)) f('cast', async () => {
     if (!T.payMana) return [];
     const paid = await T.payMana(c.controller, '{W/B}', `Extort (${cardName(c)})`);
@@ -604,6 +629,7 @@ function matches(ev) {
         if (c.iid === nc.iid && trig.kw) return;
         if (trig.mine && nc.controller !== c.controller) return;
         if (trig.theirs && nc.controller === c.controller) return;
+        if (trig.commander && !nc.isCommander) return;
         if (trig.nontoken && nc.token) return;
         if (!kindOk(nc, trig.kind)) return;
         if (trig.once) {
@@ -722,7 +748,7 @@ function matches(ev) {
         if (trig.event !== 'attacks') return;
         if (trig.self && c.iid === ev.iid) {
           if (!trig.minAttackers || ((G.s.combat && G.s.combat.attackers.length) || 0) >= trig.minAttackers) out.push({ src: c, trig, thatPlayer: ev.defender });
-        } else if (trig.anyOfMine && c.controller === ev.controller && (!trig.kind || matchesFilter(card(ev.iid), trig.kind))) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
+        } else if (trig.anyOfMine && c.controller === ev.controller && (!trig.kind || matchesFilter(card(ev.iid), trig.kind)) && !(trig.other && c.iid === ev.iid) && !(trig.commander && !(card(ev.iid) || {}).isCommander)) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
         else if (trig.theirAttacker && c.controller !== ev.controller) out.push({ src: c, trig, it: { iid: ev.iid } });
       });

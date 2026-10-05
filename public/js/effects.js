@@ -469,6 +469,8 @@ export function evalCond(cond, env) {
   if (/you have the city's blessing/.test(c)) return !!s.players[me].cityBlessing;
   if (/you're the monarch|you are the monarch/.test(c)) return s.monarch === me;
   if (/you have the initiative/.test(c)) return s.initiative === me;
+  if (/you(?:'ve| have) completed (?:a|one or more) dungeons?/.test(c)) return (s.players[me].dungeonsCompleted || 0) > 0;
+  if (/you(?:'ve| have) completed (\w+) or more dungeons/.test(c)) return (s.players[me].dungeonsCompleted || 0) >= n(c.match(/completed (\w+) or more/)[1]);
   if (/you(?:'ve| have) completed a dungeon/.test(c)) return s.players[me].dungeonsCompleted > 0;
   if (/you control your commander|you control a commander/.test(c)) return permsOf(me).some((x) => x.isCommander);
   if (/max speed|your speed is 4/.test(c)) return s.players[me].speed >= 4;
@@ -1968,7 +1970,7 @@ async function makeTokens(env, desc, attachPhrase) {
 }
 
 // --- counters
-on(/^put (a|an|one|two|three|four|five|six|x|\d+|that many) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on ((?:(?! and (?:draw|create|you|gain|scry|surveil|investigate|exile|destroy|return|untap|tap|mill|look)\b).)+?)(?: for each [^.]+)?(?:\.|$)/, async (m, env) => {
+on(/^put (a|an|one|two|three|four|five|six|x|\d+|that many) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on ((?:(?! and (?:draw|create|you|gain|scry|surveil|investigate|exile|destroy|return|untap|tap|mill|look|it|~)\b).)+?)(?: for each [^.]+)?(?:\.|$)/, async (m, env) => {
   let k = /that many/.test(m[1]) ? env.lastAmount || 0 : n(m[1], env.x);
   const fe = env.sentence.match(/for each ([^.]+)$/);
   if (fe) k *= countPhrase(env.me, fe[1], helpers, env.src.iid) || 0;
@@ -2073,6 +2075,13 @@ on(/^monstrosity (\w+)/, async (m, env) => {
 
 // --- pumps, keyword grants, base P/T
 on(/^(.+?) gets? ([+-]\d+|[+-]x)\/([+-]\d+|[+-]x)(?: and gains? ([^.]+?))?(?: for each ([^.]+?))? until (?:end of turn|your next turn)/, async (m, env) => {
+  // "Creatures you control gain trample and get +X/+X until end of turn" (Craterhoof Behemoth)
+  const gm = m[1].match(/^(.+?) gains? ([a-z ,]+?) and$/);
+  if (gm) {
+    m = [...m];
+    m[1] = gm[1];
+    m[4] = m[4] ? gm[2] + ', ' + m[4] : gm[2];
+  }
   const objs = await objects(env, m[1], { harm: /^-/.test(m[2]) || /^-/.test(m[3]) });
   let mult = 1;
   if (m[5]) mult = countPhrase(env.me, m[5], helpers, env.src.iid) || 0;
@@ -3333,11 +3342,16 @@ async function runText(text, env) {
     const dm = sm[2].match(/^(?:it|~|this spell) deals (\w+) damage(?: to (?:that|those|each of those) [a-z ]+)?$/i);
     const dr = sm[2].match(/^(?:you )?draws? (\w+) cards?$/i);
     const gm = sm[2].match(/^(?:you )?gains? (\w+) life$/i);
+    const tm = sm[2].match(/^create (\w+) of (?:those|these) tokens$/i);
     if (dm && /deals \w+ damage/i.test(prev)) {
       sentences[i - 1] = prev.replace(/deals \w+ damage/i, `deals ${dm[1]} damage`);
       skip.add(i);
     } else if (dr && /draws? \w+ cards?/i.test(prev)) {
       sentences[i - 1] = prev.replace(/(draws?) \w+ (cards?)/i, `$1 ${dr[1]} cards`);
+      skip.add(i);
+    } else if (tm && /\bcreates? (?:a|an|one|\w+) /i.test(prev)) {
+      // "Create a Treasure token. If …, create three of those tokens instead."
+      sentences[i - 1] = prev.replace(/\b(creates?) (?:a|an|one|\w+) /i, `$1 ${tm[1]} `).replace(/\btoken\b(?!s)/i, 'tokens');
       skip.add(i);
     } else if (gm && /gains? \w+ life/i.test(prev)) {
       sentences[i - 1] = prev.replace(/(gains?) \w+ life/i, `$1 ${gm[1]} life`);
@@ -3476,7 +3490,7 @@ async function runSentence(sentence, env) {
   }
   // "Discard a card and sacrifice a creature": two actions joined by "and"
   if (!coveredByOne(low)) {
-    const am = s.match(/^(.+?),? and (sacrifice|discard|draw|mill|scry|surveil|create|exile|destroy|return|put|tap|untap|shuffle|you gain|you lose|lose \d+ life|gain \d+ life|investigate|proliferate)\b(.*)$/i);
+    const am = s.match(/^(.+?),? and (sacrifice|discard|draw|mill|scry|surveil|create|exile|destroy|return|put|tap|untap|shuffle|you gain|you lose|lose \d+ life|gain \d+ life|investigate|proliferate|it can't|~ can't|it gains|~ gains|it gets|~ gets|it deals|~ deals|it becomes|~ becomes)\b(.*)$/i);
     if (am && handled(am[1].toLowerCase()) && handled((am[2] + am[3]).toLowerCase())) {
       await runSentence(am[1], env);
       await runSentence(am[2] + am[3], env);
@@ -3751,6 +3765,38 @@ export async function attachAura(aura, me, choose, opts = {}) {
   return [`enchants ${whose(t)} ${nameTag(t)}`];
 }
 
+// What an Aura / Equipment line gives: keywords ("has flying, haste, and …"), base P/T, quoted abilities.
+const GRANTABLE = /^(?:flying|trample|haste|vigilance|reach|lifelink|deathtouch|menace|first strike|double strike|defender|hexproof|shroud|indestructible|infect|wither|prowess|intimidate|fear|shadow|horsemanship|flanking|banding|exalted|undying|persist|islandwalk|swampwalk|forestwalk|mountainwalk|plainswalk|protection from [a-z ]+|ward \{\d+\}|ward—.+|toxic \d+|annihilator \d+|bushido \d+|rampage \d+|afflict \d+|skulk|changeling|devoid|absorb \d+)$/;
+export function auraGrants(o) {
+  const out = { kws: [], base: null, texts: [], conds: [] };
+  for (const raw of String(o || '').split('\n')) {
+    const cm = raw.trim().replace(/\([^)]*\)/g, '').match(/^As long as enchanted creature is (white|blue|black|red|green|an? ([A-Z]\w+)), it (.+)$/i);
+    if (cm) {
+      const rest = cm[3].replace(/"[^"]*"/g, '¤');
+      const pt = rest.match(/gets ([+-]\d+)\/([+-]\d+)/);
+      const kws = [];
+      for (let part of rest.split(/\b(?:has|gains?)\b/i).slice(1)) {
+        part = part.split(/,? and (?:is|can't|attacks|loses|gets)\b|\.|¤/i)[0];
+        for (const k of kwList(part.toLowerCase().trim())) if (GRANTABLE.test(k)) kws.push(k);
+      }
+      out.conds.push({ ...(cm[2] ? { sub: cm[2] } : { color: cm[1].toLowerCase() }), p: pt ? +pt[1] : 0, t: pt ? +pt[2] : 0, kws });
+      continue;
+    }
+    if (!/^(?:Enchanted|Equipped) (?:creature|permanent|planeswalker)\b/i.test(raw.trim())) continue;
+    const quotes = [...raw.matchAll(/"([^"]+)"/g)].map((q) => q[1]);
+    out.texts.push(...quotes);
+    const line = raw.replace(/"[^"]*"/g, '¤').replace(/\([^)]*\)/g, '');
+    const bp = line.match(/base power and toughness (\d+)\/(\d+)/i);
+    if (bp) out.base = { p: +bp[1], t: +bp[2] };
+    const parts = line.split(/\b(?:has|have|gains?)\b/i).slice(1);
+    for (let part of parts) {
+      part = part.split(/,? and (?:is|are|can't|attacks|loses|gets)\b|, (?:is|can't|attacks)\b|\.|¤|\bas long as\b|\buntil\b/i)[0];
+      for (const k of kwList(part.toLowerCase().replace(/^\s+/, '').replace(/,\s*$/, ''))) if (GRANTABLE.test(k)) out.kws.push(k);
+    }
+  }
+  return out;
+}
+
 export function attachTo(src, t) {
   const o = oracle(src).replace(/\b(?:Enchanted|Equipped) creature/g, (x) => x);
   if (src.attachedTo && card(src.attachedTo)) {
@@ -3759,10 +3805,11 @@ export function attachTo(src, t) {
     if (old.pacifiedBy === src.iid) old.pacifiedBy = null;
   }
   src.attachedTo = t.iid;
-  const buff = o.match(/(?:Enchanted|Equipped) (?:creature|permanent) gets ([+-]\d+)\/([+-]\d+)/i);
-  const kwm = o.match(/(?:Enchanted|Equipped) (?:creature|permanent) (?:gets [+-]\d+\/[+-]\d+(?: for each [^.]+)? and )?(?:has|gains) ([a-z ,{}0-9]+?)(?:\.|$)/im);
-  const fe = o.match(/(?:Enchanted|Equipped) creature gets ([+-]\d+)\/([+-]\d+) for each ([^.]+)/i);
-  if (buff || kwm) {
+  const buff = o.match(/(?:^|\n)(?:Enchanted|Equipped) (?:creature|permanent) gets ([+-]\d+)\/([+-]\d+)/i);
+  const fe = o.match(/(?:^|\n)(?:Enchanted|Equipped) creature gets ([+-]\d+)\/([+-]\d+) for each ([^.]+)/i);
+  const g = auraGrants(o);
+  const kwm = g.kws.length ? [null, g.kws.join(', ')] : null;
+  if (buff || kwm || g.base || g.texts.length || g.conds.length) {
     let p = buff ? +buff[1] : 0;
     let tt = buff ? +buff[2] : 0;
     if (fe) {
@@ -3771,11 +3818,14 @@ export function attachTo(src, t) {
       tt = +fe[2] * k;
     }
     t.auraBuffs = t.auraBuffs || {};
-    t.auraBuffs[src.iid] = { p, t: tt, grants: kwm ? kwList(kwm[1].toLowerCase()) : [], ...(fe ? { each: fe[3], perP: +fe[1], perT: +fe[2] } : {}) };
+    t.auraBuffs[src.iid] = {
+      p, t: tt, grants: g.kws, ...(fe ? { each: fe[3], perP: +fe[1], perT: +fe[2] } : {}),
+      ...(g.base ? { base: g.base } : {}),
+      ...(g.conds.length ? { conds: g.conds } : {}),
+      // granted abilities in quotes (Teferi's Talent's "[-12]: …", Rancor-style "Whenever this creature…")
+      ...(g.texts.length ? { text: g.texts.map((q) => q.replace(/^\[([+−-]?\d+)\]:/, '$1:')).join('\n') } : {}),
+    };
   }
-  const quoted = o.match(/(?:Enchanted|Equipped) (?:creature|planeswalker|permanent) has "([^"]+)"/i);
-  // Teferi's Talent: a granted "[-12]: …" loyalty ability
-  if (quoted) t.extraText = ((t.extraText || '') + '\n' + quoted[1].replace(/^\[([+−-]?\d+)\]:/, '$1:')).trim();
   if (/Enchanted creature can't attack|Enchanted creature can't block|Enchanted creature doesn't untap/i.test(o)) t.pacifiedBy = src.iid;
   if (/Enchanted creature has base power and toughness 1\/1|Cursed/i.test(o) && /base power and toughness 1\/1/i.test(o)) t.setPT = { p: 1, t: 1 };
   queueEvent({ type: 'attached', iid: src.iid, to: t.iid, controller: src.controller });

@@ -137,16 +137,26 @@ export async function venture(pid, ctx, opts = {}) {
   log(pid, `${who} into ${esc(dg.name)}: <b>${esc(room.name)}</b> — ${esc(room.text)}`);
   ctx.render && ctx.render();
   const times = 1 + roomExtraTriggers(pid);
-  for (let k = 0; k < times; k++) {
-    const did = await resolveEffects(room.text, dungeonSrc(pid, dg), { ...ctx, me: pid, forced: true });
-    const again = k ? ' (again)' : '';
-    if (did.length) log(pid, `${esc(room.name)}${again}: ${did.join('; ')}.`);
-    else log(pid, `${esc(room.name)}${again}: apply “${esc(room.text)}” by hand.`);
-  }
-  if (!room.next.length) {
-    pl.dungeonsCompleted = (pl.dungeonsCompleted || 0) + 1;
-    log(pid, `${pid === 'p' ? 'You complete' : 'The AI completes'} ${esc(dg.name)}.`);
-    pl.dungeon = null;
+  try {
+    for (let k = 0; k < times; k++) {
+      let did = [];
+      try {
+        did = await resolveEffects(room.text, dungeonSrc(pid, dg), { ...ctx, me: pid, forced: true });
+      } catch (e) {
+        // a room you back out of still counts as visited
+        console.warn('room ability', e);
+      }
+      const again = k ? ' (again)' : '';
+      if (did.length) log(pid, `${esc(room.name)}${again}: ${did.join('; ')}.`);
+      else log(pid, `${esc(room.name)}${again}: apply “${esc(room.text)}” by hand.`);
+    }
+  } finally {
+    // the last room: the dungeon is completed (Safana, Acererak and friends count these)
+    if (!room.next.length && pl.dungeon && pl.dungeon.name === dg.name) {
+      pl.dungeonsCompleted = (pl.dungeonsCompleted || 0) + 1;
+      log(pid, `${pid === 'p' ? 'You complete' : 'The AI completes'} ${esc(dg.name)}.`);
+      pl.dungeon = null;
+    }
   }
   return [`ventures into ${dg.name} (${room.name})`];
 }

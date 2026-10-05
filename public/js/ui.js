@@ -246,7 +246,7 @@ function dungeonDepths(dg) {
 // The dungeon as a little map on the side: rooms by depth, where you are, where you can go next.
 function dungeonMap(pid) {
   const pl = G.s.players[pid];
-  if (!pl.dungeon) return '';
+  if (!pl.dungeon) return pl.dungeonsCompleted ? `<div class="dg-map done"><div class="er-title">${pid === 'p' ? 'You have' : 'The AI has'} completed <b>${pl.dungeonsCompleted}</b> dungeon${pl.dungeonsCompleted > 1 ? 's' : ''}</div></div>` : '';
   const dg = DUNGEONS[pl.dungeon.name];
   if (!dg) return '';
   const { depth, rows } = dungeonDepths(dg);
@@ -1943,7 +1943,7 @@ export function bindEvents() {
   window.addEventListener('blur', dropStale);
 
   document.addEventListener('click', (e) => {
-    const dm = e.target.closest('.dg-map');
+    const dm = e.target.closest('.dg-map:not(.done)');
     if (dm && G.s) return dungeonDialog(dm.dataset.dungeon);
     const b = e.target.closest("[data-cmdzone]");
     if (!b || !G.s) return;

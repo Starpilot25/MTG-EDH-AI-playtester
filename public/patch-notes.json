@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.2.43",
+    "title": "Card sweep: auras, Craterhoof, ramp auras, triggers",
+    "notes": [
+      "Auras grant their keywords reliably. An Aura that says \"has flying, haste, and …\", \"gets +2/+2, has flying, and is an Angel\", \"has base power and toughness 8/8 and has trample\", or gives a quoted ability (\"has haste and '{T}, Discard a card: Draw a card'\") now works. Before, many of these gave nothing. Auras like Runes of the Deus (\"as long as enchanted creature is red…\") check the creature's color or type as you play.",
+      "Craterhoof Behemoth gives +X/+X and trample. Before, it did nothing.",
+      "Utopia Sprawl, Wild Growth, Fertile Ground and Wolfwillow Haven make the extra mana when you tap the enchanted land. Cards that say \"As this enters, choose a color\" ask you for one.",
+      "New triggers: \"Whenever an Angel / a Dragon / another Cat you control dies or attacks\", \"Whenever your commander attacks\" (We Ride at Dawn, Tome of Legends, Norn's Choirmaster), \"Whenever you gain life for the first time each turn\" (Vanguard Seraph), \"Whenever you cast an Aura\" (Sram).",
+      "\"Put a +1/+1 counter on it and it can't be blocked this turn\" (Kappa Cannoneer) does both parts.",
+      "Completing a dungeon always counts, even if you back out of the last room's ability, so Safana's three Treasures work. When you're not in a dungeon, the right-hand column shows how many dungeons you've completed."
+    ]
+  },
+  {
     "version": "1.2.42",
     "title": "Venturing fixed",
     "notes": [

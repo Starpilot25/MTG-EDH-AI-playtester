@@ -136,6 +136,7 @@ function oracleRaw(inst) {
     }
   }
   if (inst.extraText) text += '\n' + inst.extraText;
+  for (const b of Object.values(inst.auraBuffs || {})) if (b.text) text += '\n' + b.text;
   // Locus of Enlightenment: "has each activated ability of the exiled cards used to craft it" (once each turn)
   if (inst.craftedFrom && /has each activated ability of the exiled cards used to craft it/i.test(text)) {
     for (const u of inst.craftedFrom) {
@@ -206,7 +207,10 @@ function kwInTextRaw(text, kw) {
 
 export function grantsOf(inst) {
   const g = [...(inst.grants || []), ...(inst.eotGrants || [])];
-  for (const b of Object.values(inst.auraBuffs || {})) g.push(...b.grants);
+  for (const b of Object.values(inst.auraBuffs || {})) {
+    g.push(...b.grants);
+    for (const c of b.conds || []) if (auraCondOk(inst, c)) g.push(...c.kws);
+  }
   if (inst.zone === 'battlefield') g.push(...staticMods(inst, helpers).grants);
   return g;
 }
@@ -326,6 +330,7 @@ function cda(inst) {
 export function basePT(inst) {
   if (inst.faceDown) return { p: 2, t: 2 };
   if (inst.setPT) return { ...inst.setPT };
+  for (const b of Object.values(inst.auraBuffs || {})) if (b.base) return { ...b.base };
   if (inst.proto) return { ...inst.proto };
   if (inst.animated && inst.animated.p !== undefined && !/Creature/.test((face(inst).typeLine || '').split('—')[0])) return { p: inst.animated.p, t: inst.animated.t };
   const f = face(inst);
@@ -369,8 +374,16 @@ const counterPT = (c) => {
   return { p, t };
 };
 // Auras/Equipment buffs; "gets +1/+1 for each artifact you control" is counted live (Adaptive Omnitool, Lashwrithe)
+// "As long as enchanted creature is red, it gets +1/+1 and has double strike"
+const COLOR_CODE = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
+export function auraCondOk(inst, c) {
+  if (c.color) return colorsOf(inst).includes(COLOR_CODE[c.color]);
+  if (c.sub) return hasSubtype(inst, c.sub);
+  return false;
+}
 const auraSum = (inst, k) =>
   Object.entries(inst.auraBuffs || {}).reduce((a, [src, b]) => {
+    for (const c of b.conds || []) if (auraCondOk(inst, c)) a += c[k] || 0;
     if (!b.each) return a + b[k];
     const sc = G.s && G.s.cards[src];
     const v = sc ? countPhrase(sc.controller, b.each, helpers, sc.iid) || 0 : 0;
@@ -428,8 +441,27 @@ export function manaValueOf(cost) {
 // What a permanent can tap for: {colors, amount, sac?} or null.
 // Pain lands, Talismans, horizon lands, Mana Confluence: some of the colors cost 1 life to make.
 export function manaAbility(inst) {
-  const r = manaAbilityRaw(inst);
+  let r = manaAbilityRaw(inst);
   if (!r) return r;
+  // Utopia Sprawl, Wild Growth, Fertile Ground, Wolfwillow Haven: "Whenever enchanted land is tapped for mana, its controller adds an additional …"
+  if (G.s && isLand(inst)) {
+    for (const a of Object.values(G.s.cards)) {
+      if (a.attachedTo !== inst.iid || a.zone !== 'battlefield') continue;
+      const ao = oracle(a);
+      const am = ao.match(/Whenever enchanted (?:land|[A-Z]\w+) is tapped for mana, its controller adds an additional ([^.]+?)( \(in addition to the mana the land produces\))?(?: during your turn)?\./i)
+        || ao.match(/Whenever enchanted (?:land|[A-Z]\w+) is tapped for mana, its controller adds an additional (.+?)\./i);
+      if (!am) continue;
+      if (/during your turn/i.test(ao) && G.s.active !== inst.controller) continue;
+      let extra;
+      if (/one mana of any color/i.test(am[1])) extra = ['W', 'U', 'B', 'R', 'G'];
+      else if (/one mana of the chosen color/i.test(am[1])) extra = a.chosenColor ? [a.chosenColor] : ['W', 'U', 'B', 'R', 'G'];
+      else extra = (am[1].match(/\{([WUBRGC])\}/g) || []).map((x) => x[1]);
+      if (!extra.length) continue;
+      const fixed = r.each && extra.length === 1 ? [...r.each, extra[0]] : !r.each && (r.colors || []).length === 1 && extra.length === 1 ? [r.colors[0], extra[0]] : null;
+      r = fixed ? { ...r, amount: (r.amount || 1) + 1, each: fixed, colors: [...new Set(fixed)] }
+        : { ...r, amount: (r.amount || 1) + 1, each: undefined, colors: [...new Set([...(r.colors || []), ...extra])] };
+    }
+  }
   const o = oracle(inst);
   const painful = new Set();
   const symsOf = (t) => (/one mana of any color/i.test(t) ? ['W', 'U', 'B', 'R', 'G'] : (t.match(/\{[WUBRGC]\}/g) || []).map((x) => x[1]));
