@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.53",
+    "title": "Planeswalkers at sorcery speed",
+    "notes": [
+      "Loyalty abilities follow the timing rule again: only on your own turn, in a main phase, with nothing on the stack. The exceptions still work: Teferi's Talent, Teferi, Temporal Archmage's emblem, Jace's Machinations, and anything else that says you may activate them on any player's turn."
+    ]
+  },
+  {
     "version": "1.2.52",
     "title": "Panharmonicon and other trigger doublers",
     "notes": [

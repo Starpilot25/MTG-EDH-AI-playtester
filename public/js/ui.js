@@ -14,7 +14,7 @@ import {
 import { aiChooser, aiMaybeCounter, aiPay, aiEnv } from './ai.js';
 import {
   manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, landOptions, playLand, landsAllowed, applyPayment,
-  activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft,
+  activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft, instantLoyalty,
 } from './cast.js';
 import { T, fire, settle } from './triggers.js';
 import { DUNGEONS, venture, takeInitiative } from './dungeon.js';
@@ -59,14 +59,6 @@ function imgOf(c, large = false) {
 function manaSymbols(cost) {
   return String(cost || '')
     .replace(/\{([^}]+)\}/g, (m, s) => `<span class="ms ms-${s.replace('/', '').toLowerCase()}">${s}</span>`);
-}
-
-// Teferi's Talent / Teferi, Temporal Archmage emblem, Jace's Machinations: loyalty abilities on any player's turn
-function instantLoyalty(c) {
-  const pl = G.s.players[c.controller];
-  if ((pl.emblems || []).some((e) => /activate loyalty abilities of planeswalkers you control on any player's turn/i.test(e))) return true;
-  const il = G.s.instantLoyalty;
-  return !!(il && il.pid === c.controller && il.turn === G.s.turn && (!il.subtype || hasSubtype(c, il.subtype)));
 }
 
 function cardHTML(c, opts = {}) {

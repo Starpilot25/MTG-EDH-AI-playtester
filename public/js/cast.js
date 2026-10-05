@@ -897,6 +897,14 @@ export function loyaltyAllowed(pid) {
   if (s.chainVeil && s.chainVeil.pid === pid && s.chainVeil.turn === s.turn) allowed += s.chainVeil.n;
   return allowed;
 }
+// Teferi's Talent / Teferi, Temporal Archmage emblem, Jace's Machinations: loyalty abilities on any player's turn
+export function instantLoyalty(c) {
+  const pl = G.s.players[c.controller];
+  if ((pl.emblems || []).some((e) => /activate loyalty abilities of planeswalkers you control on any player's turn/i.test(e))) return true;
+  if (cardsIn(c.controller, 'battlefield').some((x) => /(?:^|\n)You may activate (?:the )?loyalty abilities of planeswalkers you control on any player's turn/i.test(oracle(x)))) return true;
+  const il = G.s.instantLoyalty;
+  return !!(il && il.pid === c.controller && il.turn === G.s.turn && (!il.subtype || hasSubtype(c, il.subtype)));
+}
 export function loyaltyUsesLeft(c) {
   const s = G.s;
   const used = c.loyaltyUses && c.loyaltyUses.turn === s.turn ? c.loyaltyUses.n : c.usedLoyaltyTurn === s.turn ? 1 : 0;
@@ -1060,6 +1068,10 @@ export async function activateAbility(pid, c, ab, env) {
   const ctx = (extra = {}) => ({ me: pid, choosers: env.choosers, castFree: (p, i) => castFree(p, i, env), stackTarget: pid === 'p' && s.stack ? s.stack.iid : null, ...extra });
   switch (ab.kind) {
     case 'loyalty': {
+      // sorcery speed unless something lets you activate them at instant speed
+      if (!instantLoyalty(c) && !(s.active === pid && (s.step === 'main1' || s.step === 'main2') && !s.stack && !s.pstack && !(s.combat && s.combat.attackers && s.combat.attackers.length))) {
+        return env.say(s.active !== pid ? 'Loyalty abilities can only be activated on your own turn.' : 'Loyalty abilities can only be activated in your main phase with nothing on the stack.');
+      }
       {
         // one loyalty ability per turn; Oath of Teferi makes it two, The Chain Veil adds one more
         const allowed = loyaltyAllowed(pid);
