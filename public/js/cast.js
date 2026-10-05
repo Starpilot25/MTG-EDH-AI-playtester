@@ -407,7 +407,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (opt.mode === 'warp') s.ts.warped = true;
   Object.assign(c, { castMode: opt.mode === 'normal' ? null : opt.mode, kicked: info.kicked, xPaid: info.x, castFrom: fromZone, castFace: fIdx });
   c.colorsSpent = new Set((f.manaCost || '').match(/[WUBRG]/g) || []).size;
-  const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse)$/.test(opt.mode) ? ` (${opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
+  const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse)$/.test(opt.mode) ? ` (${opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
   log(pid, tag);
   const stackSlot = pid === 'p' && s.stack ? 'pstack' : pid === 'p' ? 'pstack' : 'stack';
   s[stackSlot] = { iid, by: pid, face: fIdx };
@@ -884,7 +884,7 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
   G.s.landPlayed = G.s.landsPlayed >= landsAllowed(pid);
   G.s.ts[pid].landsPlayed++;
   toBattlefield(iid, pid, pos);
-  log(pid, `${pid === 'p' ? 'You play' : 'AI plays'} ${nameTag(c)}${c.tapped ? ' (tapped)' : ''}.`);
+  log(pid, `${pid === 'p' ? 'You play' : 'AI plays'} ${nameTag(c)}${c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : ''}${c.tapped ? ' (tapped)' : ''}.`);
   return true;
 }
 

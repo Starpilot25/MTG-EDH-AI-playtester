@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.63",
+    "title": "Sen Triplets works against you too",
+    "notes": [
+      "When the AI's Sen Triplets (or any \"you may cast spells from that player's hand this turn\" card) targets you, the AI plays your lands and casts your spells with its own mana, and controls what it casts. You can't cast spells or activate abilities that turn. The log says \"from your hand\" when it does this."
+    ]
+  },
+  {
     "version": "1.2.62",
     "title": "Mindslaver and Sen Triplets",
     "notes": [

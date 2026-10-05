@@ -8,7 +8,7 @@ import {
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, log, nameTag, libTop, opp, cardName, checkLoss, discard as discardCard, restoreInPlace, eventQueue, entersTapped,
- casualAI, withReadCache } from './state.js';
+ casualAI, withReadCache, handControl } from './state.js';
 import {
   spellFilterOk, analyze, etbText, spellText, costOf, legalTargets, activatedAbilities, aiHelpers, knownEffect, zoneAbilities,
   Cancelled,
@@ -466,6 +466,8 @@ function options(filter = () => true) {
     ...cardsIn(AI, 'command').filter((c) => c.isCommander),
     ...cardsIn(AI, 'graveyard'),
     ...cardsIn(AI, 'exile'),
+    // Sen Triplets: spells from your hand, cast with the AI's mana
+    ...(handControl(AI, P) ? cardsIn(P, 'hand').filter((c) => !isLand(c) || DB[c.def].faces.length > 1) : []),
   ];
   for (const c of pool) {
     if (c.aiSkip === G.s.turn) continue;
@@ -596,6 +598,8 @@ function playLand(h) {
   const lands = cardsIn(AI, 'hand').filter((c) => landOptions(AI, c).length);
   // lands from the top of the library or exile the AI may play
   for (const c of cardsIn(AI, 'exile')) if (c.mayPlay === AI && (c.mayPlayUntil || 0) >= s.turn && isLand(c)) lands.push(c);
+  // Sen Triplets: your lands too
+  if (handControl(AI, P) && s.handControl.lands) for (const c of cardsIn(P, 'hand')) if (landOptions(AI, c).length) lands.push(c);
   if (!lands.length) return false;
   const want = neededColors();
   const landsOnField = cardsIn(AI, 'battlefield').filter(isLand).length;
