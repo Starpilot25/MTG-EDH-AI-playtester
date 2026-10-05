@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.61",
+    "title": "\"Built-in decks\"",
+    "notes": [
+      "The decks that come with the app are now listed under \"Built-in decks\"."
+    ]
+  },
+  {
     "version": "1.2.60",
     "title": "\"Claude decks\"",
     "notes": [
