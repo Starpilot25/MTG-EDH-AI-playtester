@@ -23,7 +23,7 @@ Your saved decks are kept in the app's own data folder, so reinstalling or updat
 2. Double-click `Install EDH Playtester <version>.bat`. It joins the pieces into `EDH Playtester Setup <version>.exe` and starts it.
 3. Install as usual. Installing over an existing copy updates it and keeps your saved decks.
 
-**Do I need a new installer?** Usually not. The app updates itself every time it opens (see [Updates without reinstalling](#updates-without-reinstalling)), so card fixes, AI changes and new sample decks arrive automatically. A new installer is only needed when the app's shell changes: the window, the local server or the updater. When that happens, older installs keep working and still get card fixes; only the new shell features need the new installer. For example, the **Pop out** button needs version 1.1.0 or newer, and older versions show a message saying so.
+**Do I need a new installer?** Usually not. The app updates itself every time it opens (see [Updates without reinstalling](#updates-without-reinstalling)), so card fixes, AI changes and new built-in decks arrive automatically. A new installer is only needed when the app's shell changes: the window, the local server or the updater. When that happens, older installs keep working and still get card fixes; only the new shell features need the new installer. For example, the **Pop out** button needs version 1.1.0 or newer, and older versions show a message saying so.
 
 **Mac or Linux:** build it yourself (below).
 
@@ -67,28 +67,20 @@ If older apps can't run the new game files at all, raise `minAppVersion` in `upd
 
 > The installer is too big for the repository itself (GitHub's limit is 25 MB through the website). Installers go in **Releases**, which allow files up to 2 GB.
 
-## Run it in a browser instead
-
-You need **Node.js 18 or newer** (https://nodejs.org). There's no install step and no dependencies:
-
-```
-node server.js
-```
-
-Then open **http://localhost:5173** in your browser. Stop the server with Ctrl+C.
-(Use a different port with `PORT=8080 node server.js`.)
-
 ## Loading decks
 
 - **Paste list** — any plain-text export works (`1 Sol Ring`, `1x Sol Ring (CMR) 472`, a "Commander" section header, or `*CMDR*` after the commander).
-- **Saved** — decks you've saved. After loading any deck, type a name under it and press **Save deck** (your commander choice is kept). In the desktop app they're kept in the app's data folder. In the browser version they're kept in `saved-decks.json` next to `server.js`, so they survive restarts and work in any browser on this computer.
-- **Sample**: ten built-in decks, grouped by power bracket:
+- **Saved** — decks you've saved. After loading any deck, type a name under it and press **Save deck** (your commander choice is kept). In the desktop app they're kept in the app's data folder.
+- **Built-in decks**: ten decks that come with the app, grouped by power bracket:
   - Bracket 1: Selesnya Cats (Arahbo), Mono-Red Goblins (Krenko, Tin Street Kingpin)
   - Bracket 2: Mono-White Tokens (Adeline), Izzet Spells (Niv-Mizzet, Parun)
   - Bracket 3: Gruul Stompy (Xenagos), Golgari Value (Meren)
   - Bracket 4: Jund Sacrifice (Korvold), Four-Color Counters (Atraxa)
   - Bracket 5 (cEDH): Simic Combo (Kinnan), Four-Color Blitz (Thrasios & Tymna)
 - **Precon**: official preconstructed Commander decks, grouped by product:
+  - Reality Fracture Commander: Multiverse Reforged (Jace, Multiverse Architect)
+  - Lorwyn Eclipsed Commander: Blight Curse (Auntie Ool, Cursewretch)
+  - Marvel Super Heroes Commander: Avengers Assemble (Captain America, Team Leader)
   - Foundations Commander: Calling All Angels (Giada, Font of Hope), Keen Engineering (Sai, Master Thopterist), Wretched Ranks (Ghoulcaller Gisa), Reign of Dragons (Lathliss, Dragon Queen), Tramplesaurus Rex (Ghalta, Primal Hunger)
   - Teenage Mutant Ninja Turtles Commander: Turtle Power! (Leonardo, the Balance; pick a second Character select turtle from the partner dropdown if you like)
   - Edge of Eternities Commander: World Shaper (Hearthhull, the Worldseed)
