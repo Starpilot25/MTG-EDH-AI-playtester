@@ -208,6 +208,10 @@ export function triggersOf(c, defOverride) {
       add('lifeLost', m[2], { who: m[1].toLowerCase() });
     else if ((m = line.match(/^Whenever a land (?:you control enters|enters(?: the battlefield)? under your control)[^,]*, (.+)$/i)))
       add('landfall', m[1]);
+    else if ((m = line.match(/^Whenever you activate a loyalty ability(?: of a [A-Za-z]+ planeswalker| of a planeswalker)?, (.+)$/i)))
+      add('loyaltyActivated', m[1]);
+    else if ((m = line.match(/^Whenever you put one or more loyalty counters on a planeswalker(?: you control)?, (.+)$/i)))
+      add('counterPut', m[1], { anyOfMine: true, kind: 'loyalty' });
     else if ((m = line.match(/^Whenever one or more \+1\/\+1 counters are put on ~, (.+)$/i)))
       add('counterPut', m[1], { self: true, kind: '+1/+1' });
     else if ((m = line.match(/^Whenever one or more \+1\/\+1 counters are put on (?:a|another) creature you control, (.+)$/i)))
@@ -824,11 +828,25 @@ function matches(ev) {
     case 'lifeLost':
       each((c, trig) => trig.event === ev.type && whoOk(trig.who, c, ev.pid) && out.push({ src: c, trig, thatPlayer: ev.pid, amount: ev.amount }));
       break;
+    case 'loyaltyActivated':
+      each((c, trig) => {
+        if (trig.event !== 'loyaltyActivated' || c.controller !== ev.controller) return;
+        // Way of the Mind Sculptor: "if you removed two or more loyalty counters to activate it, …"
+        const im = (trig.text || '').match(/^if you removed (\w+) or more loyalty counters to activate it, (.+)$/i);
+        if (im) {
+          const need = { one: 1, two: 2, three: 3, four: 4, five: 5 }[im[1].toLowerCase()] || +im[1] || 1;
+          if (-(ev.cost || 0) < need) return;
+          out.push({ src: c, trig: { ...trig, text: im[2] }, it: { iid: ev.iid } });
+        } else out.push({ src: c, trig, it: { iid: ev.iid } });
+      });
+      break;
     case 'counterPut': {
       const tgt = card(ev.iid);
-      if (!tgt || ev.kind !== '+1/+1') break;
+      if (!tgt || (ev.kind !== '+1/+1' && ev.kind !== 'loyalty')) break;
       each((c, trig) => {
-        if (trig.event !== 'counterPut') return;
+        if (trig.event !== 'counterPut' || (trig.kind || '+1/+1') !== ev.kind) return;
+        if (ev.kind === 'loyalty' && (c.controller !== tgt.controller || !isType(tgt, 'Planeswalker'))) return;
+        if (ev.kind === 'loyalty') return void out.push({ src: c, trig, it: { iid: ev.iid }, amount: ev.n });
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig });
         else if (trig.anyOfMine && c.controller === tgt.controller && isCreature(tgt)) out.push({ src: c, trig, it: { iid: ev.iid }, amount: ev.n });
       });

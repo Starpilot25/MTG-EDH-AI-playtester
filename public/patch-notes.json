@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.19",
+    "title": "Assemble the Legion, loyalty triggers",
+    "notes": [
+      "Assemble the Legion makes one hasty Soldier per muster counter (it only ever made one). Other \"create a token with … for each …\" cards are fixed too.",
+      "\"Whenever you activate a loyalty ability\" triggers work: Way of the Paradox (gain 1 life, extra land drop) and Way of the Mind Sculptor (draws only when the ability removed two or more loyalty counters).",
+      "\"Whenever you put one or more loyalty counters on a planeswalker\" triggers work (Inspired Tethermage), from + abilities and from Empower Jace."
+    ]
+  },
+  {
     "version": "1.2.18",
     "title": "Way of the … enchantments",
     "notes": [

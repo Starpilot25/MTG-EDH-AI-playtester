@@ -1136,13 +1136,18 @@ on(/^create a number of (.+?) tokens? equal to (.+)$/, async (m, env) => {
   env.x = saved;
 }, { first: true });
 // Avenger of Zendikar, Izoni, Squad Commander: "create a 0/1 green Plant creature token for each land you control"
-on(/^create (a|an|one|two|three) (.+?) tokens? for each (.+)$/, async (m, env) => {
+on(/^create (a|an|one|two|three) (.+?) tokens?( with [^.]+?)? for each (.+)$/, async (m, env) => {
   const per = n(m[1]);
-  const k = (countPhrase(env.me, m[3].replace(/^(?:creature in your party)$/, 'creature in your party'), helpers, env.src && env.src.iid) || 0) * per;
+  const what = m[4];
+  let cnt;
+  const cm = what.match(/^([a-z+\/0-9-]+) counter on (~|it|this [a-z]+)$/);
+  if (cm) cnt = ((env.src && env.src.counters) || {})[cm[1]] || 0;
+  else cnt = countPhrase(env.me, what, helpers, env.src && env.src.iid) || 0;
+  const k = cnt * per;
   if (!k) return env.did.push('creates no tokens');
   const saved = env.x;
   env.x = k;
-  await makeTokens(env, `x ${m[2]}`, null);
+  await makeTokens(env, `x ${m[2]}${m[3] || ''}`, null);
   env.x = saved;
 }, { first: true });
 // Chaos Warp, Blink, This Is How It Ends: "the owner of target permanent shuffles it into their library"

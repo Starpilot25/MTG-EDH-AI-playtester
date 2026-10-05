@@ -998,6 +998,10 @@ export async function activateAbility(pid, c, ab, env) {
       c.counters.loyalty = (c.counters.loyalty || 0) + cost;
       c.usedLoyaltyTurn = s.turn;
       log(pid, `${nameTag(c)} uses ${ab.label}.`);
+      // "whenever you activate a loyalty ability" (Way of the Paradox / Mind Sculptor) and "whenever you put loyalty counters on a planeswalker"
+      queueEvent({ type: 'loyaltyActivated', iid: c.iid, controller: pid, cost });
+      if (cost > 0) queueEvent({ type: 'counterPut', iid: c.iid, kind: 'loyalty', n: cost, controller: c.controller });
+      await settle();
       const did = await resolveEffects(ab.text, c, ctx({ x }));
       log(pid, `${nameTag(c)}: ${did.join('; ') || '<i>' + esc(ab.text.slice(0, 90)) + '</i> — apply by hand'}.`);
       return true;
