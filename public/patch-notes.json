@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.2.8",
+    "title": "Giada, multi-token spells, planeswalker AI",
+    "notes": [
+      "Giada, Font of Hope: each other Angel enters with a +1/+1 counter for each Angel you already control (it only ever gave one), and Giada's mana can only be spent on Angel spells.",
+      "Cards that make several different tokens at once (Trostani's Summoner and friends) now make all of them, not just the first.",
+      "Nissa, Who Shakes the World's +1 (and similar effects) turns the land into a creature.",
+      "Planeswalker AI: it weighs whether your creatures could kill its planeswalker and goes up in loyalty when it's in danger, instead of spending it down.",
+      "Checked and working: Verdant Sun's Avatar, Trostani, Selesnya's Voice, Trostani Discordant."
+    ]
+  },
+  {
     "version": "1.2.7",
     "title": "AI crewing",
     "notes": [

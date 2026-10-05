@@ -29,9 +29,18 @@ export function manaSources(pid, opts = {}) {
   const out = [];
   const pool = (G.s.pool && G.s.pool[pid]) || [];
   pool.forEach((sym, k) => out.push({ iid: 'pool:' + k, colors: sym === 'ANY' ? ['W', 'U', 'B', 'R', 'G', 'C'] : [sym], amount: 1, kind: 'pool' }));
+  const spell = opts.spell || (opts.self ? card(opts.self) : null);
   for (const c of cardsIn(pid, 'battlefield')) {
     const m = manaAbility(c);
-    if (m) out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each });
+    if (!m) continue;
+    // restricted mana ("spend this mana only to cast an Angel spell")
+    if (m.onlyFor) {
+      if (!spell || spell.zone === 'battlefield') continue;
+      const tl = DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine;
+      const ok = /^[A-Z]/.test(m.onlyFor) ? hasSubtype({ ...spell, zone: 'hand' }, m.onlyFor) : m.onlyFor === 'noncreature' ? !/Creature/.test(tl) : new RegExp(m.onlyFor.split(' or ').join('|'), 'i').test(tl);
+      if (!ok) continue;
+    }
+    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each });
   }
   if (opts.convoke)
     for (const c of cardsIn(pid, 'battlefield')) if (isCreature(c) && !c.tapped && !out.some((o) => o.iid === c.iid)) out.push({ iid: c.iid, colors: colorsOf(c).length ? colorsOf(c) : [], amount: 1, kind: 'convoke' });

@@ -373,6 +373,15 @@ export function manaAbility(inst) {
     if (sm && !/Discard your hand/.test(o)) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: { one: 1, two: 2, three: 3 }[sm[1]] || 1, sac: true };
   }
   if (!produced.length) return null;
+  // Giada: "Spend this mana only to cast an Angel spell."
+  const only = o.match(/\{T\}: Add [^.]+\. Spend this mana only to cast (?:an? )?([A-Z][\w-]+|creature|artifact|instant or sorcery|noncreature) (?:creature )?spells?/);
+  if (only) {
+    const r = manaAbilityPlain(inst, o, produced);
+    return r ? { ...r, onlyFor: only[1] } : r;
+  }
+  return manaAbilityPlain(inst, o, produced);
+}
+function manaAbilityPlain(inst, o, produced) {
   let m = o.match(/\{T\}: Add ([^.]+)\./);
   // Ilysian Caryatid: "If you control a creature with power 4 or greater, add two mana of any one color instead."
   {

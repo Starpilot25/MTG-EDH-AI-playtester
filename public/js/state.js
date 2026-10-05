@@ -392,7 +392,7 @@ function entering(c, opts) {
     const src = s.cards[iid];
     if (!src || src.phasedOut || src.faceDown) continue;
     const so = oracle(src).replace(/\([^)]*\)/g, '');
-    for (const mm of so.matchAll(/(?:^|\n)(?:Each |Other )?(other )?((?:[\w-]+ ){0,3}?)(?:creatures?|permanents?|([A-Z][\w-]+)s?) you control (?:enters?|enter) (?:the battlefield )?with (an|one|two|three|\d+) additional ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|them)/g)) {
+    for (const mm of so.matchAll(/(?:^|\n)(?:Each |Other )?(other )?((?:[\w-]+ ){0,3}?)(?:creatures?|permanents?|([A-Z][\w-]+)s?) you control (?:enters?|enter) (?:the battlefield )?with (an|one|two|three|\d+) additional ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|them)(?: for each ([A-Z][\w-]+|creature|other creature) you (?:already )?control)?/g)) {
       if (mm[1] && src.iid === c.iid) continue;
       if (src.iid === c.iid && !/^Each /.test(mm[0].trim())) continue;
       const words = (mm[2] || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -409,7 +409,14 @@ function entering(c, opts) {
         else if (!hasSubtype(c, w) && !isType(c, w[0].toUpperCase() + w.slice(1))) ok = false;
       }
       if (!ok) continue;
-      const k = { an: 1, one: 1, two: 2, three: 3 }[mm[4].toLowerCase()] || parseInt(mm[4], 10) || 1;
+      let k = { an: 1, one: 1, two: 2, three: 3 }[mm[4].toLowerCase()] || parseInt(mm[4], 10) || 1;
+      // Giada: "… for each Angel you already control" (not counting the one entering)
+      if (mm[6]) {
+        const kind = mm[6];
+        const already = s.players[c.controller].zones.battlefield.map((i) => s.cards[i]).filter((x) => x && x.iid !== c.iid && !x.phasedOut && (/creature/.test(kind) ? isCreature(x) : hasSubtype(x, kind))).length;
+        k *= already;
+      }
+      if (!k) continue;
       addCounters(c, mm[5].toLowerCase(), k, { silent: true });
     }
   }

@@ -717,7 +717,14 @@ function amountOf(word, env) {
     const it = /^(?:damage )?equal to (?:~'s)/.test(w) ? env.src : env.it && env.it.iid ? card(env.it.iid) : env.src;
     return it ? Math.max(0, power(it)) : 0;
   }
-  if ((m = w.match(/^(?:damage )?equal to (?:~'s|its) toughness/))) return env.src ? toughness(env.src) : 0;
+  if ((m = w.match(/^(?:damage )?equal to (?:~'s|its|that creature's|the sacrificed creature's|enchanted creature's|equipped creature's) toughness/))) {
+    const it = /^(?:damage )?equal to ~'s/.test(w) ? env.src : env.it && env.it.iid ? card(env.it.iid) : env.src;
+    return it ? Math.max(0, toughness(it)) : 0;
+  }
+  if ((m = w.match(/^(?:damage )?equal to (?:that creature's|its) (?:mana value|converted mana cost)/))) {
+    const it = env.it && env.it.iid ? card(env.it.iid) : env.src;
+    return it ? DB[it.def].cmc || 0 : 0;
+  }
   if ((m = w.match(/^(?:damage )?equal to (?:the number of |your )?(.+)$/))) {
     const v = countPhrase(env.me, m[1], helpers, env.src && env.src.iid);
     return v === null ? 0 : v;
@@ -1082,7 +1089,7 @@ on(/^(you |target player |each player |that player |target opponent |each oppone
 on(/^(?:you )?(?:draw a card, then discard a card|discard a card, then draw a card)$/, async () => {}, { never: true });
 
 // --- life
-on(/^(you|target player|each player|its controller|that player|target opponent) gains? (\d+|x|life equal to [^.]+?|that much life)(?: life)?/, async (m, env) => {
+on(/^(you|target player|each player|its controller|that player|target opponent) gains? (\d+|x|life equal to [^.]+?|that much life)(?: life)?(?:\.|$| for each| and |,| unless| if )/, async (m, env) => {
   const pids = await playerTarget(env, m[1], false);
   const k = /that much/.test(m[2]) ? env.lastAmount || 0 : /^life equal/.test(m[2]) ? amountOf(m[2].replace(/^life /, ''), env) : n(m[2], env.x);
   for (const pid of pids) {
@@ -1090,7 +1097,7 @@ on(/^(you|target player|each player|its controller|that player|target opponent) 
     env.did.push(`${who(pid)} ${s_(pid, 'gain')} ${k} life`);
   }
 });
-on(/^(each opponent|target opponent|target player|that player|each player|you|its controller|defending player|each other player) loses? (\d+|x|life equal to [^.]+?|half (?:their|your) life,? rounded up)(?: life)?(?: and you gain (\d+|x|that much) life)?/, async (m, env) => {
+on(/^(each opponent|target opponent|target player|that player|each player|you|its controller|defending player|each other player) loses? (\d+|x|life equal to [^.]+?|half (?:their|your) life,? rounded up)(?: life)?(?: and you gain (\d+|x|that much) life)?(?:\.|$| for each|,| and | unless| if )/, async (m, env) => {
   const pids = await playerTarget(env, m[1]);
   for (const pid of pids) {
     let k = /half/.test(m[2]) ? Math.ceil(G.s.players[pid].life / 2) : /^life equal/.test(m[2]) ? amountOf(m[2].replace(/^life /, ''), env) : n(m[2], env.x);
@@ -1155,6 +1162,13 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
 });
 on(/^create (.+?) tokens?(?: (?:that are |that's )?(tapped(?: and attacking)?)(?: (?:that player|target opponent|the player|defending player|an opponent)(?: or (?:a|that) planeswalker (?:they control|it's attacking))?)?)?(?: with (.+?))?(?: attached to (.+?))?(?:, then .+)?$/, async (m, env) => {
   if (/that's a copy|that are copies/.test(m[1])) return;
+  // "create a 2/2 Knight token with vigilance, a 3/3 Centaur token, and a 4/4 Rhino token with trample"
+  const body = env.sentence.replace(/^create /, '');
+  const parts = body.split(/,\s*(?:and\s+)?(?=(?:a|an|one|two|three|four|five|x) (?:tapped )?(?:\d+\/\d+|[a-z]+ (?:\d+\/\d+ )?[a-z ]*?(?:creature|artifact) tokens?|[a-z]+ tokens?))|\s+and\s+(?=(?:a|an|one|two|three|four|five) (?:\d+\/\d+|[a-z]+ (?:artifact )?tokens?))/);
+  if (parts.length > 1 && parts.every((p) => /\btokens?\b/.test(p))) {
+    for (const p of parts) await makeTokens(env, p.replace(/\s*tokens?\b/, ''), null);
+    return;
+  }
   await makeTokens(env, m[1] + (m[2] ? ' ' + m[2] : '') + (m[3] ? ' with ' + m[3] : ''), m[4]);
 });
 on(/^(?:you )?investigate(?: (\w+) times)?/, async (m, env) => {
@@ -1929,6 +1943,16 @@ on(/^exile (up to (\w+) )?(?:another )?(target )?(?:(a|an|one|two|three|x|\d+) )
   env.it = picks[0] ? { iid: picks[0] } : null;
   env.lastMay = picks.length > 0;
   if (picks.length) env.did.push(`exiles ${picks.map((i) => nameTag(card(i))).join(', ')} from ${picks.length === 1 ? 'a graveyard' : 'graveyards'}`);
+});
+// Nissa, Who Shakes the World / Koth-style animation: "It becomes a 0/0 Elemental creature with vigilance and haste that's still a land."
+on(/^(it|that land|target land you control|~|that creature|that permanent) becomes an? (\d+)\/(\d+) ([a-z ]*?)creature(?: with ([a-z, ]+?))?(?: that's still a (?:land|artifact|enchantment))?( until end of turn)?$/, async (m, env) => {
+  const objs = await objects(env, m[1], { harm: false });
+  for (const c of objs) {
+    const types = (m[4] || '').trim().replace(/\b\w/g, (x) => x.toUpperCase()) || 'Creature';
+    c.animated = { p: +m[2], t: +m[3], types, until: m[6] ? 'eot' : 'forever' };
+    if (m[5]) c.grants = [...(c.grants || []), ...kwList(m[5].replace(/ and /g, ', '))];
+    env.did.push(`${nameTag(c)} becomes a ${m[2]}/${m[3]} ${types} creature`);
+  }
 });
 // --- earthbend N: target land you control becomes a 0/0 creature with haste (still a land) with N +1/+1 counters
 on(/^earthbend (\d+|x)$/, async (m, env) => {

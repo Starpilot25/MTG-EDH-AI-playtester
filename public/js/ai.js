@@ -563,6 +563,9 @@ async function planeswalkers(h) {
     const abilities = activatedAbilities(pw).filter((ab) => ab.kind === 'loyalty' && !ab.x);
     if (!abilities.length) continue;
     const mineCreatures = cardsIn(AI, 'battlefield').filter(isCreature).length;
+    // how much damage could come at this planeswalker next turn (your creatures, minus the AI's possible blockers)
+    const danger = Math.max(0, cardsIn(P, 'battlefield').filter((x) => isCreature(x) && !x.pacifiedBy).reduce((n, x) => n + Math.max(0, power(x)), 0)
+      - cardsIn(AI, 'battlefield').filter((x) => isCreature(x) && !x.tapped).reduce((n, x) => n + Math.max(0, power(x)), 0) / 2);
     const value = (ab) => {
       if (loyalty + ab.cost < 0) return -99;
       const a = analyze(ab.text);
@@ -588,6 +591,8 @@ async function planeswalkers(h) {
       if (!knownEffect(ab.text)) v -= 3;
       v += ab.cost * 0.8; // loyalty is worth keeping
       if (loyalty + ab.cost === 0) v -= 4;
+      // keep it alive: if your board can kill it after this ability, favour going up
+      if (danger >= loyalty + ab.cost && loyalty + ab.cost > 0) v -= 2 + (ab.cost < 0 ? 2 : 0);
       if (ab.cost <= -6 && loyalty + ab.cost >= 0 && knownEffect(ab.text)) v += 6; // ultimate
       return v;
     };
