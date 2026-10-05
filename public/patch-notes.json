@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.32",
+    "title": "Shark Typhoon",
+    "notes": [
+      "Shark Typhoon's Shark counts X on the spell you cast: Blaze with X=4 makes a 5/5 (it was using the printed mana value, so X spells made tiny Sharks). Split cards use the half you cast.",
+      "Checked: noncreature spells only, the Shark has flying, and cycling makes an X/X Shark for the X you paid."
+    ]
+  },
+  {
     "version": "1.2.31",
     "title": "Dusk // Dawn",
     "notes": [

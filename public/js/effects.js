@@ -3536,7 +3536,13 @@ export async function resolveEffects(text, src, ctx) {
   // X defined in the text ("where X is the number of …")
   const xm = env.text.match(/where x is (half |twice )?(?:the number of |your |the total number of |the greatest )?([^.]+?)(?:, rounded (up|down))?(?:\.|$)/);
   // Shark Typhoon: "where X is that spell's mana value"
-  if (xm && /^that spell's mana value$/.test(xm[2].trim()) && ctx.it && card(ctx.it.iid)) env.x = DB[card(ctx.it.iid).def].cmc || 0;
+  if (xm && /^that spell's mana value$/.test(xm[2].trim()) && ctx.it && card(ctx.it.iid)) {
+    // on the stack, X counts: Blaze with X=4 has mana value 5
+    const sp = card(ctx.it.iid);
+    const f = DB[sp.def].faces[sp.castFace || 0] || DB[sp.def].faces[0];
+    const xs = ((f.manaCost || DB[sp.def].manaCost || '').match(/\{X\}/g) || []).length;
+    env.x = (DB[sp.def].faces.length > 1 && f.manaCost ? manaValueOf(f.manaCost) : DB[sp.def].cmc || 0) + xs * (sp.xPaid || 0);
+  }
   else if (xm) {
     const v = countPhrase(env.me, xm[2], helpers, src.iid);
     if (v !== null) env.x = xm[1] === 'half ' ? (xm[3] === 'up' ? Math.ceil(v / 2) : Math.floor(v / 2)) : xm[1] === 'twice ' ? v * 2 : v;
