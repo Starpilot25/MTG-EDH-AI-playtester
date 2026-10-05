@@ -136,6 +136,17 @@ export function castOptions(pid, c) {
       if (mode === 'sneak' && !(s.combat && s.combat.attackers.some((a) => card(a) && card(a).controller === pid))) continue;
       add({ mode, label: `${kw} ${cost}`, cost });
     }
+    // "You may pay {W} and tap four untapped creatures you control with flying rather than pay this spell's mana cost." (Sephara, Force of Will…)
+    if ((m = o0.match(/(?:^|\n)You may (.+?) rather than pay (?:this spell's|~'s) mana cost\./i)) && !/^cast\b/i.test(m[1])) {
+      let rest = m[1];
+      let mana = '';
+      const pm = rest.match(/\bpay ((?:\{[^}]+\})+)(?:,? and |, |$)/i);
+      if (pm) {
+        mana = pm[1];
+        rest = rest.replace(pm[0], '').replace(/^,? ?and /i, '').trim();
+      }
+      if (altPayable(pid, c, rest)) add({ mode: 'altcost', label: `Alternative cost: ${m[1]}`, cost: mana, other: rest || undefined, free: !mana && !rest ? true : undefined });
+    }
     if ((m = o0.match(/(?:^|\n)Prototype ((?:\{[^}]+\})+) — (\d+)\/(\d+)/))) add({ mode: 'prototype', label: `Prototype ${m[1]} (${m[2]}/${m[3]})`, cost: m[1], proto: { p: +m[2], t: +m[3] } });
     if ((m = o0.match(/(?:^|\n)Mutate ((?:\{[^}]+\})+)/))) {
       if (cardsIn(pid, 'battlefield').some((x) => isCreature(x) && !hasSubtype(x, 'Human') && x.owner === pid)) add({ mode: 'mutate', label: `Mutate ${m[1]}`, cost: m[1] });
@@ -174,6 +185,21 @@ export function castOptions(pid, c) {
     if (c.warped) add({ mode: 'normal', label: 'Cast (warped earlier)', cost: f0.manaCost });
   }
   return opts.filter((x) => x.cost !== undefined);
+}
+
+// Can the non-mana part of an alternative cost be paid right now? (only checks what's easy to check)
+function altPayable(pid, c, text) {
+  const t = String(text || '').toLowerCase();
+  const W = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+  let m;
+  if ((m = t.match(/tap (a|an|one|two|three|four|five|six|\d+) untapped ([a-z ]+?)s? you control(?: with ([a-z ]+))?(?:$|,| and)/))) {
+    const k = W[m[1]] || +m[1];
+    const pool = cardsIn(pid, 'battlefield').filter((x) => !x.tapped && matchesFilter(x, m[2]) && (!m[3] || hasKw(x, m[3])));
+    if (pool.length < k) return false;
+  }
+  if ((m = t.match(/pay (\d+) life/)) && G.s.players[pid].life < +m[1]) return false;
+  if ((m = t.match(/exile (?:a|an) ([a-z ]+?) card from your hand/)) && !cardsIn(pid, 'hand').some((x) => x.iid !== c.iid && matchesFilter(x, m[1]))) return false;
+  return true;
 }
 
 // Generic mana added or removed by the card itself and the battlefield.
@@ -420,7 +446,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (opt.mode === 'warp') s.ts.warped = true;
   Object.assign(c, { castMode: opt.mode === 'normal' ? null : opt.mode, kicked: info.kicked, xPaid: info.x, castFrom: fromZone, castFace: fIdx });
   c.colorsSpent = new Set((f.manaCost || '').match(/[WUBRG]/g) || []).size;
-  const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse)$/.test(opt.mode) ? ` (${opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
+  const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
   log(pid, tag);
   const stackSlot = pid === 'p' && s.stack ? 'pstack' : pid === 'p' ? 'pstack' : 'stack';
   s[stackSlot] = { iid, by: pid, face: fIdx };
@@ -845,12 +871,21 @@ export async function payOtherCost(pid, text, src, env) {
       }
       continue;
     }
-    if ((m = p.match(/^tap (a|an|one|two|three|\d+) untapped ([a-z ]+?)s? you control$/))) {
-      const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[m[1]] || +m[1];
-      const pool = cardsIn(pid, 'battlefield').filter((x) => !x.tapped && x.iid !== src.iid && matchesFilter(x, m[2]));
+    if ((m = p.match(/^tap (a|an|one|two|three|four|five|six|\d+) untapped ([a-z ]+?)s? you control(?: with ([a-z ]+))?$/))) {
+      const k = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 }[m[1]] || +m[1];
+      const pool = cardsIn(pid, 'battlefield').filter((x) => !x.tapped && x.iid !== src.iid && matchesFilter(x, m[2]) && (!m[3] || hasKw(x, m[3])));
       if (pool.length < k) return false;
       const picks = await ch.pickCards({ prompt: `Tap ${k} untapped ${m[2]}`, cards: pool.map((x) => x.iid), min: k, max: k, purpose: 'tap', src, aiScore: (x) => -cardValue(x) });
       picks.forEach((i) => (card(i).tapped = true));
+      continue;
+    }
+    // Force of Will & co.: "exile a blue card from your hand"
+    if ((m = p.match(/^exile (a|an) ([a-z ]+?) card from your hand$/))) {
+      const pool = cardsIn(pid, 'hand').filter((x) => x.iid !== src.iid && matchesFilter(x, m[2]));
+      if (!pool.length) return false;
+      const [pick] = await ch.pickCards({ prompt: `Exile a ${m[2]} card from your hand`, cards: pool.map((x) => x.iid), min: 1, max: 1, purpose: 'exileHand', src, aiScore: (x) => -cardValue(x) });
+      if (!pick) return false;
+      move(pick, 'exile');
       continue;
     }
     if ((m = p.match(/^return (a|an) ([a-z ]+?) you control to its owner's hand$/))) {

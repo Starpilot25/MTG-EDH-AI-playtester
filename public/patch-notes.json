@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.69",
+    "title": "Sephara and alternative costs",
+    "notes": [
+      "Sephara, Sky's Blade now gives your other flying creatures indestructible.",
+      "Sephara can be cast for {W} by tapping four untapped flying creatures. Spells with a \"You may … rather than pay this spell's mana cost\" alternative cost now offer it when you can pay it. This also covers Force of Will-style \"exile a card from your hand\" costs."
+    ]
+  },
+  {
     "version": "1.2.68",
     "title": "Occult Epiphany",
     "notes": [
