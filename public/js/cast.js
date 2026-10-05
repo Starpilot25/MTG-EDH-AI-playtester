@@ -884,7 +884,7 @@ export async function payOtherCost(pid, text, src, env) {
     }
     if ((m = p.match(/^tap (a|an|one|two|three|four|five|six|\d+) untapped ([a-z ]+?)s? you control(?: with ([a-z ]+))?$/))) {
       const k = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 }[m[1]] || +m[1];
-      const pool = cardsIn(pid, 'battlefield').filter((x) => !x.tapped && x.iid !== src.iid && matchesFilter(x, m[2]) && (!m[3] || hasKw(x, m[3])));
+      const pool = cardsIn(pid, 'battlefield').filter((x) => !x.tapped && (!/\bother\b/.test(m[2]) || x.iid !== src.iid) && matchesFilter(x, m[2].replace(/^other /, '')) && (!m[3] || hasKw(x, m[3])));
       if (pool.length < k) return false;
       const picks = await ch.pickCards({ prompt: `Tap ${k} untapped ${m[2]}`, cards: pool.map((x) => x.iid), min: k, max: k, purpose: 'tap', src, aiScore: (x) => -cardValue(x) });
       picks.forEach((i) => (card(i).tapped = true));
@@ -1329,6 +1329,15 @@ export async function activateAbility(pid, c, ab, env) {
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
     if (((c.counters || {})[ab.removeCounters[2].toLowerCase()] || 0) < k) return env.say('Not enough counters.');
   }
+  // Cryptbreaker: "Tap three untapped Zombies you control" — check there are enough before paying anything
+  const W_ = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5 };
+  const tapK = ab.tapOther ? W_[ab.tapOther[1].toLowerCase()] || +ab.tapOther[1] || 1 : 0;
+  if (ab.tapOther) {
+    const what = ab.tapOther[2].toLowerCase().replace(/ you control$/, '');
+    const other = /^other /.test(what);
+    const avail = cardsIn(pid, 'battlefield').filter((x) => !x.tapped && (!other || x.iid !== c.iid) && (!ab.tap || x.iid !== c.iid) && matchesFilter(x, what.replace(/^other /, '').replace(/s$/, '')));
+    if (avail.length < tapK) return env.say(`You need ${tapK} untapped ${what}.`);
+  }
   let x = 0;
   if (/\{X\}/.test(ab.mana)) {
     const p = await env.pay(pid, ab.mana, name, { ability: true, exclude: ab.tap ? [c.iid] : [], waterbend: /Waterbend/i.test(ab.costText || '') ? +((ab.costText.match(/Waterbend \{(\d+)\}/i) || [])[1] || 0) : 0, self: ab.tap ? c.iid : undefined });
@@ -1341,6 +1350,9 @@ export async function activateAbility(pid, c, ab, env) {
     applyPayment(pid, p);
   }
   // other costs
+  if (ab.tapOther) {
+    if (!(await payOtherCost(pid, `tap ${tapK} untapped ${ab.tapOther[2].toLowerCase().replace(/ you control$/, '')} you control`, c, env))) throw new Cancelled();
+  }
   if (ab.sacOther) {
     const k = { a: 1, an: 1, another: 1, two: 2, three: 3 }[ab.sacOther[1].toLowerCase()] || +ab.sacOther[1] || 1;
     if (!(await payOtherCost(pid, `sacrifice ${k === 1 ? 'a' : k} ${ab.sacOther[2]}`, c, env))) throw new Cancelled();

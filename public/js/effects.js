@@ -178,6 +178,7 @@ export function activatedAbilities(c) {
       untap: /\{Q\}/.test(cost),
       sac: /Sacrifice ~|Sacrifice this/i.test(cost),
       sacOther: (cost.match(/Sacrifice (an?|two|three|\d+|another) ([^,]+?)(?:,|$)/i) || null),
+      tapOther: (cost.match(/Tap (an?|one|two|three|four|five|\d+) untapped ([^,]+?)(?:,|$)/i) || null),
       discardN: (cost.match(/Discard (a|two|\d+) cards?/i) || [])[1],
       exert: /Exert ~/i.test(cost),
       removeCounters: cost.match(/Remove (a|an|one|two|three|\d+|X) ([+-]\d+\/[+-]\d+|\w+) counters? from ~/i),
@@ -1328,6 +1329,13 @@ on(/^put target creature on the bottom of its owner's library\. that creature's 
   for (const i of rest) move(i, 'library', { to: 'bottom' });
   env.did.push(hit ? `${who(ctl_)} ${s_(ctl_, 'reveal')} ${rest.length + 1} card${rest.length ? 's' : ''} and ${s_(ctl_, 'put')} ${nameTag(card(hit))} onto the battlefield` : `${who(ctl_)} ${s_(ctl_, 'find')} no other creature`);
 }, { first: true, multi: true });
+// Cryptbreaker: "You draw a card and you lose 1 life."
+on(/^(?:you )?draw (a|one|two|three) cards? and (?:you )?(lose|gain) (\d+) life$/, async (m, env) => {
+  const k = m[1] === 'a' ? 1 : n(m[1]);
+  draw(env.me, k, true);
+  changeLife(env.me, m[2] === 'lose' ? -+m[3] : +m[3], false);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${k} and ${s_(env.me, m[2])} ${m[3]} life`);
+}, { first: true });
 // Hoarder's Greed: lose 2, draw 2, clash; repeat while you win
 on(/^you lose (\d+) life and draw (\w+) cards?, then clash with an opponent\. if you win, repeat this process$/, async (m, env) => {
   const o = opp(env.me);

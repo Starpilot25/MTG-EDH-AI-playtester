@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.77",
+    "title": "Cryptbreaker",
+    "notes": [
+      "Cryptbreaker's second ability now taps three untapped Zombies you control as its cost, and Cryptbreaker can be one of them even the turn it arrives. Before, it tapped nothing and worked with fewer than three Zombies. It also now makes you lose 1 life when you draw. Other abilities with a \"Tap N untapped … you control\" cost work the same way."
+    ]
+  },
+  {
     "version": "1.2.76",
     "title": "Smarter AI targeting",
     "notes": [
