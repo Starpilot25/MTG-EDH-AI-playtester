@@ -120,6 +120,17 @@ export function oracle(inst) {
     }
   }
   if (inst.extraText) text += '\n' + inst.extraText;
+  // Way of the Pyromancer and friends: "Planeswalkers you control have "[+1]: Add {R}.""
+  if (inst.zone === 'battlefield' && G.s && /Planeswalker/.test(typeLine(inst).split('—')[0])) {
+    for (const iid of G.s.players[inst.controller].zones.battlefield) {
+      const src = G.s.cards[iid];
+      if (!src || src.phasedOut || src.faceDown) continue;
+      const raw = face(src).oracle || '';
+      for (const m of raw.matchAll(/Planeswalkers you control have "([^"]+)"(?: and "([^"]+)")?/g)) {
+        for (const ab of [m[1], m[2]].filter(Boolean)) text += '\n' + ab.replace(/^\[([+−-]?\d+|[+−-]?X)\]:/, '$1:').replace(/\bthis planeswalker\b/gi, '~');
+      }
+    }
+  }
   // "As ~ enters, choose a creature type" (Herald's Horn, Vanquisher's Banner…): write the choice into the text
   if (inst.chosenType) {
     const T = inst.chosenType;

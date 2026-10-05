@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.18",
+    "title": "Way of the … enchantments",
+    "notes": [
+      "\"Planeswalkers you control have …\" abilities (Way of the Pyromancer, Wildspeaker, Healer, Deathbringer, Warlord, Cryomancer and others) now show up on every planeswalker you control, including the Jace token, and the AI can use them too."
+    ]
+  },
+  {
     "version": "1.2.17",
     "title": "Attack highlights, equipment, ghost cards",
     "notes": [
