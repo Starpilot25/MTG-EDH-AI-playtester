@@ -721,3 +721,33 @@ ol.rooms li.been { color: var(--muted); }
 /* extra turns waiting */
 .status-row .st.xturn { background: rgb(242 181 58 / 0.18); border-color: #f2b53a; color: #f6d27a; font-weight: 600; }
 .status-row .st.xturn.now { background: #f2b53a; color: #1d1606; }
+
+/* ============================================================ organized battlefield (lanes) */
+.field.organized { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }
+.field.me.organized { --cw: 88px; --ch: 123px; }
+.field.me.organized .card { position: relative; }
+@media (max-height: 820px) { .field.me.organized { --cw: 76px; --ch: 106px; } }
+.lane { display: flex; flex-wrap: nowrap; gap: 8px; align-items: flex-end; min-width: 0; flex-shrink: 0; padding-top: 6px; }
+.lane.wrap { flex-wrap: wrap; row-gap: 10px; }
+.lane:empty { display: none; }
+.field.me.organized .lane.lands { margin-top: auto; }
+.field.opp.organized .lane.creatures { margin-top: auto; }
+.lane .card.tapped { margin: 0 calc((var(--ch) - var(--cw)) / 2); }
+.lane.lands { gap: 6px; }
+/* a pile of identical permanents */
+.card.stacked {
+  margin: 0 6px 0 0;
+  box-shadow: 3px -3px 0 -1px #0e1512, 3px -3px 0 0 #4a5c54, 6px -6px 0 -1px #0e1512, 6px -6px 0 0 #4a5c54, 0 2px 6px rgb(0 0 0 / 0.5);
+}
+.card.stacked.tapped { margin: 0 calc((var(--ch) - var(--cw)) / 2 + 6px) 0 calc((var(--ch) - var(--cw)) / 2); }
+.card.stacked .badge.count { font-size: 12px; padding: 3px 6px; }
+/* Auras and Equipment tucked behind what they're attached to */
+.host { position: relative; flex: none; padding-top: calc(var(--att) * 18px); }
+.host > .att { position: absolute; left: 0; top: calc(var(--k) * 18px); z-index: 0; }
+.host > .att .card { filter: brightness(0.9); }
+.host > .att .card:hover { filter: none; z-index: 5; }
+.host > .card { z-index: 2; }
+/* planeswalkers that can still use a loyalty ability this turn */
+.card.pw-ready { box-shadow: 0 0 0 2px #7fd1a8, 0 0 14px rgb(127 209 168 / 0.55); }
+.badge.pw-ready { background: #163126; color: #8fe0b6; border-color: #3f8f69; font-weight: 700; }
+.badge.pw-used { color: var(--muted); }

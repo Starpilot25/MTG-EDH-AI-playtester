@@ -286,6 +286,7 @@ function readSettings() {
   G.settings.arenaMode = $('#set-arena').checked;
   G.settings.aiSpeed = +$('#set-speed').value;
   G.settings.aiStyle = $('#set-aistyle').value;
+  G.settings.boardLayout = $('#set-layout').value;
   G.settings.startingLife = +$('#set-life').value || 40;
   store.set('settings', {
     freeMulligan: G.settings.freeMulligan,
@@ -293,6 +294,7 @@ function readSettings() {
     arenaMode: G.settings.arenaMode,
     aiSpeed: G.settings.aiSpeed,
     aiStyle: G.settings.aiStyle,
+    boardLayout: G.settings.boardLayout,
     startingLife: G.settings.startingLife,
   });
 }
@@ -357,6 +359,7 @@ function initSetup() {
   $('#set-arena').checked = st.arenaMode ?? true;
   $('#set-speed').value = st.aiSpeed ?? 650;
   $('#set-aistyle').value = st.aiStyle ?? 'casual';
+  $('#set-layout').value = st.boardLayout ?? 'organized';
   $('#set-life').value = st.startingLife ?? 40;
   $('#start').addEventListener('click', () => {
     readSettings();
@@ -468,6 +471,12 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#gm-pause').addEventListener('change', (e) => (G.settings.pauseOnAiSpells = e.target.checked));
   $('#gm-arena').addEventListener('change', (e) => (G.settings.arenaMode = e.target.checked));
   $('#gm-speed').addEventListener('change', (e) => (G.settings.aiSpeed = +e.target.value));
+  $('#gm-layout').addEventListener('change', (e) => {
+    G.settings.boardLayout = e.target.value;
+    store.set('settings', { ...store.get('settings', {}), boardLayout: e.target.value });
+    $('#set-layout').value = e.target.value;
+    render();
+  });
   $('#gm-aistyle').addEventListener('change', (e) => {
     G.settings.aiStyle = e.target.value;
     store.set('settings', { ...store.get('settings', {}), aiStyle: e.target.value });
@@ -480,6 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#gm-arena').checked = G.settings.arenaMode;
     $('#gm-speed').value = G.settings.aiSpeed;
     $('#gm-aistyle').value = G.settings.aiStyle || 'casual';
+    $('#gm-layout').value = G.settings.boardLayout || 'organized';
     $('#gm-autodraw').checked = G.settings.autoDraw;
     $('#gm-autountap').checked = G.settings.autoUntap;
   });

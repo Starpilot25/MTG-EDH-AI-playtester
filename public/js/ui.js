@@ -61,6 +61,16 @@ function manaSymbols(cost) {
     .replace(/\{([^}]+)\}/g, (m, s) => `<span class="ms ms-${s.replace('/', '').toLowerCase()}">${s}</span>`);
 }
 
+// same rule as cast.js: one loyalty ability a turn, two with Oath of Teferi, +1 for The Chain Veil
+function loyaltyUsesLeft(c) {
+  const s = G.s;
+  const all = cardsIn(c.controller, 'battlefield').map(oracle).join('\n');
+  let allowed = /activate (?:the )?loyalty abilities of [^.]+ twice/i.test(all) ? 2 : 1;
+  if (s.chainVeil && s.chainVeil.pid === c.controller && s.chainVeil.turn === s.turn) allowed += s.chainVeil.n;
+  const used = c.loyaltyUses && c.loyaltyUses.turn === s.turn ? c.loyaltyUses.n : c.usedLoyaltyTurn === s.turn ? 1 : 0;
+  return Math.max(0, allowed - used);
+}
+
 function cardHTML(c, opts = {}) {
   const d = DB[c.def];
   const f = d.faces[c.face || 0];
@@ -70,6 +80,7 @@ function cardHTML(c, opts = {}) {
   if (c.faceDown) cls.push('facedown');
   if (c.token) cls.push('token');
   if (opts.small) cls.push('small');
+  if (opts.stacked) cls.push('stacked');
   const cb = G.s.combat;
   if (cb && cb.attackers.includes(c.iid)) cls.push('attacking');
   else if (cb && cb.by === 'p' && cb.stage === 'declare' && c.controller === 'p' && c.zone === 'battlefield' && canAttack(c)) cls.push('can-attack');
@@ -105,6 +116,14 @@ function cardHTML(c, opts = {}) {
   }
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
   if (c.sector && c.zone === 'battlefield' && sculptors().length) badges.push(`<span class="badge sector" title="${c.sector} sector">${SECTOR_SIGN[c.sector]}</span>`);
+  // planeswalkers: can this one still use a loyalty ability this turn?
+  if (c.zone === 'battlefield' && isType(c, 'Planeswalker') && !isCreature(c) && c.controller === G.s.active && G.s.phase === 'play') {
+    const left = loyaltyUsesLeft(c);
+    if (left > 0) {
+      cls.push('pw-ready');
+      badges.push(`<span class="badge pw-ready" title="Can use ${left > 1 ? left + ' more loyalty abilities' : 'a loyalty ability'} this turn">⚡${left > 1 ? '×' + left : ''}</span>`);
+    } else badges.push('<span class="badge pw-used" title="Already used its loyalty ability this turn">✓ used</span>');
+  }
   if (c.zone === 'battlefield' && c.sick && isCreature(c) && c.controller === G.s.active && !hasKw(c, 'haste') && G.s.phase === 'play')
     badges.push('<span class="badge sick" title="Summoning sick">zz</span>');
   if (cb) {
@@ -301,28 +320,92 @@ function renderOpp() {
     <div class="piles">${pile('ai', 'library', 'Library')}${pile('ai', 'graveyard', 'Grave')}${pile('ai', 'exile', 'Exile')}${commandZone('ai')}</div>
     <div class="hand-row"><span class="lbl">Hand</span>${backs}</div>`;
 
-  // AI battlefield in rows
-  const bf = cardsIn('ai', 'battlefield');
-  const creatures = bf.filter((c) => isCreature(c));
-  const lands = bf.filter((c) => isLand(c) && !isCreature(c));
-  const other = bf.filter((c) => !creatures.includes(c) && !lands.includes(c));
-  const group = (arr) => {
-    const out = [];
-    const seen = {};
+  // AI battlefield: lanes, mirrored (its creatures face yours)
+  const of = $('#opp-field');
+  of.classList.add('organized');
+  of.innerHTML = boardLanes('ai');
+  fitLanes(of);
+}
+
+// ------------------------------------------------------------ organized battlefield
+// Identical permanents stack into one card with a ×N badge; Auras and Equipment tuck behind what they're attached to;
+// each lane (creatures / other permanents / lands) shrinks its cards to fit before it wraps.
+function stackKey(c) {
+  const cb = G.s.combat;
+  if (cb && (cb.attackers.includes(c.iid) || Object.values(cb.blocks || {}).some((b) => b.includes(c.iid)) || cb.selected === c.iid)) return null;
+  if (pendingTarget && pendingTarget.req.candidates.includes(c.iid)) return null;
+  if (G.s.stack && G.s.stack.iid === c.iid) return null;
+  if (isType(c, 'Planeswalker') || c.isCommander || c.faceDown) return null;
+  const sick = isCreature(c) && c.sick && !hasKw(c, 'haste') && c.controller === G.s.active;
+  return [c.def, c.face || 0, c.tapped ? 1 : 0, c.token ? 1 : 0, sick ? 1 : 0, c.damage || 0, JSON.stringify(c.counters || {}), JSON.stringify(c.grants || []), JSON.stringify(c.eot || null),
+    JSON.stringify(c.eotGrants || []), JSON.stringify(c.auraBuffs || {}), c.chosenType || '', c.chosenMode || '', c.pacifiedBy || '', c.notLegendary ? 1 : 0, c.sector || '', c.floated ? 1 : 0].join('|');
+}
+
+function boardLanes(pid) {
+  const bf = cardsIn(pid, 'battlefield');
+  const onField = new Set(bf.map((c) => c.iid));
+  const all = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')];
+  // attachments live with their host (even an Aura you put on the opponent's creature)
+  const att = {};
+  for (const a of all) if (a.attachedTo && card(a.attachedTo) && card(a.attachedTo).zone === 'battlefield' && !isCreature(a)) (att[a.attachedTo] = att[a.attachedTo] || []).push(a);
+  const tucked = new Set(Object.values(att).flat().map((a) => a.iid));
+  const free = bf.filter((c) => !tucked.has(c.iid));
+  const creatures = free.filter((c) => isCreature(c));
+  const lands = free.filter((c) => isLand(c) && !isCreature(c));
+  const other = free.filter((c) => !creatures.includes(c) && !lands.includes(c));
+  const lane = (arr, cls, empty) => {
+    const groups = [];
+    const byKey = {};
     for (const c of arr) {
-      const simple = isLand(c) && !c.counters.length && !Object.keys(c.counters).length && !c.attachedTo;
-      const key = simple ? c.def + ':' + c.tapped : c.iid;
-      if (seen[key]) seen[key].count++;
+      const k = att[c.iid] ? null : stackKey(c);
+      if (k && byKey[k]) byKey[k].n++;
       else {
-        seen[key] = { c, count: 1 };
-        out.push(seen[key]);
+        const g = { c, n: 1 };
+        if (k) byKey[k] = g;
+        groups.push(g);
       }
     }
-    return out.map((g) => cardHTML(g.c, { count: g.count })).join('');
+    const html = groups.map(({ c, n }) => {
+      const host = cardHTML(c, { count: n, stacked: n > 1 });
+      const a = (att[c.iid] || []).filter((x) => !onField.has(x.iid) || true);
+      if (!a.length) return host;
+      return `<div class="host" style="--att:${a.length}">${a.map((x, k) => `<div class="att" style="--k:${k}">${cardHTML(x)}</div>`).join('')}${host}</div>`;
+    }).join('');
+    return `<div class="lane ${cls}">${html || (empty ? `<span class="row-empty">${empty}</span>` : '')}</div>`;
   };
-  $('#opp-field').innerHTML = `
-    <div class="row creatures">${creatures.map((c) => cardHTML(c)).join('') || '<span class="row-empty">No creatures</span>'}</div>
-    <div class="row lands">${other.map((c) => cardHTML(c)).join('')}${other.length && lands.length ? '<span class="row-gap"></span>' : ''}${group(lands)}</div>`;
+  const lanes = [lane(creatures, 'creatures', pid === 'ai' ? 'No creatures' : ''), lane(other, 'others'), lane(lands, 'lands')];
+  return pid === 'ai' ? lanes.reverse().join('') : lanes.join('');
+}
+
+// shrink a lane's cards until they fit on one line (down to 60%), then let it wrap
+function fitLanes(root) {
+  const cs = getComputedStyle(root);
+  const bw = parseFloat(cs.getPropertyValue('--cw')) || 80;
+  const bh = parseFloat(cs.getPropertyValue('--ch')) || 112;
+  // the whole board also has to fit the height: shrink everything together if it doesn't
+  let global = 1;
+  for (let pass = 0; pass < 6; pass++) {
+    fitLanesOnce(root, bw * global, bh * global);
+    if (root.scrollHeight <= root.clientHeight + 1 || global <= 0.55) break;
+    global = Math.max(0.55, global * Math.max(0.8, Math.min(0.95, root.clientHeight / root.scrollHeight)));
+  }
+}
+function fitLanesOnce(root, bw, bh) {
+  for (const ln of root.querySelectorAll('.lane')) {
+    const base = ln.classList.contains('lands') ? 0.78 : ln.classList.contains('others') ? 0.9 : 1;
+    let sc = base;
+    ln.classList.remove('wrap');
+    const apply = () => {
+      ln.style.setProperty('--cw', `${Math.round(bw * sc)}px`);
+      ln.style.setProperty('--ch', `${Math.round(bh * sc)}px`);
+    };
+    apply();
+    for (let k = 0; k < 8 && ln.scrollWidth > ln.clientWidth + 1 && sc > 0.6; k++) {
+      sc = Math.max(0.6, sc * Math.min(0.95, ln.clientWidth / ln.scrollWidth));
+      apply();
+    }
+    if (ln.scrollWidth > ln.clientWidth + 1) ln.classList.add('wrap');
+  }
 }
 
 function renderMine() {
@@ -331,9 +414,18 @@ function renderMine() {
   window.__fieldWidth = field.clientWidth;
   window.__fieldHeight = field.clientHeight;
   const bf = cardsIn('p', 'battlefield');
-  for (const c of bf) if (c.x === null || c.x === undefined) Object.assign(c, freeSpotFor(c));
-  field.innerHTML = bf.map((c) => cardHTML(c, { abs: true })).join('') +
-    (bf.length ? '' : '<div class="field-hint">Drag cards here from your hand, or double-click them.</div>');
+  const organized = G.settings.boardLayout !== 'free';
+  field.classList.toggle('organized', organized);
+  if (organized) {
+    field.innerHTML = bf.length ? boardLanes('p') : '<div class="field-hint">Drag cards here from your hand, or double-click them.</div>';
+    fitLanes(field);
+  } else {
+    for (const c of bf) if (c.x === null || c.x === undefined) Object.assign(c, freeSpotFor(c));
+    field.innerHTML = bf.map((c) => cardHTML(c, { abs: true })).join('') +
+      (bf.length ? '' : '<div class="field-hint">Drag cards here from your hand, or double-click them.</div>');
+  }
+  const tb = $('#btn-tidy');
+  if (tb) tb.hidden = organized;
   $('#my-panel').innerHTML = `
     <div class="pname"><span class="dot you"></span>You <small>${esc(s.decks.p.name)}</small></div>
     ${lifeBlock('p')}
@@ -1584,6 +1676,7 @@ function onPointerUp(e) {
     const x = Math.max(18, Math.min(fr.width - CARD_W - 18, e.clientX - d.ox - fr.left + field.scrollLeft));
     const y = Math.max(0, e.clientY - d.oy - fr.top + field.scrollTop);
     if (c.zone === 'battlefield') {
+      if (G.settings.boardLayout !== 'free') return render();
       act(() => {
         c.x = Math.round(x);
         c.y = Math.round(y);

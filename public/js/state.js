@@ -24,6 +24,7 @@ export const G = {
     autoDraw: true,
     arenaMode: true,
     aiStyle: 'casual',
+    boardLayout: 'organized',
   },
 };
 

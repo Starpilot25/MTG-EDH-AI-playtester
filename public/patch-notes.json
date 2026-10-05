@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.2.28",
+    "title": "A tidier battlefield",
+    "notes": [
+      "New Organized board layout (the default): both battlefields are laid out in rows — creatures facing each other in the middle, then other permanents, then lands at the back.",
+      "Identical permanents stack into one card with a ×N badge: tokens, lands, duplicate creatures and rocks. Tapped and untapped ones stack separately; clicking a stack uses one card from it.",
+      "Auras and Equipment tuck behind the permanent they're attached to instead of taking their own spot. Hover one to see it.",
+      "Rows shrink their cards to fit the screen before wrapping, and the whole board scales down when it gets crowded, so nothing falls off the edge.",
+      "Planeswalkers that can still use a loyalty ability this turn glow green with a ⚡ badge; once used they show \"✓ used\" (Oath of Teferi and The Chain Veil count).",
+      "Prefer placing your cards yourself? Set Board layout to Free on the start screen or in the ☰ menu — the Tidy button comes back."
+    ]
+  },
+  {
     "version": "1.2.27",
     "title": "Aetheric Amplifier",
     "notes": [
