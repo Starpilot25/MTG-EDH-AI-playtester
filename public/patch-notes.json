@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.68",
+    "title": "Occult Epiphany",
+    "notes": [
+      "Occult Epiphany now makes a 1/1 flying Spirit for each card type among the cards you discarded. Before, it made none. When the AI casts it, it tries to discard a mix of card types."
+    ]
+  },
+  {
     "version": "1.2.67",
     "title": "Unlimited mulligans and card fixes",
     "notes": [

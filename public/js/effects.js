@@ -835,6 +835,13 @@ function amountOf(word, env) {
 }
 
 // ------------------------------------------------------------ the handlers
+// Occult Epiphany: the AI favors discarding one card of each type
+function varietyBonus(c, hand) {
+  const tl = (DB[c.def].typeLine || '').split('—')[0];
+  const types = tl.match(/Artifact|Creature|Enchantment|Instant|Land|Planeswalker|Sorcery|Battle/g) || [];
+  // rarer types in hand are worth more as a discard (each new type is a token)
+  return types.reduce((a, t) => a + 12 / hand.filter((h) => new RegExp(t).test(DB[h.def].typeLine || '')).length, 0);
+}
 async function mayAsk(env, what) {
   const yes = await env.choosers[env.me].confirm(`${cardName(env.src)}`, `You may ${what}`, env);
   env.lastMay = !!yes;
@@ -2062,7 +2069,12 @@ on(/^create (a|an|one|two|three) (.+?) tokens?( with [^.]+?)? for each (.+)$/, a
   let cnt;
   const cm = what.match(/^([a-z+\/0-9-]+) counter on (~|it|this [a-z]+)$/);
   if (cm) cnt = ((env.src && env.src.counters) || {})[cm[1]] || 0;
-  else cnt = countPhrase(env.me, what, helpers, env.src && env.src.iid) || 0;
+  // Occult Epiphany: "for each card type among cards discarded this way"
+  else if (/^card type among (?:cards|the cards) (?:discarded|milled|exiled) this way$/.test(what)) {
+    const pool = /discarded/.test(what) ? env.discarded || [] : env.them_ || [];
+    const TYPES = ['Artifact', 'Battle', 'Creature', 'Enchantment', 'Instant', 'Kindred', 'Land', 'Planeswalker', 'Sorcery'];
+    cnt = TYPES.filter((t) => pool.some((i) => card(i) && new RegExp('\\b' + t + '\\b').test((DB[card(i).def].typeLine || '').split('—')[0]))).length;
+  } else cnt = countPhrase(env.me, what, helpers, env.src && env.src.iid) || 0;
   const k = cnt * per;
   if (!k) return env.did.push('creates no tokens');
   const saved = env.x;
@@ -2308,7 +2320,7 @@ on(/^(you |target player |each player |that player |target opponent |each oppone
       const lands = cardsIn(pid, 'battlefield').filter(isLand).length;
       picks = await env.choosers[pid].pickCards({
         forced: true, prompt: `Choose ${k === 1 ? 'a card' : k + ' cards'} to discard`, cards: hand.map((c) => c.iid), min: k, max: k,
-        purpose: 'discard', src: env.src, aiScore: (c) => (isLand(c) ? (lands >= 6 ? 10 : -10) : DB[c.def].cmc - lands) + (/Madness/.test(oracle(c)) ? 20 : 0),
+        purpose: 'discard', src: env.src, aiScore: (c) => (isLand(c) ? (lands >= 6 ? 10 : -10) : DB[c.def].cmc - lands) + (/Madness/.test(oracle(c)) ? 20 : 0) + (/card type among cards discarded/.test(env.text || '') ? varietyBonus(c, hand) : 0),
       });
     }
     env.discardedNonland = picks.some((i) => !isLand(card(i)));
