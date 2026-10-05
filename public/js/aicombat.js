@@ -67,7 +67,7 @@ function threatRaw(c) {
 export function evasive(c) {
   const o = oracle(c);
   return hasKw(c, 'flying') || hasKw(c, 'shadow') || hasKw(c, 'horsemanship') || hasKw(c, 'fear') || hasKw(c, 'intimidate') ||
-    /can't be blocked(?!\s+by creatures with power)/i.test(o) || hasKw(c, 'menace');
+    /can't be blocked(?!\s+by creatures with power| as long as)/i.test(o) || hasKw(c, 'menace');
 }
 
 // ------------------------------------------------------------ combat simulator

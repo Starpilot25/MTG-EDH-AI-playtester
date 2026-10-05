@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.38",
+    "title": "Dungeon map; Yuan-Ti Malison",
+    "notes": [
+      "Dungeon progress is shown on the right side of the screen, above the game log. You see a map of your dungeon and the AI's: rooms already visited are ticked, the current room is highlighted, and the rooms you can go to next are outlined. Hover a room to read it, or click the map to see every room in full.",
+      "Yuan-Ti Malison can't be blocked when it attacks alone, but can be blocked if anything attacks with it. The AI no longer treats it as always unblockable. The same check now covers \"can't be blocked as long as you're the monarch\" and \"as long as you have the initiative.\""
+    ]
+  },
+  {
     "version": "1.2.37",
     "title": "Shark Typhoon sizes; AI uses The Chain Veil",
     "notes": [

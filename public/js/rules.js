@@ -789,6 +789,14 @@ export function canBlock(blocker, attacker) {
   }
   if (/(?:^|\n|\. )[^.\n]*can't be blocked\.?(?:$|\n)/.test(ao) || attacker.unblockableTurn === (G.s && G.s.turn)) return false;
   let m;
+  // "can't be blocked as long as it's attacking alone" (Yuan-Ti Malison), "... as long as you're the monarch / have the initiative"
+  if ((m = ao.match(/can't be blocked as long as ([^.\n]+)/i))) {
+    const cond = m[1].toLowerCase();
+    const atk = (G.s && G.s.combat && G.s.combat.attackers) || [];
+    if (/(?:it's|it is) attacking alone/.test(cond) && atk.length === 1 && atk[0] === attacker.iid) return false;
+    if (/you(?:'re| are) the monarch/.test(cond) && G.s && G.s.monarch === attacker.controller) return false;
+    if (/you have the initiative/.test(cond) && G.s && G.s.initiative === attacker.controller) return false;
+  }
   if ((m = ao.match(/can't be blocked by creatures with power (\d+) or less/i)) && power(blocker) <= +m[1]) return false;
   if ((m = ao.match(/can't be blocked by creatures with power (\d+) or greater/i)) && power(blocker) >= +m[1]) return false;
   if (/can't be blocked except by creatures with flying/i.test(ao) && !hasKw(blocker, 'flying')) return false;

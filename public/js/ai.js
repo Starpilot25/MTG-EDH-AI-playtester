@@ -179,7 +179,7 @@ export const aiChooser = {
     const drop = plan.filter((x) => x.v <= 0);
     for (const x of [...keep].reverse()) move(x.iid, 'library');
     for (const x of drop) move(x.iid, surveil ? 'graveyard' : 'library', surveil ? {} : { to: 'bottom' });
-    log(pid, `${pid === AI ? 'The AI' : 'You'} ${surveil ? 'surveil' : 'scry'}${pid === AI ? 's' : ''} ${ids.length}: ${keep.length} on top, ${drop.length} ${surveil ? 'into the graveyard' : 'on the bottom'}${surveil && drop.length ? ` (${drop.map((x) => nameTag(card(x.iid))).join(', ')})` : ''}.`);
+    log(pid, `${pid === AI ? 'The AI' : 'You'} ${pid === AI ? (surveil ? 'surveils' : 'scries') : surveil ? 'surveil' : 'scry'} ${ids.length}: ${keep.length} on top, ${drop.length} ${surveil ? 'into the graveyard' : 'on the bottom'}${surveil && drop.length ? ` (${drop.map((x) => nameTag(card(x.iid))).join(', ')})` : ''}.`);
   },
   async choose(req) {
     return req.aiPick ? req.aiPick() : 0;

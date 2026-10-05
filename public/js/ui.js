@@ -168,6 +168,7 @@ function renderAll() {
   renderTop();
   renderOpp();
   renderMine();
+  { const dz = $('#dungeons'); if (dz) { const h = dungeonMap('p') + dungeonMap('ai'); if (dz.innerHTML !== h) dz.innerHTML = h; } }
   renderHand();
   renderBanner();
   renderLog();
@@ -220,11 +221,43 @@ function dungeonLine(pid) {
   if (G.s.initiative === pid) bits.push('<span class="init" title="Venture into Undercity at your upkeep; whoever deals combat damage to you takes it">Initiative</span>');
   if (pl.dungeon) {
     const dg = DUNGEONS[pl.dungeon.name];
-    const k = dg ? dg.order.indexOf(pl.dungeon.room) + 1 : 0;
-    bits.push(`<button class="dg" data-dungeon="${pid}" title="See the dungeon">${esc(pl.dungeon.name.replace(/ of .*/, ''))} · ${esc(pl.dungeon.room)} <small>${k}/${dg ? dg.order.length : '?'}</small></button>`);
+    const d = dg ? dungeonDepths(dg) : null;
+    const k = d ? (d.depth[pl.dungeon.room] || 0) + 1 : 0;
+    bits.push(`<button class="dg" data-dungeon="${pid}" title="See the dungeon">${esc(pl.dungeon.name.replace(/ of .*/, ''))} · ${esc(pl.dungeon.room)} <small>${k}/${d ? d.rows.length : '?'}</small></button>`);
   }
   if (pl.dungeonsCompleted) bits.push(`<span class="dg-done">${pl.dungeonsCompleted} dungeon${pl.dungeonsCompleted > 1 ? 's' : ''} completed</span>`);
   return bits.length ? `<div class="dungeon-row">${bits.join('')}</div>` : '';
+}
+
+// depth of each room = longest path from the first room; rows of rooms by depth
+function dungeonDepths(dg) {
+  const depth = { [dg.first]: 0 };
+  for (const n of dg.order) for (const nx of (dg.rooms[n] || { next: [] }).next) if (depth[n] !== undefined) depth[nx] = Math.max(depth[nx] || 0, depth[n] + 1);
+  const rows = [];
+  for (const n of dg.order) (rows[depth[n] || 0] = rows[depth[n] || 0] || []).push(n);
+  return { depth, rows };
+}
+
+// The dungeon as a little map on the side: rooms by depth, where you are, where you can go next.
+function dungeonMap(pid) {
+  const pl = G.s.players[pid];
+  if (!pl.dungeon) return '';
+  const dg = DUNGEONS[pl.dungeon.name];
+  if (!dg) return '';
+  const { depth, rows } = dungeonDepths(dg);
+  const here = pl.dungeon.room;
+  const next = (dg.rooms[here] || { next: [] }).next;
+  const visited = pl.dungeon.visited || [];
+  const total = rows.length;
+  const at = (depth[here] || 0) + 1;
+  return `<div class="dg-map" data-dungeon="${pid}" title="Click to see every room">
+    <div class="er-title">${pid === 'p' ? 'Your dungeon' : "AI's dungeon"} · ${esc(dg.name)} <b>${at}/${total}</b></div>
+    ${rows.filter(Boolean).map((row) => `<div class="dg-rowmap">${row.map((n) => {
+      const cls = n === here ? 'here' : next.includes(n) ? 'next' : visited.includes(n) ? 'been' : '';
+      return `<span class="dg-room ${cls}" title="${esc(n)} — ${esc(dg.rooms[n].text)}">${n === here ? '◆ ' : visited.includes(n) ? '✓ ' : ''}${esc(n)}</span>`;
+    }).join('')}</div>`).join('<div class="dg-arrow">↓</div>')}
+    ${next.length ? '' : '<div class="dg-last">Last room — the next venture completes it</div>'}
+  </div>`;
 }
 
 function dungeonDialog(pid) {
@@ -1905,6 +1938,8 @@ export function bindEvents() {
   window.addEventListener('blur', dropStale);
 
   document.addEventListener('click', (e) => {
+    const dm = e.target.closest('.dg-map');
+    if (dm && G.s) return dungeonDialog(dm.dataset.dungeon);
     const b = e.target.closest("[data-cmdzone]");
     if (!b || !G.s) return;
     const c = card(b.dataset.iid);
