@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.51",
+    "title": "Planar Incision",
+    "notes": [
+      "Planar Incision (and any \"exile it, then return it … with a +1/+1 counter on it\" card) puts the counter on the creature when it comes back.",
+      "When the AI casts one of these exile-and-return spells, it aims it at its own creatures, not yours."
+    ]
+  },
+  {
     "version": "1.2.50",
     "title": "Sphinx of the Second Sun",
     "notes": [

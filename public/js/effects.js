@@ -912,8 +912,11 @@ on(BLINK_RE, async (m, env) => {
     if (!tok && card(iid)) {
       toBattlefield(iid, owner, { tapped: !!m[2] });
       back.push(iid);
+      // Planar Incision: "…with a +1/+1 counter on it"
+      const wc = env.sentence.match(/with (a|an|one|two|three|four|\d+) (?:additional )?([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|them|each of them)/);
+      if (wc) addCounters(card(iid), wc[2], n(wc[1]));
     }
-    env.did.push(`flickers ${nameTag(card(iid) || c)}`);
+    env.did.push(`flickers ${nameTag(card(iid) || c)}${env.sentence.match(/with (?:a|an|one|two|three|\d+) [^ ]+ counters? on/) ? ' (with a counter)' : ''}`);
   }
   env.them_ = back;
   env.it = back[0] ? { iid: back[0] } : null;
@@ -3903,7 +3906,8 @@ export async function predictTargets(pid, c, face, choosers, x = 0) {
   for (const sentence of text.split(/(?<=\.)\s+|\n/)) {
     for (const mm of sentence.matchAll(PH)) {
       const phrase = mm[0].trim();
-      const harm = !/(?:gets? \+|gains? (?!control)|untap|\+1\/\+1 counter|return [^.]* to the battlefield|hexproof|indestructible|protection)/.test(sentence) || /destroy|exile|damage|sacrifice|-\d/.test(sentence);
+      const blink = /exile [^.]*,? then return (?:it|that card|them|that permanent) to the battlefield/.test(sentence);
+      const harm = !blink && (!/(?:gets? \+|gains? (?!control)|untap|\+1\/\+1 counter|return [^.]* to the battlefield|hexproof|indestructible|protection)/.test(sentence) || /destroy|exile|damage|sacrifice|-\d/.test(sentence));
       let picks = [];
       try {
         picks = await pickTargets(env, phrase, { harm, noWard: true });
