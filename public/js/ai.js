@@ -729,6 +729,9 @@ async function planeswalkersOnce(h) {
       if (a.gain || a.drain) v += 1;
       if (a.tutor) v += 2;
       if (/untap/i.test(ab.text)) v += 0.5;
+      // Jace, the Mind Sculptor's ultimate: exiling your library wins the game
+      if (/exile all cards from target (?:player|opponent)'s library/i.test(ab.text)) v += 25;
+      if (/^look at the top card of target player's library/i.test(ab.text)) v += 1.5;
       if (!knownEffect(ab.text)) v -= 3;
       if (!understood(ab.text, pw)) return -99; // the engine can't do it properly: leave it alone
       v += ab.cost * 0.8; // loyalty is worth keeping

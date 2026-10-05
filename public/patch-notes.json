@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.2.66",
+    "title": "Jace, Thassa's Oracle and the precon gaps",
+    "notes": [
+      "Jace, the Mind Sculptor works: +2 looks at the top card of a player's library and can put it on the bottom, 0 draws three and puts two back, −1 bounces a creature, and −12 exiles a player's library and shuffles their hand into it. The AI uses all four abilities.",
+      "Thassa's Oracle now wins the game when your devotion to blue is at least the number of cards left in your library. Before, it only put a card into your hand.",
+      "The three new precons now run almost entirely automatically. Newly working: Fact or Fiction, Mass Polymorph, Synthetic Destiny, Teferi's Reproach, Hoarder's Greed, Jhoira, Weatherlight Corsair, Dack Fayden, Helping Hand, Scarlet Witch, Heroic Sacrifice, Eventide's Shadow, Aberrant Return, Arcane Denial's delayed draws, The Ur-Sphinx, Nissa, Leyline Tamer, Oft-Nabbed Goat, Gift of Immortality and Love on the Battlefield.",
+      "Avengers triggers now work: Captain America, Living Legend untaps your creatures the first time they tap on your turn. Captain Marvel copies counters you put on your other creatures. She-Hulk adds counters when a Hero is blocked. Hercules grows when he's dealt damage. Shang-Chi's tenth counter draws five cards. Jocasta grows from commander damage and returns from your graveyard when your commander attacks. Falcon and Redwing makes Birds. Iron Man and War Machine buff modified creatures. Vision, Hawkeye, Black Widow, Photon, Tamiyo, Kindred Discovery, Massacre Girl, Lasting Tarfire and Niv-Mizzet, Ghost Counsel also work.",
+      "Three Avengers cards printed under Marvel names now load as the cards they reprint: Raise Repulsor Shields as Raise the Palisade, Avengers Monitoring Station as Herald's Horn, and S.H.I.E.L.D. Spy Satellite as Fellwar Stone.",
+      "Fixed: casting Dismantling Wave (or any spell with a \"When you cycle\" ability) also ran its cycling ability.",
+      "A trigger with no legal targets now says so in the log instead of asking you to apply it by hand."
+    ]
+  },
+  {
     "version": "1.2.65",
     "title": "Three new precons",
     "notes": [

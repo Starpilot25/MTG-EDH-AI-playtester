@@ -198,6 +198,17 @@ export function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+// Captain America, Living Legend: a creature you control that becomes tapped for the first time during your turn untaps
+export function tappedHook(c) {
+  if (!c || !G.s || c.zone !== 'battlefield' || !isCreature(c)) return;
+  const first = c.firstTapTurn !== G.s.turn;
+  c.firstTapTurn = G.s.turn;
+  if (!first || G.s.active !== c.controller || !c.tapped) return;
+  const cap = G.s.players[c.controller].zones.battlefield.map((i) => G.s.cards[i]).find((x) => x && !x.phasedOut && !x.lostAbilities && /Whenever a creature you control becomes tapped during your turn, if it's the first time that creature has become tapped this turn, untap it/i.test(oracle(x)));
+  if (!cap) return;
+  c.tapped = false;
+  log(c.controller, `${nameTag(cap)}: ${nameTag(c)} untaps.`);
+}
 export function log(who, html) {
   G.s.log.push({ who, html, turn: G.s.turn });
   if (G.s.log.length > 500) G.s.log.shift();
@@ -491,7 +502,9 @@ export function addCounters(c, kind, n, opts = {}) {
     }
   }
   for (const key of Object.keys(c.counters)) if (!c.counters[key] && key !== 'loyalty' && key !== 'lore' && key !== 'defense') delete c.counters[key];
-  if (n > 0 && !opts.silent) queueEvent({ type: 'counterPut', iid: c.iid, kind, n, controller: c.controller });
+  const by = opts.by || G.curActor || null;
+  if (n > 0 && by && G.s.ts && G.s.ts[by] && c.zone === 'battlefield' && isCreature(c)) G.s.ts[by].counterOnCreature = true;
+  if (n > 0 && !opts.silent) queueEvent({ type: 'counterPut', iid: c.iid, kind, n, controller: c.controller, by });
   return n;
 }
 

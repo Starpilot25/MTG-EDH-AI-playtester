@@ -134,8 +134,28 @@ export function triggersOf(c, defOverride) {
       add('combatDamagePlayer', m[1], { anyOfMine: true, enchanted: true });
     else if ((m = line.match(/^Whenever one or more (?:other )?cards? (?:are put into|leave) your graveyard(?: from anywhere)?, (.+)$/i)))
       add('putIntoGraveyard', m[1], { mine: true });
+    // Avengers: commander combat damage, plural names ("Falcon and Redwing deal"), Hercules, She-Hulk, Kindred Discovery…
+    else if ((m = line.match(/^Whenever (?:your commander|a commander you control) deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)))
+      add('combatDamagePlayer', m[1], { anyOfMine: true, commander: true });
+    else if (/^Whenever you attack with your commander, if (?:this card|~) is in your graveyard/i.test(line)) void 0; // handled in specialEvent (Jocasta)
+    else if (/^Whenever a creature you control becomes tapped during your turn, if it's the first time/i.test(line)) void 0; // tappedHook (Captain America)
+    else if ((m = line.match(/^Whenever one or more creatures deal combat damage to you while you're the monarch, (.+)$/i)))
+      add('combatDamagedMe', m[1], { monarch: true });
+    else if ((m = line.match(/^Whenever ~ is dealt damage for the first time each turn, (.+)$/i)))
+      add('dealtDamage', m[1], { self: true, oncePerTurn: true });
+    else if ((m = line.match(/^Whenever (?:a|an) ([A-Z][\w-]+) you control becomes blocked, (.+)$/)))
+      add('blocked', m[2], { anyOfMine: true, kind: m[1].toLowerCase() });
+    else if ((m = line.match(/^Whenever (?:a|an) ((?:[\w-]+ )*?)creature you control (?:of the chosen type )?enters or attacks, (.+)$/i))) {
+      const kind = /of the chosen type/i.test(line) ? 'chosen type' : m[1].trim().toLowerCase();
+      add('attacks', m[2], { anyOfMine: true, kind, chosenType: kind === 'chosen type' });
+      add('enters', m[2], { mine: true, kind: kind === 'chosen type' ? '' : kind, chosenType: kind === 'chosen type' });
+    }
+    else if ((m = line.match(/^When the (tenth|fifth|third|twentieth) \+1\/\+1 counter is put on ~, (.+)$/i)))
+      add('counterPut', m[2], { self: true, kind: '+1/+1', nth: { third: 3, fifth: 5, tenth: 10, twentieth: 20 }[m[1].toLowerCase()] });
+    else if ((m = line.match(/^Whenever you put one or more counters on another creature, (.+)$/i)))
+      add('counterPut', m[1], { anyCreature: true, byMe: true, other: true, anyKind: true });
     // combat
-    else if ((m = line.match(/^Whenever ~ deals (?:combat )?damage to (?:a player|an opponent|one or more players|a player or planeswalker|a player or battle)[^,]*, (.+)$/i)))
+    else if ((m = line.match(/^Whenever ~ deals? (?:combat )?damage to (?:a player|an opponent|one or more players|a player or planeswalker|a player or battle)[^,]*, (.+)$/i)))
       add('combatDamagePlayer', m[1], { self: true });
     else if ((m = line.match(/^Whenever (?:a|another) creature you control with (?:a|one or more) (\+1\/\+1 )?counters? on it deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)))
       add('combatDamagePlayer', m[2], { anyOfMine: true, withCounter: m[1] ? '+1/+1' : 'any' });
@@ -226,6 +246,15 @@ export function triggersOf(c, defOverride) {
       add('loyaltyActivated', m[1]);
     else if ((m = line.match(/^Whenever you put one or more loyalty counters on a planeswalker(?: you control)?, (.+)$/i)))
       add('counterPut', m[1], { anyOfMine: true, kind: 'loyalty' });
+    // -1/-1 counter matters (Lorwyn Eclipsed blight): Auntie Ool, Wickersmith's Tools, Hapatra, Flourishing Defenses
+    else if ((m = line.match(/^Whenever one or more -1\/-1 counters are put on (?:a|another) creature( you control| an opponent controls)?, (.+)$/i)))
+      add('counterPut', m[2], { kind: '-1/-1', anyCreature: true, mine: /you control/i.test(m[1] || ''), theirs: /opponent controls/i.test(m[1] || '') });
+    else if ((m = line.match(/^Whenever an? -1\/-1 counter is put on (?:a|another) creature( you control| an opponent controls)?, (.+)$/i)))
+      add('counterPut', m[2], { kind: '-1/-1', anyCreature: true, perCounter: true, mine: /you control/i.test(m[1] || ''), theirs: /opponent controls/i.test(m[1] || '') });
+    else if ((m = line.match(/^Whenever you put one or more -1\/-1 counters on (?:a|another) creature(?: you don't control)?, (.+)$/i)))
+      add('counterPut', m[1], { kind: '-1/-1', anyCreature: true, byMe: true });
+    else if ((m = line.match(/^Whenever an? creature (an opponent controls |you control |your opponents control )?with an? ((?:-1\/-1|\+1\/\+1) )?counter on it dies, (.+)$/i)))
+      add('dies', m[3], { withCounter: m[2] ? m[2].trim() : 'any', mine: /you control/i.test(m[1] || ''), theirs: /opponent/i.test(m[1] || '') });
     else if ((m = line.match(/^Whenever one or more \+1\/\+1 counters are put on ~, (.+)$/i)))
       add('counterPut', m[1], { self: true, kind: '+1/+1' });
     else if ((m = line.match(/^Whenever one or more \+1\/\+1 counters are put on (?:a|another) creature you control, (.+)$/i)))
@@ -632,6 +661,7 @@ function matches(ev) {
         if (trig.commander && !nc.isCommander) return;
         if (trig.nontoken && nc.token) return;
         if (!kindOk(nc, trig.kind)) return;
+        if (trig.chosenType && !(c.chosenType && hasSubtype(nc, c.chosenType))) return;
         if (trig.once) {
           const key = c.iid + trig.raw;
           if (seenOnce.has(key) || ev.batchSeen) return;
@@ -659,7 +689,12 @@ function matches(ev) {
         if (trig.mine && ev.controller !== c.controller) return;
         if (trig.theirs && ev.controller === c.controller) return;
         if (trig.kind && !matchesFilter({ ...ghost, zone: 'battlefield' }, trig.kind)) return;
-        out.push({ src: c, trig, it: { iid: ev.iid } });
+        if (trig.withCounter) {
+          const cs = ev.counters || {};
+          if (trig.withCounter === 'any' ? !Object.values(cs).some((v) => v > 0) : !(cs[trig.withCounter] > 0)) return;
+          if (ev.type === 'dies' && !(DB[ev.def] && /Creature/.test(DB[ev.def].typeLine || ''))) return;
+        }
+        out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: ev.controller });
       });
       // equipment / auras: "whenever equipped creature dies"
       break;
@@ -725,8 +760,8 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'combatDamagePlayer') return;
         const atk = card(ev.iid);
-        if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player });
-        else if (trig.anyOfMine && c.controller === ev.controller && (!trig.kind || (atk && matchesFilter(atk, trig.kind))) && (!trig.faceUpTurn || (atk && atk.turnedUpTurn === G.s.turn)) && (!trig.enchanted || (atk && Object.values(G.s.cards).some((a) => a.attachedTo === atk.iid && a.zone === 'battlefield' && /Aura/.test(typeLine(a))))) && (!trig.withCounter || (atk && Object.entries(atk.counters || {}).some(([k, v]) => v > 0 && (trig.withCounter === 'any' || k === trig.withCounter))))) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid } });
+        if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, amount: ev.amount });
+        else if (trig.anyOfMine && c.controller === ev.controller && !(trig.commander && !(atk && atk.isCommander)) && (!trig.kind || (atk && matchesFilter(atk, trig.kind))) && (!trig.faceUpTurn || (atk && atk.turnedUpTurn === G.s.turn)) && (!trig.enchanted || (atk && Object.values(G.s.cards).some((a) => a.attachedTo === atk.iid && a.zone === 'battlefield' && /Aura/.test(typeLine(a))))) && (!trig.withCounter || (atk && Object.entries(atk.counters || {}).some(([k, v]) => v > 0 && (trig.withCounter === 'any' || k === trig.withCounter))))) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid } });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid } });
       });
       // ciphered spells cast a copy
@@ -735,6 +770,11 @@ function matches(ev) {
       }
       break;
     case 'combatDamageOnce':
+      each((c, trig) => {
+        if (trig.event !== 'combatDamagedMe' || ev.player !== c.controller) return;
+        if (trig.monarch && G.s.monarch !== c.controller) return;
+        out.push({ src: c, trig, thatPlayer: ev.controller, them: (ev.sources || []).map((x) => x.iid) });
+      });
       each((c, trig) => {
         if (trig.event !== 'combatDamageOnce' || c.controller !== ev.controller) return;
         const srcs = (ev.sources || []).filter((x) => !trig.kind || (card(x.iid) && matchesFilter(card(x.iid), trig.kind)));
@@ -748,7 +788,7 @@ function matches(ev) {
         if (trig.event !== 'attacks') return;
         if (trig.self && c.iid === ev.iid) {
           if (!trig.minAttackers || ((G.s.combat && G.s.combat.attackers.length) || 0) >= trig.minAttackers) out.push({ src: c, trig, thatPlayer: ev.defender });
-        } else if (trig.anyOfMine && c.controller === ev.controller && (!trig.kind || matchesFilter(card(ev.iid), trig.kind)) && !(trig.other && c.iid === ev.iid) && !(trig.commander && !(card(ev.iid) || {}).isCommander)) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
+        } else if (trig.anyOfMine && c.controller === ev.controller && (trig.chosenType ? c.chosenType && hasSubtype(card(ev.iid), c.chosenType) : !trig.kind || matchesFilter(card(ev.iid), trig.kind)) && !(trig.other && c.iid === ev.iid) && !(trig.commander && !(card(ev.iid) || {}).isCommander)) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
         else if (trig.theirAttacker && c.controller !== ev.controller) out.push({ src: c, trig, it: { iid: ev.iid } });
       });
@@ -789,7 +829,11 @@ function matches(ev) {
     case 'blocks':
     case 'blocked':
     case 'unblocked':
-      each((c, trig) => trig.event === ev.type && trig.self && c.iid === ev.iid && out.push({ src: c, trig, thatPlayer: ev.defender }));
+      each((c, trig) => {
+        if (trig.event !== ev.type) return;
+        if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender, amount: (ev.blockers || []).length });
+        else if (trig.anyOfMine && card(ev.iid) && card(ev.iid).controller === c.controller && (!trig.kind || matchesFilter(card(ev.iid), trig.kind))) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid }, amount: (ev.blockers || []).length });
+      });
       break;
     case 'upkeep':
     case 'drawStep':
@@ -888,9 +932,32 @@ function matches(ev) {
       break;
     case 'counterPut': {
       const tgt = card(ev.iid);
-      if (!tgt || (ev.kind !== '+1/+1' && ev.kind !== 'loyalty')) break;
+      if (!tgt) break;
       each((c, trig) => {
-        if (trig.event !== 'counterPut' || (trig.kind || '+1/+1') !== ev.kind) return;
+        if (trig.event !== 'counterPut') return;
+        // Captain Marvel: "Whenever you put one or more counters on another creature"
+        if (trig.anyKind) {
+          if (!isCreature(tgt) || (trig.other && tgt.iid === c.iid) || (ev.by || tgt.controller) !== c.controller || ev.kind === 'loyalty') return;
+          out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: tgt.controller, amount: ev.n, counterKind: ev.kind });
+          return;
+        }
+        if (ev.kind !== '+1/+1' && ev.kind !== 'loyalty' && ev.kind !== '-1/-1') return;
+        if ((trig.kind || '+1/+1') !== ev.kind) return;
+        if (trig.nth) {
+          const now = (tgt.counters || {})[ev.kind] || 0;
+          if (c.iid !== ev.iid || !(now >= trig.nth && now - ev.n < trig.nth)) return;
+          out.push({ src: c, trig });
+          return;
+        }
+        if (trig.anyCreature) {
+          if (!isCreature(tgt)) return;
+          if (trig.mine && tgt.controller !== c.controller) return;
+          if (trig.theirs && tgt.controller === c.controller) return;
+          if (trig.byMe && (ev.by ? ev.by !== c.controller : tgt.controller === c.controller)) return;
+          const times = trig.perCounter ? ev.n : 1;
+          for (let k = 0; k < times; k++) out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: tgt.controller, amount: ev.n });
+          return;
+        }
         if (ev.kind === 'loyalty' && (c.controller !== tgt.controller || !isType(tgt, 'Planeswalker'))) return;
         if (ev.kind === 'loyalty') return void out.push({ src: c, trig, it: { iid: ev.iid }, amount: ev.n });
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig });
@@ -943,6 +1010,44 @@ function matches(ev) {
 // ------------------------------------------------------------ special events
 async function specialEvent(ev) {
   const ch = T.choosers;
+  // Love on the Battlefield: those creatures get a +1/+1 counter when they deal combat damage to a player this combat
+  if (ev.type === 'combatDamagePlayer' && card(ev.iid) && card(ev.iid).loveTurn === G.s.turn) {
+    addCounters(card(ev.iid), '+1/+1', 1);
+    log(card(ev.iid).controller, `${nameTag(card(ev.iid))} gets a +1/+1 counter (Love on the Battlefield).`);
+  }
+  // Jocasta: "Whenever you attack with your commander, if this card is in your graveyard, you may return it to the battlefield tapped and attacking."
+  if (ev.type === 'attacks' && card(ev.iid) && card(ev.iid).isCommander && G.s.combat) {
+    for (const x of cardsIn(ev.controller, 'graveyard')) {
+      if (!/Whenever you attack with your commander, if (?:this card|~|[^,]+) is in your graveyard, you may return it to the battlefield tapped and attacking/i.test(oracle({ ...x, zone: 'battlefield' }))) continue;
+      if (G.s.combat.jocasta === G.s.turn + ':' + x.iid) continue;
+      G.s.combat.jocasta = G.s.turn + ':' + x.iid;
+      const yes = ev.controller === 'ai' ? true : await T.confirm(cardName(x), `Return ${cardName(x)} from your graveyard to the battlefield tapped and attacking?`);
+      if (!yes) continue;
+      toBattlefield(x.iid, ev.controller);
+      const y = card(x.iid);
+      if (!y) continue;
+      y.tapped = true;
+      y.attacking = true;
+      G.s.combat.attackers.push(y.iid);
+      if (G.s.combat.targets) G.s.combat.targets[y.iid] = G.s.combat.targets[ev.iid] || ev.defender;
+      log(ev.controller, `${nameTag(y)} returns from the graveyard tapped and attacking.`);
+    }
+  }
+  // Heroic Sacrifice: when the chosen creature dies this turn, move its counters and draw a card
+  if (ev.type === 'dies' && G.s.redirect && G.s.redirect.onDie && G.s.redirect.iid === ev.iid && G.s.redirect.turn === G.s.turn) {
+    const pid = G.s.redirect.pid;
+    G.s.redirect = null;
+    const cs = Object.entries(ev.counters || {}).filter(([, k]) => k > 0);
+    const pool = cardsIn(pid, 'battlefield').filter(isCreature);
+    if (cs.length && pool.length) {
+      const [to] = await ch[pid].pickCards({ prompt: 'Put its counters on up to one target creature you control', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'counters', aiScore: (c) => cardValue(c) });
+      if (to && card(to)) {
+        for (const [k, n] of cs) addCounters(card(to), k, n);
+        log(pid, `${nameTag(card(to))} gets ${cs.map(([k, n]) => `${n} ${k}`).join(', ')} counter(s).`);
+      }
+    }
+    await resolveEffects('Draw a card.', { def: ev.def, face: ev.face, controller: pid, zone: 'graveyard' }, { me: pid, choosers: ch, forced: true });
+  }
   // Jace, Reality Sculptor / Architect of Thought: attackers get −N/−0 until end of turn
   if (ev.type === 'attacks' && G.s.attackShrink && G.s.attackShrink.length) {
     const a = card(ev.iid);
@@ -1178,6 +1283,7 @@ async function resolveTrigger(hit, controller, ev) {
     ctx.thatMuch = hit.amount;
   }
   if (hit.them) ctx.them_ = hit.them;
+  if (hit.counterKind) ctx.counterKind = hit.counterKind;
   if (trig.fn) {
     const did = await trig.fn(ctx, hit, ev);
     if (did && did.length) log(controller, `${nameTag(src)}: ${did.join('; ')}.`);
@@ -1194,6 +1300,7 @@ async function resolveTrigger(hit, controller, ev) {
   }
   const did = await resolveEffects(text, src, ctx);
   if (did.length) log(controller, `${nameTag(src)} ${trig.event === 'chapter' ? 'chapter' : 'triggers'}: ${did.join('; ')}.`);
+  else if (!trig.kw && !did.skipped && knownEffect(text)) log(controller, `${nameTag(src)} triggers, but it does nothing${/\btarget\b/i.test(text) ? ' (no legal targets)' : ''}.`);
   else if (!trig.kw && !did.skipped) log(controller, `${nameTag(src)} triggers: <i>${esc(text.slice(0, 140))}</i> — apply it by hand.`);
   stateBased();
   T.render();

@@ -506,17 +506,17 @@ Deck
 1 Austere Command
 1 Avenge
 1 Dismantling Wave
-1 Raise Repulsor Shields
+1 Raise the Palisade
 1 Rip Apart
 1 West Coast Expansion
 1 Arcane Signet
-1 Avengers Monitoring Station
+1 Herald's Horn
 1 Avengers Quinjet
 1 Door of Destinies
 1 Hero's Blade
 1 Hulkbuster Armor
 1 Relic of Legends
-1 S.H.I.E.L.D. Spy Satellite
+1 Fellwar Stone
 1 Sol Ring
 1 Talisman of Conviction
 1 Talisman of Creativity

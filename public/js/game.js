@@ -9,6 +9,7 @@ import {
 import {
   G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, aiSlaved, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
   freshTurnStats, changeLife, setLife, sacrifice, addCounters, toBattlefield, cardName, queueEvent, discard as discardCard,
+  tappedHook,
 } from './state.js';
 import { maxHandSize } from './statics.js';
 import { fire, settle, T } from './triggers.js';
@@ -275,6 +276,16 @@ async function upkeepKeywords(pid) {
     if (card(iid) && card(iid).zone === 'battlefield' && isCreature(card(iid))) card(iid).grants = [...(card(iid).grants || []), 'haste'];
     if (G.s !== s) return;
   }
+  // Arcane Denial & co.: draws at the beginning of the next turn's upkeep
+  for (const d of s.delayed.filter((x) => x.at === 'nextUpkeep' && x.after < s.turn)) {
+    s.delayed.splice(s.delayed.indexOf(d), 1);
+    let k = d.n;
+    if (d.upTo && d.pid === 'p') k = (await T.confirm('Draw', `Draw ${d.n} card${d.n === 1 ? '' : 's'} (${d.why})?`)) ? d.n : 0;
+    if (k) {
+      draw(d.pid, k);
+      log(d.pid, `${d.pid === 'p' ? 'You draw' : 'The AI draws'} ${k} card${k === 1 ? '' : 's'} (${d.why}).`);
+    }
+  }
   // delayed upkeep effects: rebound
   for (const d of s.delayed.filter((x) => x.at === 'upkeep' && x.turnOf === pid && x.after < s.turn)) {
     s.delayed.splice(s.delayed.indexOf(d), 1);
@@ -322,9 +333,27 @@ async function endStepThings(pid) {
   }
   for (const d of s.delayed.filter((x) => x.at === 'endStep' && (!x.whoseEnd || x.whoseEnd === s.active))) {
     s.delayed.splice(s.delayed.indexOf(d), 1);
+    // Synthetic Destiny: reveal until that many creature cards, put them onto the battlefield
+    if (d.kind === 'revealCreatures') {
+      const { revealCreaturesOnto } = await import('./effects.js');
+      revealCreaturesOnto(d.pid, d.n);
+      continue;
+    }
     const c = card(d.iid);
     if (!c) continue;
-    if (d.kind === 'returnFromExile' && c.zone === 'exile') {
+    // Gift of Immortality: return attached to the creature it enchanted
+    if (d.kind === 'returnAttached' && c.zone === 'graveyard') {
+      const host = d.host && card(d.host);
+      if (!host || host.zone !== 'battlefield') continue;
+      toBattlefield(d.iid, d.pid || c.owner);
+      if (card(d.iid)) {
+        const { attachTo } = await import('./effects.js');
+        attachTo(card(d.iid), host);
+      }
+      log(c.owner, `${nameTag(c)} returns attached to ${nameTag(host)}.`);
+      continue;
+    }
+    if (d.kind === 'returnFromExile' && (c.zone === 'exile' || c.zone === 'graveyard')) {
       toBattlefield(d.iid, d.pid || c.owner);
       if (d.counter && card(d.iid)) {
         const r = card(d.iid);
@@ -642,6 +671,7 @@ function declareAttack(cb, pid) {
     if (!hasKw(c, 'vigilance')) {
       c.tapped = true;
       queueEvent({ type: 'tapped', iid, controller: pid });
+      tappedHook(c);
     }
   }
   s.ts[pid].attacked = true;

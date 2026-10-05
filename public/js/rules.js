@@ -1,6 +1,6 @@
 // Rules helpers: card faces, types, keywords, power/toughness, mana, evasion, combat damage.
 import { DB } from './data.js';
-import { G, readCache, cacheTwin } from './state.js';
+import { G, readCache, cacheTwin, queueEvent } from './state.js';
 import { staticMods, setTextFn, countPhrase, playerFlag } from './statics.js';
 
 export const COLORS = ['W', 'U', 'B', 'R', 'G', 'C'];
@@ -921,6 +921,13 @@ export function isDead(inst) {
  */
 // Damage replacement: Fiery Emancipation & co. (sources you control), Gisela (double to opponents, half to you),
 // The Wanderer (no noncombat damage to you or your other permanents).
+// Heroic Sacrifice: damage to a player or their other creatures is dealt to the chosen creature instead
+export function redirectTarget(victimPid, victimIid) {
+  const r = G.s && G.s.redirect;
+  if (!r || r.turn !== G.s.turn || r.pid !== victimPid || victimIid === r.iid) return null;
+  const c = G.s.cards[r.iid];
+  return c && c.zone === 'battlefield' && !c.phasedOut ? c : null;
+}
 export function damageMods(amount, src, victimPid, opts = {}) {
   if (!G.s || amount <= 0) return amount;
   const srcCtl = src ? src.controller || src.owner : null;
@@ -995,6 +1002,15 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
       const src = cards[ev.from];
       if (!src) continue;
       {
+        const vp = ev.type === 'player' ? ev.to || defender : cards[ev.to] ? cards[ev.to].controller : null;
+        const rd = vp && (ev.type === 'player' || (cards[ev.to] && isCreature(cards[ev.to]))) ? redirectTarget(vp, ev.type === 'player' ? null : ev.to) : null;
+        if (rd) {
+          ev.type = 'creature';
+          ev.to = rd.iid;
+          ev.redirected = true;
+        }
+      }
+      {
         const victim = ev.type === 'player' ? ev.to || defender : cards[ev.to] ? cards[ev.to].controller : null;
         ev.amount = damageMods(ev.amount, src, victim, { combat: true, victim: ev.type === 'player' ? null : cards[ev.to] });
         if (ev.amount <= 0) continue;
@@ -1016,6 +1032,7 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
           t.counters = t.counters || {};
           t.counters['-1/-1'] = (t.counters['-1/-1'] || 0) + ev.amount;
           t.damage -= ev.amount;
+          queueEvent({ type: 'counterPut', iid: t.iid, kind: '-1/-1', n: ev.amount, controller: t.controller, by: src.controller });
         }
       }
       ev.commander = !!src.isCommander;

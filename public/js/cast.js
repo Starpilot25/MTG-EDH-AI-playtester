@@ -12,6 +12,7 @@ import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, toBattlefield, createToken, genericTokenDef, stateBased,
   commanderTax, shuffle, opp, cardName, addCounters, queueEvent, sacrifice, discard as discardCard, mill as millCards,
   libTop, esc, makeCard, changeLife, aiSlaved,
+  tappedHook,
 } from './state.js';
 import {
   resolveEffects, spellText, etbText, costOf, attachAura, attachTo, activatedAbilities, zoneAbilities, Cancelled,
@@ -63,7 +64,10 @@ export function applyPayment(pid, pay) {
   const usedPool = [];
   for (const iid of pay.payers || []) {
     if (String(iid).startsWith('pool:')) usedPool.push(+iid.slice(5));
-    else if (card(iid)) card(iid).tapped = true;
+    else if (card(iid)) {
+      card(iid).tapped = true;
+      tappedHook(card(iid));
+    }
   }
   for (const sp of pay.special || []) {
     if (sp.kind === 'pool') usedPool.push(+String(sp.iid).slice(5));
@@ -347,6 +351,15 @@ export async function castSpell(pid, iid, opt, env) {
       info.additionalPaid = true;
       if (wbm[2] === 'X') info.waterbendX = n;
     }
+  } else if (addl && /^(.+?) or pay ((?:\{[^}]+\})+)$/i.test(addl[1])) {
+    // "blight 2 or pay {1}": either one
+    const om = addl[1].match(/^(.+?) or pay ((?:\{[^}]+\})+)$/i);
+    const canOther = !/^blight/i.test(om[1]) || cardsIn(pid, 'battlefield').some(isCreature);
+    const k = canOther ? await ch.choose({ prompt: `${label}: additional cost`, options: [{ label: om[1].replace(/^\w/, (x) => x.toUpperCase()) }, { label: `Pay ${om[2]}` }], aiPick: () => (cardsIn(pid, 'battlefield').some((x) => isCreature(x) && x.token) ? 0 : 1) }) : 1;
+    if (k === 0) {
+      if (!(await payOtherCost(pid, om[1], c, env))) throw new Cancelled();
+    } else info.extraMana = (info.extraMana || '') + om[2];
+    info.additionalPaid = true;
   } else if (addl && !/^you may/i.test(addl[1])) {
     if (!(await payOtherCost(pid, addl[1], c, env))) throw new Cancelled();
     info.additionalPaid = true;
@@ -744,6 +757,16 @@ export async function payOtherCost(pid, text, src, env) {
   const parts = t.split(/, and |, | and (?=sacrifice|discard|pay|exile|tap|return|remove|collect|forage|reveal)/);
   for (const p of parts) {
     let m;
+    // blight N: put N -1/-1 counters on a creature you control
+    if ((m = p.match(/^blight (\d+)$/))) {
+      const pool = cardsIn(pid, 'battlefield').filter(isCreature);
+      if (!pool.length) return false;
+      const [pick] = await ch.pickCards({ prompt: `Blight ${m[1]}: put ${m[1]} -1/-1 counter${+m[1] > 1 ? 's' : ''} on a creature you control`, cards: pool.map((x) => x.iid), min: 1, max: 1, purpose: 'blight', src, aiScore: (x) => (x.token ? 5 : 0) + toughness(x) - cardValue(x) / 3 });
+      if (!pick) return false;
+      addCounters(card(pick), '-1/-1', +m[1], { by: pid });
+      log(pid, `${pid === 'p' ? 'You blight' : 'The AI blights'} ${m[1]} (${nameTag(card(pick))}).`);
+      continue;
+    }
     if ((m = p.match(/^sacrifice (a|an|one|two|three|another|\d+|x) (.+)$/))) {
       const k = { a: 1, an: 1, one: 1, two: 2, three: 3, another: 1 }[m[1]] || +m[1] || 1;
       const pool = cardsIn(pid, 'battlefield').filter((x) => x.iid !== src.iid && matchesFilter(x, m[2].replace(/s$/, '')));
@@ -1280,7 +1303,10 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.exileFromGy && !(await payOtherCost(pid, ab.exileFromGy[0].toLowerCase(), c, env))) throw new Cancelled();
   if (ab.collectEvidence && !(await payOtherCost(pid, `collect evidence ${ab.collectEvidence}`, c, env))) throw new Cancelled();
   if (ab.forage && !(await payOtherCost(pid, 'forage', c, env))) throw new Cancelled();
-  if (ab.tap) c.tapped = true;
+  if (ab.tap) {
+    c.tapped = true;
+    tappedHook(c);
+  }
   if (ab.untap) c.tapped = false;
   if (ab.payLife && lifeCost) changeLife(pid, -lifeCost);
   if (ab.payEnergy) s.players[pid].counters.energy -= ab.payEnergy;
