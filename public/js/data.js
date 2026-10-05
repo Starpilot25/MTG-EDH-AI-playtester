@@ -2067,7 +2067,7 @@ ${basics(15, 'Island')}`,
 
 export const SAMPLE_DECKS = {
   gruul: {
-    label: 'Sample deck · Bracket 3 — Gruul Stompy (Xenagos)',
+    label: 'Claude deck · Bracket 3 — Gruul Stompy (Xenagos)',
     bracket: 3,
     text: `Commander
 1 Xenagos, God of Revels
@@ -2129,7 +2129,7 @@ ${basics(23, 'Forest')}
 ${basics(24, 'Mountain')}`,
   },
   golgari: {
-    label: 'Sample deck · Bracket 3 — Golgari Value (Meren)',
+    label: 'Claude deck · Bracket 3 — Golgari Value (Meren)',
     bracket: 3,
     text: `Commander
 1 Meren of Clan Nel Toth
@@ -2191,7 +2191,7 @@ ${basics(24, 'Swamp')}
 ${basics(23, 'Forest')}`,
   },
   whiteTokens: {
-    label: 'Sample deck · Bracket 2 — Mono-White Tokens (Adeline)',
+    label: 'Claude deck · Bracket 2 — Mono-White Tokens (Adeline)',
     bracket: 2,
     text: `Commander
 1 Adeline, Resplendent Cathar
@@ -2264,7 +2264,7 @@ Deck
 ${basics(35, 'Plains')}`,
   },
   izzet: {
-    label: 'Sample deck · Bracket 2 — Izzet Spells (Niv-Mizzet, Parun)',
+    label: 'Claude deck · Bracket 2 — Izzet Spells (Niv-Mizzet, Parun)',
     bracket: 2,
     text: `Commander
 1 Niv-Mizzet, Parun
@@ -2343,7 +2343,7 @@ ${basics(15, 'Island')}
 ${basics(15, 'Mountain')}`,
   },
   cats: {
-    label: 'Sample deck · Bracket 1 — Selesnya Cats (Arahbo)',
+    label: 'Claude deck · Bracket 1 — Selesnya Cats (Arahbo)',
     bracket: 1,
     text: `Commander
 1 Arahbo, Roar of the World
@@ -2421,7 +2421,7 @@ ${basics(15, 'Plains')}
 ${basics(16, 'Forest')}`,
   },
   goblins: {
-    label: 'Sample deck · Bracket 1 — Mono-Red Goblins (Krenko, Tin Street Kingpin)',
+    label: 'Claude deck · Bracket 1 — Mono-Red Goblins (Krenko, Tin Street Kingpin)',
     bracket: 1,
     text: `Commander
 1 Krenko, Tin Street Kingpin
@@ -2497,7 +2497,7 @@ Deck
 ${basics(32, 'Mountain')}`,
   },
   korvold: {
-    label: 'Sample deck · Bracket 4 — Jund Sacrifice (Korvold, Fae-Cursed King)',
+    label: 'Claude deck · Bracket 4 — Jund Sacrifice (Korvold, Fae-Cursed King)',
     bracket: 4,
     text: `Commander
 1 Korvold, Fae-Cursed King
@@ -2596,7 +2596,7 @@ ${basics(4, 'Swamp')}
 ${basics(3, 'Mountain')}`,
   },
   atraxa: {
-    label: 'Sample deck · Bracket 4 — Four-Color Counters (Atraxa, Praetors\' Voice)',
+    label: 'Claude deck · Bracket 4 — Four-Color Counters (Atraxa, Praetors\' Voice)',
     bracket: 4,
     text: `Commander
 1 Atraxa, Praetors' Voice
@@ -2698,7 +2698,7 @@ ${basics(2, 'Swamp')}
 ${basics(3, 'Forest')}`,
   },
   kinnan: {
-    label: 'Sample deck · Bracket 5 (cEDH) — Simic Combo (Kinnan, Bonder Prodigy)',
+    label: 'Claude deck · Bracket 5 (cEDH) — Simic Combo (Kinnan, Bonder Prodigy)',
     bracket: 5,
     text: `Commander
 1 Kinnan, Bonder Prodigy
@@ -2800,7 +2800,7 @@ ${basics(4, 'Forest')}
 ${basics(3, 'Island')}`,
   },
   tnt: {
-    label: 'Sample deck · Bracket 5 (cEDH) — Four-Color Blitz (Thrasios & Tymna)',
+    label: 'Claude deck · Bracket 5 (cEDH) — Four-Color Blitz (Thrasios & Tymna)',
     bracket: 5,
     text: `Commander
 1 Thrasios, Triton Hero

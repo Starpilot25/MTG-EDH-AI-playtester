@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.60",
+    "title": "\"Claude decks\"",
+    "notes": [
+      "The \"Sample\" tab for the built-in decks is now called \"Claude decks\"."
+    ]
+  },
+  {
     "version": "1.2.59",
     "title": "Deck links removed",
     "notes": [

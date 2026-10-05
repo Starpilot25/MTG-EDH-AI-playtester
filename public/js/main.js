@@ -226,7 +226,7 @@ function showSummary(pid) {
         <p class="mix">${mix(deck)}</p></div>
     </div>
     ${warn.length ? `<ul class="warns">${warn.map((w) => `<li>${w}</li>`).join('')}</ul>` : ''}
-    <form class="save-row"><input class="save-name" value="${esc(deck.name.replace(/^Sample deck · /, ''))}" aria-label="Name to save this deck as" maxlength="120"><button type="submit">${savedDecks.some((d) => d.name.toLowerCase() === deck.name.toLowerCase()) ? 'Update saved deck' : 'Save deck'}</button></form>
+    <form class="save-row"><input class="save-name" value="${esc(deck.name.replace(/^(?:Sample|Claude) deck · /, ''))}" aria-label="Name to save this deck as" maxlength="120"><button type="submit">${savedDecks.some((d) => d.name.toLowerCase() === deck.name.toLowerCase()) ? 'Update saved deck' : 'Save deck'}</button></form>
     ${firstOpts.length ? `<div class="cmd-picks">
       <label class="cmd-pick">Commander
         <select class="sel-cmd"><option value="">(none)</option>${firstOpts.map((d) => opt(d, d.id === first)).join('')}</select></label>
@@ -311,7 +311,7 @@ function initSetup() {
     $('.in-sample', el).innerHTML = [1, 2, 3, 4, 5]
       .map((b) => {
         const list = Object.entries(SAMPLE_DECKS).filter(([, v]) => v.bracket === b);
-        return list.length ? `<optgroup label="${BRACKETS[b]}">${list.map(([k, v]) => `<option value="${k}">${esc(v.label.replace(/^Sample deck · /, ''))}</option>`).join('')}</optgroup>` : '';
+        return list.length ? `<optgroup label="${BRACKETS[b]}">${list.map(([k, v]) => `<option value="${k}">${esc(v.label.replace(/^(?:Sample|Claude) deck · /, ''))}</option>`).join('')}</optgroup>` : '';
       })
       .join('');
     $('.in-paste', el).value = store.get(pid + ':paste', '');

@@ -5,7 +5,7 @@ Play 1v1 Commander against an AI opponent to test your decks. It's a free-form t
 - **Import any deck.** Paste a plain-text list (Moxfield and Archidekt text exports work as-is).
 - **Built-in AI opponent.** It runs locally, with no account or API key. It simulates combat, holds up counterspells and plays at instant speed.
 - **Real rules.** The engine reads each card's rules text and covers keyword mechanics from across Magic's history.
-- **Sample decks** from Bracket 1 to cEDH, plus saved decks.
+- **Claude decks** (built-in decks) from Bracket 1 to cEDH, plus saved decks.
 - **Second screen:** pop the AI's board out into its own window.
 - **Desktop app** for Windows, Mac and Linux that updates itself from this repository.
 
