@@ -304,7 +304,9 @@ export function matchesFilter(c, phrase) {
     return true;
   }
   if (!kinds.length) return true;
-  const kindOk = kinds.some((k) => (k === 'Creature' ? isCreature(c) : isType(c, k)));
+  const isK = (k) => (k === 'Creature' ? isCreature(c) : isType(c, k));
+  // "artifact creature" needs both; "artifact or creature", "artifact, creature, or enchantment" needs one
+  const kindOk = kinds.length > 1 && !/\bor\b|, |and\/or/.test(p2) ? kinds.every(isK) : kinds.some(isK);
   if (!kindOk) return false;
   return true;
 }
@@ -3329,7 +3331,7 @@ export function attachTo(src, t) {
       tt = +fe[2] * k;
     }
     t.auraBuffs = t.auraBuffs || {};
-    t.auraBuffs[src.iid] = { p, t: tt, grants: kwm ? kwList(kwm[1].toLowerCase()) : [] };
+    t.auraBuffs[src.iid] = { p, t: tt, grants: kwm ? kwList(kwm[1].toLowerCase()) : [], ...(fe ? { each: fe[3], perP: +fe[1], perT: +fe[2] } : {}) };
   }
   const quoted = o.match(/(?:Enchanted|Equipped) creature has "([^"]+)"/i);
   if (quoted) t.extraText = ((t.extraText || '') + '\n' + quoted[1]).trim();

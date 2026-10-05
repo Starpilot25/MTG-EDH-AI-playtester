@@ -1,22 +1,22 @@
 {
-  "version": "1.2.16",
+  "version": "1.2.17",
   "minAppVersion": "1.0.0",
   "files": {
-    "public/css/style.css": "9a0414c8cf44b649ac19dd4cb480fc7b404f8008464fd904b7633857fda3d82c",
+    "public/css/style.css": "b6d068ef94e1f5a594066cd87b1673a2dcd68a15fd3273aa44d6180bf3a58607",
     "public/index.html": "c46584473e4d851108ec0b6ae6a0d3824184d63b25eb16e3a4ad4d05f7913df6",
     "public/js/ai.js": "41961413f1be93c6a81be52ec427c644f530022c7fb9b5236583f2cbdd02d1ea",
     "public/js/aicombat.js": "996059c7fc99c2dada46726f4b59c544c3c6f0fc3f58f49183040ad7c499f830",
     "public/js/cast.js": "85fe31e4282c6affae6f07463dfdf672d60465e1aada5a9dfe8c2f3541f3dcff",
     "public/js/data.js": "93d106898d84419283a5963ab64c3fe0fce14c5d3e0042d3632ddb17714cdb81",
     "public/js/dungeon.js": "1b3319684da8d53c21dac40ff1bc72187ba09b9ea46d0865d0c5bdba1b227dfa",
-    "public/js/effects.js": "f3ff271548cd65d54c37fb5afc86174785ba746b2a40750975c217b3dffaca57",
+    "public/js/effects.js": "042bec9770d80c1cf9e0e2f37cc787323ef61021b66c82071ebfa86e1e25e7f4",
     "public/js/game.js": "b6fd320a49cce09797cb22b85bd16cab44880006ae8cd068bba97b7d40630c0f",
     "public/js/main.js": "dc00d02d3d553fb9094553f728c40a3030c78998f8fb903e97087449805d178e",
-    "public/js/rules.js": "062d8857d0a5ac8ef32ec6c1504533b22807f99b0f09dd164793998ddb320a68",
+    "public/js/rules.js": "002b5917e800c73f9fbd6e52a5cee2ede1bb51ecbca6c659afd4a8c2ebb90569",
     "public/js/state.js": "8ef82a13da9f77d0e296e3a812d0c529ce8fc3dcc261c3cf34b7178e2ab40b09",
     "public/js/statics.js": "6370877fa505df68ebd136613592eb83b00dfe95de37f9cfcf3638fbd9c65abe",
     "public/js/triggers.js": "d09ca7efb20729f576c27ada21c76ea880446e043ebb3a2c4fcd0e17b1698c8d",
-    "public/js/ui.js": "bbbc6547f7c30ee022f23e1104d3092477351e2928d68f73269bbbca4449b054",
-    "public/patch-notes.json": "a17f339c59737648453ea5e7a14b10ff93bca82cdb0e84fe66e0a7a6e4bf1904"
+    "public/js/ui.js": "f68207c712802f821c9e593350855198f964a0e70e75b7be39132bd55552e3a8",
+    "public/patch-notes.json": "d6af9a30154fda5fa8a10a8ed3fe021fef01438ab8ad661e08b0a7988b16d799"
   }
 }

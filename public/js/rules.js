@@ -291,8 +291,14 @@ const counterPT = (c) => {
   }
   return { p, t };
 };
+// Auras/Equipment buffs; "gets +1/+1 for each artifact you control" is counted live (Adaptive Omnitool, Lashwrithe)
 const auraSum = (inst, k) =>
-  Object.values(inst.auraBuffs || {}).reduce((a, b) => a + b[k], 0) + (inst.eot ? inst.eot[k] : 0);
+  Object.entries(inst.auraBuffs || {}).reduce((a, [src, b]) => {
+    if (!b.each) return a + b[k];
+    const sc = G.s && G.s.cards[src];
+    const v = sc ? countPhrase(sc.controller, b.each, helpers, sc.iid) || 0 : 0;
+    return a + (k === 'p' ? b.perP : b.perT) * v;
+  }, 0) + (inst.eot ? inst.eot[k] : 0);
 
 export function power(inst) {
   const st = inst.zone === 'battlefield' ? staticMods(inst, helpers) : { p: 0 };

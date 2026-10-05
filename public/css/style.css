@@ -702,3 +702,12 @@ ol.rooms li.been { color: var(--muted); }
 .patch-notes ul { margin: 0; padding-left: 18px; }
 .patch-notes li { margin: 4px 0; line-height: 1.45; }
 .patch-notes .row-end { display: flex; justify-content: flex-end; margin-top: 12px; }
+
+/* declare attackers: creatures that are able to attack glow */
+.card.can-attack { box-shadow: 0 0 0 2px #f2b53a, 0 0 14px rgb(242 181 58 / 0.65); }
+@media (prefers-reduced-motion: no-preference) {
+  .card.can-attack { animation: can-attack-pulse 1.6s ease-in-out infinite; }
+}
+@keyframes can-attack-pulse {
+  50% { box-shadow: 0 0 0 2px #f2b53a, 0 0 22px rgb(242 181 58 / 0.9); }
+}

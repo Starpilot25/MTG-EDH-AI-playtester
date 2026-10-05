@@ -72,6 +72,7 @@ function cardHTML(c, opts = {}) {
   if (opts.small) cls.push('small');
   const cb = G.s.combat;
   if (cb && cb.attackers.includes(c.iid)) cls.push('attacking');
+  else if (cb && cb.by === 'p' && cb.stage === 'declare' && c.controller === 'p' && c.zone === 'battlefield' && canAttack(c)) cls.push('can-attack');
   if (cb && Object.values(cb.blocks).some((b) => b.includes(c.iid))) cls.push('blocking');
   if (cb && cb.selected === c.iid) cls.push('selected');
   if ((G.s.stack && G.s.stack.iid === c.iid) || (G.s.pstack && G.s.pstack.iid === c.iid)) cls.push('on-stack');
@@ -125,6 +126,7 @@ function cardHTML(c, opts = {}) {
 export function render() {
   const s = G.s;
   if (!s) return;
+  document.querySelectorAll('.card.ghost').forEach((g) => (!drag || g !== drag.ghost) && g.remove());
   renderTop();
   renderOpp();
   renderMine();
@@ -1462,7 +1464,21 @@ function menuForPile(pid, zone, x, y) {
 // ------------------------------------------------------------ drag and drop
 let drag = null;
 
+function dropStale() {
+  if (drag) {
+    const d = drag;
+    drag = null;
+    if (d.el) {
+      d.el.classList.remove('dragging');
+      d.el.ownerDocument.body.classList.remove('is-dragging');
+    }
+  }
+  for (const doc of [document, ...[...popouts.values()].map((p) => p && p.doc).filter(Boolean)]) doc.querySelectorAll('.card.ghost').forEach((g) => g.remove());
+  $$('.drop-hot').forEach((x) => x.classList.remove('drop-hot'));
+}
+
 function onPointerDown(e) {
+  if (drag) dropStale();
   if (e.button !== 0 || pendingTarget) return;
   const el = e.target.closest('.card[data-iid]');
   if (!el || el.closest('#dialog') || el.closest('#banner')) return;
@@ -1637,6 +1653,10 @@ export function bindEvents() {
   document.addEventListener('pointerdown', onPointerDown);
   document.addEventListener('pointermove', onPointerMove);
   document.addEventListener('pointerup', onPointerUp);
+  // never leave a drag ghost behind: the pointer can be released over a dialog, outside the window, or the drag cancelled
+  window.addEventListener('pointerup', () => setTimeout(dropStale, 0), true);
+  document.addEventListener('pointercancel', dropStale);
+  window.addEventListener('blur', dropStale);
 
   document.addEventListener('dblclick', (e) => {
     const el = e.target.closest('.card[data-iid]');

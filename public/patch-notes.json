@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.2.17",
+    "title": "Attack highlights, equipment, ghost cards",
+    "notes": [
+      "Declare attackers: creatures that can attack glow gold (summoning-sick, tapped and defender creatures don't).",
+      "Steel Overseer only puts counters on artifact creatures (it hit every creature). The same fix applies to every \"artifact creature\", \"enchantment creature\" etc. filter.",
+      "Adaptive Omnitool, Lashwrithe and other \"equipped/enchanted creature gets +1/+1 for each …\" now update as the count changes (they were fixed at the moment of attaching).",
+      "Fixed leftover \"ghost\" cards from dragging: if a drag is interrupted (released over a dialog, outside the window, alt-tab), the floating copy is cleaned up.",
+      "Checked and working: Terror of Mount Velus, living weapon (Batterskull, Skinwing, Lashwrithe), Adaptive Omnitool's attack trigger."
+    ]
+  },
+  {
     "version": "1.2.16",
     "title": "Sagas, per-player turn counter, card sweep",
     "notes": [
