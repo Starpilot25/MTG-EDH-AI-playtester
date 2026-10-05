@@ -1,7 +1,7 @@
 // The tabletop: rendering, drag and drop, menus, dialogs and shortcuts.
 import { DB, searchTokens } from './data.js';
 import {
-  hasSubtype, isLand, isCreature, isType, power, toughness, basePT, oracle, isPermanentCard, canBlock, canAttack, hasKw, face,
+  hasSubtype, isLand, isCreature, isType, power, toughness, basePT, oracle, isPermanentCard, canBlock, canAttack, hasKw, face, payCostKeep,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, esc, snapshot, undo, redo, shuffle, mill, libTop,
@@ -983,8 +983,8 @@ async function playerPay(pid, cost, label, opts = {}) {
       if (v === null) return null;
       x = v;
     }
-    pay = payCost(cost.replace(/\{X\}/g, ''), src, { extraGeneric: extra + x * xs, waterbend: opts.waterbend || 0 });
-  } else pay = payCost(cost, src, { extraGeneric: extra, waterbend: opts.waterbend || 0 });
+    pay = payCostKeep(cost.replace(/\{X\}/g, ''), src, { extraGeneric: extra + x * xs, waterbend: opts.waterbend || 0, self: opts.self }, 'p');
+  } else pay = payCostKeep(cost, src, { extraGeneric: extra, waterbend: opts.waterbend || 0, self: opts.self }, 'p');
   if (!pay) {
     const shown = (cost.replace(/[{}]/g, '') || '0') + (extra > 0 ? ` + ${extra}` : extra < 0 ? ` − ${-extra}` : '');
     const ok = await confirmDialog(

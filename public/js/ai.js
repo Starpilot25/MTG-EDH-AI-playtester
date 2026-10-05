@@ -3,7 +3,7 @@
 // and blocks. All casting goes through cast.js, the same pipeline the player uses.
 import { DB } from './data.js';
 import {
-  hasSubtype, isLand, isCreature, isType, oracle, hasKw, power, toughness, cardValue, manaAbility, payCost,
+  hasSubtype, isLand, isCreature, isType, oracle, hasKw, power, toughness, cardValue, manaAbility, payCost, payCostKeep,
   parseCost, canAttack, canBlock, isPermanentCard, mustAttack, totalMana,
 } from './rules.js';
 import {
@@ -57,6 +57,7 @@ export async function aiPay(pid, cost, label, opts = {}) {
   const src = sources(pid, opts).filter((m) => !(opts.exclude || []).includes(m.iid));
   const hasX = /\{X\}/.test(cost);
   const fixed = opts.xFixed;
+  if (!hasX) return payCostKeep(cost, src, { extraGeneric: opts.extraGeneric || 0, waterbend: opts.waterbend || 0, self: opts.self }, pid);
   return payCost(cost, src, {
     extraGeneric: opts.extraGeneric || 0,
     waterbend: opts.waterbend || 0,

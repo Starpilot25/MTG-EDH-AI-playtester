@@ -597,6 +597,53 @@ function manaAbilityPlain(inst, o, produced) {
 
 // Pay a cost with sources [{iid, colors, amount, sac?}]. Returns {payers:[iid], x} or null.
 // Signets cost {1} to activate: try paying with no signets, then with more of them switched on
+// Auto-tapping that keeps your other spells castable: if the cheapest way to pay would strand a card in your hand
+// (or your commander) that you could otherwise also cast, pick a payment that leaves it castable.
+export function payCostKeep(cost, sources, opts = {}, pid) {
+  const best = payCost(cost, sources, opts);
+  if (!best || !G.s || !pid) return best;
+  const seen = new Set();
+  const others = [];
+  for (const z of ['hand', 'command']) {
+    for (const iid of G.s.players[pid].zones[z]) {
+      const h = G.s.cards[iid];
+      if (!h || iid === opts.self || isLand(h)) continue;
+      const mc = (DB[h.def].manaCost || '').replace(/\{X\}/g, '');
+      if (!mc || seen.has(mc)) continue;
+      seen.add(mc);
+      others.push({ mc, cmc: DB[h.def].cmc || 0 });
+    }
+  }
+  if (!others.length || !best.payers) return best;
+  const both = (h) => !!payCost(cost + h.mc, sources, { ...opts, nodeCap: 6000 });
+  const keepable = others.filter(both);
+  if (!keepable.length) return best;
+  const score = (P) => {
+    const used = new Set(P.payers || []);
+    const rest = sources.filter((m) => !used.has(m.iid));
+    return keepable.reduce((a, h) => a + (payCost(h.mc, rest, { nodeCap: 6000 }) ? 10 + h.cmc : 0), 0);
+  };
+  let pick = best;
+  let top = score(best);
+  const max = keepable.reduce((a, h) => a + 10 + h.cmc, 0);
+  // try leaving out each source the cheapest payment used, twice over
+  for (let round = 0; round < 3 && top < max; round++) {
+    let improved = false;
+    for (const u of new Set(pick.payers)) {
+      const alt = payCost(cost, sources.filter((m) => m.iid !== u && !(pick.avoid || []).includes(m.iid)), opts);
+      if (!alt) continue;
+      const sc = score(alt);
+      if (sc > top) {
+        pick = { ...alt, avoid: [...(pick.avoid || []), u] };
+        top = sc;
+        improved = true;
+      }
+    }
+    if (!improved) break;
+  }
+  return pick;
+}
+
 export function payCost(cost, sources, opts = {}) {
   const filters = sources.filter((s) => s.activation);
   const plain = sources.filter((s) => !s.activation);

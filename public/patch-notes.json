@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.57",
+    "title": "Smarter auto-tapping",
+    "notes": [
+      "Auto-tapping looks at the other cards in your hand and your commander. If the cheapest way to pay would leave one of them uncastable when you could have afforded both, it taps different lands so you can still cast the other card. In random tests, the old auto-tapper stranded a castable card about 1 time in 20, and the new one didn't strand any. The AI pays the same way."
+    ]
+  },
+  {
     "version": "1.2.56",
     "title": "Respond to the AI's activated abilities",
     "notes": [
