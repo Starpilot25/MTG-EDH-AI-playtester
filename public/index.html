@@ -26,18 +26,14 @@
     <article class="deck-slot" data-pid="p">
       <div class="slot-head"><span class="dot you"></span><h2>Your deck</h2></div>
       <div class="seg" role="tablist">
-        <button data-mode="link">Deck link</button><button data-mode="paste">Paste list</button><button data-mode="saved">Saved</button><button data-mode="sample">Sample</button><button data-mode="precon">Precon</button>
+        <button data-mode="paste">Paste list</button><button data-mode="saved">Saved</button><button data-mode="sample">Sample</button><button data-mode="precon">Precon</button>
       </div>
-      <div class="mode" data-mode="link">
-        <label for="p-link">Moxfield or Archidekt link</label>
-        <input id="p-link" class="in-link" type="url" placeholder="https://www.moxfield.com/decks/…" autocomplete="off">
-      </div>
-      <div class="mode" data-mode="paste" hidden>
+      <div class="mode" data-mode="paste">
         <label for="p-name">Deck name</label>
         <input id="p-name" class="in-name" placeholder="My deck" autocomplete="off">
         <label for="p-paste">Decklist</label>
         <textarea id="p-paste" class="in-paste" rows="9" placeholder="Commander&#10;1 Atraxa, Praetors' Voice&#10;&#10;Deck&#10;1 Sol Ring&#10;1 Arcane Signet&#10;…"></textarea>
-        <p class="tip">Mark the commander with a “Commander” header or <code>*CMDR*</code>. Moxfield and Archidekt text exports work as-is.</p>
+        <p class="tip">Mark the commander with a “Commander” header or <code>*CMDR*</code>. Deck links aren't supported: on Moxfield or Archidekt use Export → copy as text, then paste it here.</p>
       </div>
       <div class="mode" data-mode="saved" hidden>
         <label for="p-saved">Saved deck</label>
@@ -63,13 +59,9 @@
     <article class="deck-slot" data-pid="ai">
       <div class="slot-head"><span class="dot ai"></span><h2>AI's deck</h2></div>
       <div class="seg" role="tablist">
-        <button data-mode="link">Deck link</button><button data-mode="paste">Paste list</button><button data-mode="saved">Saved</button><button data-mode="sample">Sample</button><button data-mode="precon">Precon</button><button data-mode="mirror">Mirror</button>
+        <button data-mode="paste">Paste list</button><button data-mode="saved">Saved</button><button data-mode="sample">Sample</button><button data-mode="precon">Precon</button><button data-mode="mirror">Mirror</button>
       </div>
-      <div class="mode" data-mode="link">
-        <label for="ai-link">Moxfield or Archidekt link</label>
-        <input id="ai-link" class="in-link" type="url" placeholder="https://archidekt.com/decks/…" autocomplete="off">
-      </div>
-      <div class="mode" data-mode="paste" hidden>
+      <div class="mode" data-mode="paste">
         <label for="ai-name">Deck name</label>
         <input id="ai-name" class="in-name" placeholder="Opponent deck" autocomplete="off">
         <label for="ai-paste">Decklist</label>

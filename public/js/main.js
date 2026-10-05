@@ -34,7 +34,7 @@ const cardImg = (d) =>
     ? `<img src="${d.faces[0].img}" alt="${esc(d.name)}">`
     : `<div class="img-missing">${esc(d.name)}</div>`;
 
-const slots = { p: { deck: null, mode: 'link' }, ai: { deck: null, mode: 'sample' } };
+const slots = { p: { deck: null, mode: 'paste' }, ai: { deck: null, mode: 'sample' } };
 let savedDecks = [];
 
 // ------------------------------------------------------------ saved decks
@@ -121,6 +121,7 @@ async function loadSlot(pid) {
       status.innerHTML = '<span class="spinner"></span> Loading cards from Scryfall…';
     } else if (mode === 'paste') {
       const text = $('.in-paste', el).value;
+      if (/^\s*https?:\/\/\S+\s*$/.test(text)) throw new Error("Deck links aren't supported. On Moxfield or Archidekt, use Export and copy the list as text, then paste that here.");
       store.set(pid + ':paste', text);
       parsed = parseDecklist(text);
       parsed.name = $('.in-name', el).value.trim() || 'Pasted deck';
@@ -313,7 +314,6 @@ function initSetup() {
         return list.length ? `<optgroup label="${BRACKETS[b]}">${list.map(([k, v]) => `<option value="${k}">${esc(v.label.replace(/^Sample deck · /, ''))}</option>`).join('')}</optgroup>` : '';
       })
       .join('');
-    $('.in-link', el).value = store.get(pid + ':link', '');
     $('.in-paste', el).value = store.get(pid + ':paste', '');
     $('.in-sample', el).value = store.get(pid + ':sample', pid === 'p' ? 'gruul' : 'golgari');
     const precons = Object.entries(PRECON_DECKS);
@@ -324,7 +324,7 @@ function initSetup() {
     $('.in-precon', el).hidden = !precons.length;
     $('.precon-tip', el).hidden = !!precons.length;
     if (precons.length) $('.in-precon', el).value = store.get(pid + ':precon', precons[0][0]);
-    setMode(pid, store.get(pid + ':mode', pid === 'p' ? 'link' : 'sample'));
+    { const m0 = store.get(pid + ':mode', pid === 'p' ? 'paste' : 'sample'); setMode(pid, m0 === 'link' ? 'paste' : m0); }
     $$('.seg button', el).forEach((b) => b.addEventListener('click', () => setMode(pid, b.dataset.mode)));
     $('.load', el).addEventListener('click', () => loadSlot(pid));
     $('.in-saved', el).addEventListener('change', () => loadSlot(pid));
@@ -340,7 +340,6 @@ function initSetup() {
         toast('Could not delete: ' + e.message);
       }
     });
-    $('.in-link', el).addEventListener('keydown', (e) => e.key === 'Enter' && loadSlot(pid));
   }
   refreshSaved();
   fetch('/api/version')

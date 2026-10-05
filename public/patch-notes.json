@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.59",
+    "title": "Deck links removed",
+    "notes": [
+      "The \"Deck link\" option is gone. Moxfield blocks the app from reading its decks, so links weren't reliable. To bring in a deck from Moxfield or Archidekt, use Export there, copy the list as text, and paste it under \"Paste list\". That's now the default tab. If you paste a link into that box, the game tells you what to do instead."
+    ]
+  },
+  {
     "version": "1.2.58",
     "title": "Choose: mana creatures before or after lands",
     "notes": [
