@@ -18,6 +18,7 @@ export const G = {
     startingLife: 40,
     freeMulligan: true,
     commanderZone: 'ask',
+    dorks: 'last',
     aiSpeed: 650,
     pauseOnAiSpells: true,
     autoUntap: true,

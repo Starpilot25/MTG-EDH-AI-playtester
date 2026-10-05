@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.58",
+    "title": "Choose: mana creatures before or after lands",
+    "notes": [
+      "New setting, \"Auto-tap mana creatures\": After lands (the default, so they can still attack or block) or Before lands (keep your lands untapped). It's on the setup screen and in the ☰ menu during a game, and it's remembered for next time. The other cards in your hand still come first: if tapping a mana creature would leave another spell uncastable, auto-tap won't do it. This setting only changes your own auto-tapping."
+    ]
+  },
+  {
     "version": "1.2.57",
     "title": "Smarter auto-tapping",
     "notes": [

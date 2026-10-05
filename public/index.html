@@ -106,6 +106,9 @@
       <label title="Casual plays like a friendly pod: fewer all-in attacks, keeps blockers home, saves removal, wipes and counterspells for real threats. Competitive plays to win as fast as it can.">AI style
         <select id="set-aistyle"><option value="casual" selected>Casual</option><option value="competitive">Competitive</option></select>
       </label>
+      <label title="When auto-tapping, use your lands before mana creatures (so they can still attack or block), or tap mana creatures first (keeping lands untapped).">Auto-tap mana creatures
+        <select id="set-dorks"><option value="last" selected>After lands</option><option value="first">Before lands</option></select>
+      </label>
       <label title="When your commander goes to the graveyard or exile (or is bounced or tucked), ask whether to move it to the command zone, or always move it automatically.">Commander leaving play
         <select id="set-cmdzone"><option value="ask" selected>Ask me</option><option value="auto">Always command zone</option></select>
       </label>
@@ -153,6 +156,7 @@
           <label class="check"><input type="checkbox" id="gm-autodraw"> Draw automatically</label>
           <label class="check"><input type="checkbox" id="gm-autountap"> Untap automatically</label>
           <label>AI style <select id="gm-aistyle"><option value="casual">Casual</option><option value="competitive">Competitive</option></select></label>
+          <label>Auto-tap mana creatures <select id="gm-dorks"><option value="last">After lands</option><option value="first">Before lands</option></select></label>
           <label>Commander leaving play <select id="gm-cmdzone"><option value="ask">Ask me</option><option value="auto">Always command zone</option></select></label>
           <label>Board layout <select id="gm-layout"><option value="organized">Organized</option><option value="free">Free</option></select></label>
           <label>AI speed <select id="gm-speed"><option value="250">Fast</option><option value="650">Normal</option><option value="1200">Slow</option></select></label>

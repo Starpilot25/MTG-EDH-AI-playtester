@@ -288,6 +288,7 @@ function readSettings() {
   G.settings.aiStyle = $('#set-aistyle').value;
   G.settings.boardLayout = $('#set-layout').value;
   G.settings.commanderZone = $('#set-cmdzone').value;
+  G.settings.dorks = $('#set-dorks').value;
   G.settings.startingLife = +$('#set-life').value || 40;
   store.set('settings', {
     freeMulligan: G.settings.freeMulligan,
@@ -297,6 +298,7 @@ function readSettings() {
     aiStyle: G.settings.aiStyle,
     boardLayout: G.settings.boardLayout,
     commanderZone: G.settings.commanderZone,
+    dorks: G.settings.dorks,
     startingLife: G.settings.startingLife,
   });
 }
@@ -363,6 +365,7 @@ function initSetup() {
   $('#set-aistyle').value = st.aiStyle ?? 'casual';
   $('#set-layout').value = st.boardLayout ?? 'organized';
   $('#set-cmdzone').value = st.commanderZone ?? 'ask';
+  $('#set-dorks').value = st.dorks ?? 'last';
   $('#set-life').value = st.startingLife ?? 40;
   $('#start').addEventListener('click', () => {
     readSettings();
@@ -480,6 +483,11 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#set-layout').value = e.target.value;
     render();
   });
+  $('#gm-dorks').addEventListener('change', (e) => {
+    G.settings.dorks = e.target.value;
+    store.set('settings', { ...store.get('settings', {}), dorks: e.target.value });
+    $('#set-dorks').value = e.target.value;
+  });
   $('#gm-cmdzone').addEventListener('change', (e) => {
     G.settings.commanderZone = e.target.value;
     store.set('settings', { ...store.get('settings', {}), commanderZone: e.target.value });
@@ -499,6 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#gm-aistyle').value = G.settings.aiStyle || 'casual';
     $('#gm-layout').value = G.settings.boardLayout || 'organized';
     $('#gm-cmdzone').value = G.settings.commanderZone || 'ask';
+    $('#gm-dorks').value = G.settings.dorks || 'last';
     $('#gm-autodraw').checked = G.settings.autoDraw;
     $('#gm-autountap').checked = G.settings.autoUntap;
   });

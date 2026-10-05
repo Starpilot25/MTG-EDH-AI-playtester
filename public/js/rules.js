@@ -705,7 +705,8 @@ function payCostRaw(cost, sources, opts = {}) {
     else {
       const cc = cardOf(u.iid);
       if (u.sac) v += 40; // Treasures, Lotus Petal
-      if (cc && isCreature(cc)) v += 6; // dorks can still attack or block
+      // mana creatures: kept back by default (they can still attack or block); the setting can make them go first
+      if (cc && isCreature(cc)) v += G.settings && G.settings.dorks === 'first' && cc.controller === 'p' ? -2 : 6;
       if (cc && !isLand(cc)) v += 0.5;
       // sources with other things to do (utility lands, rocks with abilities)
       if (cc && /(?:^|\n)[^\n:]*\{[^}]+\}[^\n:]*: (?!Add\b)/.test(oracle(cc))) v += 3;
