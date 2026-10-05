@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.48",
+    "title": "Blood Money",
+    "notes": [
+      "Blood Money creates a tapped Treasure for each nontoken creature it destroys. Any \"for each creature destroyed this way, …\" card now works."
+    ]
+  },
+  {
     "version": "1.2.47",
     "title": "Tomb of Horrors Adventurer",
     "notes": [

@@ -825,15 +825,30 @@ on(/^destroy (.+?)(?:\.? (?:it|they) can't be regenerated)?$/, async (m, env) =>
   const objs = await objects(env, m[1].replace(/\. .*$/, ''), { harm: true });
   const noRegen = /can't be regenerated/.test(env.sentence);
   let k = 0;
+  env.thisWay = [];
   for (const c of objs) {
     const nm = `${whose(c)} ${nameTag(c)}`;
+    const snap = { iid: c.iid, token: !!c.token, creature: isCreature(c), controller: c.controller, power: power(c), toughness: toughness(c) };
     if (destroy(c.iid, { noRegen })) {
+      env.thisWay.push(snap);
       k++;
       if (objs.length <= 3) env.did.push(`destroys ${nm}`);
     } else if (objs.length <= 3) env.did.push(`${nm} survives`);
   }
   if (objs.length > 3) env.did.push(`destroys ${k} permanent${k === 1 ? '' : 's'}`);
 });
+// Blood Money: "For each nontoken creature destroyed this way, create a tapped Treasure token."
+on(/^for each (nontoken |token )?(creature|permanent|artifact|enchantment|land|planeswalker) (?:destroyed|that died|that dies) this way(?:,| that you controlled,| your opponents controlled,)? (.+)$/, async (m, env) => {
+  const list = (env.thisWay || []).filter((x) => (!m[1] || (m[1] === 'token ' ? x.token : !x.token)) && (m[2] !== 'creature' || x.creature)
+    && (!/that you controlled/.test(env.sentence) || x.controller === env.me) && (!/your opponents controlled/.test(env.sentence) || x.controller !== env.me));
+  const k = list.length;
+  if (!k) return env.did.push('nothing was destroyed that way');
+  let t = m[3].trim();
+  if (/^create (?:a|an|one) /.test(t)) {
+    t = t.replace(/^create (?:a|an|one) /, `create ${k} `).replace(/\btoken\b(?!s)/, 'tokens');
+    await runSentence(t, env);
+  } else for (let i = 0; i < k; i++) await runSentence(t, env);
+}, { first: true });
 on(/^exile (?:the top (\w+) cards? of (?:your|target player's|each player's|that player's) library)\.?(?: (?:until end of turn|until the end of your next turn|this turn)?,? ?you may (?:play|cast) (?:that card|those cards|them|it)(?: this turn| until the end of your next turn| until end of turn)?)?/, async (m, env) => {
   const k = n(m[1] || 'a', env.x);
   const pid = /target player|that player/.test(env.sentence) ? (env.thatPlayer || opp(env.me)) : env.me;
