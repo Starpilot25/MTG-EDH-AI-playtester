@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.55",
+    "title": "Commander damage from an animated Background",
+    "notes": [
+      "If a Background (or any noncreature commander) becomes a creature and deals combat damage, it now gets its own commander-damage counter under the player's life total. The damage was always tracked and counted toward 21, but the counter only showed up for creature commanders."
+    ]
+  },
+  {
     "version": "1.2.54",
     "title": "\"Another target\"",
     "notes": [

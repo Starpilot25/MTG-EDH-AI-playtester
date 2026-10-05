@@ -297,9 +297,9 @@ function statusLine(pid) {
 
 function lifeBlock(pid) {
   const pl = G.s.players[pid];
-  // Commander damage only comes from creature commanders (not Backgrounds), but keep any row that has damage.
+  // Commander damage rows: creature commanders, any commander that's a creature right now (an animated Background), and any row with damage.
   const foes = Object.values(G.s.cards).filter(
-    (c) => c.isCommander && c.owner === opp(pid) && (/Creature/.test(DB[c.def].typeLine) || pl.cmdDmg[c.iid])
+    (c) => c.isCommander && c.owner === opp(pid) && (/Creature/.test(DB[c.def].typeLine) || (c.zone === 'battlefield' && isCreature(c)) || pl.cmdDmg[c.iid])
   );
   const cmd = foes
     .map((c) => {
