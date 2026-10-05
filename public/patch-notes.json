@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.84",
+    "title": "Thriving lands",
+    "notes": [
+      "Thriving lands (Thriving Bluff, Moor, Heath, Isle, Grove) now ask you to choose a color as they enter, leaving out their own color, and then tap for either their own color or the chosen one. Before, they only ever made their own color, so the choice did nothing."
+    ]
+  },
+  {
     "version": "1.2.83",
     "title": "Treasure auto-pay setting",
     "notes": [

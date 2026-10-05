@@ -451,10 +451,13 @@ function keywordTriggers(c) {
       return [`chooses ${card(c.iid).chosenCardType.toLowerCase()}`];
     }, 'Choose a card type', { self: true });
   // "As ~ enters, choose a color" (Utopia Sprawl, Caged Sun, Gauntlet of Power…)
-  if (/(?:^|\n)As (?:~|this [a-z]+) enters(?: the battlefield)?, choose a color/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenColor)
+  if (/(?:^|\n)As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a color/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenColor)
     f('enters', async () => {
-      const cols = ['W', 'U', 'B', 'R', 'G'];
-      const names = ['white', 'blue', 'black', 'red', 'green'];
+      // "choose a color other than red" (Thriving lands)
+      const other = (o.match(/choose a color other than (white|blue|black|red|green)/i) || [])[1];
+      const allNames = ['white', 'blue', 'black', 'red', 'green'];
+      const names = allNames.filter((x) => x !== (other || '').toLowerCase());
+      const cols = names.map((x) => ({ white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' })[x]);
       // the AI picks its most common color
       const aiPick = () => {
         const n = cols.map((x) => Object.values(G.s.cards).filter((y) => y.owner === c.controller && (DB[y.def].colors || []).includes(x)).length);

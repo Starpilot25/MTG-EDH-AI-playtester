@@ -533,6 +533,14 @@ function manaAbilityRaw(inst) {
     if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
     return cols.length ? { colors: cols, amount: 1 } : null;
   }
+  // Thriving lands & co.: "{T}: Add {R} or one mana of the chosen color."
+  {
+    const tc = o.match(/(?:^|\n)\{T\}: Add \{([WUBRGC])\} or one mana of the chosen color\./);
+    if (tc) {
+      if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
+      return { colors: [...new Set([tc[1], ...(inst.chosenColor ? [inst.chosenColor] : [])])], amount: 1 };
+    }
+  }
   const produced = d.produced.length ? d.produced : [];
   if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste') && /\{T\}/.test(o)) {
     if (!isLand(inst)) return null;
