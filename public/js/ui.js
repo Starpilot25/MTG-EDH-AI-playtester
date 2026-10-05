@@ -375,8 +375,8 @@ function exileReady(pid) {
     if (c.owner === pid && c.foretold) { tag = 'Foretold'; ready = c.foretoldTurn < s.turn; }
     else if (c.owner === pid && c.plotted) { tag = 'Plotted'; ready = c.plottedTurn < s.turn; }
     else if (c.owner === pid && c.onAdventure) tag = 'Adventure';
-    else if (c.mayPlayFree === pid) tag = 'Free';
-    else if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn) tag = c.mayPlayUntil > s.turn ? 'Until next turn' : 'This turn';
+    else if (c.mayPlayFree === pid && (c.mayPlayFreeUntil ?? 1e9) >= s.turn) tag = 'Free';
+    else if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn) tag = c.mayPlayUntil > s.turn + 50 ? (c.myTurnOnly ? 'Your turns' : 'While exiled') : c.mayPlayUntil > s.turn ? 'Until next turn' : 'This turn';
     else if (c.owner === pid && c.warped) tag = 'Warp';
     else if (c.owner === pid && c.suspended && c.counters && c.counters.time > 0) { tag = `Suspend ⏳${c.counters.time}`; ready = false; }
     if (!tag) continue;
@@ -1238,7 +1238,7 @@ async function castInner(iid, opts = {}) {
   if (G.s.pstack) return toast('Finish the spell you are casting first.');
   const name = cardName(c);
   // lands (and the land side of modal double-faced cards)
-  const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p') ? landOptions('p', c) : [];
+  const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) ? landOptions('p', c) : [];
   const casts = castOptions('p', c);
   const options = [
     ...lands.map((l) => ({ ...l, land: true, label: l.label })),
@@ -1753,8 +1753,8 @@ function menuForCard(c, x, y) {
       items.push({ label: G.s.combat.attackers.includes(c.iid) ? 'Remove from attack' : 'Attack with this', fn: () => toggleAttacker(c.iid) });
     items.push('-');
   }
-  if (mine && ['hand', 'command', 'graveyard', 'exile'].includes(c.zone) && G.settings.arenaMode) {
-    const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p') ? landOptions('p', c) : [];
+  if ((mine || c.mayPlay === 'p' || c.mayPlayFree === 'p' || c.mayCastFromGy === 'p') && ['hand', 'command', 'graveyard', 'exile'].includes(c.zone) && G.settings.arenaMode) {
+    const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) ? landOptions('p', c) : [];
     for (const l of lands) items.push({ label: esc(l.label), fn: () => castByPlayer(c.iid, { option: { ...l, land: true } }) });
     for (const o of castOptions('p', c)) items.push({ label: `${esc(o.label)}${o.cost && !/\{/.test(o.label) ? ' ' + manaSymbols(o.cost) : ''}`, fn: () => castByPlayer(c.iid, { option: o }) });
     for (const ab of zoneAbilities(c)) items.push({ label: `<span class="ab">${esc(ab.label)}</span>`, fn: () => zoneAbility(c, ab) });

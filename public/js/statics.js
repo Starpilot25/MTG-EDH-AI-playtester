@@ -99,6 +99,11 @@ function parseStatics(text, selfName) {
       out.anthems.push({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), token: true }, p: m[3] ? +m[3] : 0, t: m[4] ? +m[4] : 0, grants: kwList(m[5] || '') });
       continue;
     }
+    // Don Andres: "Each creature you control but don't own gets +2/+2, has menace and deathtouch, and is a Pirate…"
+    if ((m = l.match(/^each creature you control but don't own gets ([+-]\d+)\/([+-]\d+)(?:, has (.+?))?(?:, and is an? .+)?\.?$/))) {
+      out.anthems.push({ who: 'mine', f: { notOwned: true }, p: +m[1], t: +m[2], grants: kwList((m[3] || '').replace(/,? and is an? .*$/, '')) });
+      continue;
+    }
     // Serra's Emissary: "You and creatures you control have protection from creatures."
     if ((m = l.match(/^you and ((?:other )?(?:[\w-]+ ){0,3}?)creatures you control have (.+?)\.?$/))) {
       out.anthems.push({ who: 'mine', other: /other/.test(m[1]), f: filterFrom(m[1]), p: 0, t: 0, grants: kwList(m[2]) });
@@ -273,6 +278,7 @@ function matchesFilter(c, f, helpers) {
   if (f.not) for (const w of f.not) if (new RegExp('\\b' + w + '\\b', 'i').test(tl) || (COLOR_WORDS[w] && d.colors.includes(COLOR_WORDS[w]))) return false;
   if (f.subtypes && !f.subtypes.some((st) => helpers.hasSubtype(c, st))) return false;
   if (f.withKw && !printedKw(c, f.withKw)) return false;
+  if (f.notOwned && c.owner === c.controller) return false;
   return true;
 }
 // keyword check that doesn't consult anthems (avoids recursion): printed text, aura/equipment grants, until-end-of-turn grants

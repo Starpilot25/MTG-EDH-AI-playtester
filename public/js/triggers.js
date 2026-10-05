@@ -134,6 +134,19 @@ export function triggersOf(c, defOverride) {
       add('combatDamagePlayer', m[1], { anyOfMine: true, enchanted: true });
     else if ((m = line.match(/^Whenever one or more (?:other )?cards? (?:are put into|leave) your graveyard(?: from anywhere)?, (.+)$/i)))
       add('putIntoGraveyard', m[1], { mine: true });
+    // theft decks: Don Andres, Gonti, Brainstealer Dragon, Breeches, J. Jonah Jameson, Labyrinth Raptor
+    else if ((m = line.match(/^Whenever you cast a (noncreature |creature |)spell you don't own, (.+)$/i)))
+      add('cast', m[2], { spell: m[1].trim().toLowerCase(), mine: true, notOwned: true });
+    else if ((m = line.match(/^Whenever a player casts a spell they don't own, (.+)$/i)))
+      add('cast', m[1], { spell: '', notOwned: true });
+    else if ((m = line.match(/^Whenever a (nonland )?permanent an opponent owns enters(?: the battlefield)? under your control, (.+)$/i)))
+      add('enters', m[2], { mine: true, notOwned: true, kind: m[1] ? 'nonland' : '' });
+    else if ((m = line.match(/^Whenever a creature deals combat damage to one of your opponents, (.+)$/i)))
+      add('combatDamagePlayer', m[1], { anyCreatureToOpp: true });
+    else if ((m = line.match(/^Whenever one or more ([A-Z][\w-]+)s you control deal (?:combat )?damage to (?:your opponents|an opponent|a player), (.+)$/)))
+      add('combatDamageOnce', m[2], { kind: m[1].toLowerCase() });
+    else if ((m = line.match(/^Whenever a creature you control with ([a-z ]+?) (attacks|becomes blocked), (.+)$/i)))
+      add(m[2] === 'attacks' ? 'attacks' : 'blocked', m[3], { anyOfMine: true, kind: `creature with ${m[1].toLowerCase()}` });
     // Avengers: commander combat damage, plural names ("Falcon and Redwing deal"), Hercules, She-Hulk, Kindred Discovery…
     else if ((m = line.match(/^Whenever (?:your commander|a commander you control) deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)))
       add('combatDamagePlayer', m[1], { anyOfMine: true, commander: true });
@@ -685,6 +698,7 @@ function matches(ev) {
         if (trig.nontoken && nc.token) return;
         if (!kindOk(nc, trig.kind)) return;
         if (trig.chosenType && !(c.chosenType && hasSubtype(nc, c.chosenType))) return;
+        if (trig.notOwned && (nc.owner === c.controller || nc.token)) return;
         if (trig.once) {
           const key = c.iid + trig.raw;
           if (seenOnce.has(key) || ev.batchSeen) return;
@@ -748,6 +762,13 @@ function matches(ev) {
         if (x.zone === 'exile' && (x.championedBy === ev.iid || x.exiledBy === ev.iid)) {
           delete x.championedBy;
           delete x.exiledBy;
+          // Intellect Devourer: a card exiled from a hand goes back to that hand
+          if (x.exiledFromHand) {
+            delete x.exiledFromHand;
+            move(x.iid, 'hand');
+            log(x.owner, `${nameTag(x)} returns to its owner's hand.`);
+            continue;
+          }
           toBattlefield(x.iid, x.owner);
           log(x.owner, `${nameTag(x)} returns to the battlefield.`);
         }
@@ -783,6 +804,10 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'combatDamagePlayer') return;
         const atk = card(ev.iid);
+        if (trig.anyCreatureToOpp) {
+          if (ev.player !== c.controller) out.push({ src: c, trig, thatPlayer: ev.player, amount: ev.amount, it: { iid: ev.iid } });
+          return;
+        }
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, amount: ev.amount });
         else if (trig.anyOfMine && c.controller === ev.controller && !(trig.commander && !(atk && atk.isCommander)) && (!trig.kind || (atk && matchesFilter(atk, trig.kind))) && (!trig.faceUpTurn || (atk && atk.turnedUpTurn === G.s.turn)) && (!trig.enchanted || (atk && Object.values(G.s.cards).some((a) => a.attachedTo === atk.iid && a.zone === 'battlefield' && /Aura/.test(typeLine(a))))) && (!trig.withCounter || (atk && Object.entries(atk.counters || {}).some(([k, v]) => v > 0 && (trig.withCounter === 'any' || k === trig.withCounter))))) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid } });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid } });
@@ -908,6 +933,7 @@ function matches(ev) {
         if (trig.first && ts.spells !== 1) return;
         if (trig.second && ts.spells !== 2) return;
         if (!spellMatches(trig.spell, d, sc)) return;
+        if (trig.notOwned && (!sc || sc.owner === ev.controller)) return;
         if (trig.sharesType) {
           const mine_ = (typeLine(c).split('—')[1] || '').trim().split(/\s+/).filter(Boolean);
           if (!sc || !mine_.some((t) => hasSubtype(sc, t))) return;

@@ -84,6 +84,7 @@ export function applyPayment(pid, pay) {
   }
 }
 
+export { anyColorCost };
 export function emptyPools() {
   if (!G.s || !G.s.pool) return;
   const next = { p: [], ai: [] };
@@ -165,6 +166,8 @@ export function castOptions(pid, c) {
   }
   if (zone === 'graveyard') {
     let a;
+    // Locke, Treasure Hunter: "Until end of turn, you may cast a spell from among those cards."
+    if (c.mayCastFromGy === pid && c.mayCastFromGyTurn === s.turn && !isLandFace(f0)) add({ mode: 'impulse', label: 'Cast from graveyard (this turn)', cost: f0.manaCost || d.manaCost });
     if ((a = altCostAny(o0, 'Flashback'))) add({ mode: 'flashback', label: `Flashback ${a.mana}${a.other ? ' — ' + a.other : ''}`, cost: a.mana, other: a.other });
     else if (c.tempFlashback === s.turn && !isLandFace(f0)) add({ mode: 'flashback', label: `Flashback ${f0.manaCost}`, cost: f0.manaCost });
     if ((a = altCostAny(o0, 'Escape'))) add({ mode: 'escape', label: `Escape ${a.mana}${a.other ? ', ' + a.other : ''}`, cost: a.mana, other: a.other });
@@ -188,8 +191,9 @@ export function castOptions(pid, c) {
     }
     if (c.plotted && c.plottedTurn < s.turn) add({ mode: 'plotted', label: 'Cast plotted card (free)', cost: '', free: true, sorcery: true });
     if (c.onAdventure) add({ mode: 'normal', label: `Cast ${f0.name} (from Adventure)`, cost: f0.manaCost });
-    if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn && !isLandFace(f0)) add({ mode: 'impulse', label: c.anyColorMana ? 'Cast from exile (mana of any color)' : 'Cast from exile', cost: c.anyColorMana ? anyColorCost(f0.manaCost || d.manaCost) : f0.manaCost || d.manaCost });
-    if (c.mayPlayFree === pid && !isLandFace(f0)) add({ mode: 'hideaway', label: 'Cast for free', cost: '', free: true });
+    const anyMana = c.anyColorMana || (c.owner !== pid && cardsIn(pid, 'battlefield').some((x) => /You may spend mana as though it were mana of any color to cast spells you don't own/i.test(oracle(x))));
+    if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn && !isLandFace(f0) && (!c.myTurnOnly || s.active === pid)) add({ mode: 'impulse', label: anyMana ? 'Cast from exile (mana of any color)' : 'Cast from exile', cost: anyMana ? anyColorCost(f0.manaCost || d.manaCost) : f0.manaCost || d.manaCost });
+    if (c.mayPlayFree === pid && (c.mayPlayFreeUntil ?? 1e9) >= s.turn && !isLandFace(f0)) add({ mode: 'hideaway', label: 'Cast for free', cost: '', free: true });
     if (c.warped) add({ mode: 'normal', label: 'Cast (warped earlier)', cost: f0.manaCost });
   }
   return opts.filter((x) => x.cost !== undefined);
@@ -457,6 +461,8 @@ export async function castSpell(pid, iid, opt, env) {
   });
   if (!pay) throw new Cancelled();
   applyPayment(pid, pay);
+  c.convokedBy = (pay.special || []).filter((x) => x.kind === 'convoke').map((x) => x.iid); // Lethal Scheme: "each creature that convoked it"
+  if (c.lockeGroup) for (const x of Object.values(s.cards)) if (x.lockeGroup === c.lockeGroup) delete x.mayCastFromGy;
   info.x = env.x !== undefined ? env.x : pay.x || 0;
   if (info.waterbendX !== undefined) info.x = info.waterbendX;
   // --- the spell is on the stack

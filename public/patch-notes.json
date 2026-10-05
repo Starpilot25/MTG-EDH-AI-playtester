@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.80",
+    "title": "Theft deck overhaul",
+    "notes": [
+      "Cards that let you play your opponent's cards now work. Exiled cards you may play show in your \"From exile\" panel and can be cast from the right-click menu. Where the card says so, you can pay with mana of any color, and the permission lasts \"this turn\" or \"for as long as it remains exiled\" as written.",
+      "Newly working: Expensive Taste, Black Cat, Cunning Thief, Author of Shadows, Crabomination, Breach the Multiverse, Brainstealer Dragon, Overture (Jidoor), Tinybones, the Pickpocket, Tinybones, Bauble Burglar, The Horus Heresy, Kefka, Dancing Mad, Fevered Suspicion, Plargg and Nassari, Nathan Drake, Laughing Jasper Flint, Lethal Scheme's connive, Locke, Treasure Hunter, Extract Brain, Etali, Primal Storm, Shadow of the Enemy, Zara, Renegade Recruiter, Rakdos, the Muscle, Ramirez DePietro, Dream Harvest, Breeches, Brazen Plunderer, Gríma, Saruman's Footman, Gonti, Night Minister, Don Andres, the Renegade, Intellect Devourer, Hostage Taker (any-color mana, cast it any time while exiled), Chaos Wand, Strago and Relm, Wand of Wonder, Ian Malcolm, Bident of Thassa, Black Market Connections, J. Jonah Jameson, Labyrinth Raptor, Grenzo's second mode and Port Razer's extra combat.",
+      "Fixed: \"instant or sorcery card\" targets could pick creature cards, for example Dire Fleet Daredevil.",
+      "Fixed: modal choices with mode names (\"Sell Contraband — …\") only did part of each mode."
+    ]
+  },
+  {
     "version": "1.2.79",
     "title": "Stolen-card popup and King Narfi's Betrayal",
     "notes": [
