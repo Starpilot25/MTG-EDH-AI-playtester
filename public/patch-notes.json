@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.44",
+    "title": "Legends called by their first name; Ureni",
+    "notes": [
+      "Legendary cards whose text uses just their first name now work, like \"Whenever Ureni enters or attacks\" or \"Whenever Thrakkus attacks\". Before, the game didn't recognize the short name, so those abilities never triggered. This affects many legends named \"X of the Y\" or \"X the Y\".",
+      "Ureni of the Unwritten puts the Dragon it finds onto the battlefield (it used to go to your hand). Any \"look at the top N … put a card from among them onto the battlefield\" works the same way."
+    ]
+  },
+  {
     "version": "1.2.43",
     "title": "Card sweep: auras, Craterhoof, ramp auras, triggers",
     "notes": [

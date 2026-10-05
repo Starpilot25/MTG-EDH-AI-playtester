@@ -49,6 +49,11 @@ export function stripName(text, c) {
   let t = String(text || '').split(name).join('~');
   const short = name.split(',')[0];
   if (short.length > 3 && short !== name) t = t.split(short).join('~');
+  // legends called by their first name: "Ureni of the Unwritten" → "Ureni", "Thrakkus the Butcher" → "Thrakkus"
+  else if (short === name && c && DB[c.def] && /Legendary/.test(DB[c.def].typeLine || '')) {
+    const fm = name.match(/^([A-Z][\w'-]{2,}) (?:of|the|from|and)\b/);
+    if (fm) t = t.replace(new RegExp('\\b' + fm[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b(?! (?:of|the|from|and)\\b)', 'g'), '~');
+  }
   return t
     .replace(/\bthis (creature|artifact|enchantment|permanent|land|card|Aura|Equipment|Vehicle|spell|Saga|Class|Case|planeswalker|battle|Spacecraft)\b/gi, '~')
     .replace(/[“”]/g, '"')
@@ -2792,18 +2797,25 @@ on(/^look at the top (\w+) cards? of (?:your|target player's) library(?:\. put (
   const k = n(m[1], env.x);
   const ids = libTop(env.me, k);
   const rest = env.text.toLowerCase();
-  let mm = rest.match(/(?:you may reveal|put) (a|an|one|two|up to (?:one|two|three)) ([^.]*?)cards? (?:from among them|of them)? ?(?:and put (?:it|them) )?into your hand/) || rest.match(/put (\w+) of them into your hand/);
-  const take = mm ? n(mm[1].replace(/up to /, '')) : 1;
+  // Ureni of the Unwritten, Selvala's Stampede & co.: "You may put a Dragon creature card from among them onto the battlefield"
+  const bf = rest.match(/(?:you may )?put (a|an|one|two|up to (?:one|two|three)|any number of) ([^.]*?)cards? from among them onto the battlefield( tapped)?/);
+  let mm = bf || rest.match(/(?:you may reveal|put) (a|an|one|two|up to (?:one|two|three)) ([^.]*?)cards? (?:from among them|of them)? ?(?:and put (?:it|them) )?into your hand/) || rest.match(/put (\w+) of them into your hand/);
+  const take = mm ? (/any number/.test(mm[1]) ? k : n(mm[1].replace(/up to /, ''))) : 1;
   const filter = mm && mm[2] ? mm[2].trim() : '';
   const pool = ids.filter((i) => !filter || matchesFilter(card(i), filter.replace(/^(?:a|an) /, '')));
   const picks = pool.length ? await env.choosers[env.me].pickCards({
-    prompt: `Look at the top ${k}: choose ${take > 1 ? 'up to ' + take : 'one'}${filter ? ' ' + filter : ''} to put into your hand`, cards: pool, min: 0, max: Math.min(take, pool.length), purpose: 'dig', src: env.src,
-    aiScore: (c) => (isLand(c) ? (cardsIn(env.me, 'battlefield').filter(isLand).length < 5 ? 3 : 0) : DB[c.def].cmc + 1),
+    prompt: `Look at the top ${k}: choose ${take > 1 ? 'up to ' + take : 'one'}${filter ? ' ' + filter : ''} to put ${bf ? 'onto the battlefield' : 'into your hand'}`, cards: pool, min: 0, max: Math.min(take, pool.length), purpose: bf ? 'cheat' : 'dig', src: env.src,
+    aiScore: (c) => (bf ? DB[c.def].cmc + 1 : isLand(c) ? (cardsIn(env.me, 'battlefield').filter(isLand).length < 5 ? 3 : 0) : DB[c.def].cmc + 1),
   }) : [];
-  for (const i of picks) move(i, 'hand');
+  for (const i of picks) {
+    if (bf) {
+      toBattlefield(i, env.me, { tapped: !!bf[3] });
+      env.did.push(`puts ${nameTag(card(i))} onto the battlefield`);
+    } else move(i, 'hand');
+  }
   const toGy = /rest into your graveyard/.test(rest);
   for (const i of ids) if (!picks.includes(i)) move(i, toGy ? 'graveyard' : 'library', toGy ? {} : { to: 'bottom' });
-  env.did.push(`looks at the top ${k} and takes ${picks.length}`);
+  if (!bf || !picks.length) env.did.push(`looks at the top ${k}${bf ? '' : ` and takes ${picks.length}`}`);
 }, { consumesRest: true });
 on(/^reveal the top (\w+) cards? of your library\. put (?:all|each) ([a-z ]+?) cards? revealed this way into your hand(?: and the rest (?:on the bottom|into your graveyard))?/, async (m, env) => {
   const ids = libTop(env.me, n(m[1], env.x));
