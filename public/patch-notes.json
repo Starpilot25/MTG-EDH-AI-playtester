@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.54",
+    "title": "\"Another target\"",
+    "notes": [
+      "\"Tap target permanent, then untap another target permanent\" (Ral Zarek's +1) and similar abilities can't pick the same permanent twice. The second choice leaves out what you already picked."
+    ]
+  },
+  {
     "version": "1.2.53",
     "title": "Planeswalkers at sorcery speed",
     "notes": [

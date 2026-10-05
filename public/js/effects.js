@@ -592,6 +592,8 @@ async function pickTargets(env, phrase, opts = {}) {
   } else if (/^(?:player|opponent)/.test(kind)) cands = [];
   else cands = legalTargets(kind, me, env.src);
   if (/\bother\b|\banother\b/.test(p) && env.src) cands = cands.filter((c) => c.iid !== env.src.iid);
+  // "Tap target permanent, then untap another target permanent": not one already chosen by this ability
+  if (/\banother target\b/.test(p) && env.pickedSoFar) cands = cands.filter((c) => !env.pickedSoFar.includes(c.iid));
   if (opts.filter) cands = cands.filter(opts.filter);
   let players = [];
   if (playerTarget) {
@@ -611,6 +613,7 @@ async function pickTargets(env, phrase, opts = {}) {
     if (!pick) break;
     results.push(pick);
   }
+  env.pickedSoFar = [...(env.pickedSoFar || []), ...results.filter((r) => r.iid).map((r) => r.iid)];
   if (opts.noWard) return results;
   // ward: the controller of an opponent's targeted permanent asks for the ward cost
   const kept = [];
