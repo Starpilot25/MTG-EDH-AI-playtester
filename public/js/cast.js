@@ -1054,7 +1054,7 @@ export async function useZoneAbility(pid, iid, ab, env) {
     case 'ninjutsu': {
       const cb = s.combat;
       if (!cb || !cb.attackers.length) return false;
-      const unblocked = cb.attackers.filter((a) => card(a) && card(a).controller === pid && !(cb.blocks[a] || []).length);
+      const unblocked = cb.attackers.filter((a) => card(a) && card(a).controller === pid && !(cb.blocks[a] || []).length && !(cb.wasBlocked || {})[a]);
       if (!unblocked.length) return false;
       const [pick] = await ch.pickCards({ prompt: 'Ninjutsu: return an unblocked attacker to your hand', cards: unblocked, min: 1, max: 1, purpose: 'ninjutsu', src: c, aiScore: (x) => -cardValue(x) });
       if (!pick || !(await payM(ab.mana))) return false;

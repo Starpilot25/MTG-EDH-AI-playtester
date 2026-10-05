@@ -1000,7 +1000,7 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
       const a = cards[aid];
       if (!alive(aid)) continue;
       const bl = (blocks[aid] || []).filter(alive);
-      const wasBlocked = (blocks[aid] || []).length > 0;
+      const wasBlocked = (blocks[aid] || []).length > 0 || !!(G.s && G.s.combat && G.s.combat.blocks === blocks && (G.s.combat.wasBlocked || {})[aid]);
       const tgt = targets[aid] || defender;
       const toPlayer = tgt === 'p' || tgt === 'ai';
       const dest = (amount) => (toPlayer ? { type: 'player', from: aid, to: tgt, amount } : { type: 'permanent', from: aid, to: tgt, amount });

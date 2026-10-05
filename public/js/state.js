@@ -519,7 +519,17 @@ function dropFromCombat(iid) {
   cb.attackers = cb.attackers.filter((a) => a !== iid);
   delete cb.blocks[iid];
   if (cb.targets) delete cb.targets[iid];
-  for (const k of Object.keys(cb.blocks)) cb.blocks[k] = cb.blocks[k].filter((b) => b !== iid);
+  for (const k of Object.keys(cb.blocks)) {
+    if (!cb.blocks[k].includes(iid)) continue;
+    cb.blocks[k] = cb.blocks[k].filter((b) => b !== iid);
+    // a blocked creature stays blocked even if its blockers leave combat (it deals no damage unless it has trample)
+    if (!cb.blocks[k].length) cb.wasBlocked = { ...(cb.wasBlocked || {}), [k]: true };
+  }
+}
+// Is this attacker blocked? (true even after all its blockers have left the battlefield)
+export function isBlocked(aid) {
+  const cb = G.s && G.s.combat;
+  return !!(cb && (((cb.blocks || {})[aid] || []).length || (cb.wasBlocked || {})[aid]));
 }
 
 export function libTop(pid, n = 1) {

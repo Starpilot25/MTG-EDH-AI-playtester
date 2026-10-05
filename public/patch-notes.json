@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.73",
+    "title": "Blocked stays blocked",
+    "notes": [
+      "A creature that was blocked stays blocked even if all its blockers are removed before combat damage. It deals no damage unless it has trample, in which case all its damage goes to the player. Ninjutsu also can't return it as unblocked. Before, it was treated as unblocked and hit the player."
+    ]
+  },
+  {
     "version": "1.2.72",
     "title": "Serra's Emissary",
     "notes": [
