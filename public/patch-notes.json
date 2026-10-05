@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.85",
+    "title": "Vengeful Regrowth",
+    "notes": [
+      "Vengeful Regrowth now makes a 4/2 green Plant Warrior with reach for each land it returns. Before, it returned the lands but made no tokens. This also fixes other \"return cards from your graveyard… then do something that many times\" effects."
+    ]
+  },
+  {
     "version": "1.2.84",
     "title": "Thriving lands",
     "notes": [

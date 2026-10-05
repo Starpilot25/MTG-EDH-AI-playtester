@@ -3925,6 +3925,8 @@ on(/^return (.+?) from (your|a|target player's|an opponent's|each player's|all) 
   const pool = pids.flatMap((pid) => cardsIn(pid, 'graveyard')).filter((c) => c.iid !== env.src.iid && matchesFilter(c, filter || 'card') && (!withPart || matchesFilter(c, withPart)) && (!/permanent/.test(filter) || isPermanentCard(DB[c.def])));
   const mvMax = phrase.match(/mana value (\d+|x) or less/);
   const pool2 = mvMax ? pool.filter((c) => DB[c.def].cmc <= (mvMax[1] === 'x' ? env.x : +mvMax[1])) : pool;
+  env.lastAmount = 0;
+  env.thatMuch = 0;
   if (!pool2.length) return env.did.push('finds nothing to return');
   const picks = all ? pool2.map((c) => c.iid) : await env.choosers[env.me].pickCards({
     prompt: `Choose ${count > 1 ? 'up to ' + count + ' cards' : 'a card'} to return to ${m[3].replace('the ', '')}`,
@@ -3932,6 +3934,10 @@ on(/^return (.+?) from (your|a|target player's|an opponent's|each player's|all) 
     aiScore: (c) => DB[c.def].cmc + (/Creature/.test(DB[c.def].typeLine) ? 2 : 0),
   });
   for (const i of picks) moveReturned(env, card(i), m[3], m[4]);
+  // Vengeful Regrowth: "Create that many 4/2 Plant Warrior tokens"
+  env.lastAmount = picks.length;
+  env.thatMuch = picks.length;
+  env.them_ = picks;
 });
 function moveReturned(env, c, dest, tapped) {
   const nm = nameTag(c);
