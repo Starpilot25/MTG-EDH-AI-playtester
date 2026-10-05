@@ -2,7 +2,7 @@
 
 Play 1v1 Commander against an AI opponent to test your decks. It's a free-form tabletop in the style of the Moxfield playtester, with Arena-style rules automation on top: mana is paid for you, targets light up, and spells, triggers and combat resolve on their own.
 
-- **Import any deck.** Paste a Moxfield or Archidekt link, or a plain-text list.
+- **Import any deck.** Paste a plain-text list (Moxfield and Archidekt text exports work as-is).
 - **Built-in AI opponent.** It runs locally, with no account or API key. It simulates combat, holds up counterspells and plays at instant speed.
 - **Real rules.** The engine reads each card's rules text and covers keyword mechanics from across Magic's history.
 - **Sample decks** from Bracket 1 to cEDH, plus saved decks.
@@ -80,7 +80,6 @@ Then open **http://localhost:5173** in your browser. Stop the server with Ctrl+C
 
 ## Loading decks
 
-- **Deck link** — paste a public Moxfield or Archidekt deck URL.
 - **Paste list** — any plain-text export works (`1 Sol Ring`, `1x Sol Ring (CMR) 472`, a "Commander" section header, or `*CMDR*` after the commander).
 - **Saved** — decks you've saved. After loading any deck, type a name under it and press **Save deck** (your commander choice is kept). In the desktop app they're kept in the app's data folder. In the browser version they're kept in `saved-decks.json` next to `server.js`, so they survive restarts and work in any browser on this computer.
 - **Sample**: ten built-in decks, grouped by power bracket:
@@ -107,9 +106,9 @@ Then open **http://localhost:5173** in your browser. Stop the server with Ctrl+C
   - Kamigawa: Neon Dynasty Commander: Buckle Up (Kotori, Pilot Prodigy)
 - **Mirror** (AI only) — the AI plays a copy of your deck.
 
-Partners, Partner with, Friends Forever, Doctor's companions and Backgrounds are supported: mark both commanders in your list (deck links do this automatically). If no commander is marked, one is picked from the list — a legend with a matching partner or Background if there is one — and you can change both from the dropdowns. Each commander has its own tax and its own commander-damage count (Backgrounds don't deal commander damage, so they get no counter).
+Partners, Partner with, Friends Forever, Doctor's companions and Backgrounds are supported: mark both commanders in your list. If no commander is marked, one is picked from the list — a legend with a matching partner or Background if there is one — and you can change both from the dropdowns. Each commander has its own tax and its own commander-damage count (a Background gets a counter if it's animated and deals combat damage).
 
-> Moxfield sometimes blocks automated requests. If a Moxfield link fails, open the deck on Moxfield → **Export → Copy as plain text**, and use **Paste list**.
+> To bring in a deck from Moxfield or Archidekt: open it there → **Export → Copy as plain text**, and use **Paste list**.
 
 Card data and images come from Scryfall. Digital-only printings (such as the Arena *Through the Omenpaths* versions of Spider-Man cards) are swapped for the paper printing so the art matches the real card.
 
@@ -201,7 +200,7 @@ Anything it can't automate is noted in the game log so you can apply it by hand 
 electron-main.js   the desktop app (starts the server and opens a window)
 updater.js         downloads newer game files from GitHub
 update.json        version + fingerprints of the game files (npm run manifest)
-server.js          local server + proxy for Moxfield, Archidekt and Scryfall
+server.js          local server + proxy for Scryfall
 public/index.html  the page
 public/css/        styles
 public/js/data.js  decklist parsing, deck import, card data, sample decks
@@ -223,6 +222,6 @@ build/             app icons
 
 ## Credits
 
-Card data and images come from [Scryfall](https://scryfall.com). Deck imports use Moxfield and Archidekt.
+Card data and images come from [Scryfall](https://scryfall.com).
 
 This is an unofficial fan project, not produced by or endorsed by Wizards of the Coast. Magic: The Gathering and its card names, text and art are property of Wizards of the Coast. This project follows the [Wizards of the Coast Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy).
