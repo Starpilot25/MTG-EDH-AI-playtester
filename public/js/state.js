@@ -631,6 +631,18 @@ export function withReadCache(fn) {
   }
 }
 
+// Mindslaver / Emrakul: you control the AI during this turn
+export function aiSlaved() {
+  const s = G.s;
+  return !!(s && s.slaved && s.slaved.of === 'ai' && s.slaved.turn === s.turn);
+}
+// Sen Triplets: `by` may play lands and cast spells from `of`'s hand this turn
+export function handControl(by, of) {
+  const s = G.s;
+  const h = s && s.handControl;
+  return !!(h && h.turn === s.turn && h.by === by && (!of || h.of === of));
+}
+
 export function changeLife(pid, delta, reason) {
   setLife(pid, G.s.players[pid].life + delta, reason);
 }

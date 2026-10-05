@@ -6,7 +6,7 @@ import {
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, esc, snapshot, undo, redo, shuffle, mill, libTop,
   setLife, toBattlefield, createToken, stateBased, commanderTax, cardName, makeCard, CARD_W, CARD_H,
-  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace, sacrifice, changeLife, withReadCache,
+  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace, sacrifice, changeLife, withReadCache, aiSlaved, handControl,
 } from './state.js';
 import {
   hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn, attackTax, attackTaxOf,
@@ -390,7 +390,8 @@ function commandZone(pid) {
 function renderOpp() {
   const s = G.s;
   const hand = zoneOf('ai', 'hand');
-  const backs = revealAiHand
+  const shown = revealAiHand || aiSlaved() || handControl('p', 'ai') || (s.handRevealed && s.handRevealed.pid === 'ai' && s.handRevealed.turn === s.turn);
+  const backs = shown
     ? `<div class="ai-hand-reveal">${hand.map((i) => cardHTML(card(i), { small: true })).join('')}</div>`
     : `<div class="ai-hand" title="AI hand">${hand.map(() => '<i></i>').join('')}<b>${hand.length}</b></div>`;
   $('#opp-panel').innerHTML = `
@@ -398,7 +399,8 @@ function renderOpp() {
     ${lifeBlock('ai')}
     <div class="piles">${pile('ai', 'library', 'Library')}${pile('ai', 'graveyard', 'Grave')}${pile('ai', 'exile', 'Exile')}${commandZone('ai')}</div>
     ${exileReady('ai')}
-    <div class="hand-row"><span class="lbl">Hand</span>${backs}</div>`;
+    <div class="hand-row"><span class="lbl">Hand</span>${backs}</div>
+    ${handControl('p', 'ai') ? '<p class="hint sl-hint">Sen Triplets: double-click the AI\'s cards to play or cast them with your mana.</p>' : ''}`;
 
   // AI battlefield: lanes, mirrored (its creatures face yours)
   const of = $('#opp-field');
@@ -772,8 +774,8 @@ export const playerChooser = {
   pickCards(req) {
     return new Promise((resolve, reject) => pickCardsDialog(req, resolve, reject));
   },
-  scry({ n: count, surveil }) {
-    return scryDialog(count, surveil ? 'surveil' : 'scry', true);
+  scry({ n: count, surveil, pid }) {
+    return scryDialog(count, surveil ? 'surveil' : 'scry', true, pid || 'p');
   },
   choose(req) {
     return new Promise((resolve) => {
@@ -848,6 +850,120 @@ export const playerChooser = {
 };
 hooks.playerChooser = playerChooser;
 T.choosers = { p: playerChooser, ai: aiChooser };
+
+// ------------------------------------------------------------ Mindslaver: you control the AI's turn
+// While you control the AI, every choice it would make (targets, modes, "may" questions, cards to pick) comes to you.
+for (const k of ['target', 'pickCards', 'scry', 'choose', 'chooseModes', 'confirm', 'chooseNumber']) {
+  const orig = aiChooser[k];
+  aiChooser[k] = function (...a) {
+    if (aiSlaved() && playerChooser[k]) {
+      if (k === 'scry') return playerChooser.scry({ ...(a[0] || {}), pid: 'ai' });
+      return playerChooser[k](...a);
+    }
+    return orig.apply(aiChooser, a);
+  };
+}
+
+function slavedEnv() {
+  return { ...aiEnv(hooks), respond: async () => 'resolve', aiCounter: async () => false, say: (m) => { toast(m); return false; } };
+}
+function aiAffordable(c, o) {
+  const eff = effectiveCost('ai', c, o);
+  return !!payCost((o.cost || '').replace(/\{X\}/g, ''), manaSources('ai', { convoke: hasKw(c, 'convoke'), improvise: hasKw(c, 'improvise'), delve: hasKw(c, 'delve'), self: c.iid }), { extraGeneric: eff.generic });
+}
+// Everything the AI could do right now in its main phase, for you to pick from.
+function slavedActions() {
+  const s = G.s;
+  const out = [];
+  const seen = new Set();
+  const once = (key) => (seen.has(key) ? false : (seen.add(key), true));
+  const main = s.step === 'main1' || s.step === 'main2';
+  if (main && (s.landsPlayed || 0) < landsAllowed('ai')) {
+    for (const c of cardsIn('ai', 'hand')) {
+      const lo = landOptions('ai', c);
+      if (lo.length && once('land:' + c.def)) out.push({ group: 'Play a land', c, label: lo[0].label || `Play ${cardName(c)}`, run: async () => playLand('ai', c.iid, lo[0].face) });
+    }
+  }
+  for (const zone of ['hand', 'command', 'graveyard', 'exile']) {
+    for (const c of cardsIn('ai', zone)) {
+      for (const o of castOptions('ai', c)) {
+        if (!timingOk('ai', c, o) || !aiAffordable(c, o) || !once(`cast:${zone}:${c.def}:${o.mode}:${o.face || 0}`)) continue;
+        out.push({ group: zone === 'hand' ? 'Cast a spell' : 'Cast from ' + (zone === 'command' ? 'the command zone' : zone === 'graveyard' ? 'the graveyard' : 'exile'), c, label: o.label + (o.cost ? ' ' + o.cost : ''), run: async (env) => castSpell('ai', c.iid, o, env) });
+      }
+    }
+  }
+  for (const c of cardsIn('ai', 'battlefield')) {
+    for (const ab of activatedAbilities(c)) {
+      if (ab.kind === 'loyalty') {
+        if (!main || loyaltyUsesLeft(c) <= 0 || (c.counters.loyalty || 0) + ab.cost < 0) continue;
+      } else if (ab.kind === 'ability' || ab.kind === 'equip' || ab.kind === 'crew') {
+        if (ab.tap && (c.tapped || (isCreature(c) && c.sick && !hasKw(c, 'haste')))) continue;
+        if (ab.mana && !payCost(ab.mana.replace(/\{X\}/g, ''), manaSources('ai', {}).filter((m) => m.iid !== c.iid || !ab.tap))) continue;
+        if (ab.sorcery && !main) continue;
+      } else continue;
+      out.push({ group: 'Activate an ability', c, label: `${ab.label || ab.costText || (ab.mana || '')}: ${(ab.text || '').slice(0, 80)}`, run: async (env) => activateAbility('ai', c, ab, env) });
+    }
+  }
+  return out;
+}
+function slavedDialog(post, acts) {
+  return new Promise((resolve) => {
+    const groups = [...new Set(acts.map((a) => a.group))];
+    const dlg = openDialog(`<span class="eyebrow">You control the AI this turn</span>
+      <h3>AI's ${post ? 'second' : 'first'} main phase — what should it do?</h3>
+      <p class="hint">The AI's mana is tapped for it automatically. You make every choice its cards ask for.</p>
+      ${acts.length ? groups.map((g) => `<h4 class="sl-group">${esc(g)}</h4><div class="sl-list">${acts.map((a, k) => (a.group === g ? `<button class="sl-act" data-k="${k}">${cardHTML(a.c, { small: true })}<span>${esc(a.label)}</span></button>` : '')).join('')}</div>`).join('') : '<p>Nothing the AI can do right now.</p>'}
+      <div class="btns"><button class="primary" data-done="1">${post ? 'End the AI\'s turn' : 'Go to combat'}</button></div>`, { wide: true, noClose: true });
+    dlg.addEventListener('click', (e) => {
+      const b = e.target.closest('.sl-act, [data-done]');
+      if (!b) return;
+      closeDialog(true);
+      resolve(b.dataset.done ? null : acts[+b.dataset.k]);
+    });
+  });
+}
+hooks.slavedMain = async (post) => {
+  for (let guard = 0; guard < 80; guard++) {
+    if (!aiSlaved() || G.s.winner) return;
+    render();
+    const pick = await slavedDialog(post, slavedActions());
+    if (!pick) return;
+    const snap = JSON.stringify({ s: G.s, nextId: 0 });
+    try {
+      await pick.run(slavedEnv());
+    } catch (e) {
+      if (e instanceof Cancelled) restoreInPlace(snap);
+      else console.error(e);
+    }
+    await settle();
+    render();
+  }
+};
+// Declare the AI's attackers (and what each attacks) for it.
+hooks.slavedAttack = () =>
+  new Promise((resolve) => {
+    const can = cardsIn('ai', 'battlefield').filter((c) => isCreature(c) && canAttack(c));
+    if (!can.length) return resolve({ attackers: [], targets: {} });
+    const foes = [{ id: 'p', label: 'You' }, ...cardsIn('p', 'battlefield').filter((c) => isType(c, 'Planeswalker') || isType(c, 'Battle')).map((c) => ({ id: c.iid, label: cardName(c) }))];
+    const sel = (iid) => `<select data-atk="${iid}">${foes.map((o) => `<option value="${o.id}">${esc(o.label)}</option>`).join('')}</select>`;
+    const dlg = openDialog(`<span class="eyebrow">You control the AI this turn</span><h3>Which of the AI's creatures attack?</h3>
+      <div class="atk-targets">${can.map((c) => `<label class="atk-row"><input type="checkbox" data-pick="${c.iid}"> <span>${esc(cardName(c))} <small>${power(c)}/${toughness(c)}</small></span>${foes.length > 1 ? sel(c.iid) : ''}</label>`).join('')}</div>
+      <div class="btns"><button class="primary" id="sl-atk">Attack</button><button id="sl-none">No attack</button></div>`, { noClose: true });
+    $('#sl-atk', dlg).addEventListener('click', () => {
+      const attackers = $$('[data-pick]', dlg).filter((x) => x.checked).map((x) => x.dataset.pick);
+      const targets = {};
+      for (const a of attackers) {
+        const sl = $(`select[data-atk="${a}"]`, dlg);
+        targets[a] = sl ? sl.value : 'p';
+      }
+      closeDialog(true);
+      resolve({ attackers, targets });
+    });
+    $('#sl-none', dlg).addEventListener('click', () => {
+      closeDialog(true);
+      resolve({ attackers: [], targets: {} });
+    });
+  });
 T.confirm = (title, body) => confirmDialog({ title, body }, 'Yes', 'No');
 T.render = () => render();
 
@@ -1338,9 +1454,9 @@ function searchLibrary() {
   dlg.dataset.viewer = 'p:library-search';
 }
 
-function scryDialog(n, mode = 'scry', inEffect = false) {
+function scryDialog(n, mode = 'scry', inEffect = false, who = 'p') {
   return new Promise((resolve) => {
-  const ids = libTop('p', n);
+  const ids = libTop(who, n);
   if (!ids.length) return resolve();
   const state = ids.map((iid) => ({ iid, dest: 'top' }));
   const draw_ = () => {
@@ -1380,7 +1496,7 @@ function scryDialog(n, mode = 'scry', inEffect = false) {
         for (const iid of [...tops].reverse()) move(iid, 'library');
         for (const iid of bottoms) move(iid, 'library', { to: 'bottom' });
         for (const iid of gys) move(iid, 'graveyard');
-        log('p', `You ${mode} ${state.length}: ${tops.length} on top${mode === 'surveil' ? '' : `, ${bottoms.length} on the bottom`}${gys.length ? `, ${gys.length} to the graveyard` : ''}.`);
+        log(who, `${who === 'p' ? 'You' : 'The AI (you choose)'} ${mode} ${state.length}: ${tops.length} on top${mode === 'surveil' ? '' : `, ${bottoms.length} on the bottom`}${gys.length ? `, ${gys.length} to the graveyard` : ''}.`);
       });
       closeDialog(true);
       resolve();
@@ -1952,6 +2068,7 @@ export function bindEvents() {
     if (!el || el.closest('#dialog')) return;
     const c = card(el.dataset.iid);
     if (c && isMine(c) && (c.zone === 'hand' || c.zone === 'command')) castByPlayer(c.iid);
+    else if (c && c.owner === 'ai' && c.zone === 'hand' && handControl('p', 'ai')) castByPlayer(c.iid);
     else if (c && c.zone === 'exile' && el.closest('.exile-ready') && (c.owner === 'p' || c.mayPlay === 'p' || c.mayPlayFree === 'p')) castByPlayer(c.iid);
   });
 

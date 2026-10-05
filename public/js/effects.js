@@ -853,6 +853,43 @@ on(/^there is an additional beginning phase after this phase$/, async (m, env) =
   G.s.extraBeginning = cur;
   env.did.push('there will be an additional beginning phase (untap, upkeep, draw) after this main phase');
 }, { first: true });
+// Sen Triplets: "This turn, that player can't cast spells or activate abilities and plays with their hand revealed."
+on(/^(?:this turn, )?(that player|target opponent|target player|each opponent) can't cast spells(?: or activate abilities)?(?: and plays with (?:their|his or her) hand revealed)?(?: this turn)?$/, async (m, env) => {
+  let [pid] = /that player/.test(m[1]) ? [env.chosenPlayer || (env.it && env.it.player) || opp(env.me)] : /each opponent/.test(m[1]) ? [opp(env.me)] : await playerTarget(env, m[1]);
+  if (!pid) pid = opp(env.me);
+  G.s.silenced = { pid, turn: G.s.turn };
+  if (/activate abilities/.test(env.sentence)) G.s.noAbilities = { pid, turn: G.s.turn };
+  if (/hand revealed/.test(env.sentence)) G.s.handRevealed = { pid, turn: G.s.turn };
+  env.it = { player: pid };
+  env.did.push(`${who(pid)} can't cast spells${/activate abilities/.test(env.sentence) ? ' or activate abilities' : ''} this turn`);
+}, { first: true });
+// "You may play lands and cast spells from that player's hand this turn."
+on(/^(?:you may )?(?:play lands and )?cast spells from (?:that player's|target opponent's|an opponent's) hand this turn$/, async (m, env) => {
+  const of = env.chosenPlayer || (env.it && env.it.player) || opp(env.me);
+  G.s.handControl = { by: env.me, of, turn: G.s.turn, lands: /play lands/.test(env.sentence) };
+  G.s.handRevealed = { pid: of, turn: G.s.turn };
+  env.did.push(`${who(env.me)} may play lands and cast spells from ${of === 'p' ? 'your' : "the AI's"} hand this turn`);
+}, { first: true });
+// "Choose target opponent." (sets up "that player" for the next sentence)
+on(/^choose target (opponent|player)$/, async (m, env) => {
+  const [pid] = await playerTarget(env, 'target ' + m[1]);
+  env.it = { player: pid || opp(env.me) };
+  env.chosenPlayer = env.it.player;
+}, { first: true });
+// Mindslaver, Emrakul the Promised End, Worst Fears: "You control target player during that player's next turn."
+on(/^(?:you )?(?:gain )?control (?:of )?(target (?:player|opponent)) during that player's next turn$/, async (m, env) => {
+  const [pid] = await playerTarget(env, m[1]);
+  const of = pid || opp(env.me);
+  if (of === env.me) return env.did.push('controls their own next turn (nothing changes)');
+  G.s.slaveNext = { by: env.me, of };
+  env.it = { player: of };
+  env.did.push(`${who(env.me)} will control ${of === 'p' ? 'you' : 'the AI'} during ${of === 'p' ? 'your' : 'its'} next turn`);
+}, { first: true });
+// Emrakul, the Promised End: "After that turn, that player takes an extra turn."
+on(/^after that turn, that player takes an extra turn$/, async (m, env) => {
+  if (G.s.slaveNext) G.s.slaveNext.extraAfter = true;
+  env.did.push('after that turn, that player takes an extra turn');
+}, { first: true });
 // Blood Money: "For each nontoken creature destroyed this way, create a tapped Treasure token."
 on(/^for each (nontoken |token )?(creature|permanent|artifact|enchantment|land|planeswalker) (?:destroyed|that died|that dies) this way(?:,| that you controlled,| your opponents controlled,)? (.+)$/, async (m, env) => {
   const list = (env.thisWay || []).filter((x) => (!m[1] || (m[1] === 'token ' ? x.token : !x.token)) && (m[2] !== 'creature' || x.creature)

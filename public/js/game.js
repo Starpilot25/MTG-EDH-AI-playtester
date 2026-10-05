@@ -7,7 +7,7 @@ import {
   oracle, hasSubtype, isCreature, hasKw, power, combatDamage, canBlock, isLand, isType, kwCost, canAttack, mustAttack, face, parseCost,
 } from './rules.js';
 import {
-  G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
+  G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, aiSlaved, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
   freshTurnStats, changeLife, setLife, sacrifice, addCounters, toBattlefield, cardName, queueEvent, discard as discardCard,
 } from './state.js';
 import { maxHandSize } from './statics.js';
@@ -98,6 +98,17 @@ export async function beginTurn(pid) {
   s.ts = freshTurnStats();
   log('turn', `${pid === 'p' ? 'Your turn' : "AI's turn"} ${s.turns[pid]} (round ${Math.ceil(s.turn / 2)})${s.extraTurnNow ? ' (extra turn)' : ''}`);
   s.inExtraTurn = !!s.extraTurnNow;
+  // Mindslaver / Emrakul: the controller of this turn
+  s.slaved = null;
+  if (s.slaveNext && s.slaveNext.of === pid) {
+    const sl = s.slaveNext;
+    s.slaveNext = null;
+    if (sl.of === 'ai' && sl.by === 'p') {
+      s.slaved = { by: 'p', of: 'ai', turn: s.turn };
+      log('sys', 'You control the AI during this turn: you make all of its choices and see its hand.');
+    } else log('sys', "The AI would control your turn — this playtester doesn't support that, so play your turn as the AI would.");
+    if (sl.extraAfter) s.extraTurns[pid] = (s.extraTurns[pid] || 0) + 1;
+  }
   s.extraTurnNow = false;
   setStep('untap');
   phasing(pid);
@@ -786,15 +797,19 @@ async function aiCombat() {
   fire({ type: 'beginCombat', active: 'ai' });
   await settle();
   if (G.s !== s || s.winner) return;
-  await aiPrepareCombat(hooks);
+  const slaved = aiSlaved() && hooks.slavedAttack;
+  if (!slaved) await aiPrepareCombat(hooks);
   if (G.s !== s) return;
-  let attackers = aiChooseAttackers();
+  let picked = null;
+  if (slaved) picked = await hooks.slavedAttack();
+  if (G.s !== s) return;
+  let attackers = slaved ? (picked ? picked.attackers : []) : aiChooseAttackers();
   if (!attackers.length || attackRestrictions(attackers)) {
     await endCombat('ai');
     return;
   }
   s.combat = { by: 'ai', attackers, blocks: {}, targets: {}, stage: 'blocks', selected: null };
-  s.combat.targets = aiAttackTargets(attackers);
+  s.combat.targets = slaved ? picked.targets : aiAttackTargets(attackers);
   attackLimits(s.combat, 'ai');
   {
     // the AI pays attack taxes, dropping its weakest attackers until it can afford them
@@ -859,7 +874,8 @@ export async function runAiTurn() {
   try {
     await wait();
     if (G.s !== s) return;
-    await aiMainPhase(hooks);
+    if (aiSlaved() && hooks.slavedMain) await hooks.slavedMain(false);
+    else await aiMainPhase(hooks);
     if (G.s !== s || s.winner) return;
     await aiCombat();
     while (G.s === s && !s.winner && s.extraCombats > 0) {
@@ -873,7 +889,8 @@ export async function runAiTurn() {
     fire({ type: 'main2', active: 'ai' });
     await settle();
     if (G.s !== s) return;
-    await aiMainPhase(hooks, true);
+    if (aiSlaved() && hooks.slavedMain) await hooks.slavedMain(true);
+    else await aiMainPhase(hooks, true);
     if (G.s !== s) return;
     await extraBeginningPhases('ai');
     if (G.s !== s) return;

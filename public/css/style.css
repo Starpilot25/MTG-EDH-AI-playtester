@@ -793,3 +793,11 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .stack-targets b { color: #ffd2c4; }
 .card.stack-target { outline: 3px solid #e2563c; outline-offset: 2px; box-shadow: 0 0 16px rgb(226 86 60 / 0.75); animation: stackTgt 1.2s ease-in-out infinite alternate; }
 @keyframes stackTgt { from { outline-color: #e2563c; } to { outline-color: #ffb199; } }
+
+/* Mindslaver: picking the AI's actions */
+.sl-group { margin: 10px 0 4px; font: 700 12px var(--f-display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.sl-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.sl-act { display: flex; align-items: center; gap: 8px; max-width: 320px; text-align: left; padding: 6px 8px; }
+.sl-act .card { --cw: 46px; --ch: 64px; flex: none; }
+.sl-act span { font-size: 12.5px; }
+.sl-hint { margin: 4px 0 0; font-size: 11.5px; color: var(--brass); }

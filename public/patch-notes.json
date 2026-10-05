@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.62",
+    "title": "Mindslaver and Sen Triplets",
+    "notes": [
+      "Mindslaver, Worst Fears and Emrakul, the Promised End let you control the AI's next turn. During that turn you see the AI's hand, and each main phase a box lists everything the AI can do: play a land, cast a spell, use an ability or planeswalker. You pick, and its mana is tapped for it. In combat you choose which of its creatures attack and what they attack. Every choice its cards ask for (targets, modes, \"may\" questions, scry) comes to you. You still block with your own creatures as usual. After Emrakul's controlled turn, the AI takes an extra turn.",
+      "Sen Triplets: at your upkeep the AI can't cast spells or activate abilities that turn, and its hand is shown face up. You can double-click its cards to play its lands and cast its spells with your own mana, and you control whatever you cast. The same works for any \"you may cast spells from that player's hand this turn\" card.",
+      "If the AI uses one of these on you, the turn plays normally and the log tells you to play it as the AI would. The AI can't take over your turn yet."
+    ]
+  },
+  {
     "version": "1.2.61",
     "title": "\"Built-in decks\"",
     "notes": [

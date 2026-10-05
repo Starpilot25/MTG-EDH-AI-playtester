@@ -11,7 +11,7 @@ import {
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, toBattlefield, createToken, genericTokenDef, stateBased,
   commanderTax, shuffle, opp, cardName, addCounters, queueEvent, sacrifice, discard as discardCard, mill as millCards,
-  libTop, esc, makeCard, changeLife,
+  libTop, esc, makeCard, changeLife, aiSlaved,
 } from './state.js';
 import {
   resolveEffects, spellText, etbText, costOf, attachAura, attachTo, activatedAbilities, zoneAbilities, Cancelled,
@@ -445,7 +445,7 @@ export async function castSpell(pid, iid, opt, env) {
   }
   const splitSecond = hasKw(c, 'split second');
   if (!countered && !splitSecond && !cantBeCountered(c)) {
-    if (pid === 'ai' && env.respond) {
+    if (pid === 'ai' && env.respond && !aiSlaved()) {
       // announce the targets so you can see them while deciding whether to respond
       const ch0 = env.choosers[pid];
       if (ch0 && !isPermanentCard({ faces: [d.faces[fIdx] || d.faces[0]] })) {
@@ -460,7 +460,7 @@ export async function castSpell(pid, iid, opt, env) {
       const verdict = await env.respond(iid);
       if (G.s !== s) return false;
       countered = verdict === 'counter' || !!(s.stack && s.stack.countered);
-    } else if (pid === 'p' && env.aiCounter) {
+    } else if (pid === 'p' && env.aiCounter && !aiSlaved()) {
       countered = await env.aiCounter(c);
     }
   }
@@ -893,7 +893,7 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
 // Mana abilities don't use the stack, so they never stop here.
 async function announceAbility(pid, c, text, env) {
   const s = G.s;
-  if (pid !== 'ai' || !env.respond || !G.settings.pauseOnAiSpells || s.stack || s.pstack) return false;
+  if (pid !== 'ai' || !env.respond || !G.settings.pauseOnAiSpells || s.stack || s.pstack || aiSlaved()) return false;
   if (/^add\b/i.test(String(text || '').trim())) return false;
   const ch0 = env.choosers[pid];
   if (ch0) ch0.plan = null;
@@ -1089,6 +1089,9 @@ export async function activateAbility(pid, c, ab, env) {
     return p;
   };
   const ctx = (extra = {}) => ({ me: pid, choosers: env.choosers, castFree: (p, i) => castFree(p, i, env), stackTarget: pid === 'p' && s.stack ? s.stack.iid : null, ...extra });
+  if (s.noAbilities && s.noAbilities.pid === pid && s.noAbilities.turn === s.turn && ab.kind !== 'mana') {
+    return env.say(`${pid === 'p' ? "You" : 'The AI'} can't activate abilities this turn.`);
+  }
   switch (ab.kind) {
     case 'loyalty': {
       // sorcery speed unless something lets you activate them at instant speed
