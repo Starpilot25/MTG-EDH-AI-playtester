@@ -1287,6 +1287,31 @@ on(/^put a card exiled with ~ into (?:your|its owner's) graveyard$/, async (m, e
   env.refCard = pick; // later "if it's a land card" sentences still mean this card, even after tokens are made
   env.did.push(`puts ${nameTag(c)} into the graveyard`);
 }, { first: true });
+// Proteus Staff: "Put target creature on the bottom of its owner's library. That creature's controller reveals cards from the top of their library until they reveal a creature card. The player puts that card onto the battlefield and the rest on the bottom of their library in any order."
+on(/^put target creature on the bottom of its owner's library\. that creature's controller reveals cards from the top of their library until they reveal a creature card\. (?:the|that) player puts that card onto the battlefield and the rest on the bottom of their library in (?:any|a random) order$/, async (m, env) => {
+  const [t] = await objects(env, 'target creature', { harm: true });
+  if (!t) return env.did.push('has no target');
+  const ctl_ = t.controller;
+  const owner = t.owner;
+  move(t.iid, 'library', { to: 'bottom' });
+  env.did.push(`puts ${nameTag(t)} on the bottom of ${owner === 'p' ? 'your' : "the AI's"} library`);
+  const lib = zoneOf(ctl_, 'library');
+  const rest = [];
+  let hit = null;
+  for (let guard = 0; lib.length && guard < 999; guard++) {
+    const i = lib[lib.length - 1];
+    if (i === t.iid && rest.length + 1 >= lib.length) break; // only the bottomed creature is left
+    move(i, 'exile');
+    if (/Creature/.test(DB[card(i).def].typeLine || '') && i !== t.iid) {
+      hit = i;
+      break;
+    }
+    rest.push(i);
+  }
+  if (hit) toBattlefield(hit, ctl_);
+  for (const i of rest) move(i, 'library', { to: 'bottom' });
+  env.did.push(hit ? `${who(ctl_)} ${s_(ctl_, 'reveal')} ${rest.length + 1} card${rest.length ? 's' : ''} and ${s_(ctl_, 'put')} ${nameTag(card(hit))} onto the battlefield` : `${who(ctl_)} ${s_(ctl_, 'find')} no other creature`);
+}, { first: true, multi: true });
 // Hoarder's Greed: lose 2, draw 2, clash; repeat while you win
 on(/^you lose (\d+) life and draw (\w+) cards?, then clash with an opponent\. if you win, repeat this process$/, async (m, env) => {
   const o = opp(env.me);
@@ -4049,7 +4074,7 @@ async function runSentence(sentence, env) {
   // "For each opponent, …" in a two-player game is just "the opponent"
   if (/^for each opponent, /i.test(s)) s = s.replace(/^for each opponent, /i, '').replace(/that player controls/gi, 'an opponent controls').replace(/that player/gi, 'target opponent');
   // pure rules reminders that need no action
-  if (/^(?:choose new targets for the cop(?:y|ies)|(?:it|they) can't be regenerated|you can cast only one more spell this turn|if you search your library this way, shuffle|this ability triggers only once each turn|do this only once each turn|put them back in any order|each mode must target a different player|you may choose the same mode more than once|until end of turn, you don't lose this mana as steps and phases end|if that spell is countered this way, exile it instead of putting it into its owner's graveyard|those votes are revealed|it's still a land|the flashback cost is equal to its mana cost)$/i.test(s)) return;
+  if (/^(?:activate (?:this ability )?only (?:as a sorcery|once each turn|during your turn|any time you could cast a sorcery)|choose new targets for the cop(?:y|ies)|(?:it|they) can't be regenerated|you can cast only one more spell this turn|if you search your library this way, shuffle|this ability triggers only once each turn|do this only once each turn|put them back in any order|each mode must target a different player|you may choose the same mode more than once|until end of turn, you don't lose this mana as steps and phases end|if that spell is countered this way, exile it instead of putting it into its owner's graveyard|those votes are revealed|it's still a land|the flashback cost is equal to its mana cost)$/i.test(s)) return;
   if (!s) return;
   {
     const aw = s.match(/^([A-Z][A-Za-z' ]{2,30}?) — (.+)$/);

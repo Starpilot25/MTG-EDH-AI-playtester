@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.74",
+    "title": "Omnath, Locus of the Void and Proteus Staff",
+    "notes": [
+      "Omnath, Locus of the Void works. It gets +1/+1 for each unspent mana you have, and your unspent mana turns colorless instead of emptying between steps. \"Players don't lose unspent mana\" (Upwelling) and other \"becomes colorless instead\" cards now work too.",
+      "Proteus Staff works. It puts the target creature on the bottom of its owner's library, and its controller reveals cards from the top until a creature card, puts that onto the battlefield and the rest on the bottom. Before, it did nothing."
+    ]
+  },
+  {
     "version": "1.2.73",
     "title": "Blocked stays blocked",
     "notes": [

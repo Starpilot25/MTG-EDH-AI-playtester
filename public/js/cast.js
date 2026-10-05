@@ -86,9 +86,17 @@ export function applyPayment(pid, pay) {
 
 export function emptyPools() {
   if (!G.s || !G.s.pool) return;
-  const left = G.s.pool.p || [];
-  if (left.length) log('p', `Unused mana empties from your pool (${left.length}).`);
-  G.s.pool = { p: [], ai: [] };
+  const next = { p: [], ai: [] };
+  for (const pid of ['p', 'ai']) {
+    const left = G.s.pool[pid] || [];
+    if (!left.length) continue;
+    const field = cardsIn(pid, 'battlefield').map((x) => oracle(x));
+    // Upwelling, Kruphix, Omnath, Horizon Stone…
+    if (cardsIn('p', 'battlefield').concat(cardsIn('ai', 'battlefield')).some((x) => /Players don't lose unspent mana as steps and phases end/i.test(oracle(x)))) next[pid] = left;
+    else if (field.some((o) => /If you would lose unspent (?:green )?mana, that mana becomes colorless instead/i.test(o))) next[pid] = left.map(() => 'C');
+    else if (pid === 'p') log('p', `Unused mana empties from your pool (${left.length}).`);
+  }
+  G.s.pool = next;
 }
 
 // ------------------------------------------------------------ ways to cast a card

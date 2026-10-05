@@ -447,6 +447,8 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   // "for each tapped land your opponents control", "for each Goblin on the battlefield", "creature card in your graveyard"
   p = p.replace(/^((?:[\w-]+ ){0,3}?)([\w-]*[^s\s]) (you control|your opponents control|an opponent controls|on the battlefield)$/, '$1$2s $3')
     .replace(/\bcard (in|from) /, 'cards $1 ');
+  // Omnath, Locus of the Void: "for each unspent mana you have"
+  if (/^(?:unspent mana you have|mana in your mana pool|unspent mana in your mana pool)$/.test(p)) return G.s && G.s.pool ? (G.s.pool[pid] || []).length : 0;
   // Ghalta: "the total power of creatures you control"; also "greatest power among creatures you control"
   {
     const pm = p.match(/^(?:total |the total )?(power|toughness) of ((?:other )?(?:[\w-]+ ){0,2}?creatures) (you control|your opponents control|on the battlefield)$/);
