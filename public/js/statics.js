@@ -405,3 +405,21 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   }
   return null;
 }
+
+// Maximum hand size: 7, "no maximum" (Reliquary Tower, Thought Vessel…), "+N"/"-N" from either side.
+export function maxHandSize(pid) {
+  if (!G.s) return 7;
+  let max = 7;
+  for (const src of field()) {
+    const o = String((textFn ? textFn(src) : '') || '');
+    const mine = src.controller === pid;
+    if (mine && /(?:^|\n)You have no maximum hand size/i.test(o)) return Infinity;
+    let m;
+    if (mine && (m = o.match(/Your maximum hand size is (increased|reduced) by (\w+)/i))) max += (m[1] === 'increased' ? 1 : -1) * (WORDS[m[2].toLowerCase()] || +m[2] || 0);
+    if (!mine && (m = o.match(/Each opponent's maximum hand size is (increased|reduced) by (\w+)/i))) max += (m[1] === 'increased' ? 1 : -1) * (WORDS[m[2].toLowerCase()] || +m[2] || 0);
+    if (mine && (m = o.match(/Your maximum hand size is (\w+)\b/i)) && !/increased|reduced/.test(m[0])) max = WORDS[m[1].toLowerCase()] ?? (+m[1] || max);
+  }
+  return Math.max(0, max);
+}
+const WORDS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+

@@ -8,8 +8,9 @@ import {
 } from './rules.js';
 import {
   G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
-  freshTurnStats, changeLife, setLife, sacrifice, addCounters, toBattlefield, cardName, queueEvent,
+  freshTurnStats, changeLife, setLife, sacrifice, addCounters, toBattlefield, cardName, queueEvent, discard as discardCard,
 } from './state.js';
+import { maxHandSize } from './statics.js';
 import { fire, settle, T } from './triggers.js';
 import {
   aiMainPhase, aiChooseAttackers, aiChooseBlocks, aiCleanup, aiKeepHand, aiBottom, aiAttackTargets, aiPrepareCombat, aiPay, aiEnv,
@@ -424,9 +425,18 @@ export async function playerEndTurn() {
     await aiWindow('endStep');
     if (G.s !== s) return;
   }
-  const hand = zoneOf('p', 'hand').length;
-  const noMax = /You have no maximum hand size/i.test(cardsIn('p', 'battlefield').map(oracle).join('\n'));
-  if (hand > 7 && !noMax) log('p', `You have ${hand} cards in hand — discard down to 7 (drag extras to the graveyard).`);
+  // cleanup: discard down to your maximum hand size
+  const max = maxHandSize('p');
+  const hand = zoneOf('p', 'hand').slice();
+  if (hand.length > max) {
+    const k = hand.length - max;
+    const picks = await hooks.playerChooser.pickCards({ forced: true, prompt: `Discard ${k} card${k === 1 ? '' : 's'} to your maximum hand size (${max})`, cards: hand, min: k, max: k, purpose: 'discard', aiScore: () => 0 });
+    const chosen = (picks && picks.length === k ? picks : hand.slice(0, k)).filter((i) => card(i) && card(i).zone === 'hand');
+    for (const i of chosen) discardCard(i);
+    log('p', `You discard ${chosen.map((i) => nameTag(card(i))).join(', ')} to hand size.`);
+    await settle();
+    if (G.s !== s) return;
+  }
   cleanupStep();
   hooks.render();
   await beginTurn(nextTurnOf('p'));

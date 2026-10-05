@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.12",
+    "title": "Maximum hand size",
+    "notes": [
+      "At the end of your turn, if you have more cards than your maximum hand size, you're asked which ones to discard (before, the game only mentioned it in the log).",
+      "Maximum hand size changes are counted for both players: Reliquary Tower, Thought Vessel and other \"no maximum hand size\" cards, \"your maximum hand size is increased/reduced by N\", and opponents' effects like Jin-Gitaxias, Core Augur."
+    ]
+  },
+  {
     "version": "1.2.11",
     "title": "Spacecraft and a bigger turn banner",
     "notes": [

@@ -180,7 +180,7 @@ Click **⧉ Pop out** next to the AI's name to move its board (life, piles, hand
 
 Shortcuts: `Enter` next step · `Shift+Enter` pass turn · `D` draw · `U` untap all · `S` shuffle · `C` create token · `L` search library · hover a card + `T` tap, `G` graveyard, `X` exile, `H` hand, `B` library bottom, `F` flip, `=`/`-` +1/+1 counter · `?` all shortcuts.
 
-Commander rules handled for you: 40 life, commander tax, commanders return to the command zone, 21 commander damage, poison, London mulligan (first one free by default).
+Commander rules handled for you: 40 life, discarding to your maximum hand size at end of turn, commander tax, commanders return to the command zone, 21 commander damage, poison, London mulligan (first one free by default).
 
 ## How the AI plays
 

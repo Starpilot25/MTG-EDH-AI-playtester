@@ -14,6 +14,7 @@ import {
   Cancelled,
 } from './effects.js';
 import { fire, settle } from './triggers.js';
+import { maxHandSize } from './statics.js';
 import { threat, planBlocks, planAttack, fight, pumpOf, evasive, lifeWeight } from './aicombat.js';
 import {
   manaSources, castOptions, castSpell as castThrough, effectiveCost, landOptions, playLand as playLandThrough, landsAllowed,
@@ -982,7 +983,7 @@ export function aiChooseBlocks(attackerIds) {
 // End of turn: discard down to seven.
 export function aiCleanup() {
   const hand = cardsIn(AI, 'hand');
-  const max = /You have no maximum hand size/i.test(cardsIn(AI, 'battlefield').map(oracle).join('\n')) ? 99 : 7;
+  const max = maxHandSize(AI);
   if (hand.length <= max) return;
   const lands = cardsIn(AI, 'battlefield').filter(isLand).length;
   hand.sort((a, b) => {
