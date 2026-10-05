@@ -306,11 +306,41 @@ function pile(pid, zone, label) {
   const top = ids.length ? card(ids[ids.length - 1]) : null;
   let face = '';
   if (zone === 'library') face = ids.length ? '<div class="back"></div>' : '';
+  else if (top && pid === 'ai' && zone === 'exile' && (top.foretold || top.faceDown)) face = '<div class="card small facedown"></div>'; // foretold cards are hidden
   else if (top) face = cardHTML(top, { small: true });
   return `<div class="pile ${zone}" data-pile="${pid}:${zone}" ${pid === 'p' ? `data-drop="${zone}"` : ''} title="${label} (${ids.length})">
       <div class="pile-face">${face}<b class="pile-n">${ids.length}</b></div>
       <div class="pile-label">${label}</div>
     </div>`;
+}
+
+// Cards you can cast from exile (or will be able to): foretold, plotted, on an adventure, impulse draws, suspend…
+function exileReady(pid) {
+  const s = G.s;
+  const items = [];
+  for (const c of Object.values(s.cards)) {
+    if (c.zone !== 'exile') continue;
+    let tag = null;
+    let ready = true;
+    if (c.owner === pid && c.foretold) { tag = 'Foretold'; ready = c.foretoldTurn < s.turn; }
+    else if (c.owner === pid && c.plotted) { tag = 'Plotted'; ready = c.plottedTurn < s.turn; }
+    else if (c.owner === pid && c.onAdventure) tag = 'Adventure';
+    else if (c.mayPlayFree === pid) tag = 'Free';
+    else if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn) tag = c.mayPlayUntil > s.turn ? 'Until next turn' : 'This turn';
+    else if (c.owner === pid && c.warped) tag = 'Warp';
+    else if (c.owner === pid && c.suspended && c.counters && c.counters.time > 0) { tag = `Suspend ⏳${c.counters.time}`; ready = false; }
+    if (!tag) continue;
+    // the AI's foretold cards stay face down to you
+    const hidden = pid === 'ai' && c.foretold;
+    items.push({ c, tag, ready, hidden });
+  }
+  if (!items.length) return '';
+  const order = { Foretold: 0, Plotted: 1, Adventure: 2, Free: 3, 'This turn': 4, 'Until next turn': 5, Warp: 6 };
+  items.sort((a, b) => (order[a.tag] ?? 9) - (order[b.tag] ?? 9));
+  return `<div class="exile-ready" title="Cards ${pid === 'p' ? 'you' : 'the AI'} can cast from exile">
+    <div class="er-title">From exile <b>${items.length}</b></div>
+    <div class="er-cards">${items.map(({ c, tag, ready, hidden }) => `<div class="er-item ${ready ? 'ready' : 'waiting'}">${hidden ? '<div class="card small facedown"></div>' : cardHTML(c, { small: true })}<span class="er-tag">${esc(tag)}</span></div>`).join('')}</div>
+  </div>`;
 }
 
 function commandZone(pid) {
@@ -330,6 +360,7 @@ function renderOpp() {
     <div class="pname"><span class="dot ai"></span>AI <small>${esc(s.decks.ai.name)}</small><button class="popout-btn" data-act="${popouts.has('ai') ? 'popin' : 'popout'}" data-pid="ai" title="${popouts.has('ai') ? 'Put the AI\'s board back in the main window' : 'Pop the AI\'s board out into its own window (for a second screen)'}">${popouts.has('ai') ? '⇲ Bring back' : '⧉ Pop out'}</button></div>
     ${lifeBlock('ai')}
     <div class="piles">${pile('ai', 'library', 'Library')}${pile('ai', 'graveyard', 'Grave')}${pile('ai', 'exile', 'Exile')}${commandZone('ai')}</div>
+    ${exileReady('ai')}
     <div class="hand-row"><span class="lbl">Hand</span>${backs}</div>`;
 
   // AI battlefield: lanes, mirrored (its creatures face yours)
@@ -464,7 +495,8 @@ function renderMine() {
   $('#my-panel').innerHTML = `
     <div class="pname"><span class="dot you"></span>You <small>${esc(s.decks.p.name)}</small></div>
     ${lifeBlock('p')}
-    <div class="piles">${pile('p', 'library', 'Library')}${pile('p', 'graveyard', 'Grave')}${pile('p', 'exile', 'Exile')}${commandZone('p')}</div>`;
+    <div class="piles">${pile('p', 'library', 'Library')}${pile('p', 'graveyard', 'Grave')}${pile('p', 'exile', 'Exile')}${commandZone('p')}</div>
+    ${exileReady('p')}`;
 }
 
 function freeSpotFor(c) {
@@ -1843,6 +1875,7 @@ export function bindEvents() {
     if (!el || el.closest('#dialog')) return;
     const c = card(el.dataset.iid);
     if (c && isMine(c) && (c.zone === 'hand' || c.zone === 'command')) castByPlayer(c.iid);
+    else if (c && c.zone === 'exile' && el.closest('.exile-ready') && (c.owner === 'p' || c.mayPlay === 'p' || c.mayPlayFree === 'p')) castByPlayer(c.iid);
   });
 
   document.addEventListener('contextmenu', (e) => {

@@ -756,3 +756,15 @@ ol.rooms li.been { color: var(--muted); }
 .lane-sep { flex: none; width: 1px; align-self: stretch; margin: 6px 6px; background: rgb(255 255 255 / 0.12); }
 body.banner-on .field.me.organized { padding-top: 64px; }
 body.banner-on .field.opp.organized { padding-bottom: 30px; }
+
+/* castable from exile: foretold, plotted, adventure, impulse… */
+.exile-ready { border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px 8px; background: rgb(0 0 0 / 0.15); }
+.er-title { font: 700 11px var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.er-title b { color: var(--brass); }
+.er-cards { display: flex; flex-wrap: wrap; gap: 8px 6px; }
+.er-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.er-item .card { --cw: 52px; --ch: 72px; cursor: pointer; }
+.er-item.waiting .card { opacity: 0.55; }
+.er-tag { font: 600 9.5px var(--f-mono); padding: 1px 4px; border-radius: 4px; background: #2a2216; color: var(--brass); border: 1px solid rgb(211 170 82 / 0.5); white-space: nowrap; max-width: 64px; overflow: hidden; text-overflow: ellipsis; }
+.er-item.waiting .er-tag { color: var(--muted); border-color: var(--line); background: transparent; }
+.er-item.ready .card { box-shadow: 0 0 0 1px var(--brass), 0 2px 6px rgb(0 0 0 / 0.5); }

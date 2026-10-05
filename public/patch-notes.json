@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.34",
+    "title": "From-exile zone",
+    "notes": [
+      "New \"From exile\" box under each player's piles shows every card that can be cast from exile, tagged by why: Foretold, Plotted, Adventure, This turn / Until next turn (impulse draws), Free, Warp, and Suspend ⏳N (shown dimmed until it's castable).",
+      "Double-click a card there to cast it (or right-click for the options). Cards that can't be cast yet — foretold or plotted this turn, still suspended — are dimmed.",
+      "The AI's foretold cards show face down there and on its exile pile."
+    ]
+  },
+  {
     "version": "1.2.33",
     "title": "Planeswalker indicator on opponents' turns",
     "notes": [
