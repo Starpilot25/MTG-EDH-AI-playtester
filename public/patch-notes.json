@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.52",
+    "title": "Panharmonicon and other trigger doublers",
+    "notes": [
+      "Panharmonicon works. When an artifact or creature enters, triggered abilities of your permanents trigger an additional time. That includes the entering card's own abilities and things like Soul Warden. Lands entering don't count, so landfall isn't doubled. Yarok, the Desecrated and Elesh Norn, Mother of Machines double every permanent entering. Teysa Karlov and Drivnod double \"dies\" triggers, such as Blood Artist."
+    ]
+  },
+  {
     "version": "1.2.51",
     "title": "Planar Incision",
     "notes": [

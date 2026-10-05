@@ -1081,6 +1081,32 @@ export async function settle() {
         }
         hits = hits.concat(extra);
       }
+      // Panharmonicon, Yarok, Elesh Norn (Mother of Machines): entering triggers trigger an additional time;
+      // Teysa Karlov, Drivnod: dying triggers trigger an additional time
+      if ((ev.type === 'enters' || ev.type === 'dies') && hits.length) {
+        const obj = ev.type === 'enters' ? card(ev.iid) : { def: ev.def, face: ev.face, zone: 'battlefield', controller: ev.controller, counters: {} };
+        const extra = [];
+        for (const h of hits) {
+          const ctl = h.controller || h.src.controller;
+          let n = 0;
+          for (const x of cardsIn(ctl, 'battlefield')) {
+            const o = oracle(x);
+            const m = o.match(/If (?:an? |another )?([a-z ,]+?) (entering(?: the battlefield)?|dying) (?:under your control )?causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time/i);
+            if (!m) {
+              // Elesh Norn, Mother of Machines: "Permanents entering cause triggered abilities of permanents you control to trigger an additional time."
+              if (ev.type === 'enters' && /Permanents entering (?:the battlefield )?cause triggered abilities of permanents you control to trigger an additional time/i.test(o)) n++;
+              continue;
+            }
+            if ((m[2] === 'dying') !== (ev.type === 'dies')) continue;
+            const kinds = m[1].toLowerCase().replace(/\b(?:or|and)\b/g, ',').split(',').map((k) => k.trim()).filter(Boolean);
+            if (!obj || !kinds.some((k) => k === 'permanent' || (k === 'creature' ? (ev.type === 'dies' || isCreature(obj)) : isType(obj, k)))) continue;
+            if (/under your control/i.test(m[0]) && ev.controller !== ctl && (obj.controller || ev.controller) !== ctl) continue;
+            n++;
+          }
+          for (let k = 0; k < n; k++) extra.push(h);
+        }
+        hits = hits.concat(extra);
+      }
       for (const hit of hits) {
         const controller = hit.controller || hit.src.controller;
         if (controller === 'p' && !G.settings.arenaMode) {
