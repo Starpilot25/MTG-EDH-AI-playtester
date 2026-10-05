@@ -80,8 +80,16 @@ function threatLevel(pid) {
 export const aiChooser = {
   budget: 0, // spare mana for optional costs (kicker, buyback…) while casting
   prefer: null, // a specific target the AI planned for (instant-speed tricks and removal)
+  plan: null, // targets announced when the AI cast its spell (shown to you before you respond)
   async target(req) {
     const cands = req.candidates.map(card).filter(Boolean);
+    if (aiChooser.plan && aiChooser.plan.length && !req.predict) {
+      const k = aiChooser.plan.findIndex((w) => (w.player && (req.players || []).includes(w.player)) || (w.iid && req.candidates.includes(w.iid)));
+      if (k >= 0) {
+        const [w] = aiChooser.plan.splice(k, 1);
+        return w.player ? { player: w.player } : { iid: w.iid };
+      }
+    }
     if (aiChooser.prefer) {
       const want = aiChooser.prefer;
       if (want.player && (req.players || []).includes(want.player)) return { player: want.player };

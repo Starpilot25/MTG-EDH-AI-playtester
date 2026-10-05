@@ -16,6 +16,7 @@ import {
 import {
   resolveEffects, spellText, etbText, costOf, attachAura, attachTo, activatedAbilities, zoneAbilities, Cancelled,
   matchesFilter, analyze, stripName, spellFilterOk,
+  predictTargets,
 } from './effects.js';
 import { costDelta, countPhrase } from './statics.js';
 import { helpers } from './rules.js';
@@ -445,6 +446,17 @@ export async function castSpell(pid, iid, opt, env) {
   const splitSecond = hasKw(c, 'split second');
   if (!countered && !splitSecond && !cantBeCountered(c)) {
     if (pid === 'ai' && env.respond) {
+      // announce the targets so you can see them while deciding whether to respond
+      const ch0 = env.choosers[pid];
+      if (ch0 && !isPermanentCard({ faces: [d.faces[fIdx] || d.faces[0]] })) {
+        ch0.plan = null;
+        const tg = await predictTargets(pid, c, fIdx, { ...env.choosers, [opp(pid)]: ch0 }, info.x || 0).catch(() => []);
+        if (tg.length) {
+          ch0.plan = tg.slice();
+          if (s[stackSlot]) s[stackSlot].targets = tg;
+          env.render();
+        }
+      }
       const verdict = await env.respond(iid);
       if (G.s !== s) return false;
       countered = verdict === 'counter' || !!(s.stack && s.stack.countered);
@@ -466,7 +478,11 @@ export async function castSpell(pid, iid, opt, env) {
   for (; cascades > 0; cascades--) await cascade(pid, DB[c.def].cmc, env);
   for (let k = 0; k < copies; k++) await resolveCopy(pid, c, fIdx, info, env);
   // --- resolve
-  await resolveSpell(pid, c, opt, info, env);
+  try {
+    await resolveSpell(pid, c, opt, info, env);
+  } finally {
+    if (env.choosers[pid] && env.choosers[pid].plan) env.choosers[pid].plan = null;
+  }
   stateBased();
   env.render();
   if (G.s === s) await settle();

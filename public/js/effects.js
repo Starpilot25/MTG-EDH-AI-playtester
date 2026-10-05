@@ -557,6 +557,7 @@ function splitSentences(text) {
 // ------------------------------------------------------------ picking objects
 async function pickTargets(env, phrase, opts = {}) {
   const me = env.me;
+
   const p = phrase.toLowerCase();
   let count = 1;
   let optional = false;
@@ -605,6 +606,7 @@ async function pickTargets(env, phrase, opts = {}) {
     if (!pick) break;
     results.push(pick);
   }
+  if (opts.noWard) return results;
   // ward: the controller of an opponent's targeted permanent asks for the ward cost
   const kept = [];
   for (const r of results) {
@@ -3844,6 +3846,35 @@ export function attachTo(src, t) {
 }
 
 export { makeCard, manaValueOf, payCost, H as HANDLERS, runText, prep };
+
+// What the AI's spell will target, worked out as it's cast so you can see it before you respond.
+// Returns [{iid}|{player}]; the same picks are then used when the spell resolves (chooser.plan).
+export async function predictTargets(pid, c, face, choosers, x = 0) {
+  let text;
+  try {
+    text = prep(spellText({ ...c, face: face || 0 }), c).toLowerCase();
+  } catch (e) {
+    return [];
+  }
+  if (!/\btarget\b/.test(text) || /•/.test(text)) return [];
+  const env = { me: pid, src: c, choosers, x, forced: true, did: [], stackTarget: null };
+  const out = [];
+  const PH = /(?:(?:up to (?:one|two|three|four|five|x|\d+)|any number of|one|two|three|four) )?(?:another |other )?target [a-z' ,/-]+?(?=\.|;|, (?:then|and|where|untap|tap|it|that)\b|,? and (?:gains?|gets?|deals?|you|its|draw|put|return|exile|destroy|create|that)\b| gets?\b| gains?\b| deals?\b| to (?:its|their|the)\b| into\b| on (?:top|the bottom)\b| from\b| with (?:power|toughness|mana)?\b| can't\b| attacks\b| loses?\b| becomes?\b| fights?\b| $|$)|any (?:other )?target/g;
+  for (const sentence of text.split(/(?<=\.)\s+|\n/)) {
+    for (const mm of sentence.matchAll(PH)) {
+      const phrase = mm[0].trim();
+      const harm = !/(?:gets? \+|gains? (?!control)|untap|\+1\/\+1 counter|return [^.]* to the battlefield|hexproof|indestructible|protection)/.test(sentence) || /destroy|exile|damage|sacrifice|-\d/.test(sentence);
+      let picks = [];
+      try {
+        picks = await pickTargets(env, phrase, { harm, noWard: true });
+      } catch (e) {
+        picks = [];
+      }
+      for (const p of picks) if (!out.some((o) => (o.iid && o.iid === p.iid) || (o.player && o.player === p.player))) out.push(p);
+    }
+  }
+  return out;
+}
 
 // How much one mode of a modal spell is worth to `env.me` right now (the AI picks modes with this).
 export function modeValue(t, env) {

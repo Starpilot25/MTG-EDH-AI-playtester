@@ -86,6 +86,7 @@ function cardHTML(c, opts = {}) {
   if (cb && cb.selected === c.iid) cls.push('selected');
   if ((G.s.stack && G.s.stack.iid === c.iid) || (G.s.pstack && G.s.pstack.iid === c.iid)) cls.push('on-stack');
   if (respondable(c)) cls.push('playable');
+  if (G.s && G.s.stack && (G.s.stack.targets || []).some((t) => t.iid === c.iid) && c.zone === 'battlefield') cls.push('stack-target');
   if (pendingTarget && pendingTarget.req.candidates.includes(c.iid)) cls.push('targetable');
   if (pendingTarget && pendingTarget.req.src && pendingTarget.req.src.iid === c.iid) cls.push('source');
   const style = opts.abs ? `style="left:${c.x}px;top:${c.y}px"` : '';
@@ -606,6 +607,7 @@ function renderBanner() {
       <div class="stack-card">${cardHTML(c)}</div>
       <div class="stack-copy"><span class="eyebrow">AI is casting</span><h3>${esc(cardName(c))}</h3>
       <p>${esc(oracle(c)).replace(/\n/g, '<br>')}</p>
+      ${(s.stack.targets || []).length ? `<p class="stack-targets">Targeting: ${s.stack.targets.map((t) => t.player ? `<b>${t.player === 'p' ? 'you' : 'the AI'}</b>` : card(t.iid) ? `<b>${card(t.iid).controller === 'p' ? 'your' : 'its own'} ${esc(cardName(card(t.iid)))}</b>` : '').filter(Boolean).join(', ')}</p>` : ''}
       ${arena ? `<p class="hint">${responses ? `You have ${responses} instant-speed card${responses > 1 ? 's' : ''} you can afford (glowing in your hand) — double-click one to respond, or let it resolve.` : 'You have nothing you can cast in response.'}</p>` : ''}
       <div class="btns"><button class="primary" data-act="resolve">Let it resolve <kbd>Enter</kbd></button>
       ${arena ? '' : '<button data-act="counter" title="Tabletop mode: counter it by hand">Counter it</button>'}</div></div></div>`;

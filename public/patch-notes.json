@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.45",
+    "title": "See what the AI's spell is targeting",
+    "notes": [
+      "When the AI casts a spell and you get the chance to respond, the box now says what it's targeting (\"Targeting: your Serra Angel\", \"Targeting: you\"), and the targeted card glows red on the battlefield. The AI picks its targets as it casts, the way the rules work, so the spell hits what was shown. If you remove or protect that target in response, it picks again."
+    ]
+  },
+  {
     "version": "1.2.44",
     "title": "Legends called by their first name; Ureni",
     "notes": [

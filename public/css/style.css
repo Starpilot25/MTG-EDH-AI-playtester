@@ -787,3 +787,9 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .dg-arrow { text-align: center; font-size: 8px; line-height: 7px; color: var(--muted); }
 .dg-last { margin-top: 4px; font-size: 10.5px; color: var(--brass); text-align: center; }
 #dungeons:not(:empty) { padding-top: 8px; flex: 0 0 auto; max-height: 34%; overflow-y: auto; border-top: 1px solid var(--line); }
+
+/* what the AI's spell is aimed at, while you can respond */
+.stack-targets { color: #f2b8a8; margin: 6px 0; }
+.stack-targets b { color: #ffd2c4; }
+.card.stack-target { outline: 3px solid #e2563c; outline-offset: 2px; box-shadow: 0 0 16px rgb(226 86 60 / 0.75); animation: stackTgt 1.2s ease-in-out infinite alternate; }
+@keyframes stackTgt { from { outline-color: #e2563c; } to { outline-color: #ffb199; } }
