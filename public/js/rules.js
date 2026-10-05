@@ -255,7 +255,10 @@ export function hasKw(inst, kw) {
   }
   return hasKwRaw(inst, kw);
 }
+// Keyword counters (Ikoria and later): a deathtouch counter gives deathtouch, and so on
+const KEYWORD_COUNTERS = new Set(['flying', 'first strike', 'double strike', 'deathtouch', 'decayed', 'hexproof', 'indestructible', 'lifelink', 'menace', 'reach', 'shadow', 'trample', 'vigilance', 'haste']);
 function hasKwRaw(inst, kw) {
+  if (KEYWORD_COUNTERS.has(kw) && ((inst.counters || {})[kw] || 0) > 0 && !inst.lostAbilities) return true;
   if (inst.lostAbilities) return (inst.eotGrants || []).includes(kw);
   for (const g of grantsOf(inst)) if (g === kw || g.startsWith(kw + ' ')) return true;
   if (inst.faceDown) return false;

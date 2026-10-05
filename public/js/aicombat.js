@@ -146,7 +146,8 @@ export function lifeWeight(life) {
 export function planBlocks(defender, attackerIds, opts = {}) {
   const s = G.s;
   const pl = s.players[defender];
-  const atk = attackerIds.map((i) => (typeof i === 'string' ? card(i) : i)).filter(Boolean);
+  // judge attackers as attacking ("attacking creatures you control have deathtouch", Ohran Frostfang & co.)
+  const atk = attackerIds.map((i) => (typeof i === 'string' ? card(i) : i)).filter(Boolean).map((a) => (a.attacking ? a : { ...a, attacking: true }));
   const targets = (s.combat && s.combat.targets) || opts.targets || {};
   const atMe = (a) => !targets[a.iid] || targets[a.iid] === defender;
   let pool = cardsIn(defender, 'battlefield').filter((c) => isCreature(c) && !c.pacifiedBy);
@@ -226,7 +227,7 @@ export function scoreAttack(attacker, ids) {
   const def = opp(attacker);
   const dpl = s.players[def];
   const me = s.players[attacker];
-  const atk = ids.map(card).filter(Boolean);
+  const atk = ids.map(card).filter(Boolean).map((a) => (a.attacking ? a : { ...a, attacking: true }));
   if (!atk.length) return { score: -crackBack(attacker, []) * lifeWeight(me.life) * 0.3, lethal: false };
   const blocks = planBlocks(def, ids, { targets: {} });
   let score = 0;
@@ -256,7 +257,7 @@ export function scoreAttack(attacker, ids) {
 // How much damage the opponent could swing back with next turn if `tappedIds` stay tapped.
 export function crackBack(pid, tappedIds) {
   const foe = opp(pid);
-  const theirs = cardsIn(foe, 'battlefield').filter((c) => isCreature(c) && !c.pacifiedBy && !hasKw(c, 'defender'));
+  const theirs = cardsIn(foe, 'battlefield').filter((c) => isCreature(c) && !c.pacifiedBy && !hasKw(c, 'defender')).map((c) => ({ ...c, attacking: true }));
   if (!theirs.length) return 0;
   const home = cardsIn(pid, 'battlefield').filter((c) => isCreature(c) && !tappedIds.includes(c.iid) && !c.pacifiedBy);
   const blocks = planBlocks(pid, theirs.map((c) => ({ ...c, tapped: false, sick: false })), { exclude: tappedIds, noChump: true, untapAll: true });

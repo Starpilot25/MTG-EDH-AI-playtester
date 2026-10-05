@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.91",
+    "title": "AI respects deathtouch",
+    "notes": [
+      "The AI's combat planning now sees deathtouch (and other keywords) that only apply while attacking, such as \"Attacking creatures you control have deathtouch\". Before, it could block a 1/1 that had deathtouch this way with a big creature. It also judges its own attacks and your counterattacks with these keywords in mind.",
+      "Keyword counters (a deathtouch, flying, lifelink, trample… counter) now give the creature that keyword. Before, they did nothing, and the AI didn't know about them either."
+    ]
+  },
+  {
     "version": "1.2.90",
     "title": "Author of Shadows enters trigger",
     "notes": [
