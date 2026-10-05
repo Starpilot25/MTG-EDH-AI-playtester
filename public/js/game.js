@@ -46,6 +46,7 @@ export function mulligan(pid) {
 
 export function bottomCount(pid) {
   const m = G.s.players[pid].mulligans;
+  if (pid === 'p' && G.settings.unlimitedMulligans) return 0;
   return Math.max(0, m - (G.settings.freeMulligan ? 1 : 0));
 }
 

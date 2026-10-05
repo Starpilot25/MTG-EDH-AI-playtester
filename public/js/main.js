@@ -283,6 +283,7 @@ function updateStart() {
 
 function readSettings() {
   G.settings.freeMulligan = $('#set-free').checked;
+  G.settings.unlimitedMulligans = $('#set-unlimited').checked;
   G.settings.pauseOnAiSpells = $('#set-pause').checked;
   G.settings.arenaMode = $('#set-arena').checked;
   G.settings.aiSpeed = +$('#set-speed').value;
@@ -293,6 +294,7 @@ function readSettings() {
   G.settings.startingLife = +$('#set-life').value || 40;
   store.set('settings', {
     freeMulligan: G.settings.freeMulligan,
+    unlimitedMulligans: G.settings.unlimitedMulligans,
     pauseOnAiSpells: G.settings.pauseOnAiSpells,
     arenaMode: G.settings.arenaMode,
     aiSpeed: G.settings.aiSpeed,
@@ -358,6 +360,7 @@ function initSetup() {
     .catch(() => {});
   const st = store.get('settings', {});
   $('#set-free').checked = st.freeMulligan ?? true;
+  $('#set-unlimited').checked = st.unlimitedMulligans ?? false;
   $('#set-pause').checked = st.pauseOnAiSpells ?? true;
   $('#set-arena').checked = st.arenaMode ?? true;
   $('#set-speed').value = st.aiSpeed ?? 650;
@@ -403,7 +406,7 @@ function mulliganDialog() {
   const pl = G.s.players.p;
   const hand = cardsIn('p', 'hand');
   const lands = hand.filter((c) => /\bLand\b/.test(DB[c.def].faces[0].typeLine.split('—')[0])).length;
-  const nextFree = G.settings.freeMulligan && pl.mulligans === 0;
+  const nextFree = G.settings.unlimitedMulligans || (G.settings.freeMulligan && pl.mulligans === 0);
   const keepCount = 7 - bottomCount('p');
   const dlg = openDialog(`
     <span class="eyebrow">${G.s.first === 'p' ? 'You are on the play' : 'You are on the draw'}</span>

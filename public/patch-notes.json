@@ -1,5 +1,25 @@
 [
   {
+    "version": "1.2.67",
+    "title": "Unlimited mulligans and card fixes",
+    "notes": [
+      "New setup option: Unlimited free mulligans. Mulligan as often as you like and always keep seven. It only affects you, not the AI.",
+      "Fixed a broad bug with optional triggers like \"you may discard a card. If you do, draw two cards\": the \"if you do\" part never happened. This fixes Bitter Reunion and many similar cards.",
+      "\"You may play those cards\" effects now let you play lands too, not just cast spells (Atsushi, the Blazing Sky and other impulse draws).",
+      "Power and toughness that depend on a count (Uurg, Spawn of Turg and other legends whose text uses their short name) now update as the count changes.",
+      "Captain America, Team Leader now puts +1/+1 counters on the entering Hero and on himself.",
+      "Folk Hero gives your commander its card-draw trigger.",
+      "Breaching Dragonstorm no longer moves the spell it cast into your hand, and puts spells over mana value 8 into your hand instead of casting them.",
+      "Herald's Horn shows you the top card when it isn't a match, and logs the reveal when it is.",
+      "Myriad Landscape's two lands now have to share a land type.",
+      "Maestros Theater and other \"sacrifice it. When you do, …\" lands now fetch their land.",
+      "Exemplar of Light draws a card the first time each turn you put +1/+1 counters on it.",
+      "Righteous Valkyrie's +2/+2 applies when you have at least 7 more life than you started with.",
+      "Horizon Explorer makes your lands enter untapped.",
+      "Cursed Mirror can become a copy of a creature with haste until end of turn."
+    ]
+  },
+  {
     "version": "1.2.66",
     "title": "Jace, Thassa's Oracle and the precon gaps",
     "notes": [

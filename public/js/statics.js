@@ -76,6 +76,14 @@ function parseStatics(text, selfName) {
         continue;
       }
     }
+    // conditional anthems: "As long as you have at least 7 life more than your starting life total, creatures you control get +2/+2."
+    if ((m = l.match(/^as long as (.+?), ((?:other |all |each )?[\w -]*?(?:creatures|tokens|[\w-]+s) (?:you control |your opponents control )?(?:get|have) .+)$/))) {
+      const sub = parseStatics(m[2], selfName);
+      if (sub.anthems.length) {
+        for (const a of sub.anthems) out.anthems.push({ ...a, cond: m[1] });
+        continue;
+      }
+    }
     // anthems: "Other Elf creatures you control get +1/+1 and have …"
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?(?: for each [^.]+)?\.?$/))) {
       out.anthems.push({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: kwList(m[5]) });
@@ -278,6 +286,15 @@ function staticModsRaw(c, helpers) {
       if (a.who === 'mine' && src.controller !== c.controller) continue;
       if (a.who === 'theirs' && src.controller === c.controller) continue;
       if (!matchesFilter(c, a.f, helpers)) continue;
+      if (a.cond) {
+        let ok = false;
+        try {
+          ok = evalCond(a.cond, { me: src.controller, src });
+        } catch (e) {
+          ok = false;
+        }
+        if (!ok) continue;
+      }
       out.p += a.p;
       out.t += a.t;
       out.grants.push(...a.grants);

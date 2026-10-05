@@ -1240,6 +1240,13 @@ on(/^tap those creatures and put a stun counter on each of them$/, async (m, env
   }
   env.did.push(ids.length ? `taps and stuns ${ids.map((i) => nameTag(card(i))).join(', ')}` : 'finds no creatures');
 }, { first: true });
+// Captain America, Team Leader: "Put a +1/+1 counter on that Hero and a +1/+1 counter on ~."
+on(/^put a \+1\/\+1 counter on that [a-z]+ and a \+1\/\+1 counter on ~$/, async (m, env) => {
+  const that = env.it && card(env.it.iid);
+  const me_ = env.src && card(env.src.iid);
+  for (const c of [that, me_]) if (c && c.zone === 'battlefield') addCounters(c, '+1/+1', 1);
+  env.did.push(`puts a +1/+1 counter on ${[that, me_].filter((c) => c && c.zone === 'battlefield').map(nameTag).join(' and ')}`);
+}, { first: true });
 // Hoarder's Greed: lose 2, draw 2, clash; repeat while you win
 on(/^you lose (\d+) life and draw (\w+) cards?, then clash with an opponent\. if you win, repeat this process$/, async (m, env) => {
   const o = opp(env.me);
@@ -3050,7 +3057,9 @@ on(/^(?:if it's|if that card is|if it is) an? ([a-z ]+?) card, (?:you may )?(?:p
   if (matchesAny(c, m[1])) {
     if (/battlefield/.test(m[2])) toBattlefield(c.iid, env.me, { tapped: /tapped/.test(m[2]) });
     else move(c.iid, 'hand');
-    env.did.push(`puts ${nameTag(c)} ${/battlefield/.test(m[2]) ? 'onto the battlefield' : 'into hand'}`);
+    env.did.push(`${/reveal it/.test(env.sentence) ? 'reveals and ' : ''}puts ${nameTag(c)} ${/battlefield/.test(m[2]) ? 'onto the battlefield' : 'into hand'}`);
+  } else if (!m[3]) {
+    if (env.me === 'p') env.did.push(`${nameTag(c)} isn't a ${m[1]} card, so it stays on top`);
   } else if (m[3]) {
     move(c.iid, /graveyard/.test(m[3]) ? 'graveyard' : 'library', /bottom/.test(m[3]) ? { to: 'bottom' } : {});
   }
@@ -3059,7 +3068,7 @@ on(/^(look at|reveal) the top card of your library$/, async (m, env) => {
   const top = libTop(env.me, 1)[0];
   if (!top) return;
   env.it = { iid: top };
-  env.did.push(m[1] === 'reveal' ? `reveals ${nameTag(card(top))}` : 'looks at the top card of their library');
+  env.did.push(m[1] === 'reveal' ? `reveals ${nameTag(card(top))}` : env.me === 'p' ? `looks at the top card of your library: ${nameTag(card(top))}` : 'looks at the top card of its library');
 });
 on(/^put (?:that card|it|them|those cards) into your hand$/, async (m, env) => {
   const ids = env.them_ && env.them_.length ? env.them_ : env.it && env.it.iid ? [env.it.iid] : [];
@@ -3281,6 +3290,7 @@ on(/^(?:have )?(~|target creature you control) becomes? a copy of (it|that creat
   if (m[3]) self.copyUntil = 'eot';
   if (keepName) self.nameOverride = keepName;
   if (/it's legendary|is legendary/i.test(m[4] || '')) self.addTypes = ((self.addTypes || '') + ' Legendary').trim();
+  if (/it has haste/i.test(m[4] || '')) self.eotGrants = [...(self.eotGrants || []), 'haste'];
   env.did.push(`${keepName || wasName} becomes a copy of ${nameTag(model)}${m[3] ? ' until end of turn' : ''}`);
 });
 // "Put a permanent card with mana value less than or equal to that damage from your hand (or graveyard) onto the battlefield"
@@ -3947,6 +3957,7 @@ async function runText(text, env) {
     if (skip.has(i)) continue;
     if (G.s.winner || env.wardCountered) return;
     env.next = sentences[i + 1] || '';
+    env.prevSent = i > 0 ? sentences[i - 1] : '';
     // handlers written for several sentences at once (marked multi): "Reveal the top three cards… An opponent separates…"
     let joinedRun = false;
     for (let k = 4; k >= 1 && !joinedRun; k--) {
@@ -3975,7 +3986,8 @@ async function runSentence(sentence, env) {
   // X was worked out up front: "create X tokens, where X is …"
   if (/^(?!where)/i.test(s) && /, where X is [^.]+$/i.test(s) && env.x !== undefined) s = s.replace(/, where X is [^.]+$/i, '');
   // "When you do, X" (reflexive trigger) works like "If you do, X"
-  s = s.replace(/^when you do, /i, 'If you do, ');
+  if (/^when you do, /i.test(s) && env.prevSent !== undefined && !/\bmay\b|\bunless\b/i.test(env.prevSent)) s = s.replace(/^when you do, /i, '');
+  else s = s.replace(/^when you do, /i, 'If you do, ');
   // "Until the end of your next turn, you may play that card" → "you may play that card until the end of your next turn"
   let um0 = s.match(/^(until (?:the end of your next turn|end of turn|your next end step)), (.+)$/i);
   if (um0 && /\b(?:may play|may cast)\b/i.test(um0[2])) s = `${um0[2]} ${um0[1].toLowerCase()}`;
@@ -4043,12 +4055,19 @@ async function runSentence(sentence, env) {
   }
   if ((m = low.match(/^(?:you may )?(?:cast|play) (it|that card|the exiled card|those cards|them|a spell from among them|that spell)(?: this turn| until end of turn| until the end of your next turn)?(?: without paying its mana cost)?/))) {
     const free = /without paying/.test(low);
-    const targets = env.them_ && env.them_.length ? env.them_ : env.it && env.it.iid ? [env.it.iid] : [];
+    // Breaching Dragonstorm: "…without paying its mana cost if that spell's mana value is 8 or less"
+    const capm = low.match(/if (?:that spell's|its) mana value is (\d+) or less/);
+    const targets = /^(?:you may )?cast (?:it|that card)\b/.test(low) && env.it && env.it.iid ? [env.it.iid] : env.them_ && env.them_.length ? env.them_ : env.it && env.it.iid ? [env.it.iid] : [];
+    env.lastMay = false;
     for (const iid of targets) {
       const c = card(iid);
-      if (!c || isLand(c) || (c.zone !== 'exile' && c.zone !== 'library' && c.zone !== 'graveyard' && c.zone !== 'hand')) continue;
+      if (!c || (c.zone !== 'exile' && c.zone !== 'library' && c.zone !== 'graveyard' && c.zone !== 'hand')) continue;
+      // lands can be played ("you may play those cards") but never cast
+      if (isLand(c) && (free || !/\bplay\b/.test(low))) continue;
+      if (capm && (DB[c.def].cmc || 0) > +capm[1]) continue;
       if (free && env.castFree) {
         const yes = /^you may/.test(low) ? await env.choosers[env.me].confirm(cardName(c), `Cast ${cardName(c)} without paying its mana cost?`, env) : true;
+        env.lastMay = !!yes;
         if (yes) {
           await env.castFree(env.me, iid);
           env.did.push(`casts ${nameTag(c)} for free`);
@@ -4261,11 +4280,23 @@ async function fetchLands(t, me, choose, src, did, env) {
     did.push('finds no land');
     return;
   }
-  const picks = await choose.pickCards({
-    prompt: `Search your library for ${count > 1 ? 'up to ' + count : 'a'} ${basic ? 'basic ' : ''}${types.length ? types.join(' or ') : 'land'} card${count > 1 ? 's' : ''}`,
-    cards: cands.map((c) => c.iid), min: 0, max: Math.min(count, cands.length), purpose: 'land', src,
-    aiScore: (c) => (me === 'ai' ? aiHelpers.landScore(c) : 0),
+  const share = /that share a land type/.test(t) && count > 1;
+  const BASICS = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'];
+  const ltypes = (c) => BASICS.filter((b) => new RegExp('\\b' + b + '\\b').test(DB[c.def].typeLine || ''));
+  let picks = await choose.pickCards({
+    prompt: share ? `Search your library for a ${basic ? 'basic ' : ''}land card (the others must share a land type with it)` : `Search your library for ${count > 1 ? 'up to ' + count : 'a'} ${basic ? 'basic ' : ''}${types.length ? types.join(' or ') : 'land'} card${count > 1 ? 's' : ''}`,
+    cards: cands.map((c) => c.iid), min: 0, max: share ? 1 : Math.min(count, cands.length), purpose: 'land', src,
+    aiScore: (c) => (me === 'ai' ? aiHelpers.landScore(c) + (share ? cands.filter((x) => ltypes(x).some((y) => ltypes(c).includes(y))).length / 10 : 0) : 0),
   });
+  // Myriad Landscape: "up to two basic land cards that share a land type"
+  if (share && picks.length) {
+    const ty = ltypes(card(picks[0]));
+    const more = cands.filter((c) => c.iid !== picks[0] && ltypes(c).some((y) => ty.includes(y)));
+    if (more.length) {
+      const extra = await choose.pickCards({ prompt: `Search for up to ${count - 1} more ${ty.join('/')} card${count > 2 ? 's' : ''}`, cards: more.map((c) => c.iid), min: 0, max: Math.min(count - 1, more.length), purpose: 'land', src, aiScore: () => 1 });
+      picks = [...picks, ...extra];
+    }
+  }
   const onlyOneToField = /the other into your hand|put one onto the battlefield/.test(t);
   const toField = /onto the battlefield/.test(t);
   const toTop = /on top of your library|top of your library/.test(t) && !toField;

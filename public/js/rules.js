@@ -161,6 +161,16 @@ function oracleRaw(inst) {
       }
     }
   }
+  // Folk Hero & co.: "Commander creatures you own have "…""
+  if (inst.isCommander && inst.zone === 'battlefield' && G.s && /Creature/.test(typeLine(inst).split('—')[0])) {
+    const owner = inst.owner || inst.controller;
+    for (const iid of G.s.players[owner].zones.battlefield) {
+      const src = G.s.cards[iid];
+      if (!src || src.phasedOut || src.faceDown || src.iid === inst.iid) continue;
+      const raw = face(src).oracle || '';
+      for (const m of raw.matchAll(/Commander creatures you own have "([^"]+)"/g)) text += '\n' + m[1].replace(/\bthis creature\b/gi, '~');
+    }
+  }
   // Sieges: keep only the chosen bullet
   if (inst.chosenMode) {
     text = text.split('\n').map((l) => {
@@ -310,7 +320,13 @@ function num(v) {
 
 // Characteristic-defining abilities: "~'s power and toughness are each equal to the number of …"
 function cda(inst) {
-  const o = (face(inst).oracle || '').replace(DB[inst.def].faces[inst.face || 0].name, '~').replace(/\bthis (?:creature|vehicle|artifact)'s\b/gi, "~'s");
+  const nm = DB[inst.def].faces[inst.face || 0].name;
+  const short = nm.split(',')[0];
+  const first = (nm.match(/^([A-Z][\w'-]{2,}) (?:of|the|from|and)\b/) || [])[1];
+  let o = (face(inst).oracle || '').split(nm).join('~');
+  if (short !== nm && short.length > 2) o = o.split(short + "'s").join("~'s");
+  if (first) o = o.split(first + "'s").join("~'s");
+  o = o.replace(/\bthis (?:creature|vehicle|artifact)'s\b/gi, "~'s");
   let m;
   if ((m = o.match(/~'s power and toughness are each equal to (?:the number of |your )?([^.]+?)(?: plus (\d+))?\./i))) {
     const v = countPhrase(inst.controller, m[1], helpers, inst.iid);

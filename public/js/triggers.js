@@ -213,11 +213,16 @@ export function triggersOf(c, defOverride) {
       add('mainPhase', m[1], { whose: 'your' });
     else if ((m = line.match(/^At end of combat, (.+)$/i)))
       add('endCombat', m[1], { whose: 'your' });
+    // Cursed Mirror: "As ~ enters, you may have it become a copy of any creature on the battlefield until end of turn, except it has haste."
+    else if ((m = line.match(/^As ~ enters(?: the battlefield)?, you may have it become a copy of any creature on the battlefield( until end of turn)?(?:, except (.+?))?\.?$/i)))
+      add('enters', `you may have ~ become a copy of target creature${m[1] || ''}${m[2] ? ', except ' + m[2] : ''}`, { self: true });
     // spells
     else if ((m = line.match(/^When you cast this spell, (.+)$/i)) || (m = line.match(/^When you cast ~, (.+)$/i)))
       add('castSelf', m[1], { self: true });
     else if ((m = line.match(/^Whenever you cast or copy (?:an|a) ([^,]*?)spell, (.+)$/i)))
       add('cast', m[2], { spell: m[1].toLowerCase().trim(), mine: true });
+    else if ((m = line.match(/^Whenever you cast a spell that shares a creature type with (?:this creature|~), (.+)$/i)))
+      add('cast', m[1], { spell: '', mine: true, sharesType: true });
     else if ((m = line.match(/^Whenever you cast (?:a|an|another|your first|your second) ([^,]*?)spell(?: each turn| during [^,]+| from [^,]+| with [^,]+| that [^,]+| this turn)?, (.+)$/i)))
       add('cast', m[2], { spell: m[1].toLowerCase().trim(), mine: true, first: /your first/i.test(line), second: /your second/i.test(line), notSelf: /another/i.test(line), from: (line.match(/spell from (your hand|your graveyard|exile|anywhere other than your hand)/i) || [])[1] });
     else if ((m = line.match(/^Whenever you cast an? ((?:Aura|Equipment|Vehicle|historic|[A-Z]\w+)(?:(?:,|, or| or) (?:Aura|Equipment|Vehicle|[A-Z]\w+))*)(?: spell)?, (.+)$/)))
@@ -257,6 +262,8 @@ export function triggersOf(c, defOverride) {
       add('dies', m[3], { withCounter: m[2] ? m[2].trim() : 'any', mine: /you control/i.test(m[1] || ''), theirs: /opponent/i.test(m[1] || '') });
     else if ((m = line.match(/^Whenever one or more \+1\/\+1 counters are put on ~, (.+)$/i)))
       add('counterPut', m[1], { self: true, kind: '+1/+1' });
+    else if ((m = line.match(/^Whenever you put one or more \+1\/\+1 counters on ~, (.+)$/i)))
+      add('counterPut', m[1], { self: true, kind: '+1/+1', byMe: true });
     else if ((m = line.match(/^Whenever one or more \+1\/\+1 counters are put on (?:a|another) creature you control, (.+)$/i)))
       add('counterPut', m[1], { anyOfMine: true, kind: '+1/+1' });
     else if ((m = line.match(/^Whenever you put one or more \+1\/\+1 counters on a creature you control, (.+)$/i)))
@@ -885,6 +892,10 @@ function matches(ev) {
         if (trig.first && ts.spells !== 1) return;
         if (trig.second && ts.spells !== 2) return;
         if (!spellMatches(trig.spell, d, sc)) return;
+        if (trig.sharesType) {
+          const mine_ = (typeLine(c).split('—')[1] || '').trim().split(/\s+/).filter(Boolean);
+          if (!sc || !mine_.some((t) => hasSubtype(sc, t))) return;
+        }
         if (trig.from) {
           const z = ev.from || (sc && sc.castFrom) || 'hand';
           const want = trig.from.toLowerCase();
@@ -960,8 +971,9 @@ function matches(ev) {
         }
         if (ev.kind === 'loyalty' && (c.controller !== tgt.controller || !isType(tgt, 'Planeswalker'))) return;
         if (ev.kind === 'loyalty') return void out.push({ src: c, trig, it: { iid: ev.iid }, amount: ev.n });
-        if (trig.self && c.iid === ev.iid) out.push({ src: c, trig });
-        else if (trig.anyOfMine && c.controller === tgt.controller && isCreature(tgt)) out.push({ src: c, trig, it: { iid: ev.iid }, amount: ev.n });
+        if (trig.self && c.iid === ev.iid) {
+          if (!(trig.byMe && ev.by && ev.by !== c.controller)) out.push({ src: c, trig });
+        } else if (trig.anyOfMine && c.controller === tgt.controller && isCreature(tgt)) out.push({ src: c, trig, it: { iid: ev.iid }, amount: ev.n });
       });
       break;
     }
@@ -1297,6 +1309,7 @@ async function resolveTrigger(hit, controller, ev) {
     // the AI takes optional triggers unless they cost it something
     const yes = controller === 'ai' ? knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}\n\nDo it?`);
     if (!yes) return;
+    ctx.lastMay = true; // "you may discard a card. If you do, draw two cards."
   }
   const did = await resolveEffects(text, src, ctx);
   if (did.length) log(controller, `${nameTag(src)} ${trig.event === 'chapter' ? 'chapter' : 'triggers'}: ${did.join('; ')}.`);

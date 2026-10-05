@@ -465,7 +465,10 @@ function entering(c, opts) {
   if (/^\(?As this Saga enters/m.test(o) || hasSubtype(c, 'Saga')) {
     if (c.counters.lore === undefined) c.counters.lore = 0;
   }
-  const et = entersTapped(c, o);
+  // Horizon Explorer: "Lands you control enter untapped."
+  const forceUntap = isLand(c) && G.s.players[c.controller].zones.battlefield.some((i) => i !== c.iid && G.s.cards[i] && !G.s.cards[i].phasedOut && /(?:^|\n)Lands you control enter (?:the battlefield )?untapped/i.test(oracle(G.s.cards[i])));
+  const et = forceUntap ? false : entersTapped(c, o);
+  if (forceUntap) c.tapped = false;
   if (et === true) c.tapped = true;
   else if (et && et.ask) {
     // "you may pay 2 life": it enters tapped; the controller is asked right away and it untaps if they pay
