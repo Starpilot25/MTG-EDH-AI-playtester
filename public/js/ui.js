@@ -156,7 +156,50 @@ function cardHTML(c, opts = {}) {
 export function render() {
   if (!G.s) return;
   withReadCache(renderAll);
+  drawBlockLines();
   showStealNotes();
+}
+
+// Combat: a line from each blocker to the attacker it blocks (numbered like the attack tags)
+function drawBlockLines() {
+  let svg = document.getElementById('block-lines');
+  const cb = G.s && G.s.combat;
+  const pairs = [];
+  if (cb && cb.blocks) {
+    for (const [aid, bs] of Object.entries(cb.blocks)) for (const bid of bs || []) pairs.push([aid, bid, cb.attackers.indexOf(aid) + 1]);
+  }
+  if (!pairs.length) {
+    if (svg) svg.innerHTML = '';
+    return;
+  }
+  if (!svg) {
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = 'block-lines';
+    svg.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(svg);
+  }
+  const at = (iid) => {
+    const el = document.querySelector(`.field .card[data-iid="${iid}"]`);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (!r.width) return null;
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  };
+  let out = '';
+  for (const [aid, bid, k] of pairs) {
+    const a = at(aid);
+    const b = at(bid);
+    if (!a || !b) continue;
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    out += `<line class="bl-line" x1="${b.x}" y1="${b.y}" x2="${a.x}" y2="${a.y}"/><circle class="bl-dot" cx="${b.x}" cy="${b.y}" r="5"/><circle class="bl-end" cx="${a.x}" cy="${a.y}" r="7"/>`;
+    if (k > 0) out += `<g class="bl-num"><circle cx="${mx}" cy="${my}" r="11"/><text x="${mx}" y="${my + 4}" text-anchor="middle">${k}</text></g>`;
+  }
+  svg.innerHTML = out;
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', () => G.s && drawBlockLines());
+  document.addEventListener('scroll', () => G.s && drawBlockLines(), true);
 }
 
 // "The AI gained control of your Sol Ring" — a popup whenever a card changes hands

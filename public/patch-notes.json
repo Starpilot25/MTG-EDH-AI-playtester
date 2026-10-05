@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.86",
+    "title": "See who blocks whom",
+    "notes": [
+      "Combat now draws a dashed blue line from each blocker to the attacker it blocks. The blocker end has a dot, the attacker end a red ring, and the middle has the attacker's number. Lines appear as blocks are declared and disappear when combat ends."
+    ]
+  },
+  {
     "version": "1.2.85",
     "title": "Vengeful Regrowth",
     "notes": [

@@ -813,3 +813,11 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .update-log .ul-search { width: 100%; box-sizing: border-box; margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: inherit; font: inherit; }
 .update-log .ul-list section[hidden] { display: none; }
 .patch-notes .row-end { gap: 12px; align-items: center; }
+
+/* combat: lines from blockers to the attackers they block */
+#block-lines { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 40; overflow: visible; }
+#block-lines .bl-line { stroke: var(--you); stroke-width: 3; stroke-dasharray: 8 5; opacity: .9; filter: drop-shadow(0 0 3px rgba(0, 0, 0, .7)); }
+#block-lines .bl-dot { fill: var(--you); }
+#block-lines .bl-end { fill: none; stroke: var(--danger); stroke-width: 3; }
+#block-lines .bl-num circle { fill: var(--you); stroke: #0b1a24; stroke-width: 2; }
+#block-lines .bl-num text { fill: #0b1a24; font: 700 12px system-ui, sans-serif; }
