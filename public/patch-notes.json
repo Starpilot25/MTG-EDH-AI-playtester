@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.78",
+    "title": "AI uses Currency Converter",
+    "notes": [
+      "The AI now uses Currency Converter's {T} ability to turn its exiled cards into Treasures and Rogues. Before, it only ever used the loot ability, and it skips the {T} ability when nothing has been exiled with the Converter."
+    ]
+  },
+  {
     "version": "1.2.77",
     "title": "Cryptbreaker",
     "notes": [

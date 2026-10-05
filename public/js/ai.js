@@ -812,7 +812,11 @@ async function useAbilities(h) {
   const s0 = G.s;
   for (const c of cardsIn(AI, 'battlefield')) {
     if (G.s !== s0) return;
-    for (const ab of activatedAbilities(c)) {
+    // Currency Converter & co.: cash in cards exiled with it before using its other {T} ability
+    const exiledWithIt = Object.values(G.s.cards).some((x) => x.zone === 'exile' && x.exiledWith === c.iid);
+    const abs = activatedAbilities(c).filter((ab) => !/exiled with ~/i.test(ab.text || '') || exiledWithIt);
+    abs.sort((a, b) => (/exiled with ~/i.test(b.text || '') ? 1 : 0) - (/exiled with ~/i.test(a.text || '') ? 1 : 0));
+    for (const ab of abs) {
       if (ab.kind !== 'ability' || ab.sac || /Discard|Pay \d+ life|Exile|Sacrifice/i.test(ab.costText)) continue;
       const a = analyze(ab.text);
       const prolif = a.proliferate && (cardsIn(AI, 'battlefield').some((x) => Object.entries(x.counters || {}).some(([k, v]) => v > 0 && k !== '-1/-1' && k !== 'stun')) ||
