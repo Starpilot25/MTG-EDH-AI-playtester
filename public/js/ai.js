@@ -442,7 +442,7 @@ function targetsAvailable(text, c) {
       continue;
     }
     if (/graveyard|library|hand|exile/.test(ph)) continue;
-    const phrase = ph.replace(/ (?:to|from|into|onto|with|gets?|gains?|deals?|and|until|that|if) .*$/, '').trim();
+    const phrase = ph.replace(/ (?:to|from|into|onto|with(?! (?:mana value|power|toughness|flying|a counter|an? [+-]1\/[+-]1 counter|defender|reach))|gets?|gains?|deals?|and(?! toughness)|until|that|if) .*$/, '').trim();
     if (!phrase) continue;
     try {
       if (!legalTargets(phrase, AI, c).length) return false;

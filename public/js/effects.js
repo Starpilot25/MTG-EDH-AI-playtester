@@ -368,7 +368,7 @@ export function analyze(text, x = 0) {
   const a = {};
   let m;
   if ((m = t.match(/(?:^|\. |\n|, )(?:you |target player )?draws? (a|an|one|two|three|four|five|six|seven|x|\d+) cards?/))) a.draw = n(m[1], x);
-  if ((m = t.match(/(destroy|exile) (?:up to (?:one|two) )?(?:another )?target ([^.]+?)(?:\.|,| and| with| an opponent| you don't| that|$)/)))
+  if ((m = t.match(/(destroy|exile) (?:up to (?:one|two) )?(?:another )?target ([^.]+?(?: with (?:mana value|power|toughness) [^.,]+?)?)(?:\.|,| and| with| an opponent| you don't| that|$)/)))
     a.removal = { verb: m[1], phrase: m[2] + (/an opponent controls/.test(t) ? ' an opponent controls' : '') };
   if ((m = t.match(/return (?:up to one )?target ([^.]+?) to (?:its|their) owner's hand/))) a.bounce = { phrase: m[1] };
   // tuck: Chaos Warp, Spin into Myth, Oblation — removal that sends it to the library

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.76",
+    "title": "Smarter AI targeting",
+    "notes": [
+      "The AI no longer casts removal like Despark when nothing is a legal target. It now checks target limits such as \"with mana value 4 or greater\" or \"with power 3 or less\" before casting, and its removal scoring respects them too."
+    ]
+  },
+  {
     "version": "1.2.75",
     "title": "Brainstorm, Brainsurge and surveil",
     "notes": [
