@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.71",
+    "title": "Currency Converter and Nissa, Leyline Tamer",
+    "notes": [
+      "Currency Converter works: when you discard a card you can exile it with the Converter, and its {T} ability puts one of those cards into your graveyard and makes a Treasure (land) or a 2/2 black Rogue (nonland). Before, the discard trigger exiled a random card from your graveyard and the {T} ability did nothing.",
+      "Nissa, Leyline Tamer only puts a creature onto the battlefield the first time her landfall ability resolves each turn. Before, later landfalls that turn put the top revealed card onto the battlefield even when it wasn't a creature."
+    ]
+  },
+  {
     "version": "1.2.70",
     "title": "Ginger, Queen of Sweets",
     "notes": [

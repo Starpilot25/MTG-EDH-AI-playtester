@@ -482,6 +482,12 @@ export function evalCond(cond, env) {
     env.src.firstResolveTurn = G.s.turn;
     return true;
   }
+  // Currency Converter: "If it's a land card / a nonland card"
+  if ((m = c.match(/^it's an? (non)?land card$/))) {
+    const t = env.refCard ? card(env.refCard) : env.it && card(env.it.iid);
+    if (!t) return false;
+    return m[1] ? !isLand(t) : isLand(t);
+  }
   // Massacre Girl, Known Killer: "if its toughness was less than 1"
   if ((m = c.match(/^its toughness was less than (\d+)$/))) return !!(env.event && env.event.toughness !== undefined && env.event.toughness < +m[1]);
   // Blowfly Infestation, Oft-Nabbed Goat
@@ -1256,6 +1262,29 @@ on(/^put a \+1\/\+1 counter on that [a-z]+ and a \+1\/\+1 counter on ~$/, async 
   const me_ = env.src && card(env.src.iid);
   for (const c of [that, me_]) if (c && c.zone === 'battlefield') addCounters(c, '+1/+1', 1);
   env.did.push(`puts a +1/+1 counter on ${[that, me_].filter((c) => c && c.zone === 'battlefield').map(nameTag).join(' and ')}`);
+}, { first: true });
+// Currency Converter: "Whenever you discard a card, you may exile that card from your graveyard."
+on(/^(?:you may )?exile (?:that card|it) from your graveyard$/, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  if (!c || c.zone !== 'graveyard') return env.did.push('the card is no longer in the graveyard');
+  move(c.iid, 'exile');
+  if (card(c.iid) && env.src) card(c.iid).exiledWith = env.src.iid;
+  env.did.push(`exiles ${nameTag(c)}`);
+}, { first: true });
+// "{T}: Put a card exiled with ~ into your graveyard."
+on(/^put a card exiled with ~ into (?:your|its owner's) graveyard$/, async (m, env) => {
+  const pool = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && env.src && c.exiledWith === env.src.iid);
+  if (!pool.length) {
+    env.it = null;
+    return env.did.push(`has no cards exiled with ${nameTag(env.src)}`);
+  }
+  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Put a card exiled with ${cardName(env.src)} into your graveyard`, cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'return', src: env.src, aiScore: (c) => (isLand(c) ? 1 : 2) });
+  const c = card(pick);
+  delete c.exiledWith;
+  move(pick, 'graveyard');
+  env.it = { iid: pick };
+  env.refCard = pick; // later "if it's a land card" sentences still mean this card, even after tokens are made
+  env.did.push(`puts ${nameTag(c)} into the graveyard`);
 }, { first: true });
 // Hoarder's Greed: lose 2, draw 2, clash; repeat while you win
 on(/^you lose (\d+) life and draw (\w+) cards?, then clash with an opponent\. if you win, repeat this process$/, async (m, env) => {
@@ -3211,7 +3240,7 @@ on(/^(target instant or sorcery card in your graveyard|each instant and sorcery 
   if (ids.length) env.did.push(`${ids.length === 1 ? nameTag(card(ids[0])) + ' gains' : ids.length + ' cards gain'} flashback this turn`);
 });
 // --- graveyard exile: "Exile target creature card from your graveyard", "exile up to one target card from a graveyard"
-on(/^exile (?!all )(up to (\w+) )?(?:another )?(target )?(?:(a|an|one|two|three|x|\d+) )?([a-z ,/-]*?)cards? from (your|a|target player's|an opponent's|their|each opponent's|any) graveyards?$/, async (m, env) => {
+on(/^exile (?!all |(?:that|those) cards? )(up to (\w+) )?(?:another )?(target )?(?:(a|an|one|two|three|x|\d+) )?([a-z ,/-]*?)cards? from (your|a|target player's|an opponent's|their|each opponent's|any) graveyards?$/, async (m, env) => {
   const pids = m[6] === 'your' || m[6] === 'their' ? [env.me] : /opponent/.test(m[6]) ? [opp(env.me)] : ['p', 'ai'];
   const kind = (m[5] || '').trim() || 'card';
   const pool = pids.flatMap((pid) => cardsIn(pid, 'graveyard')).filter((c) => c.iid !== (env.src || {}).iid && matchesAny(c, kind));
@@ -3978,6 +4007,10 @@ async function runText(text, env) {
     if (G.s.winner || env.wardCountered) return;
     env.next = sentences[i + 1] || '';
     env.prevSent = i > 0 ? sentences[i - 1] : '';
+    if (env.skipDependent) {
+      if (/^(?:put|return|exile|cast|play|shuffle) (?:that card|those cards|it|them|the rest)\b/i.test(sentences[i].trim())) continue;
+      env.skipDependent = false;
+    }
     // handlers written for several sentences at once (marked multi): "Reveal the top three cards… An opponent separates…"
     let joinedRun = false;
     for (let k = 4; k >= 1 && !joinedRun; k--) {
@@ -4034,6 +4067,7 @@ async function runSentence(sentence, env) {
     env.lastCond = !!c;
     if (!c) {
       env.condFalse = true;
+      env.skipDependent = true; // "Then if …, reveal … a creature card. Put that card onto the battlefield…" — the follow-up goes too
       return;
     }
     return runSentence(s.slice(s.indexOf(',', m[1].length + 2) + 1).replace(/ instead$/i, '').trim(), env) || (instead ? undefined : undefined);
