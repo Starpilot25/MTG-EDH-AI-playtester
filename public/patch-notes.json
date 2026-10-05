@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.25",
+    "title": "Extra turn counter",
+    "notes": [
+      "Extra turns waiting (Ral Zarek, Teferi, Time Warp…) show on that player's panel as \"⟳ N extra turns left\", and a gold \"⟳ Extra turn\" tag marks a turn that is itself an extra turn."
+    ]
+  },
+  {
     "version": "1.2.24",
     "title": "Bounce lands",
     "notes": [

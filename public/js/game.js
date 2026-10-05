@@ -97,6 +97,7 @@ export async function beginTurn(pid) {
   s.combat = null;
   s.ts = freshTurnStats();
   log('turn', `${pid === 'p' ? 'Your turn' : "AI's turn"} ${s.turns[pid]} (round ${Math.ceil(s.turn / 2)})${s.extraTurnNow ? ' (extra turn)' : ''}`);
+  s.inExtraTurn = !!s.extraTurnNow;
   s.extraTurnNow = false;
   setStep('untap');
   phasing(pid);
