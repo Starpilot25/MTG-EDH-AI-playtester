@@ -1,9 +1,9 @@
 {
-  "version": "1.2.38",
+  "version": "1.2.39",
   "minAppVersion": "1.0.0",
   "files": {
-    "public/css/style.css": "57d0d34c20cb950453b300dd3bdde052481b2f330cd7866222c8be82d6112b14",
-    "public/index.html": "a4a790f07771f9bc1e63a412f3cef9ddba605c8260acbf47636a7eb8b1fd0d52",
+    "public/css/style.css": "e27546b12931a3d8daa1a547e19a9e485ba80209ba895d5371b3203c3e9a65da",
+    "public/index.html": "22cf46ddbd935f2b4a369254209b8f1717ddbbfc4fe5b73ae26547f8a2c8a25a",
     "public/js/ai.js": "6804d478bdba8d02488536ab76f58174fe7500382e6ae1196f334dc7accb6a6b",
     "public/js/aicombat.js": "0b7a5cccb46c94d47e6f2dfe951771a41f95106cb3e62c072eacf0c739f745fa",
     "public/js/cast.js": "0dca04a143fca13e9680230ba919104e689e161394b2fbd3cfdf069e1d3bda23",
@@ -17,6 +17,6 @@
     "public/js/statics.js": "7de75d5b3f6f756fba51de7cf69a3b66d9342fb0ed6475d05f841120f63b3af5",
     "public/js/triggers.js": "f0b0ea1f46648ff9c8080c171b4a78ef936c123862bfd3e8ba5206470fc73821",
     "public/js/ui.js": "75c0dd00f5c53ba317a4897d2d5da10465ed85366ef6cf2aff70646e24939faf",
-    "public/patch-notes.json": "0fda086dd058db2f176b25922c4253358a8e0ab97d2673248a3cf7d1629c14d0"
+    "public/patch-notes.json": "d9f0f467144ededfe75a84b3e98adade44fb199c9d5cd060bf9ece8c2fa8ea97"
   }
 }

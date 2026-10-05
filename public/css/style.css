@@ -778,12 +778,12 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 
 /* dungeon map on the side panel */
 .dg-map { border: 1px solid #6b5a33; border-radius: 8px; padding: 6px 6px 8px; margin: 0 12px 8px; background: rgb(211 170 82 / 0.06); cursor: pointer; }
-.dg-map .er-title { margin-bottom: 4px; }
+.dg-map .er-title { margin-bottom: 3px; font-size: 10.5px; }
 .dg-rowmap { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
-.dg-room { font: 600 10.5px var(--f-mono); padding: 2px 5px; border-radius: 5px; border: 1px solid var(--line); color: var(--muted); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-room { font: 600 10px var(--f-mono); padding: 1px 4px; border-radius: 5px; border: 1px solid var(--line); color: var(--muted); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dg-room.been { opacity: 0.6; }
 .dg-room.here { color: #1b1508; background: var(--brass); border-color: var(--brass); }
 .dg-room.next { color: var(--brass); border-color: rgb(211 170 82 / 0.7); border-style: dashed; }
-.dg-arrow { text-align: center; font-size: 9px; line-height: 10px; color: var(--muted); }
+.dg-arrow { text-align: center; font-size: 8px; line-height: 7px; color: var(--muted); }
 .dg-last { margin-top: 4px; font-size: 10.5px; color: var(--brass); text-align: center; }
-#dungeons:not(:empty) { padding-top: 8px; flex: none; }
+#dungeons:not(:empty) { padding-top: 8px; flex: 0 0 auto; max-height: 34%; overflow-y: auto; border-top: 1px solid var(--line); }

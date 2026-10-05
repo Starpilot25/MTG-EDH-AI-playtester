@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.39",
+    "title": "Dungeon map moved",
+    "notes": [
+      "The dungeon map now sits at the bottom of the right-hand column, under the game log. The card preview at the top keeps its full space. The map is also more compact."
+    ]
+  },
+  {
     "version": "1.2.38",
     "title": "Dungeon map; Yuan-Ti Malison",
     "notes": [
