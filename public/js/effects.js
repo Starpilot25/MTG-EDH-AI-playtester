@@ -1360,7 +1360,7 @@ on(/^(?:then )?(?:you may )?exile (?:a|an|up to one) ([a-z ]+?) card from each g
   env.did.push(got.length ? `exiles ${got.map((i) => nameTag(card(i))).join(' and ')}` : 'exiles nothing');
 }, { first: true });
 // King Narfi's Betrayal II, III
-on(/^(?:until end of turn, )?you may cast spells from among cards exiled with ~(, and you may spend mana as though it were mana of any color to cast those spells)?(?: until end of turn)?$/, async (m, env) => {
+on(/^(?:until end of turn, )?you may cast spells from among cards exiled with ~(, and you may spend mana as though it were mana of any (?:color|type) to cast those spells)?(?: until end of turn)?$/, async (m, env) => {
   const ids = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && env.src && c.exiledWith === env.src.iid);
   for (const c of ids) Object.assign(c, { mayPlay: env.me, mayPlayUntil: G.s.turn, anyColorMana: !!m[1] });
   env.did.push(ids.length ? `may cast ${ids.map(nameTag).join(', ')} this turn${m[1] ? ' (with mana of any color)' : ''}` : 'has no exiled cards');
@@ -1446,7 +1446,7 @@ async function castFromPool(env, ids, o = {}) {
 const whoseLib = (pid) => (pid === 'p' ? 'your' : "the AI's");
 
 // Black Cat, Cunning Thief
-on(/^look at the top (\w+) cards of target opponent's library, exile (\w+) of them face down, then put the rest on the bottom of their library in a random order\. you may play the exiled cards for as long as they remain exiled\. mana of any type can be spent to cast spells this way$/, async (m, env) => {
+on(/^look at the top (\w+) cards of target opponent's library, exile (\w+) of them face down, then put the rest on the bottom of their library in a random order\. you may play the exiled cards for as long as they remain exiled\. mana of any (?:color|type) can be spent to cast spells this way$/, async (m, env) => {
   const [t] = await playerTarget(env, 'target opponent');
   const o = t || opp(env.me);
   const top = libTop(o, n(m[1]));
@@ -1458,7 +1458,7 @@ on(/^look at the top (\w+) cards of target opponent's library, exile (\w+) of th
   env.did.push(`exiles ${k} card${k === 1 ? '' : 's'} face down from ${whoseLib(o)} library to play${env.me === 'p' ? ': ' + picks.map((i) => nameTag(card(i))).join(', ') : ''}`);
 }, { first: true, multi: true });
 // Author of Shadows
-on(/^exile all cards from all opponents' graveyards\. choose a nonland card exiled this way\. you may cast that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast that spell$/, async (m, env) => {
+on(/^exile all cards from all opponents' graveyards\. choose a nonland card exiled this way\. you may cast that card for as long as it remains exiled, and you may spend mana as though it were mana of any (?:color|type) to cast that spell$/, async (m, env) => {
   const o = opp(env.me);
   const ids = zoneOf(o, 'graveyard').slice();
   ids.forEach((i) => move(i, 'exile'));
@@ -1525,7 +1525,7 @@ on(/^target (?:opponent|player) mills half their library, rounded (down|up)$/, a
   env.did.push(`${who(o)} ${s_(o, 'mill')} ${k}`);
 }, { first: true });
 // Tinybones, the Pickpocket
-on(/^(?:you may )?cast target nonland permanent card from that player's graveyard, and mana of any type can be spent to cast that spell$/, async (m, env) => {
+on(/^(?:you may )?cast target nonland permanent card from that player's graveyard, and mana of any (?:color|type) can be spent to cast that spell$/, async (m, env) => {
   const pid = env.thatPlayer || opp(env.me);
   const pool = cardsIn(pid, 'graveyard').filter((c) => isPermanentCard(DB[c.def]) && !isLandFace_(c));
   if (!pool.length) return env.did.push('finds no permanent card');
@@ -1606,7 +1606,7 @@ on(/^each player exiles cards from the top of their library until they exile a n
   await castFromPool(env, hits.filter((i) => i !== veto), { free: true, max: 2 });
 }, { first: true, multi: true });
 // Laughing Jasper Flint
-on(/^exile the top x cards of target opponent's library, where x is the number of outlaws you control\. until end of turn, you may cast spells from among those cards, and mana of any type can be spent to cast those spells$/, async (m, env) => {
+on(/^exile the top x cards of target opponent's library, where x is the number of outlaws you control\. until end of turn, you may cast spells from among those cards, and mana of any (?:color|type) can be spent to cast those spells$/, async (m, env) => {
   const [t] = await playerTarget(env, 'target opponent');
   const o = t || opp(env.me);
   const k = cardsIn(env.me, 'battlefield').filter((c) => ['Assassin', 'Mercenary', 'Pirate', 'Rogue', 'Warlock'].some((x) => hasSubtype(c, x)) || (isCreature(c) && c.owner !== env.me && cardsIn(env.me, 'battlefield').some((y) => /Creatures you control but don't own are Mercenaries/i.test(oracle(y))))).length;
@@ -1651,7 +1651,7 @@ on(/^target opponent chooses x cards from their hand\. look at those cards\. you
   await castFromPool(env, picks, { free: true, max: 1 });
 }, { first: true, multi: true });
 // Shadow of the Enemy
-on(/^exile all creature cards from target player's graveyard\. you may cast spells from among those cards for as long as they remain exiled, and mana of any type can be spent to cast them$/, async (m, env) => {
+on(/^exile all creature cards from target player's graveyard\. you may cast spells from among those cards for as long as they remain exiled, and mana of any (?:color|type) can be spent to cast them$/, async (m, env) => {
   const [t] = await playerTarget(env, 'target player');
   const o = t || opp(env.me);
   const ids = cardsIn(o, 'graveyard').filter((c) => /Creature/.test(DB[c.def].typeLine || '')).map((c) => c.iid);
@@ -1678,7 +1678,7 @@ on(/^look at defending player's hand\. you may put a creature card from it onto 
   env.did.push(`puts ${nameTag(c)} onto the battlefield attacking (it returns at end of turn)`);
 }, { first: true, multi: true });
 // Rakdos, the Muscle
-on(/^exile cards equal to its mana value from the top of target player's library\. until your next end step, you may play those cards and mana of any type can be spent to cast those spells$/, async (m, env) => {
+on(/^exile cards equal to its mana value from the top of target player's library\. until your next end step, you may play those cards and mana of any (?:color|type) can be spent to cast those spells$/, async (m, env) => {
   const sac = env.it && card(env.it.iid);
   const k = sac ? DB[sac.def].cmc || 0 : 0;
   const [t] = await playerTarget(env, 'target player');
@@ -1711,7 +1711,7 @@ on(/^each opponent exiles cards from the top of their library until they have ex
   env.did.push(`${who(o)} ${s_(o, 'exile')} ${ids.length} cards; you may cast them free this turn`.replace('you may', env.me === 'p' ? 'you may' : 'the AI may'));
 }, { first: true, multi: true });
 // Breeches, Brazen Plunderer
-on(/^exile the top card of each of those opponents' libraries\. you may play those cards this turn, and you may spend mana as though it were mana of any color to cast those spells$/, async (m, env) => {
+on(/^exile the top card of each of those opponents' libraries\. you may play those cards this turn, and you may spend mana as though it were mana of any (?:color|type) to cast those spells$/, async (m, env) => {
   const ids = exileTop(env.thatPlayer || opp(env.me), 1);
   grantPlay(ids, env.me, { anyMana: true, until: G.s.turn });
   env.did.push(`exiles ${ids.map((i) => nameTag(card(i))).join(', ') || 'nothing'} to play this turn`);
@@ -1725,7 +1725,7 @@ on(/^that player exiles cards from the top of their library until they exile an 
   all.filter((i) => !cast_.includes(i) && card(i) && card(i).zone === 'exile').sort(() => Math.random() - 0.5).forEach((i) => move(i, 'library', { to: 'bottom' }));
 }, { first: true, multi: true });
 // Gonti, Night Minister
-on(/^its controller looks at the top card of that opponent's library and exiles it face down\. they may play that card for as long as it remains exiled\. mana of any type can be spent to cast a spell this way$/, async (m, env) => {
+on(/^its controller looks at the top card of that opponent's library and exiles it face down\. they may play that card for as long as it remains exiled\. mana of any (?:color|type) can be spent to cast a spell this way$/, async (m, env) => {
   const atk = env.it && card(env.it.iid);
   const pid = atk ? atk.controller : env.me;
   const ids = exileTop(env.thatPlayer || opp(pid), 1);

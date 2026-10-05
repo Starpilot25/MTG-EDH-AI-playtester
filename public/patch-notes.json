@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.89",
+    "title": "Author of Shadows",
+    "notes": [
+      "Author of Shadows works with the card's current wording (\"mana of any type\"). Before, that wording wasn't recognized, so the exile-and-cast ability did nothing. The other theft cards (Black Cat, Tinybones, Laughing Jasper Flint, Shadow of the Enemy, Rakdos, Breeches, Gonti…) now accept both \"any color\" and \"any type\" wordings too."
+    ]
+  },
+  {
     "version": "1.2.88",
     "title": "Zara, Renegade Recruiter",
     "notes": [
