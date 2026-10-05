@@ -47,6 +47,12 @@ export function isCreature(i) {
   if (i.animated) return true;
   if (G.s && i.crewedTurn === G.s.turn) return true; // crewed Vehicle / saddled? (crew only)
   if (i.stationCreature) return true;
+  // Spacecraft: "It's an artifact creature at 8+." (charge counters)
+  {
+    const raw = face(i).oracle || '';
+    const at = raw.match(/It's an artifact creature at (\d+)\+/i);
+    if (at && ((i.counters || {}).charge || 0) >= +at[1] && face(i).power !== undefined && face(i).power !== null && face(i).power !== '') return true;
+  }
   if (/\bVehicle\b/.test(face(i).typeLine || '') && /Living metal/i.test(face(i).oracle || '') && G.s && G.s.active === i.controller) return true;
   return false;
 }
@@ -90,6 +96,9 @@ export function oracle(inst) {
   if (!inst || inst.faceDown) return '';
   const f = face(inst);
   let text = f.oracle || '';
+  // Spacecraft written as "2+ | {1}, {T}: …" instead of "STATION 2+" sections
+  if (/(?:^|\n)Station\b/i.test(text) && /^\d+\+ \| /m.test(text)) text = text.replace(/^(\d+)\+ \| /gm, 'STATION $1+\n');
+  if (/^STATION \d+\+ ?[|:—–-] ?\S/m.test(text)) text = text.replace(/^STATION (\d+)\+ ?[|:—–-] ?/gm, 'STATION $1+\n');
   if (/^LEVEL \d/m.test(text)) {
     const sec = sections(text, 'level');
     const lv = (inst.counters || {}).level || 0;

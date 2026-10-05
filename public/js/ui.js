@@ -462,7 +462,7 @@ hooks.attackTargets = (attackers, options) =>
     });
   });
 hooks.turnStarted = (pid) => {
-  if (pid === 'p') flash('Your turn');
+  if (pid === 'p') flash('Your turn', G.s ? `Turn ${G.s.turn}` : '');
 };
 
 export function cancelPending() {
@@ -472,9 +472,9 @@ export function cancelPending() {
   pendingBlocks = null;
 }
 
-function flash(text) {
+function flash(text, sub = '') {
   const el = $('#flash');
-  el.textContent = text;
+  el.innerHTML = `<div class="big">${esc(text)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}`;
   el.classList.remove('show');
   void el.offsetWidth;
   el.classList.add('show');

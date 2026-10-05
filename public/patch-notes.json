@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.11",
+    "title": "Spacecraft and a bigger turn banner",
+    "notes": [
+      "Spacecraft: abilities under STATION 2+, 8+ etc. are only available once the ship has that many charge counters, whichever way the card text is written, and the ship becomes an artifact creature at its last threshold (\"It's an artifact creature at 8+\"), so it can attack.",
+      "A big \"YOUR TURN\" banner now fills the middle of the screen when your turn starts."
+    ]
+  },
+  {
     "version": "1.2.10",
     "title": "War Room",
     "notes": [
