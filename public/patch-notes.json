@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.41",
+    "title": "Contagion Engine, Dungeon Delver",
+    "notes": [
+      "Contagion Engine: its enters-the-battlefield ability puts a -1/-1 counter only on the creatures of the player you target (before, it hit every creature, yours too). Its activated ability proliferates twice instead of once. The AI now uses proliferate abilities when that helps it. The same fixes apply to every \"each creature target player controls\" and \"proliferate twice\" card.",
+      "Dungeon Delver: while a commander creature you own is on the battlefield, each room ability triggers an additional time. Hama Pashar's \"room abilities trigger an additional time\" works too.",
+      "The dungeon map shows even if an older copy of the page is still loaded."
+    ]
+  },
+  {
     "version": "1.2.40",
     "title": "Silent Hallcreeper",
     "notes": [

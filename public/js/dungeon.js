@@ -1,7 +1,8 @@
 // Dungeons: "venture into the dungeon" and the initiative (Undercity).
 // Room text comes from the real dungeon cards on Scryfall and runs through the effect engine.
 import { DB, fetchCards } from './data.js';
-import { G, log, esc } from './state.js';
+import { G, log, esc, cardsIn } from './state.js';
+import { oracle, isCreature } from './rules.js';
 import { resolveEffects } from './effects.js';
 
 export const DUNGEON_NAMES = ['Lost Mine of Phandelver', 'Dungeon of the Mad Mage', 'Tomb of Annihilation', 'Undercity'];
@@ -80,15 +81,33 @@ export async function venture(pid, ctx, opts = {}) {
   const room = dg.rooms[pl.dungeon.room];
   log(pid, `${who} into ${esc(dg.name)}: <b>${esc(room.name)}</b> — ${esc(room.text)}`);
   ctx.render && ctx.render();
-  const did = await resolveEffects(room.text, dungeonSrc(pid, dg), { ...ctx, me: pid, forced: true });
-  if (did.length) log(pid, `${esc(room.name)}: ${did.join('; ')}.`);
-  else log(pid, `${esc(room.name)}: apply “${esc(room.text)}” by hand.`);
+  const times = 1 + roomExtraTriggers(pid);
+  for (let k = 0; k < times; k++) {
+    const did = await resolveEffects(room.text, dungeonSrc(pid, dg), { ...ctx, me: pid, forced: true });
+    const again = k ? ' (again)' : '';
+    if (did.length) log(pid, `${esc(room.name)}${again}: ${did.join('; ')}.`);
+    else log(pid, `${esc(room.name)}${again}: apply “${esc(room.text)}” by hand.`);
+  }
   if (!room.next.length) {
     pl.dungeonsCompleted = (pl.dungeonsCompleted || 0) + 1;
     log(pid, `${pid === 'p' ? 'You complete' : 'The AI completes'} ${esc(dg.name)}.`);
     pl.dungeon = null;
   }
   return [`ventures into ${dg.name} (${room.name})`];
+}
+
+// Hama Pashar: "Room abilities of dungeons you own trigger an additional time."
+// Dungeon Delver: commander creatures you own have that ability (one extra per commander creature out).
+export function roomExtraTriggers(pid) {
+  let n = 0;
+  const bf = cardsIn(pid, 'battlefield');
+  const cmdCreatures = bf.filter((c) => c.isCommander && c.owner === pid && isCreature(c)).length;
+  for (const c of bf) {
+    const o = oracle(c);
+    if (/Commander creatures you own have "Room abilities of dungeons you own trigger an additional time/i.test(o)) n += cmdCreatures;
+    else if (/(?:^|\n)Room abilities of dungeons you own trigger an additional time/i.test(o)) n += 1;
+  }
+  return n;
 }
 
 export async function takeInitiative(pid, ctx) {

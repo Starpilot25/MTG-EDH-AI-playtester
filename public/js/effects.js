@@ -698,6 +698,13 @@ async function objects(env, phrase, opts = {}) {
     return picks.filter((x) => x.iid).map((x) => card(x.iid)).filter(Boolean);
   }
   let m;
+  // "each creature target player controls" (Contagion Engine), "each creature that player controls"
+  if ((m = p.match(/^(?:each|all|every) (other |another )?(.+?) (target player|target opponent|that player|defending player|the defending player) controls$/))) {
+    const pl = await playerTarget(env, m[3], opts.harm !== false);
+    const filter = m[2].replace(/s\b/g, '') || 'permanent';
+    if (pl && pl[0]) env.it = { player: pl[0] };
+    return (pl || []).flatMap((pid) => cardsIn(pid, 'battlefield')).filter((c) => (!m[1] || c.iid !== (env.src || {}).iid) && matchesFilter(c, filter));
+  }
   if ((m = p.match(/^(?:each|all|every) (other |another )?(.+)$/)) || (m = p.match(/^(other )?((?:[\w-]+ )*?(?:creatures|permanents|artifacts|enchantments|lands|planeswalkers|tokens|[A-Z]?[\w-]+s) (?:you control|your opponents control|an opponent controls))$/))) {
     const other = !!m[1];
     const rest = m[2];
@@ -2010,8 +2017,8 @@ on(/^double the number of ([+-]\d+\/[+-]\d+|[a-z]+|each kind of) counters on (.+
     env.did.push(`doubles the counters on ${nameTag(c)}`);
   }
 });
-on(/^proliferate(?: (\w+) times)?/, async (m, env) => {
-  const times = m[1] ? n(m[1]) : 1;
+on(/^proliferate(?: (twice|thrice|\w+ times))?/, async (m, env) => {
+  const times = !m[1] ? 1 : m[1] === 'twice' ? 2 : m[1] === 'thrice' ? 3 : n(m[1].replace(/ times$/, '')) || 1;
   for (let t = 0; t < times; t++) {
     const perms = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((c) => Object.keys(c.counters || {}).length);
     const picks = perms.length ? await env.choosers[env.me].pickCards({

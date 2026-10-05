@@ -795,7 +795,9 @@ async function useAbilities(h) {
     for (const ab of activatedAbilities(c)) {
       if (ab.kind !== 'ability' || ab.sac || /Discard|Pay \d+ life|Exile|Sacrifice/i.test(ab.costText)) continue;
       const a = analyze(ab.text);
-      if (!(a.draw || a.transform || a.token || a.selfCounters || a.counters || a.investigate || a.drain || a.burn)) continue;
+      const prolif = a.proliferate && (cardsIn(AI, 'battlefield').some((x) => Object.entries(x.counters || {}).some(([k, v]) => v > 0 && k !== '-1/-1' && k !== 'stun')) ||
+        cardsIn(P, 'battlefield').some((x) => (x.counters || {})['-1/-1'] > 0) || G.s.players[P].poison > 0);
+      if (!(a.draw || a.transform || a.token || a.selfCounters || a.counters || a.investigate || a.drain || a.burn || prolif)) continue;
       if (a.transform && c.face) continue; // already transformed
       c.usedAbilities = c.usedAbilities || {};
       if (c.usedAbilities[ab.raw] === G.s.turn) continue;

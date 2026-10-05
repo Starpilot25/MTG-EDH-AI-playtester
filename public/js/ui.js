@@ -168,7 +168,12 @@ function renderAll() {
   renderTop();
   renderOpp();
   renderMine();
-  { const dz = $('#dungeons'); if (dz) { const h = dungeonMap('p') + dungeonMap('ai'); if (dz.innerHTML !== h) dz.innerHTML = h; } }
+  {
+    // (an older cached index.html may not have the box yet: add it to the side rail)
+    let dz = $('#dungeons');
+    if (!dz && $('#log')) { dz = document.createElement('div'); dz.id = 'dungeons'; $('#log').after(dz); }
+    if (dz) { const h = dungeonMap('p') + dungeonMap('ai'); if (dz.innerHTML !== h) dz.innerHTML = h; }
+  }
   renderHand();
   renderBanner();
   renderLog();
