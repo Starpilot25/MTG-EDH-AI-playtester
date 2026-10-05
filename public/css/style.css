@@ -751,3 +751,8 @@ ol.rooms li.been { color: var(--muted); }
 .card.pw-ready { box-shadow: 0 0 0 2px #7fd1a8, 0 0 14px rgb(127 209 168 / 0.55); }
 .badge.pw-ready { background: #163126; color: #8fe0b6; border-color: #3f8f69; font-weight: 700; }
 .badge.pw-used { color: var(--muted); }
+
+.taxline { color: var(--brass); }
+.lane-sep { flex: none; width: 1px; align-self: stretch; margin: 6px 6px; background: rgb(255 255 255 / 0.12); }
+body.banner-on .field.me.organized { padding-top: 64px; }
+body.banner-on .field.opp.organized { padding-bottom: 30px; }

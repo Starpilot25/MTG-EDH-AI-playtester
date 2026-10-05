@@ -9,7 +9,7 @@ import {
   STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace, sacrifice, changeLife,
 } from './state.js';
 import {
-  hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn,
+  hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn, attackTax, attackTaxOf,
 } from './game.js';
 import { aiChooser, aiMaybeCounter, aiPay, aiEnv } from './ai.js';
 import {
@@ -113,6 +113,10 @@ function cardHTML(c, opts = {}) {
     const b = basePT(c);
     const mod = p !== b.p || t !== b.t || c.damage;
     badges.push(`<span class="pt ${mod ? 'mod' : ''} ${c.damage ? 'hurt' : ''}">${p}/${t - (c.damage || 0)}${c.damage ? '' : ''}</span>`);
+  }
+  if (c.zone === 'battlefield') {
+    const tx = attackTaxOf(c);
+    if (tx) badges.push(`<span class="badge tax" title="Attacking ${c.controller === 'p' ? 'you' : 'the AI'}${tx.andPws ? ' or ' + (c.controller === 'p' ? 'your' : 'its') + ' planeswalkers' : ''} costs {${tx.per}} per creature">⚔ {${tx.per}} each</span>`);
   }
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
   if (c.sector && c.zone === 'battlefield' && sculptors().length) badges.push(`<span class="badge sector" title="${c.sector} sector">${SECTOR_SIGN[c.sector]}</span>`);
@@ -350,10 +354,25 @@ function boardLanes(pid) {
   for (const a of all) if (a.attachedTo && card(a.attachedTo) && card(a.attachedTo).zone === 'battlefield' && !isCreature(a)) (att[a.attachedTo] = att[a.attachedTo] || []).push(a);
   const tucked = new Set(Object.values(att).flat().map((a) => a.iid));
   const free = bf.filter((c) => !tucked.has(c.iid));
+  const nm = (c) => cardName(c);
+  const byName = (a, b) => nm(a).localeCompare(nm(b)) || (a.tapped ? 1 : 0) - (b.tapped ? 1 : 0);
+  // mana rocks (noncreature, nonland permanents that make mana) live next to the lands
+  const isRock = (c) => !isCreature(c) && !isLand(c) && !isType(c, 'Planeswalker') && !!manaAbility({ ...c, tapped: false, sick: false });
   const creatures = free.filter((c) => isCreature(c));
   const lands = free.filter((c) => isLand(c) && !isCreature(c));
-  const other = free.filter((c) => !creatures.includes(c) && !lands.includes(c));
-  const lane = (arr, cls, empty) => {
+  const rocks = free.filter(isRock);
+  const other = free.filter((c) => !creatures.includes(c) && !lands.includes(c) && !rocks.includes(c));
+  // creatures: commanders, then cards, then tokens; others: planeswalkers, enchantments, artifacts, the rest
+  const cSort = (c) => (c.isCommander ? 0 : c.token ? 2 : 1);
+  creatures.sort((a, b) => cSort(a) - cSort(b) || byName(a, b));
+  const oSort = (c) => (isType(c, 'Planeswalker') ? 0 : isType(c, 'Battle') ? 1 : isType(c, 'Enchantment') ? 2 : isType(c, 'Artifact') ? 3 : 4);
+  other.sort((a, b) => oSort(a) - oSort(b) || byName(a, b));
+  // lands: basics by type first, then the rest by name
+  const BASIC = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes'];
+  const lSort = (c) => { const k = BASIC.indexOf(nm(c)); return k >= 0 ? k : 10; };
+  lands.sort((a, b) => lSort(a) - lSort(b) || byName(a, b));
+  rocks.sort(byName);
+  const lane = (arr, cls, empty, groupOf) => {
     const groups = [];
     const byKey = {};
     for (const c of arr) {
@@ -365,15 +384,23 @@ function boardLanes(pid) {
         groups.push(g);
       }
     }
+    let lastGroup = null;
     const html = groups.map(({ c, n }) => {
-      const host = cardHTML(c, { count: n, stacked: n > 1 });
+      const g = groupOf ? groupOf(c) : null;
+      const sep = lastGroup !== null && g !== lastGroup ? '<span class="lane-sep"></span>' : '';
+      lastGroup = g;
+      const host = sep + cardHTML(c, { count: n, stacked: n > 1 });
       const a = (att[c.iid] || []).filter((x) => !onField.has(x.iid) || true);
       if (!a.length) return host;
-      return `<div class="host" style="--att:${a.length}">${a.map((x, k) => `<div class="att" style="--k:${k}">${cardHTML(x)}</div>`).join('')}${host}</div>`;
+      return `${sep}<div class="host" style="--att:${a.length}">${a.map((x, k) => `<div class="att" style="--k:${k}">${cardHTML(x)}</div>`).join('')}${host.slice(sep.length)}</div>`;
     }).join('');
     return `<div class="lane ${cls}">${html || (empty ? `<span class="row-empty">${empty}</span>` : '')}</div>`;
   };
-  const lanes = [lane(creatures, 'creatures', pid === 'ai' ? 'No creatures' : ''), lane(other, 'others'), lane(lands, 'lands')];
+  const lanes = [
+    lane(creatures, 'creatures', pid === 'ai' ? 'No creatures' : '', (c) => (c.token ? 't' : 'c')),
+    lane(other, 'others', '', oSort),
+    lane([...lands, ...rocks], 'lands', '', (c) => (rocks.includes(c) ? 'rock' : 'land')),
+  ];
   return pid === 'ai' ? lanes.reverse().join('') : lanes.join('');
 }
 
@@ -474,8 +501,11 @@ function renderBanner() {
     const cb = s.combat;
     if (cb.stage === 'declare') {
       const pw = cb.attackers.reduce((a, i) => a + Math.max(0, power(card(i))), 0);
+      const perTax = cardsIn('ai', 'battlefield').map(attackTaxOf).filter(Boolean).reduce((a, t) => a + t.per, 0);
+      const taxNow = cb.attackers.length ? attackTax(cb.attackers, cb.targets || {}, 'p') : 0;
+      const taxLine = perTax ? ` <span class="taxline">Attack tax: {${perTax}} per attacker${taxNow ? ` — <b>{${taxNow}}</b> for these` : ''}.</span>` : '';
       html = `<div class="combat-bar"><span class="eyebrow">Declare attackers</span>
-        <p>Click your untapped creatures to attack the AI. ${cb.attackers.length ? `<b>${cb.attackers.length}</b> attacking for <b>${pw}</b>.` : ''}</p>
+        <p>Click your untapped creatures to attack the AI. ${cb.attackers.length ? `<b>${cb.attackers.length}</b> attacking for <b>${pw}</b>.` : ''}${taxLine}</p>
         <div class="btns"><button class="primary" data-act="attack" ${cb.attackers.length ? '' : 'disabled'}>Attack</button>
         <button data-act="all-attack">Select all</button><button data-act="skip-combat">Skip combat</button></div></div>`;
     } else if (cb.stage === 'damage') {
@@ -500,6 +530,12 @@ function renderBanner() {
   }
   el.innerHTML = html;
   el.hidden = !html;
+  // leave room at the middle seam for the banner, so it doesn't sit on top of the creatures
+  const on = !!html;
+  if (document.body.classList.contains('banner-on') !== on) {
+    document.body.classList.toggle('banner-on', on);
+    for (const f of [$('#opp-field'), $('#my-field')]) if (f && f.classList.contains('organized')) fitLanes(f);
+  }
 }
 
 function renderLog() {

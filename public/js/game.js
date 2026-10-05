@@ -491,17 +491,24 @@ function attackLimits(cb, attackerPid) {
   }
 }
 
+// What one tax permanent charges per attacker: {per, andPws} or null
+export function attackTaxOf(x) {
+  const o = oracle(x);
+  const m = o.match(/Creatures can't attack you(?: or planeswalkers you control)? unless their controller pays \{(\d+|X)\} for each (?:creature they control that's attacking you|of those creatures)/i);
+  if (!m) return null;
+  const enchantments = cardsIn(x.controller, 'battlefield').filter((c) => isType(c, 'Enchantment')).length;
+  return { per: m[1] === 'X' ? (/number of enchantments you control/i.test(o) ? enchantments : 0) : +m[1], andPws: /or planeswalkers you control/i.test(o) };
+}
+
 // Propaganda, Ghostly Prison, Sphere of Safety: what attacking costs
 export function attackTax(attackers, targets, attackerPid) {
   const def = opp(attackerPid);
   let total = 0;
-  const enchantments = cardsIn(def, 'battlefield').filter((c) => isType(c, 'Enchantment')).length;
   for (const x of cardsIn(def, 'battlefield')) {
-    const o = oracle(x);
-    let m = o.match(/Creatures can't attack you(?: or planeswalkers you control)? unless their controller pays \{(\d+|X)\} for each (?:creature they control that's attacking you|of those creatures)/i);
-    if (!m) continue;
-    const per = m[1] === 'X' ? (/number of enchantments you control/i.test(o) ? enchantments : 0) : +m[1];
-    const andPws = /or planeswalkers you control/i.test(o);
+    const tx = attackTaxOf(x);
+    if (!tx) continue;
+    const per = tx.per;
+    const andPws = tx.andPws;
     for (const a of attackers) {
       const t = (targets || {})[a] || def;
       if (t === def || (andPws && card(t) && card(t).controller === def)) total += per;

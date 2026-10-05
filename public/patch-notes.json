@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.29",
+    "title": "Board grouping and attack tax display",
+    "notes": [
+      "Mana rocks (Sol Ring, Signets, Talismans, Mind Stone…) now sit with your lands, after a divider, instead of mixing with your other permanents.",
+      "Rows are sorted and grouped: commanders first, then creature cards, then tokens; planeswalkers first among other permanents, then enchantments, then artifacts; basic lands by type, then nonbasics. Thin dividers separate the groups.",
+      "The prompt bar in the middle (declare attackers, targeting, the AI's spell) no longer covers your front row — the board makes room for it.",
+      "Sphere of Safety, Propaganda, Ghostly Prison and other attack taxes show what they cost on the card (\"⚔ {2} each\"), and the declare-attackers bar shows the tax per attacker and the total for the creatures you've picked."
+    ]
+  },
+  {
     "version": "1.2.28",
     "title": "A tidier battlefield",
     "notes": [
