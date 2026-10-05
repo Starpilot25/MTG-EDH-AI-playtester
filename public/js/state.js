@@ -215,7 +215,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['chosenCardType', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['chosenCardType', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'castMode', 'xPaid', 'impending',

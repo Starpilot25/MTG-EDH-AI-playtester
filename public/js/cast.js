@@ -192,7 +192,9 @@ export function castOptions(pid, c) {
     if (c.plotted && c.plottedTurn < s.turn) add({ mode: 'plotted', label: 'Cast plotted card (free)', cost: '', free: true, sorcery: true });
     if (c.onAdventure) add({ mode: 'normal', label: `Cast ${f0.name} (from Adventure)`, cost: f0.manaCost });
     const anyMana = c.anyColorMana || (c.owner !== pid && cardsIn(pid, 'battlefield').some((x) => /You may spend mana as though it were mana of any color to cast spells you don't own/i.test(oracle(x))));
-    if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn && !isLandFace(f0) && (!c.myTurnOnly || s.active === pid)) add({ mode: 'impulse', label: anyMana ? 'Cast from exile (mana of any color)' : 'Cast from exile', cost: anyMana ? anyColorCost(f0.manaCost || d.manaCost) : f0.manaCost || d.manaCost });
+    // Ian Malcolm: only while he's on the battlefield, and one spell each turn
+    const ianOk = !c.ianSrc || (card(c.ianSrc) && card(c.ianSrc).zone === 'battlefield' && (s.ianUsed || {})[pid + ':' + c.ianSrc] !== s.turn);
+    if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn && !isLandFace(f0) && (!c.myTurnOnly || s.active === pid) && ianOk) add({ mode: 'impulse', label: anyMana ? 'Cast from exile (mana of any color)' : 'Cast from exile', cost: anyMana ? anyColorCost(f0.manaCost || d.manaCost) : f0.manaCost || d.manaCost });
     if (c.mayPlayFree === pid && (c.mayPlayFreeUntil ?? 1e9) >= s.turn && !isLandFace(f0)) add({ mode: 'hideaway', label: 'Cast for free', cost: '', free: true });
     if (c.warped) add({ mode: 'normal', label: 'Cast (warped earlier)', cost: f0.manaCost });
   }
@@ -463,6 +465,7 @@ export async function castSpell(pid, iid, opt, env) {
   applyPayment(pid, pay);
   c.convokedBy = (pay.special || []).filter((x) => x.kind === 'convoke').map((x) => x.iid); // Lethal Scheme: "each creature that convoked it"
   if (c.lockeGroup) for (const x of Object.values(s.cards)) if (x.lockeGroup === c.lockeGroup) delete x.mayCastFromGy;
+  if (c.ianSrc && opt.mode === 'impulse') s.ianUsed = { ...(s.ianUsed || {}), [pid + ':' + c.ianSrc]: s.turn };
   info.x = env.x !== undefined ? env.x : pay.x || 0;
   if (info.waterbendX !== undefined) info.x = info.waterbendX;
   // --- the spell is on the stack

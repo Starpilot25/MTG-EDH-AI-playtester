@@ -61,7 +61,10 @@ function manaSymbols(cost) {
     .replace(/\{([^}]+)\}/g, (m, s) => `<span class="ms ms-${s.replace('/', '').toLowerCase()}">${s}</span>`);
 }
 
+// cards exiled face down by the AI (Expensive Taste, Gonti, Black Cat…) stay hidden from you
+const hiddenFromMe = (c) => c && c.zone === 'exile' && c.hiddenExile && c.hiddenExile !== 'p';
 function cardHTML(c, opts = {}) {
+  if (hiddenFromMe(c)) c = { ...c, faceDown: true };
   const d = DB[c.def];
   const f = d.faces[c.face || 0];
   const src = imgOf(c);
@@ -381,7 +384,7 @@ function exileReady(pid) {
     else if (c.owner === pid && c.suspended && c.counters && c.counters.time > 0) { tag = `Suspend ⏳${c.counters.time}`; ready = false; }
     if (!tag) continue;
     // the AI's foretold cards stay face down to you
-    const hidden = pid === 'ai' && c.foretold;
+    const hidden = (pid === 'ai' && c.foretold) || hiddenFromMe(c);
     items.push({ c, tag, ready, hidden });
   }
   if (!items.length) return '';
@@ -687,7 +690,7 @@ function renderPreview() {
   let c = previewIid ? card(previewIid) : null;
   if (previewIid && !c) previewIid = null;
   const d = c ? DB[c.def] : previewDef ? DB[previewDef] : null;
-  if (!d || (c && c.faceDown && !isMine(c))) {
+  if (!d || (c && c.faceDown && !isMine(c)) || hiddenFromMe(c)) {
     el.innerHTML = '<div class="pv-empty">Hover a card to see it here.</div>';
     return;
   }
@@ -2263,6 +2266,7 @@ function onHover(e) {
       hoverIid = c.iid;
       if (c.owner === 'ai' && c.zone === 'hand' && !revealAiHand) return;
       if (c.zone === 'library' && !el.closest('#dialog')) return;
+      if (hiddenFromMe(c)) return;
       setPreview(c.iid, null);
     } else setPreview(null, el.dataset.def, +el.dataset.face || 0);
 }

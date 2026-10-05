@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.81",
+    "title": "Theft deck: the last details",
+    "notes": [
+      "Ian Malcolm, Chaotician: each player can cast only one spell per turn from the cards exiled with him, only on their own turn and only while he's on the battlefield.",
+      "Don Andres makes creatures you control but don't own Pirates, and Laughing Jasper Flint makes them Mercenaries, so they count for Pirate and outlaw cards such as Breeches, Ramirez and Laughing Jasper Flint.",
+      "Cards the AI exiles face down (Expensive Taste, Gonti, Black Cat) stay hidden from you until it plays them. Cards you exile that way stay visible to you."
+    ]
+  },
+  {
     "version": "1.2.80",
     "title": "Theft deck overhaul",
     "notes": [

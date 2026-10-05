@@ -1387,6 +1387,8 @@ function grantPlay(ids, pid, o = {}) {
     if (!c || c.zone !== 'exile') continue;
     if (o.free) Object.assign(c, { mayPlayFree: pid, mayPlayFreeUntil: o.until ?? FOREVER });
     else Object.assign(c, { mayPlay: pid, mayPlayUntil: o.until ?? FOREVER, anyColorMana: !!o.anyMana, castOnly: !!o.castOnly, myTurnOnly: !!o.myTurnOnly });
+    if (o.hidden) c.hiddenExile = pid; // exiled face down: only the player who may play it can look at it
+    if (o.ianSrc) c.ianSrc = o.ianSrc;
     out.push(i);
   }
   return out;
@@ -1452,8 +1454,8 @@ on(/^look at the top (\w+) cards of target opponent's library, exile (\w+) of th
   const picks = await env.choosers[env.me].pickCards({ prompt: `Exile ${k} of them face down (you may play them)`, cards: top, min: k, max: k, purpose: 'steal', src: env.src, aiScore: (c) => (isLand(c) ? 1 : (DB[c.def].cmc || 0) + 2) });
   picks.forEach((i) => move(i, 'exile'));
   top.filter((i) => !picks.includes(i)).sort(() => Math.random() - 0.5).forEach((i) => move(i, 'library', { to: 'bottom' }));
-  grantPlay(picks, env.me, { anyMana: true });
-  env.did.push(`exiles ${k} card${k === 1 ? '' : 's'} from ${whoseLib(o)} library to play${env.me === 'p' ? ': ' + picks.map((i) => nameTag(card(i))).join(', ') : ''}`);
+  grantPlay(picks, env.me, { anyMana: true, hidden: true });
+  env.did.push(`exiles ${k} card${k === 1 ? '' : 's'} face down from ${whoseLib(o)} library to play${env.me === 'p' ? ': ' + picks.map((i) => nameTag(card(i))).join(', ') : ''}`);
 }, { first: true, multi: true });
 // Author of Shadows
 on(/^exile all cards from all opponents' graveyards\. choose a nonland card exiled this way\. you may cast that card for as long as it remains exiled, and you may spend mana as though it were mana of any color to cast that spell$/, async (m, env) => {
@@ -1690,7 +1692,7 @@ on(/^exile the top (\w+) cards of target opponent's library face down\. you may 
   const [t] = await playerTarget(env, 'target opponent');
   const o = t || opp(env.me);
   const ids = exileTop(o, n(m[1]));
-  grantPlay(ids, env.me, {});
+  grantPlay(ids, env.me, { hidden: true });
   env.did.push(`exiles the top ${ids.length} of ${whoseLib(o)} library face down${env.me === 'p' ? ': ' + ids.map((i) => nameTag(card(i))).join(', ') : ''}`);
 }, { first: true, multi: true });
 // Dream Harvest
@@ -1727,7 +1729,7 @@ on(/^its controller looks at the top card of that opponent's library and exiles 
   const atk = env.it && card(env.it.iid);
   const pid = atk ? atk.controller : env.me;
   const ids = exileTop(env.thatPlayer || opp(pid), 1);
-  grantPlay(ids, pid, { anyMana: true });
+  grantPlay(ids, pid, { anyMana: true, hidden: true });
   env.did.push(`${who(pid)} ${s_(pid, 'exile')} the top card of ${whoseLib(env.thatPlayer || opp(pid))} library to play`);
 }, { first: true, multi: true });
 on(/^that player creates a treasure token$/, async (m, env) => {
@@ -1805,7 +1807,7 @@ on(/^that player exiles the top card of their library$/, async (m, env) => {
   const pid = env.thatPlayer || env.me;
   const ids = exileTop(pid, 1);
   for (const i of ids) if (card(i) && env.src) card(i).exiledWith = env.src.iid;
-  if (env.src && /that player may cast a spell from among the cards they don't own exiled with/i.test(oracle(env.src))) grantPlay(ids, opp(pid), { anyMana: true, castOnly: true, myTurnOnly: true });
+  if (env.src && /that player may cast a spell from among the cards they don't own exiled with/i.test(oracle(env.src))) grantPlay(ids, opp(pid), { anyMana: true, castOnly: true, myTurnOnly: true, ianSrc: env.src.iid });
   env.did.push(`${who(pid)} ${s_(pid, 'exile')} ${ids.map((i) => nameTag(card(i))).join(', ') || 'nothing'}`);
 }, { first: true });
 // Bident of Thassa: "Creatures your opponents control attack this turn if able."

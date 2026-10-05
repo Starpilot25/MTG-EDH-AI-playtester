@@ -39,6 +39,17 @@ export function hasSubtype(inst, t) {
   // changeling (intrinsic only, so lords can't loop back into themselves)
   if (!inst.faceDown && (isCreature(inst) || /\b(?:Kindred|Tribal)\b/.test(typeLine(inst).split('—')[0])) && (DB[inst.def].keywords.includes('changeling') || (inst.grants || []).includes('changeling') || /(?:^|\n)Changeling\b/.test((DB[inst.def].faces[inst.face || 0] || {}).oracle || '')) &&
       !/^(aura|equipment|vehicle|saga|class|case|room|food|treasure|clue)$/i.test(t)) return true;
+  // Don Andres ("…is a Pirate in addition to its other types"), Laughing Jasper Flint ("…are Mercenaries…"):
+  // creatures you control but don't own gain a creature type
+  if (G.s && inst.zone === 'battlefield' && inst.owner && inst.controller && inst.owner !== inst.controller && !inst.token && isCreature(inst)) {
+    for (const iid of G.s.players[inst.controller].zones.battlefield) {
+      const x = G.s.cards[iid];
+      if (!x || x.phasedOut || x.lostAbilities || x === inst) continue;
+      const m = (face(x).oracle || '').match(/(?:Each creature|Creatures) you control but don't own[^.\n]*?(?:is an?|are) ([A-Z][a-z]+) in addition to (?:its|their) other types/);
+      const sing = (w) => String(w).toLowerCase().replace(/ies$/, 'y').replace(/s$/, '');
+      if (m && sing(m[1]) === sing(t)) return true;
+    }
+  }
   return false;
 }
 export const isLand = (i) => isType(i, 'Land');
