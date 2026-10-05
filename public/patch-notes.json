@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.36",
+    "title": "Surveil fixes; commander zone choice",
+    "notes": [
+      "The AI actually surveils and scries now — before, it always left every card on top. It bins lands it doesn't need and cards it can use from the graveyard, and keeps what it can cast soon. It also feeds Uurg and other graveyard payoffs.",
+      "\"Whenever you scry or surveil\" (Matoya, Proft and others) now triggers on surveil too, not just scry.",
+      "Enhanced Surveillance's extra cards work, \"if you put a … card into your graveyard this way, put it into your hand\" works (Chandra, Chill of Compliance), and \"if you've scried or surveilled this turn\" is checked.",
+      "Your commander no longer goes straight to the command zone. When it goes to your graveyard or exile, or gets bounced or tucked, a box by your life total asks: Command zone, or leave it there. If you'd rather it always go back automatically, change \"Commander leaving play\" in settings or the ☰ menu. The AI's commander still returns on its own."
+    ]
+  },
+  {
     "version": "1.2.35",
     "title": "Much faster with big boards; Rowan's emblem",
     "notes": [

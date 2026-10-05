@@ -17,7 +17,7 @@ export const G = {
   settings: {
     startingLife: 40,
     freeMulligan: true,
-    autoCommander: true,
+    commanderZone: 'ask',
     aiSpeed: 650,
     pauseOnAiSpells: true,
     autoUntap: true,
@@ -253,8 +253,13 @@ export function move(iid, zone, opts = {}) {
     if (k >= 0) arr.splice(k, 1);
   }
   // commander replacement
-  if (c.isCommander && (zone === 'graveyard' || zone === 'exile') && (c.owner === 'ai' || G.settings.autoCommander) && !opts.noCommandZone) {
-    zone = 'command';
+  delete c.cmdAsk;
+  if (c.isCommander && !opts.noCommandZone && fromZone !== zone && fromZone !== 'command') {
+    const auto = c.owner === 'ai' || G.settings.commanderZone === 'auto';
+    const gyEx = zone === 'graveyard' || zone === 'exile';
+    if (auto && gyEx) zone = 'command';
+    // the player decides: it goes there, and a prompt offers the command zone
+    else if (!auto && (gyEx || ((zone === 'hand' || zone === 'library') && (fromZone === 'battlefield' || fromZone === 'stack')))) c.cmdAsk = zone;
   }
   // a mutated pile moves together
   if (c.merged && c.merged.length && fromZone === 'battlefield' && zone !== 'battlefield') {

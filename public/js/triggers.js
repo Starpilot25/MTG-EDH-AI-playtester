@@ -226,8 +226,9 @@ export function triggersOf(c, defOverride) {
       add('sacrificed', m[5], { kind: m[3].toLowerCase().replace(/^nontoken /, ''), who: m[1].toLowerCase(), other: /another|other/i.test(m[2]), nontoken: /nontoken/i.test(m[3]), yourTurn: !!m[4] });
     else if ((m = line.match(/^Whenever you create (?:a|one or more) (?:creature )?tokens?, (.+)$/i)))
       add('tokensCreated', m[1]);
-    else if ((m = line.match(/^Whenever you (scry|surveil)[^,]*, (.+)$/i)))
-      add(m[1].toLowerCase(), m[2]);
+    else if ((m = line.match(/^Whenever you (scry or surveil|scry|surveil)( for the first time each turn)?[^,]*, (.+)$/i))) {
+      for (const ev of m[1].toLowerCase().split(' or ')) add(ev, m[3], m[2] ? { oncePerTurn: true } : {});
+    }
     else if ((m = line.match(/^Whenever (?:~|a creature you control) explores, (.+)$/i)))
       add('explored', m[1]);
     else if ((m = line.match(/^When(?:ever)? ~ becomes monstrous, (.+)$/i)))

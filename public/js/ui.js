@@ -347,6 +347,18 @@ function exileReady(pid) {
   </div>`;
 }
 
+// your commander just left play: you choose whether it goes to the command zone
+function commanderChoice() {
+  const items = Object.values(G.s.cards).filter((c) => c.owner === 'p' && c.isCommander && c.cmdAsk && c.cmdAsk === c.zone);
+  if (!items.length) return '';
+  const where = { graveyard: 'graveyard', exile: 'exile', hand: 'hand', library: 'library' };
+  return items.map((c) => `<div class="cmd-choice" data-iid="${c.iid}">
+    <div class="er-title">Commander went to your ${where[c.zone]}</div>
+    <div class="cc-row">${cardHTML(c, { small: true })}
+      <div class="cc-btns"><button class="primary" data-cmdzone="yes" data-iid="${c.iid}">Command zone</button><button data-cmdzone="no" data-iid="${c.iid}">Leave in ${where[c.zone]}</button></div>
+    </div></div>`).join('');
+}
+
 function commandZone(pid) {
   const ids = zoneOf(pid, 'command');
  const inner = ids.map((i, k) => `<div class="cz-slot" style="--k:${k}">${cardHTML(card(i), { small: true })}</div>`).join('');
@@ -527,6 +539,7 @@ function renderMine() {
     <div class="pname"><span class="dot you"></span>You <small>${esc(s.decks.p.name)}</small></div>
     ${lifeBlock('p')}
     <div class="piles">${pile('p', 'library', 'Library')}${pile('p', 'graveyard', 'Grave')}${pile('p', 'exile', 'Exile')}${commandZone('p')}</div>
+    ${commanderChoice()}
     ${exileReady('p')}`;
 }
 
@@ -1345,7 +1358,7 @@ function scryDialog(n, mode = 'scry', inEffect = false) {
         for (const iid of [...tops].reverse()) move(iid, 'library');
         for (const iid of bottoms) move(iid, 'library', { to: 'bottom' });
         for (const iid of gys) move(iid, 'graveyard');
-        log('p', `You ${mode} ${state.length}: ${tops.length} on top, ${bottoms.length} on the bottom${gys.length ? `, ${gys.length} to the graveyard` : ''}.`);
+        log('p', `You ${mode} ${state.length}: ${tops.length} on top${mode === 'surveil' ? '' : `, ${bottoms.length} on the bottom`}${gys.length ? `, ${gys.length} to the graveyard` : ''}.`);
       });
       closeDialog(true);
       resolve();
@@ -1900,6 +1913,15 @@ export function bindEvents() {
   window.addEventListener('pointerup', () => setTimeout(dropStale, 0), true);
   document.addEventListener('pointercancel', dropStale);
   window.addEventListener('blur', dropStale);
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest("[data-cmdzone]");
+    if (!b || !G.s) return;
+    const c = card(b.dataset.iid);
+    if (!c || !c.cmdAsk) return;
+    if (b.dataset.cmdzone === "yes") act(() => { move(c.iid, 'command', { noCommandZone: true }); log('p', `${nameTag(c)} returns to the command zone.`); });
+    else act(() => { delete c.cmdAsk; });
+  });
 
   document.addEventListener('dblclick', (e) => {
     const el = e.target.closest('.card[data-iid]');

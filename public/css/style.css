@@ -768,3 +768,10 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .er-tag { font: 600 9.5px var(--f-mono); padding: 1px 4px; border-radius: 4px; background: #2a2216; color: var(--brass); border: 1px solid rgb(211 170 82 / 0.5); white-space: nowrap; max-width: 64px; overflow: hidden; text-overflow: ellipsis; }
 .er-item.waiting .er-tag { color: var(--muted); border-color: var(--line); background: transparent; }
 .er-item.ready .card { box-shadow: 0 0 0 1px var(--brass), 0 2px 6px rgb(0 0 0 / 0.5); }
+
+/* commander left play: command zone? */
+.cmd-choice { border: 1px solid var(--brass); border-radius: 8px; padding: 6px 6px 8px; margin-bottom: 8px; background: rgb(211 170 82 / 0.08); }
+.cmd-choice .cc-row { display: flex; gap: 8px; align-items: center; }
+.cmd-choice .card { --cw: 52px; --ch: 72px; flex: none; }
+.cc-btns { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+.cc-btns button { font-size: 12px; padding: 5px 8px; }

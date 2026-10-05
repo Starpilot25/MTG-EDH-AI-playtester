@@ -7,7 +7,7 @@ import {
   parseCost, canAttack, canBlock, isPermanentCard, mustAttack, totalMana,
 } from './rules.js';
 import {
-  G, card, cardsIn, zoneOf, move, log, nameTag, opp, cardName, checkLoss, discard as discardCard, restoreInPlace, eventQueue, entersTapped,
+  G, card, cardsIn, zoneOf, move, log, nameTag, libTop, opp, cardName, checkLoss, discard as discardCard, restoreInPlace, eventQueue, entersTapped,
  casualAI, withReadCache } from './state.js';
 import {
   spellFilterOk, analyze, etbText, spellText, costOf, legalTargets, activatedAbilities, aiHelpers, knownEffect, zoneAbilities,
@@ -149,7 +149,38 @@ export const aiChooser = {
     while (picks.length < (req.min || 0) && list.length > picks.length) picks.push(list.find((c) => !picks.includes(c.iid)).iid);
     return picks;
   },
-  async scry() {},
+  // scry / surveil: keep what it can use soon on top, bottom (or bin) the rest
+  async scry({ n = 1, surveil = false, pid = AI } = {}) {
+    const ids = libTop(pid, n);
+    if (!ids.length) return;
+    const bf = cardsIn(pid, 'battlefield');
+    const lands = bf.filter(isLand).length + cardsIn(pid, 'hand').filter(isLand).length;
+    const mana = lands + bf.filter((c) => !isLand(c) && DB[c.def].produced.length).length;
+    // graveyard matters: Uurg, delirium, threshold, reanimation, "cards in your graveyard"
+    const gyText = bf.map((c) => oracle(c)).join('\n');
+    const landsInGy = /land cards? in your graveyard/i.test(gyText);
+    const gyGood = landsInGy || /cards? in your graveyard|delirium|threshold|from your graveyard/i.test(gyText);
+    const score = (c) => {
+      const d = DB[c.def];
+      const t = oracle(c);
+      if (isLand(c)) return lands < 4 ? 3 : lands < 6 ? 1 : -1;
+      let v = 1.5 + Math.min(d.cmc, 6) * 0.15;
+      if (d.cmc > mana + 2) v -= 2;
+      if (surveil && /flashback|unearth|escape|disturb|embalm|eternalize|jump-start|retrace|aftermath|mayhem|dredge/i.test(t)) v -= 1.5;
+      return v;
+    };
+    const plan = ids.map((iid) => {
+      const c = card(iid);
+      let v = score(c);
+      if (surveil && gyGood && isLand(c) && landsInGy && lands >= 4) v = -2;
+      return { iid, v };
+    });
+    const keep = plan.filter((x) => x.v > 0).sort((a, b) => b.v - a.v);
+    const drop = plan.filter((x) => x.v <= 0);
+    for (const x of [...keep].reverse()) move(x.iid, 'library');
+    for (const x of drop) move(x.iid, surveil ? 'graveyard' : 'library', surveil ? {} : { to: 'bottom' });
+    log(pid, `${pid === AI ? 'The AI' : 'You'} ${surveil ? 'surveil' : 'scry'}${pid === AI ? 's' : ''} ${ids.length}: ${keep.length} on top, ${drop.length} ${surveil ? 'into the graveyard' : 'on the bottom'}${surveil && drop.length ? ` (${drop.map((x) => nameTag(card(x.iid))).join(', ')})` : ''}.`);
+  },
   async choose(req) {
     return req.aiPick ? req.aiPick() : 0;
   },

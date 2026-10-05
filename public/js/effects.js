@@ -448,6 +448,8 @@ export function evalCond(cond, env) {
   if (/it's day/.test(c)) return s.dayNight === 'day';
   if (/a creature died this turn/.test(c)) return !!s.ts.creatureDied;
   if (/you attacked (?:with a creature )?this turn/.test(c)) return !!ts[me].attacked;
+  if (/you(?:'ve| have) scried or surveilled this turn/.test(c)) return !!ts[me].scried;
+  if (/you(?:'ve| have) surveilled this turn/.test(c)) return !!(ts[me].surveilledCards || []).length || !!ts[me].scried;
   if (/a permanent you controlled left the battlefield this turn/.test(c)) return !!ts[me].permLeft;
   if (/an opponent lost life this turn/.test(c)) return ts[them].lifeLost > 0;
   if (/you gained life this turn/.test(c)) return ts[me].lifeGained > 0;
@@ -2787,11 +2789,37 @@ on(/^reveal the top (\w+) cards? of your library\. put (?:all|each) ([a-z ]+?) c
   ids.filter((i) => !hits.includes(i)).forEach((i) => move(i, toGy ? 'graveyard' : 'library', toGy ? {} : { to: 'bottom' }));
   env.did.push(`reveals ${ids.length}, takes ${hits.length}`);
 });
-on(/^(?:scry|surveil) (\d+|x)/, async (m, env) => {
-  const k = n(m[1], env.x);
-  await env.choosers[env.me].scry({ n: k, surveil: /^surveil/.test(env.sentence), src: env.src });
-  queueEvent({ type: /^surveil/.test(env.sentence) ? 'surveil' : 'scry', pid: env.me });
-  env.did.push(`${/^surveil/.test(env.sentence) ? 'surveil' : 'scry'} ${k}`);
+on(/^(?:you )?(scry|surveil) (\d+|x)/, async (m, env) => {
+  const sv = m[1] === 'surveil';
+  let k = n(m[2], env.x);
+  // Enhanced Surveillance and friends: look at additional cards each time you surveil
+  if (sv) for (const c of cardsIn(env.me, 'battlefield')) {
+    const em = oracle(c).match(/look at an additional (\w+) cards? each time you surveil/i);
+    if (em) k += n(em[1]);
+  }
+  const before = new Set(zoneOf(env.me, 'graveyard'));
+  await env.choosers[env.me].scry({ n: k, surveil: sv, src: env.src, pid: env.me });
+  const toGy = zoneOf(env.me, 'graveyard').filter((i) => !before.has(i));
+  env.surveilled = toGy;
+  const ts = (G.s.ts || {})[env.me];
+  if (ts) {
+    ts.scried = true;
+    if (sv) ts.surveilledCards = [...(ts.surveilledCards || []), ...toGy];
+  }
+  queueEvent({ type: sv ? 'surveil' : 'scry', pid: env.me, n: k, toGraveyard: toGy.length });
+  env.did.push(`${m[1]} ${k}${toGy.length ? ` (${toGy.length} to the graveyard)` : ''}`);
+});
+// "If you put a noncreature, nonland card into your graveyard this way, put that card into your hand."
+on(/^if you put an? ([a-z, ]+?) card into your graveyard this way, put that card into your hand/, async (m, env) => {
+  const words = m[1].split(/,\s*|\s+/).filter(Boolean);
+  const hit = (env.surveilled || []).find((i) => {
+    const c = card(i);
+    if (!c || c.zone !== 'graveyard') return false;
+    return words.every((w) => (w.startsWith('non') ? !isType(c, w.slice(3)) : isType(c, w)));
+  });
+  if (!hit) return;
+  move(hit, 'hand');
+  env.did.push(`returns ${cardName(card(hit))} to hand`);
 });
 on(/^fateseal (\d+)/, async (m, env) => {
   const k = +m[1];
