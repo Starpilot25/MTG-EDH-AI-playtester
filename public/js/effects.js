@@ -97,6 +97,13 @@ export function activatedAbilities(c) {
       out.push({ kind: 'equip', mana: m[2], filter: (m[1] || '').trim(), text: '', raw: line, sorcery: true });
       continue;
     }
+    if ((m = line.match(/^Craft with (.+?) ((?:\{[^}]+\})+)/))) {
+      const what = m[1].toLowerCase();
+      const nm = what.match(/^(an?|one|two|three|four|five|six|\w+) (or more )?(.+)$/);
+      const words = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+      out.push({ kind: 'craft', mana: m[2], min: nm ? words[nm[1]] || 1 : 1, more: !!(nm && nm[2]), filter: (nm ? nm[3] : what).replace(/s\b/g, ''), text: '', raw: line, sorcery: true });
+      continue;
+    }
     if ((m = line.match(/^Reconfigure ((?:\{[^}]+\})+)/))) {
       out.push({ kind: 'reconfigure', mana: m[1], text: '', raw: line, sorcery: true });
       continue;
@@ -659,7 +666,7 @@ async function objects(env, phrase, opts = {}) {
     if (env.them_ && env.them_.length) return env.them_.map(card).filter(Boolean);
     return env.it && env.it.iid && card(env.it.iid) ? [card(env.it.iid)] : [];
   }
-  if (/^(?:enchanted|equipped|fortified) (?:creature|permanent|land|artifact)$/.test(p)) {
+  if (/^(?:enchanted|equipped|fortified) (?:creature|permanent|land|artifact|planeswalker|enchantment)$/.test(p)) {
     const t = env.src && env.src.attachedTo && card(env.src.attachedTo);
     return t ? [t] : [];
   }
@@ -1125,6 +1132,14 @@ on(/^put a \+1\/\+1 counter or a loyalty counter on (it|that creature|that perma
   env.did.push(`puts a ${kind} counter on ${nameTag(c)}`);
 }, { first: true });
 // --- sweep fixes
+// Emblems: "You get an emblem with '…'" — kept on the player and shown in the log
+on(/^you get an emblem with ['"](.+)['"]$/, async (m, env) => {
+  const pl = G.s.players[env.me];
+  const at = (env.fullText || '').toLowerCase().indexOf(m[1].slice(0, 30));
+  const txt = at >= 0 ? env.fullText.slice(at, at + m[1].length) : m[1];
+  pl.emblems = [...(pl.emblems || []), txt];
+  env.did.push(`${who(env.me)} ${s_(env.me, 'get')} an emblem: “${esc(txt)}”`);
+}, { first: true });
 // Way of the Cryomancer: "When you next cast an instant or sorcery spell this turn, copy that spell."
 on(/^when you next cast an? (instant or sorcery|instant|sorcery|creature|noncreature) spell this turn, copy that spell$/, async (m, env) => {
   G.s.copyNext = [...(G.s.copyNext || []), { pid: env.me, turn: G.s.turn, types: m[1] === 'instant or sorcery' ? ['Instant', 'Sorcery'] : [m[1][0].toUpperCase() + m[1].slice(1)] }];
@@ -3363,8 +3378,9 @@ export function attachTo(src, t) {
     t.auraBuffs = t.auraBuffs || {};
     t.auraBuffs[src.iid] = { p, t: tt, grants: kwm ? kwList(kwm[1].toLowerCase()) : [], ...(fe ? { each: fe[3], perP: +fe[1], perT: +fe[2] } : {}) };
   }
-  const quoted = o.match(/(?:Enchanted|Equipped) creature has "([^"]+)"/i);
-  if (quoted) t.extraText = ((t.extraText || '') + '\n' + quoted[1]).trim();
+  const quoted = o.match(/(?:Enchanted|Equipped) (?:creature|planeswalker|permanent) has "([^"]+)"/i);
+  // Teferi's Talent: a granted "[-12]: …" loyalty ability
+  if (quoted) t.extraText = ((t.extraText || '') + '\n' + quoted[1].replace(/^\[([+−-]?\d+)\]:/, '$1:')).trim();
   if (/Enchanted creature can't attack|Enchanted creature can't block|Enchanted creature doesn't untap/i.test(o)) t.pacifiedBy = src.iid;
   if (/Enchanted creature has base power and toughness 1\/1|Cursed/i.test(o) && /base power and toughness 1\/1/i.test(o)) t.setPT = { p: 1, t: 1 };
   queueEvent({ type: 'attached', iid: src.iid, to: t.iid, controller: src.controller });

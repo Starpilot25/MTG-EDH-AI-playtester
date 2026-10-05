@@ -711,3 +711,9 @@ ol.rooms li.been { color: var(--muted); }
 @keyframes can-attack-pulse {
   50% { box-shadow: 0 0 0 2px #f2b53a, 0 0 22px rgb(242 181 58 / 0.9); }
 }
+
+/* attack targets */
+.tag.atk-pw { background: #7a3fd0; border-color: #7a3fd0; }
+.card.under-attack { box-shadow: 0 0 0 3px #b07cff, 0 0 18px rgb(176 124 255 / 0.6); }
+.tag.under { background: #b07cff; color: #1a1030; }
+#my-panel.under-attack, #opp-panel.under-attack { box-shadow: inset 0 0 0 2px var(--danger), 0 0 24px rgb(228 87 63 / 0.35); border-radius: 10px; }

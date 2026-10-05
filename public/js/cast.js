@@ -34,8 +34,11 @@ export function manaSources(pid, opts = {}) {
     const m = manaAbility(c);
     if (!m) continue;
     // restricted mana ("spend this mana only to cast an Angel spell")
-    if (m.onlyFor) {
-      if (!spell || spell.zone === 'battlefield') continue;
+    if (m.onlyFor === 'abilities') {
+      // The Enigma Jewel: "Spend this mana only to activate abilities."
+      if (!opts.ability) continue;
+    } else if (m.onlyFor) {
+      if (!spell || spell.zone === 'battlefield' || opts.ability) continue;
       const tl = DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine;
       const ok = /^[A-Z]/.test(m.onlyFor) ? hasSubtype({ ...spell, zone: 'hand' }, m.onlyFor) : m.onlyFor === 'noncreature' ? !/Creature/.test(tl) : new RegExp(m.onlyFor.split(' or ').join('|'), 'i').test(tl);
       if (!ok) continue;
@@ -847,7 +850,7 @@ export async function useZoneAbility(pid, iid, ab, env) {
   const s = G.s;
   const payM = async (cost) => {
     if (!cost) return true;
-    const p = await env.pay(pid, cost, cardName(c), {});
+    const p = await env.pay(pid, cost, cardName(c), { ability: true });
     if (!p) return false;
     applyPayment(pid, p);
     return true;
@@ -989,7 +992,7 @@ export async function activateAbility(pid, c, ab, env) {
   const name = cardName(c);
   const payM = async (cost, opts = {}) => {
     if (!cost) return { payers: [], x: 0 };
-    const p = await env.pay(pid, cost, name, opts);
+    const p = await env.pay(pid, cost, name, { ability: true, ...opts });
     if (!p) return null;
     applyPayment(pid, p);
     return p;
@@ -1082,6 +1085,33 @@ export async function activateAbility(pid, c, ab, env) {
       log(pid, `${nameTag(c)} is ${ab.kind === 'crew' ? 'crewed' : ab.kind === 'saddle' ? 'saddled' : 'stationed (+' + total + ' charge)'}.`);
       return true;
     }
+    case 'craft': {
+      // Craft: exile this and the materials (other permanents you control and/or cards in your graveyard), return it transformed
+      if (c.zone !== 'battlefield') return false;
+      const hasAbility = (x) => /(?:^|\n)[^"\n]*\{[^}]+\}[^"\n]*:/.test(oracle({ ...x, zone: 'battlefield' }));
+      const fits = (x) => {
+        let f = ab.filter.replace(/ with (?:an? )?activated abilit(?:y|ie)/, '').trim();
+        if (/with (?:an? )?activated abilit/.test(ab.filter) && !hasAbility(x)) return false;
+        if (/^nonland$/.test(f)) return !isLand({ ...x, zone: 'battlefield' });
+        if (/^(?:permanent|card)$/.test(f)) return true;
+        return matchesFilter({ ...x }, f);
+      };
+      const pool = [...cardsIn(pid, 'battlefield').filter((x) => x.iid !== c.iid), ...cardsIn(pid, 'graveyard')].filter(fits);
+      if (pool.length < ab.min) return env.say(`${name} needs ${ab.min} ${ab.filter}${ab.min > 1 ? 's' : ''} to craft with.`);
+      const picks = await ch.pickCards({ prompt: `Craft ${name}: choose ${ab.more ? ab.min + ' or more' : ab.min} to exile`, cards: pool.map((x) => x.iid), min: ab.min, max: ab.more ? pool.length : ab.min, purpose: 'craft', src: c,
+        aiScore: (x) => (x.zone === 'graveyard' ? 5 : 0) - cardValue(x) });
+      if (!picks || picks.length < ab.min) return false;
+      if (!(await payM(ab.mana))) return false;
+      const used = picks.map((i) => ({ def: card(i).def, face: card(i).face || 0 }));
+      for (const i of picks) move(i, 'exile');
+      move(c.iid, 'exile');
+      toBattlefield(c.iid, c.owner);
+      if (DB[c.def].faces.length > 1) c.face = 1;
+      c.craftedFrom = used;
+      log(pid, `${nameTag(c)} is crafted from ${picks.map((i) => nameTag(card(i))).join(', ')}.`);
+      queueEvent({ type: 'transformed', iid: c.iid, controller: c.controller });
+      return true;
+    }
     case 'levelup': {
       if (!(await payM(ab.mana))) return false;
       addCounters(c, 'level', 1);
@@ -1111,12 +1141,12 @@ export async function activateAbility(pid, c, ab, env) {
   }
   let x = 0;
   if (/\{X\}/.test(ab.mana)) {
-    const p = await env.pay(pid, ab.mana, name, { exclude: ab.tap ? [c.iid] : [] });
+    const p = await env.pay(pid, ab.mana, name, { ability: true, exclude: ab.tap ? [c.iid] : [] });
     if (!p) return false;
     applyPayment(pid, p);
     x = p.x || 0;
   } else if (ab.mana) {
-    const p = await env.pay(pid, ab.mana, name, { exclude: ab.tap ? [c.iid] : [] });
+    const p = await env.pay(pid, ab.mana, name, { ability: true, exclude: ab.tap ? [c.iid] : [] });
     if (!p) return false;
     applyPayment(pid, p);
   }
@@ -1146,6 +1176,12 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.returnToHand) move(c.iid, 'hand');
   const did = await resolveEffects(ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim(), srcSnap, ctx({ x }));
   log(pid, did.length ? `${nameTag(srcSnap)}: ${did.join('; ')}.` : `Apply “${esc(ab.text.slice(0, 90))}” by hand.`);
+  // Locus of Enlightenment, Rings of Brighthearth-style: "Whenever you activate an ability that isn't a mana ability, copy it."
+  for (const x of cardsIn(pid, 'battlefield')) {
+    if (!/Whenever you activate an ability that isn't a mana ability, copy it/i.test(oracle(x))) continue;
+    const again = await resolveEffects(ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim(), srcSnap, ctx({ x }));
+    log(pid, `${nameTag(x)} copies the ability${again.length ? ': ' + again.join('; ') : ''}.`);
+  }
   return true;
 }
 

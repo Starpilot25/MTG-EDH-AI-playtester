@@ -8,7 +8,7 @@ import {
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, log, nameTag, opp, cardName, checkLoss, discard as discardCard, restoreInPlace, eventQueue, entersTapped,
-} from './state.js';
+ casualAI } from './state.js';
 import {
   spellFilterOk, analyze, etbText, spellText, costOf, legalTargets, activatedAbilities, aiHelpers, knownEffect, zoneAbilities,
   Cancelled,
@@ -211,7 +211,8 @@ export async function aiMaybeCounter(spell, h) {
   if (a.extraTurn || a.steal) worth += 6;
   if (a.burn && a.burn.amount >= G.s.players.ai.life) worth += 50;
   // save a hard counter for something that matters if the player still has cards
-  const bar = zoneOf(P, 'hand').length >= 3 && G.s.turn > 6 ? 6 : 4;
+  let bar = zoneOf(P, 'hand').length >= 3 && G.s.turn > 6 ? 6 : 4;
+  if (casualAI()) bar += 4; // casual: let most spells resolve
   if (worth < bar) return false;
   const src = sources(AI);
   for (const c of cardsIn(AI, 'hand')) {
@@ -317,7 +318,7 @@ function scoreSpell(c, pay, opt = {}) {
   }
   if (a.wipe) {
     const diff = threatLevel(P) - threatLevel(AI);
-    if (diff < 8 && !perm) return -1;
+    if (diff < (casualAI() ? 14 : 8) && !perm) return -1;
     s += diff;
   }
   if (a.massDamage && /creature/.test(a.massDamage.phrase)) {
@@ -373,6 +374,7 @@ function removalBar(c, f) {
   const incoming = cardsIn(P, 'battlefield').filter(isCreature).reduce((n, x) => n + Math.max(0, power(x)), 0);
   if (myLife <= 15 || incoming * 2 >= myLife) bar -= 2; // under pressure: use it now
   if (cardsIn(AI, 'hand').length >= 6) bar -= 1; // plenty of cards: less precious
+  if (casualAI()) bar += myLife <= 15 ? 1.5 : 3; // casual: only answer real threats
   return bar;
 }
 
@@ -842,7 +844,7 @@ function chooseInstant(kind) {
       if (o.role === 'removal') {
         for (const t of removalTargets(o).filter((c) => cb.attackers.includes(c.iid))) {
           const r = fight(t, (blocks[t.iid] || []).map(card));
-          const gain = threat(t) + r.through * lifeWeight(myLife) + (dying && r.through ? 50 : 0) - 4;
+          const gain = threat(t) + r.through * lifeWeight(myLife) + (dying && r.through ? 50 : 0) - (casualAI() ? 7 : 4);
           consider(o, gain, { iid: t.iid });
         }
       }

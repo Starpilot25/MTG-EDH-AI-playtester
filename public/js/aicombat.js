@@ -6,7 +6,7 @@ import { DB } from './data.js';
 import {
   isCreature, isType, isLand, oracle, hasKw, power, toughness, canBlock, canAttack, mustAttack, manaAbility, kwNum,
 } from './rules.js';
-import { G, card, cardsIn, opp } from './state.js';
+import { G, card, cardsIn, opp, casualAI } from './state.js';
 
 // ------------------------------------------------------------ how dangerous is it?
 export function threat(c) {
@@ -223,7 +223,7 @@ export function scoreAttack(attacker, ids) {
     if (hasKw(a, 'infect')) poison += r.through;
     if (r.through && kwNum(a, 'Toxic')) poison += kwNum(a, 'Toxic');
     if (a.isCommander && r.through && (dpl.cmdDmg[a.iid] || 0) + r.through >= 21) cmdHit = true;
-    if (r.aDies) score -= threat(a) + 1;
+    if (r.aDies) score -= (threat(a) + 1);
     for (const d of r.dead) score += threat(card(d)) + 0.5;
     if (r.through && a.isCommander) score += r.through * 0.3;
   }
@@ -291,7 +291,23 @@ export function planAttack(pid) {
     if (!pick) break;
     up.push(pick);
   }
-  const chosen = bestUp > best ? up : down;
+  let chosen = bestUp > best ? up : down;
+  // Casual AI: no all-in swings. Unless the attack is lethal, keep enough creatures home to block
+  // (the best blockers stay back), the way a friendly pod plays.
+  if (casualAI() && pid === 'ai' && chosen.length && !scoreAttack(pid, chosen).lethal) {
+    const foes = cardsIn(opp(pid), 'battlefield').filter((c) => isCreature(c) && !hasKw(c, 'defender'));
+    const keep = Math.min(Math.ceil(foes.length / 2), Math.max(0, mine.length - 1));
+    const home = mine.filter((c) => !chosen.includes(c.iid) && !hasKw(c, 'vigilance')).length;
+    let need = keep - home;
+    if (need > 0) {
+      const byBlock = chosen.map(card).filter((c) => !forced.includes(c.iid) && !hasKw(c, 'vigilance')).sort((a, b) => toughness(b) + power(b) / 2 - (toughness(a) + power(a) / 2));
+      for (const c of byBlock) {
+        if (need <= 0) break;
+        chosen = chosen.filter((i) => i !== c.iid);
+        need--;
+      }
+    }
+  }
   // temporary creatures (dash, blitz, unearth, decayed) attack anyway — they're leaving
   for (const c of mine) if ((c.endOfTurn || hasKw(c, 'decayed')) && !chosen.includes(c.iid)) chosen.push(c.iid);
   return chosen;

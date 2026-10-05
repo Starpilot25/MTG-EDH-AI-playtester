@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.2.21",
+    "title": "Casual AI, attack targets, craft",
+    "notes": [
+      "New setting: AI style — Casual (default) or Competitive, on the start screen and in the ☰ game menu. Casual keeps blockers home instead of swinging out, only spends removal and instant-speed removal on real threats, only casts board wipes when it's far behind, and lets most of your spells resolve instead of countering them. Competitive is the old behaviour.",
+      "Attacking creatures show who they're attacking (⚔ 1 → AI, ⚔ 2 → Garruk); an attacked planeswalker glows purple and an attacked player's panel glows red.",
+      "Craft works (The Enigma Jewel and other craft cards): choose the materials from your permanents and graveyard and it returns transformed. Locus of Enlightenment gets the activated abilities of what it was crafted from (once each turn) and copies your non-mana abilities.",
+      "The Enigma Jewel's mana can only be spent on activated abilities.",
+      "Teferi's Talent: the enchanted planeswalker gets the −12 emblem ability and gains a loyalty counter whenever you draw. Emblems are tracked.",
+      "Auras that say \"enchanted planeswalker\" work."
+    ]
+  },
+  {
     "version": "1.2.20",
     "title": "The rest of the Way cards",
     "notes": [

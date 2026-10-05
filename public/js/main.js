@@ -285,12 +285,14 @@ function readSettings() {
   G.settings.pauseOnAiSpells = $('#set-pause').checked;
   G.settings.arenaMode = $('#set-arena').checked;
   G.settings.aiSpeed = +$('#set-speed').value;
+  G.settings.aiStyle = $('#set-aistyle').value;
   G.settings.startingLife = +$('#set-life').value || 40;
   store.set('settings', {
     freeMulligan: G.settings.freeMulligan,
     pauseOnAiSpells: G.settings.pauseOnAiSpells,
     arenaMode: G.settings.arenaMode,
     aiSpeed: G.settings.aiSpeed,
+    aiStyle: G.settings.aiStyle,
     startingLife: G.settings.startingLife,
   });
 }
@@ -354,6 +356,7 @@ function initSetup() {
   $('#set-pause').checked = st.pauseOnAiSpells ?? true;
   $('#set-arena').checked = st.arenaMode ?? true;
   $('#set-speed').value = st.aiSpeed ?? 650;
+  $('#set-aistyle').value = st.aiStyle ?? 'casual';
   $('#set-life').value = st.startingLife ?? 40;
   $('#start').addEventListener('click', () => {
     readSettings();
@@ -465,12 +468,18 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#gm-pause').addEventListener('change', (e) => (G.settings.pauseOnAiSpells = e.target.checked));
   $('#gm-arena').addEventListener('change', (e) => (G.settings.arenaMode = e.target.checked));
   $('#gm-speed').addEventListener('change', (e) => (G.settings.aiSpeed = +e.target.value));
+  $('#gm-aistyle').addEventListener('change', (e) => {
+    G.settings.aiStyle = e.target.value;
+    store.set('settings', { ...store.get('settings', {}), aiStyle: e.target.value });
+    $('#set-aistyle').value = e.target.value;
+  });
   $('#gm-autodraw').addEventListener('change', (e) => (G.settings.autoDraw = e.target.checked));
   $('#gm-autountap').addEventListener('change', (e) => (G.settings.autoUntap = e.target.checked));
   $('#btn-menu').addEventListener('click', () => {
     $('#gm-pause').checked = G.settings.pauseOnAiSpells;
     $('#gm-arena').checked = G.settings.arenaMode;
     $('#gm-speed').value = G.settings.aiSpeed;
+    $('#gm-aistyle').value = G.settings.aiStyle || 'casual';
     $('#gm-autodraw').checked = G.settings.autoDraw;
     $('#gm-autountap').checked = G.settings.autoUntap;
   });

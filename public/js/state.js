@@ -23,6 +23,7 @@ export const G = {
     autoUntap: true,
     autoDraw: true,
     arenaMode: true,
+    aiStyle: 'casual',
   },
 };
 
@@ -205,7 +206,7 @@ const RESET = ['tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrant
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'lostAbilities', 'endOfTurn', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'castMode', 'xPaid', 'impending',
-  'ringBearer', 'addTypes', 'extraText', 'controlWhile', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
+  'ringBearer', 'addTypes', 'extraText', 'controlWhile', 'craftedFrom', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'mayPlayFree', 'suspended',
   'rebound', 'encodedOn', 'hiddenBy', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
@@ -573,6 +574,9 @@ export function setLife(pid, value, reason) {
     log(pid, `${pid === 'p' ? 'Your' : 'AI'} life ${before} → <b>${value}</b>${reason ? ' (' + reason + ')' : ''}.`);
   checkLoss(pid);
 }
+// Casual AI: plays like a friendly pod (fewer all-in swings, saves removal and counters for real threats)
+export const casualAI = () => (G.settings.aiStyle || 'casual') !== 'competitive';
+
 export function changeLife(pid, delta, reason) {
   setLife(pid, G.s.players[pid].life + delta, reason);
 }

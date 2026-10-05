@@ -120,6 +120,19 @@ export function oracle(inst) {
     }
   }
   if (inst.extraText) text += '\n' + inst.extraText;
+  // Locus of Enlightenment: "has each activated ability of the exiled cards used to craft it" (once each turn)
+  if (inst.craftedFrom && /has each activated ability of the exiled cards used to craft it/i.test(text)) {
+    for (const u of inst.craftedFrom) {
+      const fd = (DB[u.def] || { faces: [] }).faces[u.face || 0];
+      if (!fd) continue;
+      const nm = fd.name;
+      for (const l of (fd.oracle || '').split('\n')) {
+        const line = l.replace(/\([^)]*\)/g, '').trim();
+        if (!/^[^"]*(?:\{[^}]+\}|Sacrifice|Discard|Pay|Remove|Exile)[^"]*:/.test(line) || /^(?:Equip|Craft|Crew|Ninjutsu|Cycling|[+−-]?\d+:)/.test(line)) continue;
+        text += '\n' + line.split(nm).join('this artifact') + (/once each turn/i.test(line) ? '' : ' Activate only once each turn.');
+      }
+    }
+  }
   // Way of the Pyromancer and friends: "Planeswalkers you control have "[+1]: Add {R}.""
   if (inst.zone === 'battlefield' && G.s && /Planeswalker/.test(typeLine(inst).split('—')[0])) {
     for (const iid of G.s.players[inst.controller].zones.battlefield) {
@@ -436,6 +449,10 @@ function manaAbilityRaw(inst) {
     if (sm && !/Discard your hand/.test(o)) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: { one: 1, two: 2, three: 3 }[sm[1]] || 1, sac: true };
   }
   if (!produced.length) return null;
+  if (/\{T\}: Add [^.]+\. Spend this mana only to activate abilities/.test(o)) {
+    const r = manaAbilityPlain(inst, o, produced);
+    return r ? { ...r, onlyFor: 'abilities' } : r;
+  }
   // Giada: "Spend this mana only to cast an Angel spell."
   const only = o.match(/\{T\}: Add [^.]+\. Spend this mana only to cast (?:an? )?([A-Z][\w-]+|creature|artifact|instant or sorcery|noncreature) (?:creature )?spells?/);
   if (only) {

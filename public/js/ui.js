@@ -109,7 +109,20 @@ function cardHTML(c, opts = {}) {
     badges.push('<span class="badge sick" title="Summoning sick">zz</span>');
   if (cb) {
     const ai = cb.attackers.indexOf(c.iid);
-    if (ai >= 0) badges.push(`<span class="tag atk">⚔ ${ai + 1}</span>`);
+    if (ai >= 0) {
+      // who it's attacking: a player or a planeswalker/battle
+      const tg = (cb.targets || {})[c.iid];
+      const tc = tg && tg !== 'p' && tg !== 'ai' ? card(tg) : null;
+      const defender = tc ? null : tg || opp(c.controller);
+      const label = tc ? cardName(tc) : defender === 'p' ? 'You' : 'AI';
+      badges.push(`<span class="tag atk ${tc ? 'atk-pw' : 'atk-player'}" title="Attacking ${esc(tc ? cardName(tc) : defender === 'p' ? 'you' : 'the AI')}">⚔ ${ai + 1} → ${esc(label.length > 12 ? label.split(/[ ,]/)[0] : label)}</span>`);
+    }
+    // a planeswalker or battle being attacked
+    const hitBy = cb.attackers.map((a, k) => ((cb.targets || {})[a] === c.iid ? k + 1 : 0)).filter(Boolean);
+    if (hitBy.length && c.zone === 'battlefield') {
+      cls.push('under-attack');
+      badges.push(`<span class="tag under" title="Being attacked">⚔ ${hitBy.join(', ')}</span>`);
+    }
     for (const [a, bs] of Object.entries(cb.blocks)) {
       if (bs.includes(c.iid)) badges.push(`<span class="tag blk">⛨ ${cb.attackers.indexOf(a) + 1}</span>`);
     }
@@ -134,6 +147,16 @@ export function render() {
   renderBanner();
   renderLog();
   renderPreview();
+  // highlight a player who's being attacked directly
+  {
+    const cb = s.combat;
+    for (const [pid, sel] of [['p', '#my-panel'], ['ai', '#opp-panel']]) {
+      const el = $(sel);
+      if (!el) continue;
+      const n = cb && cb.by ? (cb.attackers || []).filter((a) => ((cb.targets || {})[a] || opp(cb.by)) === pid).length : 0;
+      el.classList.toggle('under-attack', !!n);
+    }
+  }
   document.body.classList.toggle('ai-turn', s.active === 'ai');
   document.body.classList.toggle('target-mode', !!pendingTarget);
   document.body.classList.toggle('block-mode', !!(s.combat && s.combat.by === 'ai' && pendingBlocks));
@@ -1284,7 +1307,7 @@ function menuForCard(c, x, y) {
         const label = (ab.kind === 'loyalty' ? `${ab.label}: ${ab.text}`
           : ab.kind === 'equip' ? `Equip ${ab.mana}` : ab.kind === 'reconfigure' ? `Reconfigure ${ab.mana}`
           : ab.kind === 'crew' ? `Crew ${ab.n}` : ab.kind === 'saddle' ? `Saddle ${ab.n}` : ab.kind === 'station' ? 'Station (tap a creature)'
-          : ab.kind === 'levelup' ? `Level up ${ab.mana}` : ab.kind === 'classlevel' ? `${ab.mana}: Level ${ab.level}`
+          : ab.kind === 'craft' ? `Craft ${ab.mana} (exile ${ab.more ? ab.min + '+' : ab.min} ${ab.filter}s)` : ab.kind === 'levelup' ? `Level up ${ab.mana}` : ab.kind === 'classlevel' ? `${ab.mana}: Level ${ab.level}`
           : `${ab.costText}: ${ab.text}`).replace(/~/g, short);
         items.push({ label: `<span class="ab">${esc(label.length > 70 ? label.slice(0, 68) + '…' : label)}</span>`, fn: () => activate(c, ab) });
       }
