@@ -699,6 +699,13 @@ export async function payOtherCost(pid, text, src, env) {
       changeLife(pid, -m[1]);
       continue;
     }
+    // War Room: "Pay life equal to the number of colors in your commanders' color identity"
+    if (/^pay life equal to the number of colors in your commanders?'? color identity$/.test(p)) {
+      const k = identityColors(pid);
+      if (G.s.players[pid].life < k) return false;
+      if (k) changeLife(pid, -k);
+      continue;
+    }
     if ((m = p.match(/^pay ((?:\{[^}]+\})+)$/))) {
       const pay = await env.pay(pid, m[1], cardName(src), {});
       if (!pay) return false;
@@ -1071,7 +1078,8 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.sorcery && !(s.active === pid && (s.step === 'main1' || s.step === 'main2'))) return env.say('Activate only as a sorcery.');
   c.usedAbilities = c.usedAbilities || {};
   if (ab.once && c.usedAbilities[ab.raw] === (ab.exhaust ? 'ever' : s.turn)) return env.say('Already used.');
-  if (ab.payLife && s.players[pid].life < +ab.payLife) return env.say('Not enough life.');
+  const lifeCost = ab.payLife === 'identity' ? identityColors(pid) : +ab.payLife || 0;
+  if (ab.payLife && s.players[pid].life < lifeCost) return env.say('Not enough life.');
   if (ab.payEnergy && s.players[pid].counters.energy < ab.payEnergy) return env.say('Not enough energy.');
   if (ab.removeCounters) {
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
@@ -1099,7 +1107,7 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.forage && !(await payOtherCost(pid, 'forage', c, env))) throw new Cancelled();
   if (ab.tap) c.tapped = true;
   if (ab.untap) c.tapped = false;
-  if (ab.payLife) changeLife(pid, -ab.payLife);
+  if (ab.payLife && lifeCost) changeLife(pid, -lifeCost);
   if (ab.payEnergy) s.players[pid].counters.energy -= ab.payEnergy;
   if (ab.removeCounters) {
     const kind = ab.removeCounters[2].toLowerCase();
@@ -1149,3 +1157,10 @@ export async function companionToHand(pid, c, env) {
 }
 
 export { cascade, resolveSpell, costOf, etbText, altCost_ as altCost, mergeMutate, spellFilterOk, millCards, libTop, makeCard, typeLine, parseCost, kwNum, toughness };
+
+// Number of colors in a player's commanders' color identity (War Room, Command Beacon-style costs)
+export function identityColors(pid) {
+  const cols = new Set();
+  for (const c of Object.values(G.s.cards)) if (c.isCommander && c.owner === pid) for (const x of (DB[c.def].ci && DB[c.def].ci.length ? DB[c.def].ci : DB[c.def].colors) || []) cols.add(x);
+  return cols.size;
+}

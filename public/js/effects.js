@@ -144,7 +144,7 @@ export function activatedAbilities(c) {
       discardN: (cost.match(/Discard (a|two|\d+) cards?/i) || [])[1],
       exert: /Exert ~/i.test(cost),
       removeCounters: cost.match(/Remove (a|an|one|two|three|\d+|X) ([+-]\d+\/[+-]\d+|\w+) counters? from ~/i),
-      payLife: (cost.match(/Pay (\d+) life/i) || [])[1],
+      payLife: (cost.match(/Pay (\d+) life/i) || [])[1] || (/Pay life equal to the number of colors in your commanders?'? color identity/i.test(cost) ? 'identity' : undefined),
       payEnergy: (cost.match(/\{E\}/g) || []).length,
       exileFromGy: cost.match(/Exile (a|two|three|\d+|X) (?:other )?(?:([a-z]+) )?cards? from your graveyard/i),
       collectEvidence: (cost.match(/Collect evidence (\d+)/i) || [])[1],

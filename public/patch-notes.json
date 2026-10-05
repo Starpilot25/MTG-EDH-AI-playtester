@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.10",
+    "title": "War Room",
+    "notes": [
+      "War Room's draw ability now charges life equal to the number of colors in your commanders' color identity (it was free before)."
+    ]
+  },
+  {
     "version": "1.2.9",
     "title": "AI uses X loyalty abilities",
     "notes": [
