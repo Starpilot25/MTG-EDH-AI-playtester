@@ -912,7 +912,26 @@ export function commanderTax(pid, iid) {
 }
 
 // Tokens, doubled by Parallel Lives / Doubling Season style effects.
+// Treasure, Clue, Food… made by different cards are the same token: use one definition for each,
+// so they stack together and count the same (keeping the real token art when we have it).
+const tokenCanon = {};
+function canonicalToken(defId) {
+  const d = DB[defId];
+  if (!d) return defId;
+  const name = d.name;
+  if (!ARTIFACT_TOKENS[name] || !/Token/i.test(d.typeLine || '') || /Creature/.test(d.typeLine || '')) return defId;
+  const cur = tokenCanon[name] && DB[tokenCanon[name]] ? tokenCanon[name] : null;
+  const hasImg = (x) => !!(DB[x] && DB[x].faces[0] && DB[x].faces[0].img);
+  if (!cur || (!hasImg(cur) && hasImg(defId))) {
+    tokenCanon[name] = defId;
+    // tokens already out switch to the one with art, so they all stack
+    if (cur && G.s) for (const c of Object.values(G.s.cards)) if (c.token && c.def === cur) c.def = defId;
+  }
+  return tokenCanon[name];
+}
+
 export function createToken(defId, pid, n = 1, opts = {}) {
+  defId = canonicalToken(defId);
   const made = [];
   let count = n;
   if (!opts.noDouble) for (let k = 0; k < repl('tokenDouble', pid); k++) count *= 2;

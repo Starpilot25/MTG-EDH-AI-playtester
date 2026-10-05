@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.49",
+    "title": "Treasures from different cards stack together",
+    "notes": [
+      "Treasure, Clue, Food, Blood, Map and other standard tokens are treated as the same token no matter which card made them. Before, Treasures from different cards were separate kinds of token. They showed up as separate piles and could count differently. Now they stack into one pile and use the real token art when it's available."
+    ]
+  },
+  {
     "version": "1.2.48",
     "title": "Blood Money",
     "notes": [
