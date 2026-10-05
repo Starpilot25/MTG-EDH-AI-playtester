@@ -265,6 +265,295 @@ const basics = (n, name) => `${n} ${name}`;
 
 // Official preconstructed Commander decks: { key: { label, set, text } } (same decklist format as the samples)
 export const PRECON_DECKS = {
+  rfc_multiverse: {
+    label: "Multiverse Reforged (Jace, Multiverse Architect)",
+    set: "Reality Fracture Commander",
+    bracket: 2,
+    text: `Commander
+1 Jace, Multiverse Architect
+
+Deck
+1 Akroma, Angel of Fury
+1 Archfiend of Despair
+1 Archon of Cruelty
+1 Avacyn, Angel of Horror
+1 Dack Fayden, Helping Hand
+1 Darksteel Angel
+1 Ginger, Queen of Sweets
+1 Jhoira, Weatherlight Corsair
+1 Memnarch, the Warden
+1 Nissa, Leyline Tamer
+1 Niv-Mizzet, Ghost Counsel
+1 Ob Nixilis, the Ascended
+1 Omnath, Locus of the Void
+1 Overlord of the Mistmoors
+1 Serra's Emissary
+1 Tamiyo, Upriser Crowned
+1 The Ur-Sphinx
+1 Venser, Fervent Forger
+1 Brainstorm
+1 Brainsurge
+1 Despark
+1 Fact or Fiction
+1 Fatehold Charm
+1 Flawless Maneuver
+1 Grand Crescendo
+1 Occult Epiphany
+1 Path to Exile
+1 Secure the Wastes
+1 Stroke of Midnight
+1 Swords to Plowshares
+1 Synthetic Destiny
+1 Teferi's Reproach
+1 Lingering Souls
+1 Martial Coup
+1 Mass Polymorph
+1 Sunfall
+1 White Sun's Twilight
+1 Arcane Signet
+1 Azorius Signet
+1 Chromatic Lantern
+1 Currency Converter
+1 Cursed Mirror
+1 Dimir Signet
+1 Fellwar Stone
+1 Izzet Signet
+1 Proteus Staff
+1 Rakdos Signet
+1 Sol Ring
+1 Staff of the Storyteller
+1 Talisman of Creativity
+1 Talisman of Dominance
+1 Talisman of Indulgence
+1 Talisman of Progress
+1 Dreadhorde Invasion
+1 Plan for All Outcomes
+1 Shark Typhoon
+1 Skrelv's Hive
+1 Whirlwind of Thought
+1 Windcrag Siege
+1 Elspeth, Sun's Champion
+1 Battlefield Forge
+1 Caves of Koilos
+1 Clifftop Retreat
+1 Command Tower
+1 Contaminated Landscape
+1 Drowned Catacomb
+1 Exotic Orchard
+1 Fabled Passage
+1 Fetid Heath
+1 Glacial Fortress
+3 Island
+1 Isolated Chapel
+1 Kher Keep
+2 Mountain
+1 Mystic Gate
+1 Path of Ancestry
+1 Perilous Landscape
+4 Plains
+1 Prairie Stream
+1 Radiant Summit
+1 Reflecting Pool
+1 Restless Anchorage
+1 Restless Spire
+1 Shivan Reef
+1 Sulfur Falls
+1 Sulfurous Springs
+1 Sunken Ruins
+2 Swamp
+1 Turbulent Crater
+1 Turbulent Shore
+1 Turbulent Wetlands
+1 Underground River`,
+  },
+  ecc_blight: {
+    label: "Blight Curse (Auntie Ool, Cursewretch)",
+    set: "Lorwyn Eclipsed Commander",
+    bracket: 2,
+    text: `Commander
+1 Auntie Ool, Cursewretch
+
+Deck
+1 Archfiend of Ifnir
+1 Carnifex Demon
+1 Channeler Initiate
+1 Devoted Druid
+1 Dread Tiller
+1 Dusk Urchins
+1 Evolution Sage
+1 Ferrafor, Young Yew
+1 Glissa Sunslayer
+1 Grave Titan
+1 Grim Poppet
+1 Hapatra, Vizier of Poisons
+1 Ignoble Hierarch
+1 Kulrath Knight
+1 Massacre Girl, Known Killer
+1 Midnight Banshee
+1 Necroskitter
+1 Oft-Nabbed Goat
+1 Puppeteer Clique
+1 Sinister Gnarlbark
+1 Skinrender
+1 Soul Snuffers
+1 The Reaper, King No More
+1 The Scorpion God
+1 Tree of Perdition
+1 Village Pillagers
+1 Wickerbough Elder
+1 Assassin's Trophy
+1 Cathartic Pyre
+1 Fire Covenant
+1 Infernal Grasp
+1 Putrefy
+1 Terminate
+1 Aberrant Return
+1 Black Sun's Zenith
+1 Burning Curiosity
+1 Cathartic Reunion
+1 Chain Reaction
+1 Eventide's Shadow
+1 Harmonize
+1 Hoarder's Greed
+1 Incremental Blight
+1 Night's Whisper
+1 Painful Truths
+1 Persist
+1 Arcane Signet
+1 Chimil, the Inner Sun
+1 Commander's Sphere
+1 Contagion Clasp
+1 Sol Ring
+1 Wickersmith's Tools
+1 Binding the Old Gods
+1 Blowfly Infestation
+1 Everlasting Torment
+1 Flourishing Defenses
+1 Grave Venerations
+1 Lasting Tarfire
+1 Puca's Covenant
+1 Liliana, Death Wielder
+1 Vraska, Betrayal's Sting
+1 Canyon Slough
+1 Cinder Glade
+1 Command Tower
+1 Dragonskull Summit
+1 Evolving Wilds
+1 Exotic Orchard
+1 Festering Thicket
+6 Forest
+1 Golgari Rot Farm
+1 Gruul Turf
+1 Ifnir Deadlands
+4 Mountain
+1 Nesting Grounds
+1 Path of Ancestry
+1 Rakdos Carnarium
+1 Riveteers Overlook
+1 Rootbound Crag
+1 Savage Lands
+1 Sheltered Thicket
+1 Smoldering Marsh
+8 Swamp
+1 Terramorphic Expanse
+1 Vernal Fen
+1 Woodland Cemetery`,
+  },
+  msh_avengers: {
+    label: "Avengers Assemble (Captain America, Team Leader)",
+    set: "Marvel Super Heroes Commander",
+    bracket: 2,
+    text: `Commander
+1 Captain America, Team Leader
+
+Deck
+1 Ant-Man, Elusive Avenger
+1 Bastion Protector
+1 Black Widow, Agile Avenger
+1 Captain America, Living Legend
+1 Captain Mar-Vell, Space-Born
+1 Captain Marvel, Apex Avenger
+1 Director Nick Fury
+1 Falcon and Redwing
+1 Firebird, Blazing Ranger
+1 Hawkeye, Avenging Archer
+1 Hercules, Olympian Hero
+1 Iron Man, Armored Avenger
+1 Jarvis, Earth's Mightiest Butler
+1 Jocasta, Automaton Avenger
+1 Metallic Mimic
+1 Patriot, Shield Wielder
+1 Photon, Mighty Marvel
+1 Professor Hulk
+1 Quicksilver, Speedster
+1 Rescue, Pepper Potts
+1 Scarlet Witch, Chaotic Avenger
+1 Shang-Chi and the Ten Rings
+1 She-Hulk, Wallbreaker
+1 Speed, Young Avenger
+1 The Wasp, Winsome Avenger
+1 Thor, Asgard's Avenger
+1 Vision, Synthezoid Avenger
+1 War Machine, Avenging Arsenal
+1 Winter Soldier, Reborn Avenger
+1 Arcane Denial
+1 Destroy Evil
+1 Heroic Return
+1 Heroic Sacrifice
+1 Make Your Move
+1 Methods of the Mighty
+1 Swords to Plowshares
+1 Austere Command
+1 Avenge
+1 Dismantling Wave
+1 Raise Repulsor Shields
+1 Rip Apart
+1 West Coast Expansion
+1 Arcane Signet
+1 Avengers Monitoring Station
+1 Avengers Quinjet
+1 Door of Destinies
+1 Hero's Blade
+1 Hulkbuster Armor
+1 Relic of Legends
+1 S.H.I.E.L.D. Spy Satellite
+1 Sol Ring
+1 Talisman of Conviction
+1 Talisman of Creativity
+1 Talisman of Progress
+1 Thought Vessel
+1 Tome of Legends
+1 Folk Hero
+1 Gift of Immortality
+1 Kindred Discovery
+1 Love on the Battlefield
+1 Reconnaissance Mission
+1 Avengers Tower
+1 Clifftop Retreat
+1 Coastal Peak
+1 Command Tower
+1 Exotic Orchard
+1 Frostboil Snarl
+1 Furycalm Snarl
+1 Glacial Fortress
+1 Glittering Massif
+1 Irrigated Farmland
+5 Island
+5 Mountain
+1 Mystic Monastery
+1 Path of Ancestry
+6 Plains
+1 Plaza of Heroes
+1 Port Town
+1 Prairie Stream
+1 Radiant Summit
+1 Scavenger Grounds
+1 Scorched Geyser
+1 Secluded Courtyard
+1 Spectator Seating
+1 Sulfur Falls
+1 Unclaimed Territory`,
+  },
   fdn_angels: {
     label: 'Calling All Angels (Giada, Font of Hope)',
     set: 'Foundations Commander',

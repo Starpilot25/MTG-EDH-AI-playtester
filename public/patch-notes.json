@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.65",
+    "title": "Three new precons",
+    "notes": [
+      "New precons under Precon: Multiverse Reforged (Jace, Multiverse Architect, from Reality Fracture Commander), Blight Curse (Auntie Ool, Cursewretch, from Lorwyn Eclipsed Commander) and Avengers Assemble (Captain America, Team Leader, from Marvel Super Heroes Commander). About 87% of their cards work fully automatically so far, and the rest show up in the log so you can apply them by hand."
+    ]
+  },
+  {
     "version": "1.2.64",
     "title": "Smarter AI planeswalkers",
     "notes": [
