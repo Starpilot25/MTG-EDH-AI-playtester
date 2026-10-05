@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.37",
+    "title": "Shark Typhoon sizes; AI uses The Chain Veil",
+    "notes": [
+      "Shark Typhoon's Sharks are the right size. The real Shark token art has a printed 0/0, and the game was using that printed size instead of X. Sharks now come out X/X, both when you cycle it and when you cast a noncreature spell. The same fix covers any token made as \"an X/X …\" or \"a 4/4 …\" whose printed token says something else.",
+      "The Chain Veil: the AI now uses it. Once its planeswalkers have activated, it pays {4} and activates each one again, and it saves mana for this before casting spells. It also uses Oath of Teferi's second activation, which it used to skip. For you, the Veil already worked: each planeswalker gets another activation and its badge lights up again. You lose 2 life at your end step if you didn't activate any loyalty ability that turn."
+    ]
+  },
+  {
     "version": "1.2.36",
     "title": "Surveil fixes; commander zone choice",
     "notes": [

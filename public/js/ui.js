@@ -14,7 +14,7 @@ import {
 import { aiChooser, aiMaybeCounter, aiPay, aiEnv } from './ai.js';
 import {
   manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, landOptions, playLand, landsAllowed, applyPayment,
-  activateAbility, useZoneAbility, turnFaceUp, companionToHand,
+  activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft,
 } from './cast.js';
 import { T, fire, settle } from './triggers.js';
 import { DUNGEONS, venture, takeInitiative } from './dungeon.js';
@@ -67,16 +67,6 @@ function instantLoyalty(c) {
   if ((pl.emblems || []).some((e) => /activate loyalty abilities of planeswalkers you control on any player's turn/i.test(e))) return true;
   const il = G.s.instantLoyalty;
   return !!(il && il.pid === c.controller && il.turn === G.s.turn && (!il.subtype || hasSubtype(c, il.subtype)));
-}
-
-// same rule as cast.js: one loyalty ability a turn, two with Oath of Teferi, +1 for The Chain Veil
-function loyaltyUsesLeft(c) {
-  const s = G.s;
-  const all = cardsIn(c.controller, 'battlefield').map(oracle).join('\n');
-  let allowed = /activate (?:the )?loyalty abilities of [^.]+ twice/i.test(all) ? 2 : 1;
-  if (s.chainVeil && s.chainVeil.pid === c.controller && s.chainVeil.turn === s.turn) allowed += s.chainVeil.n;
-  const used = c.loyaltyUses && c.loyaltyUses.turn === s.turn ? c.loyaltyUses.n : c.usedLoyaltyTurn === s.turn ? 1 : 0;
-  return Math.max(0, allowed - used);
 }
 
 function cardHTML(c, opts = {}) {

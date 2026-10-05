@@ -18,7 +18,7 @@ import { maxHandSize } from './statics.js';
 import { threat, planBlocks, planAttack, fight, pumpOf, evasive, lifeWeight } from './aicombat.js';
 import {
   manaSources, castOptions, castSpell as castThrough, effectiveCost, landOptions, playLand as playLandThrough, landsAllowed,
-  activateAbility, useZoneAbility, turnFaceUp, companionToHand, applyPayment, timingOk,
+  activateAbility, useZoneAbility, turnFaceUp, companionToHand, applyPayment, timingOk, loyaltyUsesLeft,
 } from './cast.js';
 
 const AI = 'ai';
@@ -607,8 +607,33 @@ function playLand(h) {
 }
 
 async function planeswalkers(h) {
+  // Oath of Teferi lets each one go twice; The Chain Veil gives each one another go
+  for (let round = 0; round < 4; round++) {
+    const before = G.s.log.length;
+    await planeswalkersOnce(h);
+    if (!(await chainVeil(h)) && G.s.log.length === before) break;
+    if (G.s.log.length === before) break;
+  }
+}
+
+// The Chain Veil: worth it once every planeswalker has used its ability and at least one has a good one left
+async function chainVeil(h) {
+  const pws = cardsIn(AI, 'battlefield').filter((c) => isType(c, 'Planeswalker'));
+  if (!pws.length || pws.some((pw) => loyaltyUsesLeft(pw) > 0)) return false;
+  for (const c of cardsIn(AI, 'battlefield')) {
+    const ab = activatedAbilities(c).find((a) => a.kind === 'ability' && /activate one of its loyalty abilities once this turn/i.test(a.text));
+    if (!ab || (ab.tap && c.tapped)) continue;
+    if (ab.mana && !payCost(ab.mana, sources(AI).filter((m) => m.iid !== c.iid || !ab.tap))) continue;
+    const r = await safely(h, () => activateAbility(AI, c, ab, aiEnv(h)));
+    h.render();
+    return r !== false;
+  }
+  return false;
+}
+
+async function planeswalkersOnce(h) {
   for (const pw of cardsIn(AI, 'battlefield').filter((c) => isType(c, 'Planeswalker'))) {
-    if (pw.usedLoyaltyTurn === G.s.turn || pw.zone !== 'battlefield') continue;
+    if (loyaltyUsesLeft(pw) <= 0 || pw.zone !== 'battlefield') continue;
     const loyalty = pw.counters.loyalty || 0;
     const abilities = activatedAbilities(pw).filter((ab) => ab.kind === 'loyalty');
     if (!abilities.length) continue;
@@ -815,6 +840,8 @@ export async function aiMainPhase(h, post = false) {
   const wait = () => h.wait(G.settings.aiSpeed);
   if (playLand(h)) await wait();
   await upgrades(h);
+  // with The Chain Veil out, use the planeswalkers (and the Veil) before mana goes to spells
+  if (!post && cardsIn(AI, 'battlefield').some((c) => isType(c, 'Planeswalker')) && cardsIn(AI, 'battlefield').some((c) => /activate one of its loyalty abilities once this turn/i.test(oracle(c)))) await planeswalkers(h);
   for (let guard = 0; guard < 20 && G.s === s0 && !G.s.winner; guard++) {
     const plan = withReadCache(() => planMain(post));
     if (!plan) break;

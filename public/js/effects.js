@@ -1901,6 +1901,7 @@ async function makeTokens(env, desc, attachPhrase) {
   const attacking = /and attacking/.test(d);
   const src = env.src;
   let defId = null;
+  let forcedPT = null;
   // known token from the card's Scryfall parts
   for (const id of (DB[src.def] || { tokens: [] }).tokens) {
     const td = DB[id];
@@ -1908,8 +1909,13 @@ async function makeTokens(env, desc, attachPhrase) {
     const nm = td.name.toLowerCase();
     if (d.includes(nm) || (nm.split(' ')[0].length > 3 && d.includes(nm.split(' ')[0]))) {
       const pt = d.match(/(\d+)\/(\d+)/);
-      if (pt && td.faces[0].power !== undefined && (td.faces[0].power !== pt[1] || td.faces[0].toughness !== pt[2])) continue;
+      if (pt && td.faces[0].power !== undefined && /^\d+$/.test(td.faces[0].power) && (td.faces[0].power !== pt[1] || td.faces[0].toughness !== pt[2])) continue;
       defId = id;
+      // "an X/X Shark" / "a 4/4 …" on a token whose printed P/T is 0/0 or *: keep the art, set the size
+      const ptx = d.match(/\b(\d+|x)\/(\d+|x)\b/);
+      if (ptx && (/x/.test(ptx[0]) || td.faces[0].power !== ptx[1] || td.faces[0].toughness !== ptx[2])) {
+        forcedPT = { p: ptx[1] === 'x' ? env.x || 0 : +ptx[1], t: ptx[2] === 'x' ? env.x || 0 : +ptx[2] };
+      }
       break;
     }
   }
@@ -1933,6 +1939,7 @@ async function makeTokens(env, desc, attachPhrase) {
   }
   if (!defId) defId = genericTokenDef(1, 1, 'Token');
   const made = createToken(defId, me, count, { tapped });
+  if (forcedPT) for (const i of made) if (card(i)) card(i).setPT = { ...forcedPT };
   if (attacking && G.s.combat) {
     for (const i of made) {
       G.s.combat.attackers.push(i);

@@ -873,6 +873,20 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
 }
 
 // ------------------------------------------------------------ abilities from hand / graveyard
+// One loyalty ability a turn; Oath of Teferi makes it two; each The Chain Veil activation adds one more.
+export function loyaltyAllowed(pid) {
+  const s = G.s;
+  const all = cardsIn(pid, 'battlefield').map(oracle).join('\n');
+  let allowed = /activate (?:the )?loyalty abilities of [^.]+ twice/i.test(all) ? 2 : 1;
+  if (s.chainVeil && s.chainVeil.pid === pid && s.chainVeil.turn === s.turn) allowed += s.chainVeil.n;
+  return allowed;
+}
+export function loyaltyUsesLeft(c) {
+  const s = G.s;
+  const used = c.loyaltyUses && c.loyaltyUses.turn === s.turn ? c.loyaltyUses.n : c.usedLoyaltyTurn === s.turn ? 1 : 0;
+  return Math.max(0, loyaltyAllowed(c.controller) - used);
+}
+
 export async function useZoneAbility(pid, iid, ab, env) {
   const c = card(iid);
   const ch = env.choosers[pid];
@@ -1032,11 +1046,8 @@ export async function activateAbility(pid, c, ab, env) {
     case 'loyalty': {
       {
         // one loyalty ability per turn; Oath of Teferi makes it two, The Chain Veil adds one more
-        const all = cardsIn(pid, 'battlefield').map(oracle).join('\n');
-        let allowed = /activate (?:the )?loyalty abilities of [^.]+ twice/i.test(all) ? 2 : 1;
-        if (s.chainVeil && s.chainVeil.pid === pid && s.chainVeil.turn === s.turn) allowed += s.chainVeil.n;
-        const used = c.loyaltyUses && c.loyaltyUses.turn === s.turn ? c.loyaltyUses.n : c.usedLoyaltyTurn === s.turn ? 1 : 0;
-        if (used >= allowed) return env.say(allowed > 1 ? `${name} has already used ${allowed} loyalty abilities this turn.` : 'Only one loyalty ability per turn.');
+        const allowed = loyaltyAllowed(pid);
+        if (loyaltyUsesLeft(c) <= 0) return env.say(allowed > 1 ? `${name} has already used ${allowed} loyalty abilities this turn.` : 'Only one loyalty ability per turn.');
       }
       let cost = ab.cost;
       let x = 0;
