@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.2.30",
+    "title": "Waterbend, exhaust, convoke",
+    "notes": [
+      "Waterbend works: when paying a waterbend cost, your untapped artifacts and creatures can each pay {1} of it (they're tapped after lands and rocks, and only for the waterbend part). Covers \"As an additional cost, waterbend {N}\" spells (Water Whip, Benevolent River Spirit), optional ones (Katara, Seeking Revenge asks), waterbend {X} (Waterbender's Restoration), Waterbend {N}: abilities (Katara, Water Tribe Rallier, Watery Grasp, Waterbender Ascension), Waterbending Lesson's \"unless you waterbend {2}\" and Ward—Waterbend.",
+      "Exhaust abilities (\"Exhaust — {4}: …\", Aetherdrift and Avatar cards like Bitter Work, Boom Scholar, Invasion Submersible) were missing from the ability menu — they're back, usable once per game.",
+      "Convoke checked: creatures pay for {1} or a mana of their color, and the auto-payer uses lands first.",
+      "Also fixed: \"if it has N or more quest counters on it\" (Waterbender Ascension) and \"if ~ is tapped\" (Katara, Bending Prodigy)."
+    ]
+  },
+  {
     "version": "1.2.29",
     "title": "Board grouping and attack tax display",
     "notes": [

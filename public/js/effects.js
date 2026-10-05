@@ -86,7 +86,8 @@ export function activatedAbilities(c) {
   const t = joinBullets(stripName(oracle(c), c).replace(/\([^)]*\)/g, ''));
   const out = [];
   for (const raw of t.split('\n')) {
-    const line = raw.trim();
+    // "Exhaust — {4}: …" (activate only once): parse the ability after the label
+    const line = raw.trim().replace(/^Exhaust\s*[—-]\s*/i, '');
     const loyal = line.match(/^([+−\-]?\d+|0|[+−\-]X):\s*(.+)$/);
     if (loyal && isType(c, 'Planeswalker')) {
       out.push({ kind: 'loyalty', cost: /X/.test(loyal[1]) ? 0 : parseInt(loyal[1].replace('−', '-'), 10) || 0, label: loyal[1], text: unjoin(loyal[2]), raw: line, x: /X/.test(loyal[1]) });
@@ -162,8 +163,8 @@ export function activatedAbilities(c) {
       text: unjoin(m[2]),
       raw: line,
       sorcery: /Activate only as a sorcery/i.test(m[2]),
-      once: /Activate only once each turn|Activate this ability only once each turn/i.test(m[2]) || /^Exhaust\b/i.test(line),
-      exhaust: /^Exhaust\b/i.test(raw),
+      once: /Activate only once each turn|Activate this ability only once each turn/i.test(m[2]) || /^\s*Exhaust\b/i.test(raw),
+      exhaust: /^\s*Exhaust\b/i.test(raw),
     });
   }
   return out;
@@ -433,6 +434,9 @@ export function evalCond(cond, env) {
   if (/its spree|you cast it for its/.test(c)) return !!env.altCost;
   if (/(?:~|it) (?:was|is) (?:cast|dashed|blitzed|evoked|foretold|plotted|warped)/.test(c)) return !!env.castMode;
   if (/^you do$|^you did$|^you do so$/.test(c)) return !!env.lastMay;
+  if ((m = c.match(/^(?:it|~|this [a-z]+) has (\w+) or more ([a-z+\/0-9-]+) counters on it$/))) return ((env.src && env.src.counters) || {})[m[2]] >= n(m[1]);
+  if (/^(?:~|it|this [a-z]+) is tapped$/.test(c)) return !!(env.src && env.src.tapped);
+  if (/^(?:~|it|this [a-z]+) is untapped$/.test(c)) return !!(env.src && !env.src.tapped);
   if (/^you didn't activate an? loyalty ability of an? planeswalker this turn$/.test(c)) return !((G.s.ts[env.me] || {}).loyaltyActivated > 0);
   if (/^you activated an? loyalty ability of an? planeswalker this turn$/.test(c)) return (G.s.ts[env.me] || {}).loyaltyActivated > 0;
   if (/^you don't$/.test(c)) return !env.lastMay;
@@ -649,6 +653,8 @@ function wardCost(c) {
   const m = oracle(c).match(/\bWard (?:\{(\d+)\}|—(.+?)(?:\.|$))/m) || [...(c.grants || []), ...(c.eotGrants || [])].join('|').match(/ward \{(\d+)\}/);
   if (!m) return null;
   if (m[1]) return { n: +m[1] };
+  const wb = (m[2] || '').match(/^Waterbend \{(\d+)\}/i);
+  if (wb) return { n: +wb[1], waterbend: true };
   const life = (m[2] || '').match(/Pay (\d+) life/i);
   if (life) return { life: +life[1] };
   return { other: m[2] };
@@ -1142,6 +1148,15 @@ on(/^put a \+1\/\+1 counter or a loyalty counter on (it|that creature|that perma
 }, { first: true });
 // --- sweep fixes
 // ===== Jace deck audit =====
+// Waterbending Lesson: "Then discard a card unless you waterbend {2}."
+on(/^(.+?) unless you waterbend \{(\d+)\}$/, async (m, env) => {
+  const k = +m[2];
+  const { T } = await import('./triggers.js');
+  const want = env.me === 'ai' ? true : await env.choosers.p.confirm(cardName(env.src), `Waterbend {${k}} so you don't have to ${m[1].replace(/^then /i, '')}? (Tap artifacts and creatures to help.)`, {});
+  const paid = want && T.payMana ? await T.payMana(env.me, `{${k}}`, `Waterbend {${k}}`, { waterbend: k }) : false;
+  if (paid) return env.did.push(`${who(env.me)} ${s_(env.me, 'waterbend')} {${k}}`);
+  await runSentence(m[1], env);
+}, { first: true });
 // Bounce lands: "return a land you control to its owner's hand" / Coral Atoll: "sacrifice it unless you return an untapped Island you control to its owner's hand"
 async function bounceOwnLand(env, kind, untapped, optional) {
   const pool = cardsIn(env.me, 'battlefield').filter((c) => isLand(c) && (!untapped || !c.tapped) && (kind === 'land' || hasSubtype(c, kind) || matchesFilter(c, kind)));

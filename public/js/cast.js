@@ -45,6 +45,9 @@ export function manaSources(pid, opts = {}) {
     }
     out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, activation: m.activation || 0 });
   }
+  // Waterbend: untapped artifacts and creatures can each pay {1} of the waterbend cost
+  if (opts.waterbend)
+    for (const c of cardsIn(pid, 'battlefield')) if ((isCreature(c) || isType(c, 'Artifact')) && !c.tapped && c.iid !== opts.self && !out.some((o) => o.iid === c.iid)) out.push({ iid: c.iid, colors: [], amount: 1, kind: 'waterbend' });
   if (opts.convoke)
     for (const c of cardsIn(pid, 'battlefield')) if (isCreature(c) && !c.tapped && !out.some((o) => o.iid === c.iid)) out.push({ iid: c.iid, colors: colorsOf(c).length ? colorsOf(c) : [], amount: 1, kind: 'convoke' });
   if (opts.improvise)
@@ -331,7 +334,19 @@ export async function castSpell(pid, iid, opt, env) {
   }
   // --- additional costs printed as "As an additional cost to cast this spell, …"
   const addl = o.match(/As an additional cost to cast (?:this spell|~), ([^.]+)\./i);
-  if (addl && !/^you may/i.test(addl[1])) {
+  const wbm = addl && addl[1].match(/^(you may )?waterbend \{(\d+|X)\}$/i);
+  if (wbm) {
+    // waterbend: extra generic mana that your untapped artifacts and creatures can help pay
+    let n = wbm[2] === 'X' ? (env.x !== undefined ? env.x : await ch.chooseNumber({ prompt: `${label}: waterbend X — choose X`, min: 0, max: 20, ai: 2 })) : +wbm[2];
+    let go = true;
+    if (wbm[1]) go = await ch.confirm(label, `Waterbend {${n}} as an additional cost? (Tap artifacts and creatures to help pay.)`, {});
+    if (go) {
+      info.extraGeneric += n;
+      info.waterbend = n;
+      info.additionalPaid = true;
+      if (wbm[2] === 'X') info.waterbendX = n;
+    }
+  } else if (addl && !/^you may/i.test(addl[1])) {
     if (!(await payOtherCost(pid, addl[1], c, env))) throw new Cancelled();
     info.additionalPaid = true;
   } else if (addl && /^you may/i.test(addl[1])) {
@@ -376,12 +391,13 @@ export async function castSpell(pid, iid, opt, env) {
   const eff = env.free || opt.free ? { generic: 0 } : effectiveCost(pid, c, opt);
   const extraGeneric = eff.generic + info.extraGeneric;
   const pay = await env.pay(pid, costStr, label, {
-    extraGeneric, convoke: hasKw(c, 'convoke'), improvise: hasKw(c, 'improvise'), delve: hasKw(c, 'delve'), self: c.iid,
+    extraGeneric, convoke: hasKw(c, 'convoke'), improvise: hasKw(c, 'improvise'), delve: hasKw(c, 'delve'), self: c.iid, waterbend: info.waterbend || 0,
     xFixed: env.x,
   });
   if (!pay) throw new Cancelled();
   applyPayment(pid, pay);
   info.x = env.x !== undefined ? env.x : pay.x || 0;
+  if (info.waterbendX !== undefined) info.x = info.waterbendX;
   // --- the spell is on the stack
   if (fromZone === 'command' && c.isCommander) s.players[pid].tax[c.iid] = (s.players[pid].tax[c.iid] || 0) + 1;
   const ts = s.ts[pid];
@@ -1173,7 +1189,7 @@ export async function activateAbility(pid, c, ab, env) {
   }
   let x = 0;
   if (/\{X\}/.test(ab.mana)) {
-    const p = await env.pay(pid, ab.mana, name, { ability: true, exclude: ab.tap ? [c.iid] : [] });
+    const p = await env.pay(pid, ab.mana, name, { ability: true, exclude: ab.tap ? [c.iid] : [], waterbend: /Waterbend/i.test(ab.costText || '') ? +((ab.costText.match(/Waterbend \{(\d+)\}/i) || [])[1] || 0) : 0, self: ab.tap ? c.iid : undefined });
     if (!p) return false;
     applyPayment(pid, p);
     x = p.x || 0;

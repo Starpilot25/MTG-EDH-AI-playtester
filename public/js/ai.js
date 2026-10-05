@@ -59,6 +59,7 @@ export async function aiPay(pid, cost, label, opts = {}) {
   const fixed = opts.xFixed;
   return payCost(cost, src, {
     extraGeneric: opts.extraGeneric || 0,
+    waterbend: opts.waterbend || 0,
     maxX: hasX ? (fixed !== undefined ? fixed : 20) : 0,
     minX: hasX ? (fixed !== undefined ? fixed : 1) : 0,
   });

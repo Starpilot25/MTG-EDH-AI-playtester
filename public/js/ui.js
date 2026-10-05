@@ -870,15 +870,15 @@ async function playerPay(pid, cost, label, opts = {}) {
     const xs = (cost.match(/\{X\}/g) || []).length;
     if (opts.xFixed !== undefined) x = opts.xFixed;
     else {
-      const base = payCost(cost.replace(/\{X\}/g, ''), src, { extraGeneric: extra });
+      const base = payCost(cost.replace(/\{X\}/g, ''), src, { extraGeneric: extra, waterbend: opts.waterbend || 0 });
       const used = base ? base.payers.length + base.special.length : 0;
       const max = base ? Math.floor((totalMana(src) - used) / xs) : 0;
       const v = await askNumber(`Choose X for ${label}`, Math.max(0, max), { min: 0, hint: `Your untapped mana can pay up to X = ${Math.max(0, max)}.` });
       if (v === null) return null;
       x = v;
     }
-    pay = payCost(cost.replace(/\{X\}/g, ''), src, { extraGeneric: extra + x * xs });
-  } else pay = payCost(cost, src, { extraGeneric: extra });
+    pay = payCost(cost.replace(/\{X\}/g, ''), src, { extraGeneric: extra + x * xs, waterbend: opts.waterbend || 0 });
+  } else pay = payCost(cost, src, { extraGeneric: extra, waterbend: opts.waterbend || 0 });
   if (!pay) {
     const shown = (cost.replace(/[{}]/g, '') || '0') + (extra > 0 ? ` + ${extra}` : extra < 0 ? ` − ${-extra}` : '');
     const ok = await confirmDialog(
@@ -908,8 +908,8 @@ function playerEnv(extra = {}) {
 hooks.payFor = playerPay;
 hooks.envFor = (pid) => (pid === 'p' ? playerEnv() : aiEnv(hooks));
 T.castFree = (pid, iid, o = {}) => castFree(pid, iid, hooks.envFor(pid), o);
-T.payMana = async (pid, cost, label) => {
-  const p = await hooks.envFor(pid).pay(pid, cost, label, {});
+T.payMana = async (pid, cost, label, opts = {}) => {
+  const p = await hooks.envFor(pid).pay(pid, cost, label, opts);
   if (!p) return false;
   applyPayment(pid, p);
   return true;

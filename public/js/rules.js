@@ -581,6 +581,7 @@ function payCostRaw(cost, sources, opts = {}) {
     else if (u.kind === 'convoke') v = 30;
     else if (u.kind === 'improvise') v = 25;
     else if (u.kind === 'delve') v = 35;
+    else if (u.kind === 'waterbend') v = cardOf(u.iid) && isCreature(cardOf(u.iid)) ? 9 : 5;
     else {
       const cc = cardOf(u.iid);
       if (u.sac) v += 40; // Treasures, Lotus Petal
@@ -658,10 +659,12 @@ function payCostRaw(cost, sources, opts = {}) {
     for (const col of u.colors) if (col !== 'C' && need[col]) v += Math.min(3, need[col] / Math.max(1, supply[col])) / u.colors.length;
     return v;
   };
+  let wbLeft = opts.waterbend || 0;
   const takeCheapest = () => {
     let bk = -1;
     let bv = Infinity;
     for (const k of remaining) {
+      if (units[k].kind === 'waterbend' && wbLeft <= 0) continue;
       const v = genericCost(k);
       if (v < bv) {
         bv = v;
@@ -670,6 +673,7 @@ function payCostRaw(cost, sources, opts = {}) {
     }
     if (bk < 0) return -1;
     remaining.delete(bk);
+    if (units[bk].kind === 'waterbend') wbLeft--;
     finalUsed[bk] = true;
     tappedSet.add(units[bk].iid);
     if (hurts(units[bk], ALL)) pains.push(units[bk].iid);
