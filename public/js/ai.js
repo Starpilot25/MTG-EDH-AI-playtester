@@ -86,6 +86,7 @@ export const aiChooser = {
       if (want.player && (req.players || []).includes(want.player)) return { player: want.player };
       if (want.iid && req.candidates.includes(want.iid)) return { iid: want.iid };
     }
+    if (req.aiScore && cands.length) return { iid: cands.slice().sort((a, b) => req.aiScore(b) - req.aiScore(a))[0].iid };
     const byThreat = (a, b) => threat(b) - threat(a);
     const plife = G.s.players[P].life;
     if (req.purpose === 'blink') {

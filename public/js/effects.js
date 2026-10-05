@@ -1347,6 +1347,13 @@ on(/^double the number of each kind of counter on (any number of target permanen
     const pool = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((c) => Object.values(c.counters || {}).some((v) => v > 0));
     objs = (await env.choosers[env.me].pickCards({ prompt: 'Double the counters on which permanents?', cards: pool.map((c) => c.iid), min: 0, max: pool.length, purpose: 'counters', src: env.src,
       aiScore: (c) => (c.controller === env.me ? 1 + Object.entries(c.counters).filter(([k]) => k !== '-1/-1' && k !== 'stun').reduce((a, [, v]) => a + v, 0) : (c.counters['-1/-1'] || 0) - 1) })).map(card);
+  } else if (/target permanent/.test(m[1])) {
+    // pick the permanent whose counters are best to double: your own loyalty/+1/+1, or an opponent's -1/-1
+    const good = (c) => Object.entries(c.counters || {}).reduce((a, [k, v]) => a + (k === '-1/-1' || k === 'stun' ? -v : v), 0);
+    const pool = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((c) => canTarget(c, env.me, env.src));
+    const pick = await env.choosers[env.me].target({ prompt: 'Double the counters on which permanent?', candidates: pool.map((c) => c.iid), harm: false, src: env.src,
+      aiScore: (c) => (c.controller === env.me ? good(c) : -good(c)) });
+    objs = pick && pick.iid ? [card(pick.iid)] : [];
   } else objs = await objects(env, m[1], { harm: false });
   for (const c of objs) {
     for (const [k, v] of Object.entries(c.counters || {})) if (v > 0) addCounters(c, k, v);
@@ -3199,7 +3206,7 @@ function prep(text, src) {
 
 async function runText(text, env) {
   // modal spells: "Choose one —" with bullet modes
-  const mm = text.match(/^([\s\S]*?)Choose (one|two|three|one or both|one or more|any number|up to (?:one|two|three)|one that hasn't been chosen)(?: or more)?(?:\. You may choose the same mode more than once)?(?: at random)? ?(?:—|-)\s*\n?((?:\s*•[^\n]*\n?)+)([\s\S]*)$/i);
+  const mm = text.match(/^([\s\S]*?)Choose (one|two|three|one or both|one or more|any number|up to (?:one|two|three)|one that hasn't been chosen)(?: or more)?(?:\. You may choose the same mode more than once)?(?: at random)?(?: ?(?:—|-)|\.)\s*\n?((?:\s*•[^\n]*\n?)+)([\s\S]*)$/i);
   if (mm) {
     if (mm[1].trim()) await runText(mm[1], env);
     const modes = mm[3].split('•').map((x) => x.trim()).filter(Boolean);
@@ -3706,6 +3713,15 @@ export function modeValue(t, env) {
   if (a.draw) v += 2 * a.draw;
   let m;
   if ((m = low.match(/each creature deals (\d+) damage to its controller/))) v += (creatures(them) - creatures(me)) * +m[1] * 1.5;
+  // Aetheric Amplifier, Deepglow Skate: doubling counters is worth what's there to double
+  if (/double the number of each kind of counter on target permanent/.test(low)) {
+    const mine = cardsIn(me, 'battlefield').map((c) => Object.entries(c.counters || {}).filter(([k]) => k !== '-1/-1' && k !== 'stun').reduce((a, [, v]) => a + v, 0));
+    v += mine.length ? Math.max(...mine) * 1.5 - 1 : -5;
+  }
+  if (/double the number of each kind of counter you have/.test(low)) {
+    const pc = G.s.players[me].counters || {};
+    v += Object.values(pc).reduce((a, x) => a + (x || 0), 0) - (G.s.players[me].poison || 0) * 3 - 1;
+  }
   if (/exile (?:all cards from )?target (?:player|opponent)'s graveyard/.test(low)) {
     const gy = cardsIn(them, 'graveyard');
     v += gy.length ? 1 + gy.filter((c) => /Creature/.test(DB[c.def]?.typeLine || '')).length * 0.7 + (/reanimat|graveyard/i.test(JSON.stringify(cardsIn(them, 'battlefield').map((c) => oracle(c)))) ? 2 : 0) : -5;

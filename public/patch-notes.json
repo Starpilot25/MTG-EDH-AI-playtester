@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.27",
+    "title": "Aetheric Amplifier",
+    "notes": [
+      "Aetheric Amplifier's {4}, {T} ability now asks which mode you want and doubles the counters (it was left to do by hand). Other activated abilities written as \"Choose one.\" with bullet modes work the same way.",
+      "The AI doubles the counters where they help it most — its own planeswalker loyalty or +1/+1 counters — and picks that mode only when there's something worth doubling."
+    ]
+  },
+  {
     "version": "1.2.26",
     "title": "Smarter auto-tapping",
     "notes": [
