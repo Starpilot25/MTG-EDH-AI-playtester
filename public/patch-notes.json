@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.12",
+    "title": "Sevinne's Reclamation; flashback fix",
+    "notes": [
+      "Sevinne's Reclamation: cast with flashback, it copies itself, so you return two permanents with mana value 3 or less.",
+      "Flashback cards could also be cast from your graveyard for their normal mana cost, because the game misread flashback's reminder text. From the graveyard they're now castable only for their flashback cost (then exiled)."
+    ]
+  },
+  {
     "version": "1.3.11",
     "title": "Goldspan Dragon",
     "notes": [

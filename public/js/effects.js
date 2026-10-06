@@ -5021,6 +5021,19 @@ on(/^exile (a|one|two) cards? from your graveyard at random$/, async (m, env) =>
   env.them_ = ids;
   env.did.push(`exiles ${ids.map((i) => nameTag(card(i))).join(', ')} from ${env.me === 'p' ? 'your' : 'its'} graveyard at random`);
 }, { first: true });
+// Sevinne's Reclamation: "If this spell was cast from a graveyard, you may copy this spell and may choose a new target for the copy."
+on(/^(?:you may )?copy (?:this spell|~)(?: and (?:you )?may choose (?:a )?new targets? for the copy)?$/, async (m, env) => {
+  if (!env.src) return;
+  // the copy does what the spell does (minus this copying sentence and its condition)
+  const text = spellText(env.src)
+    .split(/(?<=\.)\s+|\n/)
+    .filter((x) => x.trim() && !/copy (?:this spell|~)/i.test(x) && !/^if this spell was cast from/i.test(x.trim()))
+    .join(' ');
+  if (!text.trim()) return;
+  queueEvent({ type: 'copySpell', controller: env.me, iid: env.src.iid });
+  const did = await resolveEffects(text, env.src, { me: env.me, choosers: env.choosers, castFree: env.castFree, x: env.x || 0 });
+  env.did.push(`copies ${nameTag(env.src)}${did.length ? ': ' + did.join('; ') : ''}`);
+}, { first: true });
 // Demonstrate: "When you cast this spell, you may copy it. If you do, choose an opponent to also copy it."
 on(/^demonstrate$/, async (m, env) => {
   const sp = env.it && card(env.it.iid);

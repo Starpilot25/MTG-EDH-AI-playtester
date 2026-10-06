@@ -184,7 +184,8 @@ export function castOptions(pid, c) {
     if (harm) add({ mode: 'harmonize', label: `Harmonize ${harm}`, cost: harm });
     const may = altCost(o0, 'Mayhem');
     if (may && ts.discarded.includes(c.iid)) add({ mode: 'mayhem', label: `Mayhem ${may}`, cost: may });
-    if (/You may cast ~ from your graveyard/i.test(o0)) add({ mode: 'fromGraveyard', label: 'Cast from graveyard', cost: f0.manaCost });
+    // "You may cast ~ from your graveyard" (not flashback's reminder text "…from your graveyard for its flashback cost")
+    if (/You may cast ~ from your graveyard(?! for its)/i.test(o0.replace(/\([^)]*\)/g, ''))) add({ mode: 'fromGraveyard', label: 'Cast from graveyard', cost: f0.manaCost });
     if (cardsIn(pid, 'battlefield').some((x) => /Spells you cast from your graveyard cost|each nonland card in your graveyard has mayhem/i.test(oracle(x))) && ts.discarded.includes(c.iid) && !isLandFace(f0) && !may)
       add({ mode: 'mayhem', label: `Mayhem ${f0.manaCost}`, cost: f0.manaCost });
   }
