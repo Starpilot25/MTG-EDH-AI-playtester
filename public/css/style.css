@@ -835,3 +835,15 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .as-row button { padding: 4px 0; }
 .as-n { text-align: center; font-size: 18px; }
 .as-msg { min-height: 1.2em; color: var(--muted); font-size: 13px; }
+
+/* the stack */
+#stackview { margin: 6px 0 8px; border: 1px solid var(--line, #2c3a34); border-radius: 10px; background: #111a17; padding: 8px; }
+#stackview .sv-head { font-weight: 700; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--brass, #d9b25f); margin-bottom: 6px; }
+#stackview .sv-head small { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); margin-left: 4px; }
+#stackview .sv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow: auto; }
+#stackview .sv-item { display: grid; grid-template-columns: auto 1fr; column-gap: 6px; padding: 5px 7px; border-radius: 7px; background: #17221e; border-left: 3px solid #4d6a99; font-size: 12px; }
+#stackview .sv-item.mine { border-left-color: #3f8f69; }
+#stackview .sv-item.theirs { border-left-color: #b8573f; }
+#stackview .sv-item.now { outline: 1px solid var(--brass, #d9b25f); }
+#stackview .sv-who { grid-row: span 2; font-size: 10px; text-transform: uppercase; color: var(--muted); align-self: center; }
+#stackview .sv-text { color: var(--muted); }

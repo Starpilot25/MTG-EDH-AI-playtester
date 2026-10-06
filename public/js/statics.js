@@ -313,7 +313,7 @@ export function staticMods(c, helpers) {
   return staticModsRaw(c, helpers);
 }
 function staticModsRaw(c, helpers) {
-  const out = { p: 0, t: 0, grants: [] };
+  const out = { p: 0, t: 0, grants: [], timed: [] };
   if (!G.s || c.zone !== 'battlefield') return out;
   for (const [src, st] of anthemSources()) {
     for (const a of st.anthems) {
@@ -333,6 +333,7 @@ function staticModsRaw(c, helpers) {
       out.p += a.p;
       out.t += a.t;
       out.grants.push(...a.grants);
+      for (const kw of a.grants) out.timed.push({ kw, ts: src.ts || 0 });
     }
   }
   selfBuffs(c, helpers, out);

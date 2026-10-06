@@ -223,7 +223,7 @@ const RESET = ['chosenCardType', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'may
   'ringBearer', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -327,6 +327,7 @@ export function move(iid, zone, opts = {}) {
     c.sick = true;
     c.enteredTurn = s.turn;
     c.enteredFrom = fromZone || null; // "a land you control enters from anywhere other than your hand
+    c.ts = nextStamp();
     // Rooms: the door that was cast enters unlocked ("When you unlock this door" triggers); put onto the battlefield otherwise, both stay locked
     if (/Room/.test(DB[c.def].typeLine || '') && DB[c.def].faces.length === 2 && /Room/.test(DB[c.def].faces[1].typeLine || '')) {
       const k = fromZone === 'stack' || c.castFace !== undefined ? c.castFace || 0 : -1;
@@ -611,6 +612,20 @@ function drawReplacement(pid) {
   return { mult, why };
 }
 
+// Timestamps (rule 613.7): permanents get one as they enter; continuous effects get one when they start
+export function nextStamp() {
+  if (!G.s) return 0;
+  G.s.tick = (G.s.tick || 0) + 1;
+  return G.s.tick;
+}
+// "loses all abilities": abilities granted before this are gone, ones granted after it still apply (layer 6)
+export function loseAllAbilities(c, until = true) {
+  c.lostAbilities = until;
+  c.lostAt = nextStamp();
+  c.lostGrantsN = (c.grants || []).length;
+  c.lostEotN = (c.eotGrants || []).length;
+}
+
 export function draw(pid, n = 1, silent = false, opts = {}) {
   const lib = zoneOf(pid, 'library');
   let drawn = 0;
@@ -840,6 +855,8 @@ export function cleanupDamage() {
     c.eotGrants = null;
     if (c.animated && c.animated.until === 'eot') delete c.animated;
     if (c.lostAbilities === 'eot') delete c.lostAbilities;
+    else if (c.lostAbilities) c.lostEotN = 0; // this turn's granted abilities are gone; next turn's start fresh
+    if (c.switchPT === 'eot') delete c.switchPT;
     delete c.eotText;
     if (c.setPTUntil === 'eot') {
       delete c.setPT;

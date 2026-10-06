@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.8",
+    "title": "The stack, and rules layers",
+    "notes": [
+      "Stack panel: the right-hand rail shows everything waiting to resolve (spells, abilities and triggers, yours in green and the AI's in red), with the next to resolve at the top.",
+      "The AI's triggered abilities now go on the stack. When one is about to resolve and you have an instant or flash card you can afford, the game pauses so you can respond, like it does for the AI's spells. Stifle and other \"counter target triggered ability\" cards work, including Spider-Sense, which now also counters sorceries. If you have nothing to respond with, it doesn't stop.",
+      "Rules layers: \"loses all abilities\" now goes by timestamp. Abilities granted afterwards (a spell, an Aura, an anthem that entered later) still apply, and ones from before don't. A creature that lost its abilities can't use its activated or mana abilities either.",
+      "Base power/toughness effects (\"becomes a 4/4\", \"has base power and toughness 1/1\", Auras that set P/T) apply in timestamp order, so the latest wins. Counters, pumps and anthems are added on top, and \"switch power and toughness\" (new) applies last."
+    ]
+  },
+  {
     "version": "1.3.7",
     "title": "Order your triggers; divide combat damage",
     "notes": [

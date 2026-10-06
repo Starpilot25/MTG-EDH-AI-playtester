@@ -8,7 +8,7 @@ import {
 } from './rules.js';
 import {
   G, card, cardsIn as cardsInZone, zoneOf as zoneOfRaw, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef, namedTokenDef,
-  stateBased, shuffle, cardName, opp, addCounters, destroy, sacrifice, discard as discardCard, mill as millCards,
+  stateBased, shuffle, cardName, opp, addCounters, loseAllAbilities, nextStamp, destroy, sacrifice, discard as discardCard, mill as millCards,
   libTop, queueEvent, winGame, loseGame, esc, makeCard,
 } from './state.js';
 // A spell being cast stays in its zone until it resolves; effects must not see it in the hand
@@ -116,7 +116,8 @@ export function joinBullets(text) {
 }
 export const unjoin = (t) => String(t || '').replace(/ ¶•/g, '\n•');
 export function activatedAbilities(c) {
-  const t = joinBullets(stripName(oracle(c), c).replace(/\([^)]*\)/g, ''));
+  // it lost all abilities: none of its own activated abilities (Rooms' unlocking and prepared copies are game rules, not abilities)
+  const t = c.lostAbilities && !c.becameTreasure ? '' : joinBullets(stripName(oracle(c), c).replace(/\([^)]*\)/g, ''));
   const out = [];
   // Prepared (Secrets of Strixhaven): "While it's prepared, you may cast a copy of its spell. Doing so unprepares it."
   if (c.zone === 'battlefield' && c.prepared && DB[c.def].faces[1] && !/Room/.test(DB[c.def].faces[1].typeLine || '')) {
@@ -946,11 +947,16 @@ on(/^counter (target [^.]*?spell(?:,? activated ability, or triggered ability| o
   if (!tgt) return env.did.push('has no spell to counter');
   // an activated ability on the stack: only "counter target … ability" can counter it
   if (G.s.stack && G.s.stack.ability) {
-    if (!/ability/.test(m[1])) return env.did.push(`can't counter an ability (only spells)`);
+    // Stifle / Spider-Sense: "triggered ability"; Pithing-style "activated ability"; "ability" for either
+    const se = env.sentence || m[0];
+    const ok = G.s.stack.trigger ? /triggered ability|target ability|counter target activated or triggered ability/.test(se) : /activated ability|target ability/.test(se);
+    if (!ok) return env.did.push(`can't counter that ${G.s.stack.trigger ? 'triggered' : 'activated'} ability`);
     G.s.stack.countered = true;
     return env.did.push(`counters ${nameTag(tgt)}'s ability`);
   }
-  if (!spellFilterOk(filter, tgt)) return env.did.push(`can't counter ${nameTag(tgt)} (wrong kind of spell)`);
+  // "counter target instant spell, sorcery spell, or triggered ability" (Spider-Sense)
+  const filt = /instant spell, sorcery spell/.test(env.sentence || '') ? 'instant or sorcery' : filter;
+  if (!spellFilterOk(filt, tgt)) return env.did.push(`can't counter ${nameTag(tgt)} (wrong kind of spell)`);
   if (cantBeCountered(tgt)) return env.did.push(`${nameTag(tgt)} can't be countered`);
   if (m[2]) {
     const amt = m[2] === 'x' ? env.x : +m[2];
@@ -962,6 +968,16 @@ on(/^counter (target [^.]*?spell(?:,? activated ability, or triggered ability| o
   env.it = { iid: tgt.iid };
   env.did.push(`counters ${whose(tgt)} ${nameTag(tgt)}`);
 });
+// Stifle, Tale's End, Disallow-style: "Counter target activated or triggered ability." / "Counter target triggered ability."
+on(/^counter target (activated or triggered|triggered|activated)? ?ability(?: you don't control)?(?:\. if it's an ability of an artifact, creature, or planeswalker, that permanent's activated abilities can't be activated this turn)?$/, async (m, env) => {
+  const st = G.s.stack;
+  if (!st || !st.ability) return env.did.push('has no ability to counter');
+  const kind = m[1] || 'activated or triggered';
+  if (st.trigger ? !/triggered/.test(kind) : !/activated/.test(kind)) return env.did.push(`can't counter that ${st.trigger ? 'triggered' : 'activated'} ability`);
+  st.countered = true;
+  const src = card(st.iid);
+  env.did.push(`counters ${src ? whose(src) + ' ' + nameTag(src) + "'s" : 'the'} ${st.trigger ? 'triggered' : 'activated'} ability`);
+}, { first: true });
 function cantBeCountered(c) {
   if (/(?:This spell|~) can't be countered|can't be countered\./i.test(face(c).oracle || '')) return true;
   return cardsIn(c.owner, 'battlefield').some((p) => /^(?:Spells|Creature spells|Noncreature spells) you control can't be countered/m.test(oracle(p)) &&
@@ -2618,7 +2634,7 @@ on(/^target creature becomes a treasure artifact with "[^"]+" and loses all othe
   const [c] = await objects(env, 'target creature', { harm: true });
   if (!c) return;
   c.becameTreasure = true;
-  c.lostAbilities = true;
+  loseAllAbilities(c);
   c.counters = {};
   c.extraText = '{T}, Sacrifice this artifact: Add one mana of any color.';
   env.did.push(`${nameTag(c)} becomes a Treasure`);
@@ -3116,12 +3132,12 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
     if (/isn't legendary|is not legendary|it's not legendary/.test(except)) tk.notLegendary = true;
     { const sl = except.match(/its starting loyalty is (\d+)/); if (sl) tk.counters.loyalty = +sl[1]; }
     if (/has haste|gains haste|have haste/.test(except)) tk.grants = [...(tk.grants || []), 'haste'];
-    if (/it's 1\/1|it's a 1\/1|they're 1\/1|base power and toughness 1\/1/.test(except)) tk.setPT = { p: 1, t: 1 };
+    if (/it's 1\/1|it's a 1\/1|they're 1\/1|base power and toughness 1\/1/.test(except)) tk.setPT = { ts: nextStamp(), p: 1, t: 1 };
     // Ember Island Production: "it's a 4/4 Hero in addition to its other types" / "a 2/2 Coward"
     {
       const pt = except.match(/(?:it's|they're) (?:an? )?(\d+)\/(\d+)(?: ([a-z][a-z -]*?))? in addition to its other types/i);
       if (pt) {
-        tk.setPT = { p: +pt[1], t: +pt[2] };
+        tk.setPT = { ts: nextStamp(), p: +pt[1], t: +pt[2] };
         if (pt[3]) tk.addTypes = ((tk.addTypes || '') + ' ' + pt[3].trim().split(/\s+/).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ')).trim();
       }
     }
@@ -3246,7 +3262,7 @@ async function makeTokens(env, desc, attachPhrase) {
   if (!defId && (mm = d.match(/\b(gingerbrute)\b/))) defId = namedTokenDef('Gingerbrute');
   if (!defId) defId = genericTokenDef(1, 1, 'Token');
   const made = createToken(defId, me, count, { tapped });
-  if (forcedPT) for (const i of made) if (card(i)) card(i).setPT = { ...forcedPT };
+  if (forcedPT) for (const i of made) if (card(i)) card(i).setPT = { ts: nextStamp(), ...forcedPT };
   if (attacking && G.s.combat) {
     for (const i of made) {
       G.s.combat.attackers.push(i);
@@ -3420,7 +3436,7 @@ on(/^(.+?) gains? ([a-z, ]+?|protection from (?:the color of your choice|[a-z]+)
 on(/^(?:until end of turn, )?(target creature|it|that creature) becomes an? ([a-z ]+?) with base power and toughness (\d+)\/(\d+)(?: until end of turn)?$/, async (m, env) => {
   const objs = await objects(env, m[1], { harm: +m[3] < 3 });
   for (const c of objs) {
-    c.setPT = { p: +m[3], t: +m[4] };
+    c.setPT = { ts: nextStamp(), p: +m[3], t: +m[4] };
     if (/until end of turn/.test(env.sentence)) c.setPTUntil = 'eot';
   }
   env.did.push(`${objs.map(nameTag).join(', ')} becomes a ${m[3]}/${m[4]} ${m[2].split(' ').pop()}`);
@@ -3450,14 +3466,26 @@ on(/^choose (?:a|an|one) ([a-z ]+?) you control$/, async (m, env) => {
 on(/^(.+?) (?:has|have) base power and toughness (\d+)\/(\d+)(?: until end of turn)?/, async (m, env) => {
   const objs = await objects(env, m[1], { harm: +m[2] < 3 });
   for (const c of objs) {
-    c.setPT = { p: +m[2], t: +m[3] };
+    c.setPT = { ts: nextStamp(), p: +m[2], t: +m[3] };
     if (/until end of turn/.test(env.sentence)) c.setPTUntil = 'eot';
   }
   env.did.push(`sets base P/T to ${m[2]}/${m[3]}`);
 });
+// Layer 7d: "Switch target creature's power and toughness until end of turn." (applied after every other P/T effect)
+on(/^switch its power and toughness(?: until end of turn)?$/, async (m, env) => {
+  const c = env.it && card(env.it.iid) ? card(env.it.iid) : env.src && card(env.src.iid);
+  if (!c) return;
+  c.switchPT = /until end of turn/.test(env.sentence) ? 'eot' : true;
+  env.did.push(`switches ${nameTag(c)}'s power and toughness`);
+}, { first: true });
+on(/^switch (.+?)(?:'s|') power and toughness(?: until end of turn)?$/, async (m, env) => {
+  const objs = /^(?:~|this creature)$/.test(m[1]) ? [env.src && card(env.src.iid)].filter(Boolean) : await objects(env, m[1], { harm: true });
+  for (const c of objs) c.switchPT = /until end of turn/.test(env.sentence) ? 'eot' : true;
+  env.did.push(`switches ${objs.map(nameTag).join(', ')}'s power and toughness`);
+}, { first: true });
 on(/^(.+?) loses? all abilities(?: until end of turn)?/, async (m, env) => {
   const objs = await objects(env, m[1]);
-  for (const c of objs) c.lostAbilities = /until end of turn/.test(env.sentence) ? 'eot' : true;
+  for (const c of objs) loseAllAbilities(c, /until end of turn/.test(env.sentence) ? 'eot' : true);
   env.did.push(`${objs.map(nameTag).join(', ')} lose${objs.length === 1 ? 's' : ''} all abilities`);
 });
 on(/^(.+?) can't block this turn/, async (m, env) => {
@@ -3986,7 +4014,7 @@ on(/^(it|that land|target land you control|~|that creature|that permanent) becom
   const objs = await objects(env, m[1], { harm: false });
   for (const c of objs) {
     const types = (m[4] || '').trim().replace(/\b\w/g, (x) => x.toUpperCase()) || 'Creature';
-    c.animated = { p: +m[2], t: +m[3], types, until: m[6] ? 'eot' : 'forever' };
+    c.animated = { ts: nextStamp(), p: +m[2], t: +m[3], types, until: m[6] ? 'eot' : 'forever', setsPT: true };
     if (m[5]) c.grants = [...(c.grants || []), ...kwList(m[5].replace(/ and /g, ', '))];
     env.did.push(`${nameTag(c)} becomes a ${m[2]}/${m[3]} ${types} creature`);
   }
@@ -3999,7 +4027,7 @@ on(/^earthbend (\d+|x)$/, async (m, env) => {
   const pick = await env.choosers[env.me].target({ forced: true, prompt: `Earthbend ${k}: choose a land you control`, candidates: lands.map((c) => c.iid), harm: false, src: env.src });
   const l = pick && pick.iid && card(pick.iid);
   if (!l) return;
-  l.animated = { p: 0, t: 0, types: 'Creature', until: 'forever' };
+  l.animated = { ts: nextStamp(), p: 0, t: 0, types: 'Creature', until: 'forever' };
   l.grants = [...(l.grants || []), 'haste'];
   l.earthbent = true;
   addCounters(l, '+1/+1', k);
@@ -5461,7 +5489,7 @@ export function attachTo(src, t) {
     }
     t.auraBuffs = t.auraBuffs || {};
     t.auraBuffs[src.iid] = {
-      p, t: tt, grants: g.kws, ...(fe ? { each: fe[3], perP: +fe[1], perT: +fe[2] } : {}),
+      ts: nextStamp(), p, t: tt, grants: g.kws, ...(fe ? { each: fe[3], perP: +fe[1], perT: +fe[2] } : {}),
       ...(g.base ? { base: g.base } : {}),
       ...(g.conds.length ? { conds: g.conds } : {}),
       // granted abilities in quotes (Teferi's Talent's "[-12]: …", Rancor-style "Whenever this creature…")
@@ -5469,15 +5497,15 @@ export function attachTo(src, t) {
     };
   }
   if (/Enchanted creature can't attack|Enchanted creature can't block|Enchanted creature doesn't untap/i.test(o)) t.pacifiedBy = src.iid;
-  if (/Enchanted creature has base power and toughness 1\/1|Cursed/i.test(o) && /base power and toughness 1\/1/i.test(o)) t.setPT = { p: 1, t: 1 };
+  if (/Enchanted creature has base power and toughness 1\/1|Cursed/i.test(o) && /base power and toughness 1\/1/i.test(o)) t.setPT = { ts: nextStamp(), p: 1, t: 1 };
   // Spider-Man No More / Frogify-style: "Enchanted creature is a Citizen with base power and toughness 1/1. It has defender and loses all other abilities."
   {
     const im = o.match(/Enchanted creature is an? ([A-Z][a-z]+) with base power and toughness (\d+)\/(\d+)/);
     if (im) {
-      t.setPT = { p: +im[2], t: +im[3] };
+      t.setPT = { ts: nextStamp(), p: +im[2], t: +im[3] };
       t.auraType = { src: src.iid, type: im[1] };
     }
-    if (/Enchanted creature[^.\n]*\. It has [^.\n]*and loses all other abilities|Enchanted creature loses all (?:other )?abilities/i.test(o)) t.lostAbilities = 'aura:' + src.iid;
+    if (/Enchanted creature[^.\n]*\. It has [^.\n]*and loses all other abilities|Enchanted creature loses all (?:other )?abilities/i.test(o)) loseAllAbilities(t, 'aura:' + src.iid);
   }
   queueEvent({ type: 'attached', iid: src.iid, to: t.iid, controller: src.controller });
 }

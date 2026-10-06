@@ -169,7 +169,59 @@ export function render() {
   withReadCache(renderAll);
   drawBlockLines();
   showStealNotes();
+  renderStackView();
 }
+
+// The stack: spells and abilities waiting to resolve, top first (the next to resolve is at the top)
+function renderStackView() {
+  const el = document.getElementById('stackview');
+  if (!el) return;
+  const s = G.s;
+  const items = [];
+  const who_ = (pid) => (pid === 'p' ? 'You' : 'AI');
+  const spellRow = (st, label) => {
+    const c = card(st.iid);
+    if (!c) return;
+    const shown = st.copyFace ? { ...c, face: st.copyFace } : c;
+    items.push({ by: st.by, name: (st.copyFace ? 'Copy of ' : '') + cardName(shown), text: st.ability ? (st.trigger ? 'Triggered: ' : 'Ability: ') + st.ability : label, iid: st.iid, now: true });
+  };
+  if (s.pstack) spellRow(s.pstack, 'Spell');
+  if (s.stack) spellRow(s.stack, 'Spell');
+  if (s.trigNow && !(s.stack && s.stack.trigger)) items.push({ ...s.trigNow, text: 'Triggered: ' + s.trigNow.text, now: true });
+  for (const t of s.trigQueue || []) items.push({ ...t, text: 'Triggered: ' + t.text });
+  if (!items.length) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = `<div class="sv-head">Stack <small>${items.length} waiting · top resolves next</small></div><ol class="sv-list">${items
+    .map((it) => `<li class="sv-item ${it.by === 'p' ? 'mine' : 'theirs'} ${it.now ? 'now' : ''}" ${it.iid && card(it.iid) ? `data-iid="${it.iid}"` : ''}><span class="sv-who">${who_(it.by)}</span><b>${esc(it.name)}</b><span class="sv-text">${esc(String(it.text || '').slice(0, 140))}</span></li>`)
+    .join('')}</ol>`;
+}
+
+// Could you respond right now with something in hand (an instant, flash, a counterspell)?
+function canRespondNow() {
+  if (!G.settings.arenaMode) return true;
+  return cardsIn('p', 'hand').concat(cardsIn('p', 'command')).some((c) => castOptions('p', c).some((o) => timingOk('p', c, o) && affordable(c, o)));
+}
+// The AI's triggered ability goes on the stack: you get to respond (or counter it) when you have something to respond with
+T.announceTrigger = async (hit, text) => {
+  const s = G.s;
+  if (!G.settings.pauseOnAiSpells || s.stack || s.pstack || aiSlaved() || !card(hit.src.iid)) return false;
+  if (!canRespondNow()) return false;
+  s.stack = { iid: hit.src.iid, by: 'ai', face: card(hit.src.iid).face || 0, ability: text, trigger: true };
+  render();
+  let countered = false;
+  try {
+    await hooks.respond(hit.src.iid);
+    countered = !!(G.s === s && s.stack && s.stack.countered);
+  } finally {
+    if (G.s === s) s.stack = null;
+  }
+  render();
+  return countered;
+};
 
 // Combat: a line from each blocker to the attacker it blocks (numbered like the attack tags)
 function drawBlockLines() {
@@ -682,7 +734,7 @@ function renderBanner() {
     const responses = arena ? cardsIn('p', 'hand').concat(cardsIn('p', 'command')).filter(respondable).length : 0;
     html = `<div class="stack">
       <div class="stack-card">${cardHTML(c)}</div>
-      <div class="stack-copy"><span class="eyebrow">${s.stack.ability ? 'AI is activating an ability' : s.stack.copyFace ? 'AI is casting a copy of' : 'AI is casting'}</span><h3>${esc(cardName(c))}</h3>
+      <div class="stack-copy"><span class="eyebrow">${s.stack.trigger ? "AI's ability triggers" : s.stack.ability ? 'AI is activating an ability' : s.stack.copyFace ? 'AI is casting a copy of' : 'AI is casting'}</span><h3>${esc(cardName(c))}</h3>
       <p>${esc(s.stack.ability || oracle(c)).replace(/~/g, esc(cardName(c))).replace(/\n/g, '<br>')}</p>
       ${(s.stack.targets || []).length ? `<p class="stack-targets">Targeting: ${s.stack.targets.map((t) => t.player ? `<b>${t.player === 'p' ? 'you' : 'the AI'}</b>` : card(t.iid) ? `<b>${card(t.iid).controller === 'p' ? 'your' : 'its own'} ${esc(cardName(card(t.iid)))}</b>` : '').filter(Boolean).join(', ')}</p>` : ''}
       ${arena ? `<p class="hint">${responses ? `You have ${responses} instant-speed card${responses > 1 ? 's' : ''} you can afford (glowing in your hand) — double-click one to respond, or let it resolve.` : 'You have nothing you can cast in response.'}</p>` : ''}

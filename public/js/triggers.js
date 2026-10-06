@@ -1388,12 +1388,24 @@ export async function settle() {
       const theirs = pending.filter((x) => (x.hit.controller || x.hit.src.controller) !== 'p');
       const ordered = mine.length > 1 ? await orderTriggers(mine) : mine;
       const queue = act === 'p' ? [...theirs, ...ordered] : [...ordered, ...theirs];
+      // the stack panel shows what's waiting (last to resolve at the bottom)
+      const tText = (h) => String(h.trig.text || h.trig.raw || '').replace(/~/g, cardName(h.src).split(',')[0]);
+      G.s.trigQueue = queue.map(({ hit }) => ({ iid: hit.src.iid, def: hit.src.def, face: hit.src.face || 0, name: cardName(hit.src), text: tText(hit), by: hit.controller || hit.src.controller }));
       for (const { hit, ev } of queue) {
         const controller = hit.controller || hit.src.controller;
+        G.s.trigNow = (G.s.trigQueue || []).shift() || null;
+        T.render();
         if (controller === 'p' && !G.settings.arenaMode) {
           log('p', `${nameTag(hit.src)} triggers: <i>${esc(hit.trig.text || hit.trig.raw)}</i>`);
           continue;
         }
+        // the AI's trigger waits on the stack so you can respond to it (Stifle, an instant…)
+        if (controller === 'ai' && T.announceTrigger && (await T.announceTrigger(hit, tText(hit)))) {
+          log('p', `You counter ${nameTag(hit.src)}'s triggered ability.`);
+          if (G.s !== s0) return;
+          continue;
+        }
+        if (G.s !== s0) return;
         try {
           await resolveTrigger(hit, controller, ev);
         } catch (e) {
@@ -1401,6 +1413,8 @@ export async function settle() {
         }
         if (G.s !== s0) return;
       }
+      G.s.trigQueue = [];
+      G.s.trigNow = null;
       for (const ev of after) {
       // sagas whose last chapter has resolved are sacrificed
       if (ev.type === 'chapter') {
@@ -1423,6 +1437,8 @@ export async function settle() {
   } finally {
     running = false;
     if (G.s === s0) {
+      G.s.trigQueue = [];
+      G.s.trigNow = null;
       stateBased();
       T.render();
     }

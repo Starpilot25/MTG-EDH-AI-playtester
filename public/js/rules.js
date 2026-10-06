@@ -1,6 +1,6 @@
 // Rules helpers: card faces, types, keywords, power/toughness, mana, evasion, combat damage.
 import { DB } from './data.js';
-import { G, readCache, cacheTwin, queueEvent } from './state.js';
+import { G, readCache, cacheTwin, queueEvent, nextStamp } from './state.js';
 import { staticMods, setTextFn, countPhrase, playerFlag } from './statics.js';
 
 export const COLORS = ['W', 'U', 'B', 'R', 'G', 'C'];
@@ -268,12 +268,19 @@ const KEYWORD_COUNTERS = new Set(['flying', 'first strike', 'double strike', 'de
 function hasKwRaw(inst, kw) {
   if (KEYWORD_COUNTERS.has(kw) && ((inst.counters || {})[kw] || 0) > 0 && !inst.lostAbilities) return true;
   if (inst.lostAbilities) {
+    // Layer 6 by timestamp: abilities granted after it lost its abilities still apply
+    const is = (g) => g === kw || String(g).startsWith(kw + ' ');
     // an Aura that says "it has defender and loses all other abilities" still grants its own keywords
     if (String(inst.lostAbilities).startsWith('aura:')) {
       const b = (inst.auraBuffs || {})[inst.lostAbilities.slice(5)];
-      if (b && (b.grants || []).includes(kw)) return true;
+      if (b && (b.grants || []).some(is)) return true;
     }
-    return (inst.eotGrants || []).includes(kw);
+    const lt = inst.lostAt || 0;
+    if ((inst.grants || []).slice(inst.lostGrantsN || 0).some(is)) return true;
+    if ((inst.eotGrants || []).slice(inst.lostEotN || 0).some(is)) return true;
+    for (const b of Object.values(inst.auraBuffs || {})) if (stampOf(b) > lt && (b.grants || []).some(is)) return true;
+    if (inst.zone === 'battlefield' && G.s) for (const x of staticMods(inst, helpers).timed || []) if (x.ts > lt && is(x.kw)) return true;
+    return false;
   }
   for (const g of grantsOf(inst)) if (g === kw || g.startsWith(kw + ' ')) return true;
   if (inst.faceDown) return false;
@@ -384,12 +391,26 @@ function cda(inst) {
   return null;
 }
 
+// an effect's timestamp, given the first time the game sees it (effects are seen as they start: the board is redrawn after each action)
+export function stampOf(o) {
+  if (!o) return 0;
+  if (!o.ts) o.ts = nextStamp();
+  return o.ts;
+}
 export function basePT(inst) {
   if (inst.faceDown) return { p: 2, t: 2 };
-  if (inst.setPT) return { ...inst.setPT };
-  for (const b of Object.values(inst.auraBuffs || {})) if (b.base) return { ...b.base };
+  // Layer 7b: effects that set base power and toughness — the latest one wins
+  {
+    let best = null;
+    const consider = (v, ts) => {
+      if (!best || ts >= best.ts) best = { v, ts };
+    };
+    if (inst.setPT) consider(inst.setPT, stampOf(inst.setPT));
+    for (const b of Object.values(inst.auraBuffs || {})) if (b.base) consider(b.base, stampOf(b));
+    if (inst.animated && inst.animated.p !== undefined && (!/Creature/.test((face(inst).typeLine || '').split('—')[0]) || inst.animated.setsPT)) consider({ p: inst.animated.p, t: inst.animated.t }, stampOf(inst.animated));
+    if (best) return { p: best.v.p, t: best.v.t };
+  }
   if (inst.proto) return { ...inst.proto };
-  if (inst.animated && inst.animated.p !== undefined && !/Creature/.test((face(inst).typeLine || '').split('—')[0])) return { p: inst.animated.p, t: inst.animated.t };
   const f = face(inst);
   const text = f.oracle || '';
   // leveler / spacecraft sections carry their own P/T
@@ -447,13 +468,20 @@ const auraSum = (inst, k) =>
     return a + (k === 'p' ? b.perP : b.perT) * v;
   }, 0) + (inst.eot ? inst.eot[k] : 0);
 
-export function power(inst) {
+// Layer 7: base (7a CDAs, 7b setting effects) + adjustments (7c: counters, pumps, Auras, anthems), then 7d switching
+function rawPower(inst) {
   const st = inst.zone === 'battlefield' ? staticMods(inst, helpers) : { p: 0 };
   return basePT(inst).p + counterPT(inst.counters).p + (inst.ptMod ? inst.ptMod.p : 0) + auraSum(inst, 'p') + st.p;
 }
-export function toughness(inst) {
+function rawToughness(inst) {
   const st = inst.zone === 'battlefield' ? staticMods(inst, helpers) : { t: 0 };
   return basePT(inst).t + counterPT(inst.counters).t + (inst.ptMod ? inst.ptMod.t : 0) + auraSum(inst, 't') + st.t;
+}
+export function power(inst) {
+  return inst.switchPT && inst.zone === 'battlefield' ? rawToughness(inst) : rawPower(inst);
+}
+export function toughness(inst) {
+  return inst.switchPT && inst.zone === 'battlefield' ? rawPower(inst) : rawToughness(inst);
 }
 
 export function cardValue(inst) {
@@ -498,6 +526,8 @@ export function manaValueOf(cost) {
 // What a permanent can tap for: {colors, amount, sac?} or null.
 // Pain lands, Talismans, horizon lands, Mana Confluence: some of the colors cost 1 life to make.
 export function manaAbility(inst) {
+  // it lost all abilities: no mana abilities either (Vraska's Treasure keeps the one it was given)
+  if (inst.lostAbilities && !inst.becameTreasure) return null;
   let r = manaAbilityRaw(inst);
   if (!r) return r;
   // Utopia Sprawl, Wild Growth, Fertile Ground, Wolfwillow Haven: "Whenever enchanted land is tapped for mana, its controller adds an additional …"
