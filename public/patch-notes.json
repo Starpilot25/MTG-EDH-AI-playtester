@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.92",
+    "title": "Author of Shadows (really)",
+    "notes": [
+      "Author of Shadows works with its current Oracle wording (\"exile all opponents' graveyards\"). It exiles their graveyard, lets you choose a nonland card, and that card is castable from your \"From exile\" panel for as long as it stays exiled, with mana of any type. Its steps also work one at a time, so small wording differences in card data no longer stop the whole ability."
+    ]
+  },
+  {
     "version": "1.2.91",
     "title": "AI respects deathtouch",
     "notes": [

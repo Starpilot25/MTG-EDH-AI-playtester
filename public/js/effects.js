@@ -1458,7 +1458,7 @@ on(/^look at the top (\w+) cards of target opponent's library, exile (\w+) of th
   env.did.push(`exiles ${k} card${k === 1 ? '' : 's'} face down from ${whoseLib(o)} library to play${env.me === 'p' ? ': ' + picks.map((i) => nameTag(card(i))).join(', ') : ''}`);
 }, { first: true, multi: true });
 // Author of Shadows
-on(/^exile all cards from (?:all opponents'|each opponent's) graveyards?\. choose a nonland card exiled this way\. you may cast (?:that card|it) for as long as it remains exiled(?:,)? and (?:you may spend mana as though it were mana of any (?:color|type)|mana of any (?:type|color) can be spent) to cast (?:that spell|it)$/, async (m, env) => {
+on(/^exile (?:all cards from )?(?:all opponents'|each opponent's|all of your opponents') graveyards?\. choose a nonland card exiled this way\. you may cast (?:that card|it)(?: for as long as it remains exiled)?[^]*$/, async (m, env) => {
   const o = opp(env.me);
   const ids = zoneOf(o, 'graveyard').slice();
   ids.forEach((i) => move(i, 'exile'));
@@ -1466,7 +1466,7 @@ on(/^exile all cards from (?:all opponents'|each opponent's) graveyards?\. choos
   env.did.push(`exiles ${ids.length} card${ids.length === 1 ? '' : 's'} from ${whoseLib(o)} graveyard`);
   if (!pool.length) return;
   const [pick] = await env.choosers[env.me].pickCards({ prompt: 'Choose a nonland card you may cast while it stays exiled', cards: pool, min: 1, max: 1, purpose: 'steal', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
-  grantPlay([pick], env.me, { anyMana: true, castOnly: true });
+  grantPlay([pick], env.me, { anyMana: anyManaText(m[0]), castOnly: true });
   env.did.push(`may cast ${nameTag(card(pick))}`);
 }, { first: true, multi: true });
 // Crabomination
@@ -1830,6 +1830,25 @@ on(/^(?:you may )?(play|cast) (?:the )?cards exiled this way( until the end of y
   const until = /next turn/.test(m[2] || '') ? G.s.turn + (G.s.active === env.me ? 2 : 1) : G.s.turn;
   grantPlay(ids, env.me, { until, castOnly: m[1] === 'cast' });
   env.did.push(`may play ${ids.length} exiled card${ids.length === 1 ? '' : 's'} ${/next turn/.test(m[2] || '') ? 'until the end of its next turn' : 'this turn'}`);
+}, { first: true });
+on(/^exile (?:all cards from )?(?:all opponents'|each opponent's|all of your opponents') graveyards?$/, async (m, env) => {
+  const o = opp(env.me);
+  const ids = zoneOf(o, 'graveyard').slice();
+  ids.forEach((i) => move(i, 'exile'));
+  env.them_ = ids;
+  env.did.push(`exiles ${ids.length} card${ids.length === 1 ? '' : 's'} from ${o === 'p' ? 'your' : "the AI's"} graveyard`);
+}, { first: true });
+// "Choose a nonland card exiled this way." (works sentence by sentence when a card's wording differs)
+on(/^choose a (nonland |creature |instant or sorcery |)card exiled this way$/, async (m, env) => {
+  const pool = (env.them_ || []).filter((i) => card(i) && card(i).zone === 'exile' && (!/nonland/.test(m[1]) || !isLandFace_(card(i))) && (!/creature/.test(m[1]) || /Creature/.test(DB[card(i).def].typeLine || '')));
+  if (!pool.length) {
+    env.it = null;
+    return env.did.push('has no card to choose');
+  }
+  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Choose a ${m[1]}card exiled this way`, cards: pool, min: 1, max: 1, purpose: 'steal', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
+  env.it = { iid: pick };
+  env.them_ = [pick];
+  env.did.push(`chooses ${nameTag(card(pick))}`);
 }, { first: true });
 // Hoarder's Greed: lose 2, draw 2, clash; repeat while you win
 on(/^you lose (\d+) life and draw (\w+) cards?, then clash with an opponent\. if you win, repeat this process$/, async (m, env) => {
