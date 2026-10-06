@@ -475,12 +475,29 @@ function targetsAvailable(text, c) {
     if (!m || m[1]) continue;
     const ph = m[2];
     if (/^(?:player|opponent|spell|any target|creature or player|player or planeswalker|activated|triggered|instant or sorcery spell|creature spell|noncreature spell)/.test(ph)) continue;
-    const gm = sent.match(/target ([a-z ,/-]*?)cards? (?:from|in) (your|a|an opponent's|target player's|target opponent's) graveyard/);
+    // "target creature card from your graveyard", "target permanent card with mana value 3 or less from your graveyard" (Sevinne's Reclamation)
+    const gm = sent.match(/target ([a-z ,/-]*?)cards?((?: with [^,.]+?)?) (?:from|in) (your|a|an opponent's|target player's|target opponent's) graveyard/);
     if (gm) {
-      const who = gm[2] === 'your' ? [AI] : /opponent|player's/.test(gm[2]) ? [P] : [AI, P];
-      const kind = gm[1].trim().replace(/ or /g, '|').replace(/ and\/or /g, '|').replace(/,/g, '');
-      const ok = who.flatMap((w) => cardsIn(w, 'graveyard')).some((g) => !kind || kind === 'permanent' ? true : new RegExp(kind.split(/\s*\|\s*|\s+/).filter((w) => w && !/^non/.test(w) && w !== 'permanent').join('|') || '.', 'i').test(DB[g.def].typeLine));
-      if (!ok) return false;
+      const who = gm[3] === 'your' ? [AI] : /opponent|player's/.test(gm[3]) ? [P] : [AI, P];
+      const kind = gm[1].trim();
+      const withPart = (gm[2] || '').trim();
+      const fits = (g) => {
+        const tl = DB[g.def].typeLine || '';
+        let ok = true;
+        if (kind && kind !== 'card') {
+          if (kind === 'permanent') ok = isPermanentCard(DB[g.def]);
+          else {
+            const words = kind.replace(/ or | and\/or /g, '|').replace(/,/g, '').split(/\s*\|\s*|\s+/).filter((w) => w && w !== 'permanent');
+            const neg = words.filter((w) => /^non/.test(w)).map((w) => w.slice(3));
+            const pos = words.filter((w) => !/^non/.test(w));
+            ok = (!pos.length || new RegExp(pos.join('|'), 'i').test(tl)) && !neg.some((w) => new RegExp(w, 'i').test(tl)) && (!/\bpermanent\b/.test(kind) || isPermanentCard(DB[g.def]));
+          }
+        }
+        const mv = withPart.match(/mana value (\d+) or (less|greater)/);
+        if (ok && mv) ok = mv[2] === 'less' ? (DB[g.def].cmc || 0) <= +mv[1] : (DB[g.def].cmc || 0) >= +mv[1];
+        return ok;
+      };
+      if (!who.flatMap((w) => cardsIn(w, 'graveyard')).some(fits)) return false;
       continue;
     }
     if (/graveyard|library|hand|exile/.test(ph)) continue;

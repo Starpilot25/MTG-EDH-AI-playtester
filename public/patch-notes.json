@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.13",
+    "title": "AI: no casting into an empty graveyard",
+    "notes": [
+      "The AI no longer casts graveyard-return spells with nothing to return. It now reads conditions like \"permanent card with mana value 3 or less\" (Sevinne's Reclamation) and only casts them when its own graveyard has a card that fits."
+    ]
+  },
+  {
     "version": "1.3.12",
     "title": "Sevinne's Reclamation; flashback fix",
     "notes": [
