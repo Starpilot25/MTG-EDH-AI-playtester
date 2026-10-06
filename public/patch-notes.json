@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.1",
+    "title": "Spree, signets, Grenzo and land drops",
+    "notes": [
+      "Spree cards work. You choose which extra costs to pay when you cast, pay the base cost plus each one, and each chosen mode happens. Before, the modes were never offered, so the spell cost only its base and the effect had to be applied by hand. All 21 Spree cards are covered (Insatiable Avarice, Final Showdown, Trash the Town, Metamorphic Blast, Smuggler's Surprise…).",
+      "Signets chain properly. A land can pay for one signet and that signet's mana can pay for the next, so a basic plus two signets makes 3 mana. Before, the game said you couldn't afford spells you could.",
+      "Grenzo, Dungeon Warden: its {2} ability works. It puts the bottom card of your library into your graveyard, and onto the battlefield if it's a creature with power no greater than Grenzo's.",
+      "Lands from exile (and from hand) now respect your land drops in the normal mode. Once you've played your land for the turn, you can't play another unless something like Explore allows it. The \"Play it anyway\" button is gone.",
+      "\"It gains [ability] until end of turn\" (Final Showdown, and many other cards) now gives the real ability for the turn. Before, it could be stored as a permanent ability under the wrong name and not work at all.",
+      "New effects: a creature becoming a 0/1 (or similar) with base power and toughness until end of turn; a creature gaining a quoted triggered ability until end of turn; \"Choose a creature you control\" (not targeted)."
+    ]
+  },
+  {
     "version": "1.3.0",
     "title": "Black Widow, Super Spy fixed",
     "notes": [

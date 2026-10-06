@@ -147,6 +147,7 @@ function oracleRaw(inst) {
     }
   }
   if (inst.extraText) text += '\n' + inst.extraText;
+  if (inst.eotText) text += '\n' + inst.eotText; // "until end of turn, it gains \"…\"" (Trash the Town)
   for (const b of Object.values(inst.auraBuffs || {})) if (b.text) text += '\n' + b.text;
   // Locus of Enlightenment: "has each activated ability of the exiled cards used to craft it" (once each turn)
   if (inst.craftedFrom && /has each activated ability of the exiled cards used to craft it/i.test(text)) {
@@ -694,6 +695,17 @@ export function payCostKeep(cost, sources, opts = {}, pid) {
   return pick;
 }
 
+function signetChainOk(on, genericUnits) {
+  const ids = new Set(on.map((s) => s.iid));
+  let spendable = genericUnits.filter((u) => !ids.has(u)).length;
+  const left = on.map((s) => ({ act: s.activation, gives: genericUnits.filter((u) => u === s.iid).length }));
+  left.sort((a, b) => b.gives - a.gives);
+  for (const s of left) {
+    if (spendable < s.act) return false;
+    spendable += s.gives - s.act;
+  }
+  return true;
+}
 export function payCost(cost, sources, opts = {}) {
   const filters = sources.filter((s) => s.activation);
   const plain = sources.filter((s) => !s.activation);
@@ -705,9 +717,9 @@ export function payCost(cost, sources, opts = {}) {
     const extra = on.reduce((a, s) => a + s.activation, 0);
     const r = payCostRaw(cost, [...plain, ...on.map((s) => ({ ...s, kind: '' }))], { ...opts, extraGeneric: (opts.extraGeneric || 0) + extra, signets: on.map((s) => s.iid), nodeCap: 4000 });
     if (!r) continue;
-    // a signet can't pay for its own activation: the units it made must all go to the spell
-    const fromOthers = r.unitsUsed.filter((u) => !on.some((s) => s.iid === u)).length;
-    if (fromOthers < extra) continue;
+    // a signet can't pay for its own activation, but it can pay for another one: a land pays signet A, A's mana pays
+    // signet B, and so on. Activate them in order, paying each from the generic mana of lands and signets already on.
+    if (!signetChainOk(on, r.genericUnits || [])) continue;
     best = r;
   }
   return best;
@@ -852,7 +864,12 @@ function payCostRaw(cost, sources, opts = {}) {
     return bk;
   };
   const generic = Math.max(0, c.generic + best.gen2 + extra) + anyPips;
-  for (let k = 0; k < generic; k++) if (takeCheapest() < 0) return null;
+  const genericUnits = [];
+  for (let k = 0; k < generic; k++) {
+    const bk = takeCheapest();
+    if (bk < 0) return null;
+    genericUnits.push(units[bk].iid);
+  }
   let x = 0;
   if (c.x && opts.maxX) {
     const left = remaining.size;
@@ -871,7 +888,7 @@ function payCostRaw(cost, sources, opts = {}) {
   });
   const unitsUsed = units.filter((u, k) => finalUsed[k]).map((u) => u.iid);
   if (opts.signets && opts.signets.some((i) => !unitsUsed.includes(i))) return null;
-  return { payers, x, sacs: [...new Set(sacs)], special, pains: [...new Set(pains)], unitsUsed };
+  return { payers, x, sacs: [...new Set(sacs)], special, pains: [...new Set(pains)], unitsUsed, genericUnits };
 }
 
 export function totalMana(sources) {

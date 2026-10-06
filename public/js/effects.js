@@ -98,7 +98,10 @@ export function etbText(c) {
 export function spellText(c) {
   // Jeska's Will & co.: "Choose one. If you control a commander as you cast this spell, you may choose both."
   const cmdr = G.s && c.controller && cardsIn(c.controller, 'battlefield').some((x) => x.isCommander);
-  return stripName(oracle(c), c)
+  let o = stripName(oracle(c), c);
+  // Spree: "Spree (Choose one or more additional costs.)\n+ {2} — …\n+ {B}{B} — …" works like "Choose one or more —" with a cost on each mode
+  if (/(?:^|\n)Spree\b/.test(o)) o = o.replace(/(^|\n)Spree\b[^\n]*/, '$1Choose one or more —').replace(/(^|\n)\+\s*((?:\{[^}]+\})+)\s*—\s*/g, '$1• +$2 — ');
+  return o
     .replace(/Choose one\. If you control a commander as you cast (?:this spell|~), you may choose both\.\s*/i, cmdr ? 'Choose one or both —\n' : 'Choose one —\n')
     .replace(/\([^)]*\)/g, '')
     .split('\n')
@@ -1646,6 +1649,23 @@ on(/^you may put an? \+1\/\+1 counter on ~\. if you don't, you may cast the exil
     grantPlay([hit.iid], env.me, { until: G.s.turn, anyMana: true, castOnly: true });
     env.did.push(`may cast ${nameTag(hit)} this turn (mana of any type)`);
   }
+}, { first: true, multi: true });
+// Grenzo, Dungeon Warden: "Put the bottom card of your library into your graveyard. If it's a creature card with power
+// less than or equal to Grenzo's power, put it onto the battlefield."
+on(/^put the bottom card of your library into your graveyard\. if it's a creature card with power less than or equal to ~'s power, put it onto the battlefield$/, async (m, env) => {
+  const lib = zoneOf(env.me, 'library');
+  if (!lib.length) return env.did.push('has no library left');
+  const iid = lib[0];
+  move(iid, 'graveyard');
+  const c = card(iid);
+  const src = env.src && card(env.src.iid);
+  const max = src && src.zone === 'battlefield' ? power(src) : (env.src ? power(env.src) : 0);
+  // the card's power as printed (it's in the graveyard now)
+  const pw = parseInt(DB[c.def].faces[0].power, 10);
+  if (/Creature/.test(DB[c.def].faces[0].typeLine || DB[c.def].typeLine || '') && !isNaN(pw) && pw <= max) {
+    toBattlefield(iid, env.me);
+    env.did.push(`mills ${nameTag(c)} from the bottom and puts it onto the battlefield`);
+  } else env.did.push(`mills ${nameTag(c)} from the bottom`);
 }, { first: true, multi: true });
 // Laughing Jasper Flint
 on(/^exile the top x cards of target opponent's library, where x is the number of outlaws you control\. until end of turn, you may cast spells from among those cards, and mana of any (?:color|type) can be spent to cast those spells$/, async (m, env) => {
@@ -3311,7 +3331,7 @@ on(/^(.+?) gets? ([+-]\d+|[+-]x)\/([+-]\d+|[+-]x)(?: and gains? ([^.]+?))?(?: fo
   if (objs.length) env.did.push(`${objs.length > 2 ? objs.length + ' creatures get' : objs.map(nameTag).join(', ') + ' get' + (objs.length === 1 ? 's' : '')} ${p >= 0 ? '+' : ''}${p}/${t >= 0 ? '+' : ''}${t}${m[4] ? ' and ' + m[4] : ''} until ${nextTurn ? 'your next turn' : 'end of turn'}`);
 });
 // "It gains haste." (no duration: for as long as it stays)
-on(/^(it|that creature|they|those creatures|those tokens|that token|the token|the tokens) gains? ([a-z, ]+?)$/, async (m, env) => {
+on(/^(it|that creature|they|those creatures|those tokens|that token|the token|the tokens) gains? (?!.*\buntil\b)([a-z, ]+?)$/, async (m, env) => {
   const objs = await objects(env, m[1].replace(/^the tokens?$/, 'them'), { harm: false });
   const grants = kwList(m[2]);
   if (!grants.length) return env.unknown.push(env.sentence);
@@ -3332,6 +3352,37 @@ on(/^(.+?) gains? ([a-z, ]+?|protection from (?:the color of your choice|[a-z]+)
     if (nextTurn) c.ntTurn = G.s.turn + 1;
   }
   if (objs.length) env.did.push(`${objs.length > 2 ? objs.length + ' creatures gain' : objs.map(nameTag).join(', ') + ' gain' + (objs.length === 1 ? 's' : '')} ${grants.join(', ')} until ${nextTurn ? 'your next turn' : 'end of turn'}`);
+});
+// Metamorphic Blast: "Until end of turn, target creature becomes a white Rabbit with base power and toughness 0/1."
+on(/^(?:until end of turn, )?(target creature|it|that creature) becomes an? ([a-z ]+?) with base power and toughness (\d+)\/(\d+)(?: until end of turn)?$/, async (m, env) => {
+  const objs = await objects(env, m[1], { harm: +m[3] < 3 });
+  for (const c of objs) {
+    c.setPT = { p: +m[3], t: +m[4] };
+    if (/until end of turn/.test(env.sentence)) c.setPTUntil = 'eot';
+  }
+  env.did.push(`${objs.map(nameTag).join(', ')} becomes a ${m[3]}/${m[4]} ${m[2].split(' ').pop()}`);
+}, { first: true });
+// Trash the Town: "Until end of turn, target creature gains "Whenever this creature deals combat damage to a player, draw two cards.""
+on(/^(?:until end of turn, )?(target creature(?: you control)?|it|that creature|~) gains "(.+)"(?: until end of turn)?$/, async (m, env) => {
+  const raw = (env.sentence.match(/"(.+)"/) || [])[1] || m[2];
+  const objs = await objects(env, m[1], { harm: false });
+  const eot = /until end of turn/i.test(env.sentence);
+  for (const c of objs) {
+    if (eot) c.eotText = (c.eotText ? c.eotText + '\n' : '') + raw;
+    else c.extraText = (c.extraText ? c.extraText + '\n' : '') + raw;
+  }
+  env.did.push(`${objs.map(nameTag).join(', ')} gains “${raw}”${eot ? ' until end of turn' : ''}`);
+}, { first: true });
+// Final Showdown: "Choose a creature you control. It gains indestructible until end of turn." (chosen, not targeted)
+on(/^choose (?:a|an|one) ([a-z ]+?) you control$/, async (m, env) => {
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => matchesFilter(c, m[1]));
+  if (!pool.length) {
+    env.it = null;
+    return env.did.push(`has no ${m[1]} to choose`);
+  }
+  const [pick] = await env.choosers[env.me].pickCards({ forced: true, prompt: `Choose a ${m[1]} you control`, cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'choose', src: env.src, aiScore: (c) => cardValue(c) });
+  env.it = pick ? { iid: pick } : null;
+  if (pick) env.did.push(`chooses ${nameTag(card(pick))}`);
 });
 on(/^(.+?) (?:has|have) base power and toughness (\d+)\/(\d+)(?: until end of turn)?/, async (m, env) => {
   const objs = await objects(env, m[1], { harm: +m[2] < 3 });

@@ -1315,9 +1315,10 @@ async function castInner(iid, opts = {}) {
   if (opt.land) {
     const s = G.s;
     if (!(s.active === 'p' && (s.step === 'main1' || s.step === 'main2') && !s.stack && !run.aiBusy)) return toast('Lands can only be played in your main phase.');
+    // one land a turn (more with Explore, Azusa…), from your hand or from exile alike
     if ((s.landsPlayed || 0) >= landsAllowed('p')) {
-      const ok = await confirmDialog({ title: 'Extra land?', body: "You've already played your land for this turn." }, 'Play it anyway', 'Cancel');
-      if (!ok) return;
+      const k = landsAllowed('p');
+      return toast(k > 1 ? `You've already played your ${k} lands this turn.` : "You've already played a land this turn.");
     }
     act(() => playLand('p', iid, opt.face, opts.pos || {}));
     return;

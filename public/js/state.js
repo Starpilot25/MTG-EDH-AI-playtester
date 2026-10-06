@@ -220,7 +220,7 @@ const RESET = ['chosenCardType', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'may
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'castMode', 'xPaid', 'impending',
-  'ringBearer', 'addTypes', 'extraText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
+  'ringBearer', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
   'rebound', 'encodedOn', 'hiddenBy', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
@@ -742,6 +742,7 @@ export function cleanupDamage() {
     c.eotGrants = null;
     if (c.animated && c.animated.until === 'eot') delete c.animated;
     if (c.lostAbilities === 'eot') delete c.lostAbilities;
+    delete c.eotText;
     if (c.setPTUntil === 'eot') {
       delete c.setPT;
       delete c.setPTUntil;
