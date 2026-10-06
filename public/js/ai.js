@@ -821,6 +821,17 @@ async function useAbilities(h) {
     const abs = activatedAbilities(c).filter((ab) => !/exiled with ~/i.test(ab.text || '') || exiledWithIt);
     abs.sort((a, b) => (/exiled with ~/i.test(b.text || '') ? 1 : 0) - (/exiled with ~/i.test(a.text || '') ? 1 : 0));
     for (const ab of abs) {
+      // Prepared: cast a copy of its spell when it does something useful
+      if (ab.kind === 'prepared') {
+        const f1 = DB[c.def].faces[1];
+        const a = analyze(f1 ? f1.oracle || '' : '');
+        if (G.s.active === AI && /main/.test(G.s.step) && !G.s.stack && (a.draw || a.token || a.burn || a.counters || a.drain || a.removal) && payCost(ab.mana || '{0}', sources(AI))) {
+          await safely(h, () => activateAbility(AI, c, ab, aiEnv(h)));
+          h.render();
+          await h.wait(G.settings.aiSpeed);
+        }
+        continue;
+      }
       // Rooms: unlock a locked door when the mana's there (a sorcery-speed special action)
       if (ab.kind === 'unlock') {
         if (G.s.active === AI && /main/.test(G.s.step) && !G.s.stack && payCost(ab.mana || '{0}', sources(AI))) {

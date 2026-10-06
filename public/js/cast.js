@@ -39,6 +39,8 @@ export function manaSources(pid, opts = {}) {
     if (m.onlyFor === 'abilities') {
       // The Enigma Jewel: "Spend this mana only to activate abilities."
       if (!opts.ability) continue;
+    } else if (m.onlyFor === 'fromExile') {
+      if (!spell || spell.zone !== 'exile' || opts.ability) continue;
     } else if (m.onlyFor) {
       if (!spell || spell.zone === 'battlefield' || opts.ability) continue;
       const tl = DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine;
@@ -120,7 +122,9 @@ export function castOptions(pid, c) {
   const s = G.s;
   const ts = s.ts[pid];
   if (zone === 'hand' || (zone === 'command' && c.isCommander)) {
-    if (!isLandFace(f0)) add({ mode: 'normal', label: zone === 'command' ? `Cast commander (tax +${commanderTax(pid, c.iid)})` : d.faces[1] && (d.layout === 'split' || d.layout === 'modal_dfc') ? `Cast ${f0.name}` : 'Cast', cost: f0.manaCost || d.manaCost || '' });
+    // a card with no mana cost (Lotus Bloom, Ancestral Vision) can't be cast normally — only suspended
+    const noCost = !(f0.manaCost || d.manaCost) && /(?:^|\n)Suspend\b/.test(o0);
+    if (!isLandFace(f0) && !noCost) add({ mode: 'normal', label: zone === 'command' ? `Cast commander (tax +${commanderTax(pid, c.iid)})` : d.faces[1] && (d.layout === 'split' || d.layout === 'modal_dfc') ? `Cast ${f0.name}` : 'Cast', cost: f0.manaCost || d.manaCost || '' });
     if (d.layout === 'split' && d.faces[1]) {
       add({ mode: 'normal', face: 1, label: `Cast ${d.faces[1].name}`, cost: d.faces[1].manaCost });
       if (/\bFuse\b/.test(d.faces[1].oracle || '') && zone === 'hand') add({ mode: 'fuse', label: 'Cast both halves (fuse)', cost: f0.manaCost + d.faces[1].manaCost });
@@ -472,6 +476,8 @@ export async function castSpell(pid, iid, opt, env) {
   if (fromZone === 'command' && c.isCommander) s.players[pid].tax[c.iid] = (s.players[pid].tax[c.iid] || 0) + 1;
   const ts = s.ts[pid];
   ts.spells++;
+  if (fromZone === 'hand') ts.spellsFromHand = (ts.spellsFromHand || 0) + 1; // Jem Lightfoote
+  else if (!opt.copy) ts.spellsNotHand = (ts.spellsNotHand || 0) + 1; // The Twelfth Doctor: "the first spell you cast from anywhere other than your hand"
   if (!/Creature/.test(f.typeLine)) ts.noncreatureSpells++;
   if (opt.mode === 'warp') s.ts.warped = true;
   Object.assign(c, { castMode: opt.mode === 'normal' ? null : opt.mode, kicked: info.kicked, xPaid: info.x, castFrom: fromZone, castFace: fIdx });
@@ -785,6 +791,16 @@ async function resolveSpell(pid, c, opt, info, env) {
   } else if (/^Shuffle ~ into its owner's library/m.test(o)) {
     move(c.iid, 'library');
     shuffle(c.owner);
+  } else if (/Exile (?:~|this spell) with (\w+) time counters on it/i.test(stripName(o, c))) {
+    // Rousing Refrain: "Exile Rousing Refrain with three time counters on it." — it's suspended again
+    const k = { one: 1, two: 2, three: 3, four: 4, five: 5 }[(stripName(o, c).match(/Exile (?:~|this spell) with (\w+) time counters/i) || [])[1].toLowerCase()] || 3;
+    move(c.iid, 'exile');
+    const cc = card(c.iid);
+    if (cc) {
+      cc.suspended = true;
+      cc.counters = { ...(cc.counters || {}), time: k };
+      log(pid, `${nameTag(cc)} is exiled with ${k} time counters (suspended).`);
+    }
   } else move(c.iid, 'graveyard');
 }
 
@@ -1185,6 +1201,26 @@ export async function activateAbility(pid, c, ab, env) {
     return env.say(`${pid === 'p' ? "You" : 'The AI'} can't activate abilities this turn.`);
   }
   switch (ab.kind) {
+    case 'prepared': {
+      // cast a copy of its spell (the card's other half): pay its cost, at that spell's speed; the creature is no longer prepared
+      const f1 = DB[c.def].faces[1];
+      if (!c.prepared || !f1) return env.say(`${name} isn't prepared.`);
+      if (!ab.instant && !(s.active === pid && (s.step === 'main1' || s.step === 'main2') && !s.stack && !s.pstack)) return env.say(`${f1.name} can only be cast at sorcery speed.`);
+      const paid = await payM(ab.mana);
+      if (!paid) return false;
+      c.prepared = false;
+      const ts = s.ts[pid];
+      ts.spells++;
+      ts.spellsNotHand = (ts.spellsNotHand || 0) + 1;
+      if (!/Creature/.test(f1.typeLine || '')) ts.noncreatureSpells++;
+      log(pid, `${pid === 'p' ? 'You cast' : 'AI casts'} a copy of ${esc(f1.name)} (${nameTag(c)} is no longer prepared).`);
+      queueEvent({ type: 'cast', iid: c.iid, def: c.def, controller: pid, from: 'battlefield', copyFace: 1 });
+      if (env.render) env.render();
+      const spellSrc = { ...c, face: 1 };
+      const did = await resolveEffects(spellText(spellSrc), spellSrc, ctx({ x: paid.x || 0 }));
+      log(pid, `Copy of ${esc(f1.name)}: ${did.join('; ') || 'resolves'}.`);
+      return true;
+    }
     case 'unlock': {
       // Rooms: pay a locked door's mana cost as a sorcery to unlock it — a special action, it doesn't use the stack
       if (!(s.active === pid && (s.step === 'main1' || s.step === 'main2') && !s.stack && !s.pstack)) return env.say('You can unlock a door only as a sorcery.');

@@ -19,6 +19,8 @@ export function typeLine(inst) {
   let t = face(inst).typeLine || DB[inst.def].typeLine;
   if (inst.notLegendary) t = t.replace(/^Legendary /, '');
   if (inst.animated && !/Creature/.test(t.split('—')[0])) t = t.replace(/^([^—]*)/, (m) => m.trim() + ' Creature ') + (inst.animated.types ? ' ' + inst.animated.types : '');
+  // "Enchanted creature is a Citizen" — it loses its other creature types
+  if (inst.auraType && G.s && G.s.cards[inst.auraType.src] && G.s.cards[inst.auraType.src].attachedTo === inst.iid) t = t.split('—')[0].trim() + ' — ' + inst.auraType.type;
   if (inst.addTypes) {
     const sup = /\bLegendary\b/.test(inst.addTypes) && !/^Legendary/.test(t);
     const rest = inst.addTypes.replace(/\bLegendary\b/, '').trim();
@@ -265,7 +267,14 @@ export function hasKw(inst, kw) {
 const KEYWORD_COUNTERS = new Set(['flying', 'first strike', 'double strike', 'deathtouch', 'decayed', 'hexproof', 'indestructible', 'lifelink', 'menace', 'reach', 'shadow', 'trample', 'vigilance', 'haste']);
 function hasKwRaw(inst, kw) {
   if (KEYWORD_COUNTERS.has(kw) && ((inst.counters || {})[kw] || 0) > 0 && !inst.lostAbilities) return true;
-  if (inst.lostAbilities) return (inst.eotGrants || []).includes(kw);
+  if (inst.lostAbilities) {
+    // an Aura that says "it has defender and loses all other abilities" still grants its own keywords
+    if (String(inst.lostAbilities).startsWith('aura:')) {
+      const b = (inst.auraBuffs || {})[inst.lostAbilities.slice(5)];
+      if (b && (b.grants || []).includes(kw)) return true;
+    }
+    return (inst.eotGrants || []).includes(kw);
+  }
   for (const g of grantsOf(inst)) if (g === kw || g.startsWith(kw + ' ')) return true;
   if (inst.faceDown) return false;
   const text = oracle(inst);
@@ -541,6 +550,14 @@ function manaAbilityRaw(inst) {
     const cols = commanderIdentity(inst.controller);
     if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
     return cols.length ? { colors: cols, amount: 1 } : null;
+  }
+  // Interdimensional Web Watch: "{T}: Add two mana in any combination of colors. Spend this mana only to cast spells from exile."
+  {
+    const am = o.match(/(?:^|\n)\{T\}: Add (two|three) mana in any combination of colors\.(?: Spend this mana only to cast spells from exile\.)?/);
+    if (am && !/Spend this mana only to cast (?:creature|[A-Z])/.test(o)) {
+      if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
+      return { colors: ['W', 'U', 'B', 'R', 'G'], amount: am[1] === 'three' ? 3 : 2, ...(/only to cast spells from exile/.test(am[0]) ? { onlyFor: 'fromExile' } : {}) };
+    }
   }
   // Thriving lands & co.: "{T}: Add {R} or one mana of the chosen color."
   {

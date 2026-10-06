@@ -399,6 +399,7 @@ export function costDelta(pid, c, fromZone) {
       if (cm.who === 'theirs' && src.controller === pid) continue;
       if (cm.from === 'your graveyard' && fromZone !== 'graveyard') continue;
       if (cm.from === 'exile' && fromZone !== 'exile') continue;
+      if (cm.from === 'anywhere other than your hand' && (!fromZone || fromZone === 'hand')) continue; // Advanced Reconstruction
       if (/commander/.test(cm.filter) && !c.isCommander) continue;
       if (!spellFits(cm.filter.replace(/commander/, '').trim(), d)) continue;
       delta += cm.delta;

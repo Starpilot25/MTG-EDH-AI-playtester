@@ -10,7 +10,7 @@ import {
   withReadCache,
 } from './state.js';
 import {
-  resolveEffects, stripName, knownEffect, bindTriggerHooks, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords,
+  resolveEffects, stripName, knownEffect, bindTriggerHooks, addMana, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords,
 } from './effects.js';
 import { venture, takeInitiative } from './dungeon.js';
 
@@ -50,7 +50,7 @@ export function triggersOf(c, defOverride) {
       if (speed < 4) continue;
       line = line.replace(/^Max speed — /i, '');
     }
-    line = line.replace(/^[A-Z][A-Za-z',.! ]{2,40} — (?=When|At|Whenever)/, ''); // ability words: "Landfall — …"
+    line = line.replace(/^[A-Z][A-Za-z0-9',.!?&\-:/ ]{1,40} — (?=When|At|Whenever|As )/, ''); // ability words: "Landfall — …", "Allons-y! — …"
     if (/^"/.test(line)) continue;
     let m;
     const add = (event, effect, extra = {}) => {
@@ -270,7 +270,21 @@ export function triggersOf(c, defOverride) {
       add('unlock', m[2], { self: true, door: +m[1] - 1 });
     else if ((m = line.match(/^Whenever you (?:fully )?unlock a (?:door|Room)[^,]*, (.+)$/i)))
       add('unlock', m[1], { anyRoom: true, fully: /fully/i.test(line) });
-    else if ((m = line.match(/^Whenever you play a land from exile or cast a spell from exile, (.+)$/i))) {
+    else if ((m = line.match(/^Whenever one or more cards are put into exile from your library and\/or your graveyard, (.+)$/i)))
+      add('exiledBatch', m[1], { fromZones: ['library', 'graveyard'], mineOnly: true });
+    else if ((m = line.match(/^Whenever one or more (?:other )?permanents phase out and whenever one or more (other )?cards are put into exile from anywhere, (.+)$/i)))
+      add('exiledBatch', m[2], { other: !!m[1] });
+    else if ((m = line.match(/^Whenever one or more (other )?cards are put into exile(?: from anywhere)?, (.+)$/i)))
+      add('exiledBatch', m[2], { other: !!m[1] });
+    else if (/^The first spell you cast from anywhere other than your hand each turn has demonstrate\b/i.test(line))
+      add('cast', 'Demonstrate.', { spell: '', mine: true, from: 'anywhere other than your hand', firstNotHand: true });
+    else if ((m = line.match(/^Whenever you copy a spell, (.+)$/i)))
+      add('copySpell', m[1], {});
+    else if ((m = line.match(/^Whenever (you play a land|a land you control enters from anywhere other than your hand) or (?:you )?cast a spell from anywhere other than your hand, (.+)$/i))) {
+      // Shadow of the Goblin, The Lost and the Damned
+      add('landfall', m[2], /^you play/i.test(m[1]) ? { playedFrom: 'notHand' } : { enteredFrom: 'notHand' });
+      add('cast', m[2], { spell: '', mine: true, from: 'anywhere other than your hand' });
+    } else if ((m = line.match(/^Whenever you play a land from exile or cast a spell from exile, (.+)$/i))) {
       // Ghost-Spider
       add('landfall', m[1], { playedFrom: 'exile' });
       add('cast', m[1], { spell: '', mine: true, from: 'exile' });
@@ -605,6 +619,13 @@ function keywordTriggers(c) {
     void ctx;
     return yes ? ['unleashed'] : [];
   }, 'Unleash', { self: true });
+  // Firebending N: "Whenever this creature attacks, add {R} N times. This mana lasts until end of combat."
+  if (/(?:^|\n)Firebending (\d+)/i.test(o)) f('attacks', async () => {
+    const k = +(o.match(/(?:^|\n)Firebending (\d+)/i) || [])[1] || 0;
+    if (!k) return [];
+    addMana(c.controller, Array(k).fill('R'));
+    return [`adds ${'{R}'.repeat(k)} (until end of combat)`];
+  }, 'Firebending', { self: true });
   if (kwNum(c, 'Hideaway')) f('enters', async (ctx) => {
     const k = kwNum(c, 'Hideaway');
     const ids = libTop(c.controller, k);
@@ -944,6 +965,16 @@ function matches(ev) {
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player, it: { iid: ev.iid } });
       });
       break;
+    case 'exiledBatch':
+      each((c, trig) => {
+        if (trig.event !== 'exiledBatch') return;
+        const items = (ev.items || []).filter((x) => (!trig.other || x.iid !== c.iid) && (!trig.fromZones || trig.fromZones.includes(x.from)) && (!trig.mineOnly || x.owner === c.controller));
+        if (items.length) out.push({ src: c, trig, amount: items.length, them: items.map((x) => x.iid) });
+      });
+      break;
+    case 'copySpell':
+      each((c, trig) => trig.event === 'copySpell' && c.controller === ev.controller && out.push({ src: c, trig }));
+      break;
     case 'unlock':
       each((c, trig) => {
         if (trig.event !== 'unlock') return;
@@ -957,11 +988,13 @@ function matches(ev) {
       break;
     case 'landfall':
       each((c, trig) => trig.event === 'landfall' && c.controller === ev.controller
-        && (!trig.playedFrom || (G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && G.s.lastLandPlay.from === trig.playedFrom))
+        && (!trig.playedFrom || (G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && (trig.playedFrom === 'notHand' ? G.s.lastLandPlay.from !== 'hand' : G.s.lastLandPlay.from === trig.playedFrom)))
+        && (!trig.enteredFrom || (trig.enteredFrom === 'notHand' ? ev.from !== 'hand' : ev.from === trig.enteredFrom))
         && out.push({ src: c, trig, it: { iid: ev.iid } }));
       break;
     case 'cast': {
-      const d = DB[ev.def];
+      // a copy of a prepared creature's spell: it's that half that was cast
+      const d = ev.copyFace ? { ...DB[ev.def], ...DB[ev.def].faces[ev.copyFace], colors: DB[ev.def].colors, cmc: ((DB[ev.def].faces[ev.copyFace].manaCost || '').match(/\{(\d+)\}/g) || []).reduce((a, x) => a + +x.slice(1, -1), 0) + ((DB[ev.def].faces[ev.copyFace].manaCost || '').match(/\{[WUBRGC](?:\/[WUBRGP])?\}/g) || []).length } : DB[ev.def];
       const sc = card(ev.iid);
       const ts = G.s.ts[ev.controller];
       each((c, trig) => {
@@ -970,6 +1003,7 @@ function matches(ev) {
         if (trig.theirs && c.controller === ev.controller) return;
         if (trig.notSelf && c.iid === ev.iid) return;
         if (trig.first && ts.spells !== 1) return;
+        if (trig.firstNotHand && (ts.spellsNotHand || 0) !== 1) return;
         if (trig.second && ts.spells !== 2) return;
         if (!spellMatches(trig.spell, d, sc)) return;
         // "a spell with mana value 4 or greater / 2 or less"

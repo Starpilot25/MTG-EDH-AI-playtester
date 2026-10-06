@@ -223,7 +223,7 @@ const RESET = ['chosenCardType', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'may
   'ringBearer', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'playWhileCtl', 'exiledWithSrc', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -235,13 +235,21 @@ export function move(iid, zone, opts = {}) {
   if (!c) return;
   const fromZone = c.zone;
   const fromCtl = fromZone === 'battlefield' ? c.controller : c.owner;
-  const requested = zone;
+  let requested = zone;
   // replacements: finality counters, "exile it if it would leave", Rest in Peace and friends
   if (fromZone === 'battlefield' && zone !== 'battlefield') {
     if ((c.counters || {}).finality && zone === 'graveyard') zone = 'exile';
     if (c.exileIfLeaves) zone = 'exile';
+    if (c.exileIfDiesTurn === s.turn && zone === 'graveyard') zone = requested = 'exile'; // The War Doctor: "would die this turn, exile it instead" (it doesn't die)
   }
   if (zone === 'graveyard' && repl('gyExile', c.owner)) zone = 'exile';
+  // "Whenever one or more cards are put into exile …" (Laelia, The War Doctor): one batch per effect
+  if (zone === 'exile' && fromZone && fromZone !== 'exile') {
+    const batch = eventQueue.find((e) => e.type === 'exiledBatch');
+    const item = { iid, from: fromZone, owner: c.owner, controller: fromZone === 'battlefield' ? c.controller : c.owner };
+    if (batch) batch.items.push(item);
+    else queueEvent({ type: 'exiledBatch', items: [item] });
+  }
   // events for triggered abilities
   if (fromZone === 'battlefield' && zone !== 'battlefield') {
     s.ts[c.controller].permLeft = true;
@@ -318,6 +326,7 @@ export function move(iid, zone, opts = {}) {
   if (zone === 'battlefield' && fromZone !== 'battlefield') {
     c.sick = true;
     c.enteredTurn = s.turn;
+    c.enteredFrom = fromZone || null; // "a land you control enters from anywhere other than your hand
     // Rooms: the door that was cast enters unlocked ("When you unlock this door" triggers); put onto the battlefield otherwise, both stay locked
     if (/Room/.test(DB[c.def].typeLine || '') && DB[c.def].faces.length === 2 && /Room/.test(DB[c.def].faces[1].typeLine || '')) {
       const k = fromZone === 'stack' || c.castFace !== undefined ? c.castFace || 0 : -1;
@@ -476,6 +485,7 @@ function entering(c, opts) {
       addCounters(c, mm[5].toLowerCase(), k, { silent: true });
     }
   }
+  if (/(?:^|\n)(?:This creature|~|[^\n.]+?) enters prepared\b/.test(o)) c.prepared = true; // Blazing Firesinger
   if ((m = o.match(/\bModular (\d+)/))) addCounters(c, '+1/+1', +m[1], { silent: true });
   if ((m = o.match(/\bGraft (\d+)/))) addCounters(c, '+1/+1', +m[1], { silent: true });
   if ((m = o.match(/\bFading (\d+)/))) addCounters(c, 'fade', +m[1], { silent: true });
@@ -499,7 +509,7 @@ function entering(c, opts) {
   if (repl('oppPermsTapped', c.controller)) c.tapped = true;
   if (/^Living weapon|\bLiving weapon\b/m.test(o) || /\bFor Mirrodin!/m.test(o) || /\bJob select\b/i.test(o)) queueEvent({ type: 'germ', iid: c.iid, controller: c.controller });
   queueEvent({ type: 'enters', iid: c.iid, controller: c.controller, creature: isCreature(c), token: c.token, land: isLand(c), def: c.def });
-  if (isLand(c)) queueEvent({ type: 'landfall', iid: c.iid, controller: c.controller });
+  if (isLand(c)) queueEvent({ type: 'landfall', iid: c.iid, controller: c.controller, from: c.enteredFrom });
   void opts;
   void s;
 }
@@ -845,6 +855,17 @@ export function stateBased() {
       if (c.auraBuffs)
         for (const k of Object.keys(c.auraBuffs))
           if (!s.cards[k] || s.cards[k].zone !== 'battlefield' || s.cards[k].attachedTo !== c.iid) delete c.auraBuffs[k];
+      // the Aura that took its abilities / set its type is gone
+      if (String(c.lostAbilities || '').startsWith('aura:')) {
+        const k = c.lostAbilities.slice(5);
+        if (!s.cards[k] || s.cards[k].zone !== 'battlefield' || s.cards[k].attachedTo !== c.iid) {
+          delete c.lostAbilities;
+          if (c.auraType && c.auraType.src === k) {
+            delete c.auraType;
+            delete c.setPT;
+          }
+        }
+      }
     }
     legendRule();
     const died = [];
@@ -872,7 +893,8 @@ export function stateBased() {
         log(c.controller, `${name} ${pw ? 'runs out of loyalty' : 'dies'}.`);
         changed = true;
       } else if (destroy(c.iid)) {
-        log(c.controller, `${name} dies${c.isCommander ? ' (to the command zone)' : ''}.`);
+        const gone = card(c.iid);
+        log(c.controller, `${name} ${gone && gone.zone === 'exile' ? 'is exiled instead of dying' : 'dies'}${c.isCommander ? ' (to the command zone)' : ''}.`);
         changed = true;
       }
     }

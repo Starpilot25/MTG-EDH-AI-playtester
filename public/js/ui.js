@@ -113,6 +113,7 @@ function cardHTML(c, opts = {}) {
     if (tx) badges.push(`<span class="badge tax" title="Attacking ${c.controller === 'p' ? 'you' : 'the AI'}${tx.andPws ? ' or ' + (c.controller === 'p' ? 'your' : 'its') + ' planeswalkers' : ''} costs {${tx.per}} per creature">⚔ {${tx.per}} each</span>`);
   }
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
+  if (c.zone === 'battlefield' && c.prepared && d.faces[1]) badges.push(`<span class="badge chosen" title="Prepared: right-click to cast a copy of ${esc(d.faces[1].name)} (${esc(d.faces[1].manaCost || '')})">✦ Prepared</span>`);
   // Rooms: which doors are unlocked
   if (c.zone === 'battlefield' && c.unlocked && d.faces.length === 2)
     d.faces.forEach((x, k) => badges.push(`<span class="badge door ${c.unlocked[k] ? 'open' : 'shut'}" title="${esc(x.name)}: ${c.unlocked[k] ? 'unlocked' : 'locked — unlock it for ' + esc(x.manaCost || '{0}') + ' as a sorcery (right-click)'}">${c.unlocked[k] ? '🔓' : '🔒'} ${esc(x.name.split(' ').slice(0, 2).join(' '))}</span>`));
@@ -501,7 +502,7 @@ function stackKey(c) {
   if (isType(c, 'Planeswalker') || c.isCommander || c.faceDown) return null;
   const sick = isCreature(c) && c.sick && !hasKw(c, 'haste') && c.controller === G.s.active;
   return [c.def, c.face || 0, c.tapped ? 1 : 0, c.token ? 1 : 0, sick ? 1 : 0, c.damage || 0, JSON.stringify(c.counters || {}), JSON.stringify(c.grants || []), JSON.stringify(c.eot || null),
-    JSON.stringify(c.eotGrants || []), JSON.stringify(c.auraBuffs || {}), c.chosenType || '', c.chosenMode || '', c.chosenColor || '', c.chosenCardType || '', JSON.stringify(c.unlocked || null), c.pacifiedBy || '', c.notLegendary ? 1 : 0, c.sector || '', c.floated ? 1 : 0].join('|');
+    JSON.stringify(c.eotGrants || []), JSON.stringify(c.auraBuffs || {}), c.chosenType || '', c.chosenMode || '', c.chosenColor || '', c.chosenCardType || '', JSON.stringify(c.unlocked || null), c.prepared ? 1 : 0, c.pacifiedBy || '', c.notLegendary ? 1 : 0, c.sector || '', c.floated ? 1 : 0].join('|');
 }
 
 function boardLanes(pid) {

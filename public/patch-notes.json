@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.4",
+    "title": "Your Spider-Verse deck",
+    "notes": [
+      "Prepared (Secrets of Strixhaven): Blazing Firesinger enters prepared; Joined Researchers, Lorehold Archivist and Harmonized Trio become prepared when their condition is met. While prepared, right-click the creature to cast a copy of its spell (pay its cost, at that spell's speed). Doing so unprepares it. The card shows a ✦ Prepared badge.",
+      "\"From anywhere other than your hand\" triggers work for lands too: Shadow of the Goblin, The Lost and the Damned and Ghost-Spider trigger when you play or put a land onto the battlefield from exile. Advanced Reconstruction's level 3 discount applies to those spells.",
+      "Spider-Verse copies only once each turn, and copies of permanent spells have haste. The Twelfth Doctor gives your first spell each turn from outside your hand demonstrate (you copy it, then the opponent copies it) and grows whenever you copy a spell.",
+      "The War Doctor gets time counters when other cards are exiled, deals damage equal to its time counters when it attacks, and exiles a creature killed that way. Laelia grows when cards are exiled from your library or graveyard.",
+      "The Tenth Doctor suspends the card it exiles with three time counters, and its {7} ability time travels three times (add or remove counters; a suspended card whose last counter is removed is cast for free). The Eleventh Doctor suspends a card from your hand.",
+      "Fixed: Hex Magic, Heroes' Hangout (only the chosen card is playable), Dance with Calamity (exile as many as you like, then cast them free if the total is 13 or less), Rousing Refrain (exiles itself with three time counters), Daredevil (+2/+1 when the card is a Hero), Cait Sith (+X/+0 equal to the card's mana value), Chaos Channeler and Wand of Wonder (d20 results), Zuko (Firebending adds {R}{R}{R} on attack), Jem Lightfoote, Shadow of the Goblin (discard, then draw), Advanced Reconstruction, Ember Island Production (the copy is a 4/4 Hero or 2/2 Coward), Spider-Man No More (a 1/1 Citizen with only defender), Interdimensional Web Watch (its mana only casts spells from exile), and Lotus Bloom and Ancestral Vision (can only be suspended, not cast for nothing)."
+    ]
+  },
+  {
     "version": "1.3.3",
     "title": "Rooms, Hideaway, Gwen Stacy and more",
     "notes": [
