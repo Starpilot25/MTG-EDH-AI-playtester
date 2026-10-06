@@ -11,7 +11,7 @@ import {
 import {
   hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn, attackTax, attackTaxOf,
 } from './game.js';
-import { aiChooser, aiMaybeCounter, aiPay, aiEnv } from './ai.js';
+import { aiChooser, aiMaybeCounter, aiMaybeCounterTrigger, aiPay, aiEnv } from './ai.js';
 import {
   manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, landOptions, playLand, landsAllowed, applyPayment,
   activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft, instantLoyalty,
@@ -205,6 +205,17 @@ function canRespondNow() {
   if (!G.settings.arenaMode) return true;
   return cardsIn('p', 'hand').concat(cardsIn('p', 'command')).some((c) => castOptions('p', c).some((o) => timingOk('p', c, o) && affordable(c, o)));
 }
+// Your triggered ability goes on the stack: the AI may counter it
+T.aiRespondTrigger = async (hit, text) => {
+  const s = G.s;
+  if (aiSlaved() || s.stack || s.pstack || !card(hit.src.iid)) return false;
+  s.pstack = { iid: hit.src.iid, by: 'p', face: card(hit.src.iid).face || 0, ability: text, trigger: true };
+  try {
+    return await aiMaybeCounterTrigger(card(hit.src.iid), text, hooks);
+  } finally {
+    if (G.s === s) s.pstack = null;
+  }
+};
 // The AI's triggered ability goes on the stack: you get to respond (or counter it) when you have something to respond with
 T.announceTrigger = async (hit, text) => {
   const s = G.s;

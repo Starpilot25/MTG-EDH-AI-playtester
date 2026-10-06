@@ -31,7 +31,7 @@ function zoneOf(pid, z) {
   return z === 'hand' ? out.filter((i) => !onStackIid(i)) : out;
 }
 import { countPhrase, kwList } from './statics.js';
-import { helpers, damageMods, redirectTarget, playerProtectedFrom } from './rules.js';
+import { helpers, damageMods, redirectTarget, playerProtectedFrom, abilitiesGone } from './rules.js';
 import { venture, takeInitiative } from './dungeon.js';
 
 const WORDNUM = {
@@ -117,7 +117,7 @@ export function joinBullets(text) {
 export const unjoin = (t) => String(t || '').replace(/ ¶•/g, '\n•');
 export function activatedAbilities(c) {
   // it lost all abilities: none of its own activated abilities (Rooms' unlocking and prepared copies are game rules, not abilities)
-  const t = c.lostAbilities && !c.becameTreasure ? '' : joinBullets(stripName(oracle(c), c).replace(/\([^)]*\)/g, ''));
+  const t = (c.lostAbilities || (c.zone === 'battlefield' && abilitiesGone(c))) && !c.becameTreasure ? '' : joinBullets(stripName(oracle(c), c).replace(/\([^)]*\)/g, ''));
   const out = [];
   // Prepared (Secrets of Strixhaven): "While it's prepared, you may cast a copy of its spell. Doing so unprepares it."
   if (c.zone === 'battlefield' && c.prepared && DB[c.def].faces[1] && !/Room/.test(DB[c.def].faces[1].typeLine || '')) {
@@ -789,7 +789,7 @@ function wardCost(c) {
   // Gold-Forged Thopteryx: "Each legendary permanent you control has ward {2}."
   if (c.zone === 'battlefield' && /Legendary/.test(typeLine(c))) {
     for (const x of cardsIn(c.controller, 'battlefield')) {
-      const wm = !x.lostAbilities && oracle(x).match(/Each legendary permanent you control has ward \{(\d+)\}/i);
+      const wm = !abilitiesGone(x) && oracle(x).match(/Each legendary permanent you control has ward \{(\d+)\}/i);
       if (wm) return { n: +wm[1] };
     }
   }
@@ -3435,11 +3435,15 @@ on(/^(.+?) gains? ([a-z, ]+?|protection from (?:the color of your choice|[a-z]+)
 // Metamorphic Blast: "Until end of turn, target creature becomes a white Rabbit with base power and toughness 0/1."
 on(/^(?:until end of turn, )?(target creature|it|that creature) becomes an? ([a-z ]+?) with base power and toughness (\d+)\/(\d+)(?: until end of turn)?$/, async (m, env) => {
   const objs = await objects(env, m[1], { harm: +m[3] < 3 });
+  const words = m[2].trim().split(/\s+/);
+  const col = COLOR_WORD[words[0]] !== undefined || words[0] === 'colorless' ? words.shift() : null;
   for (const c of objs) {
     c.setPT = { ts: nextStamp(), p: +m[3], t: +m[4] };
     if (/until end of turn/.test(env.sentence)) c.setPTUntil = 'eot';
+    // "becomes a white Rabbit": its color and creature type change too
+    addLayerFx(c, { until: /until end of turn/.test(env.sentence) ? 'eot' : true, types: { subSet: capWords(words.join(' ')) }, ...(col ? { colors: { set: col === 'colorless' ? [] : [COLOR_WORD[col]] } } : {}) });
   }
-  env.did.push(`${objs.map(nameTag).join(', ')} becomes a ${m[3]}/${m[4]} ${m[2].split(' ').pop()}`);
+  env.did.push(`${objs.map(nameTag).join(', ')} becomes a ${m[3]}/${m[4]} ${m[2]}`);
 }, { first: true });
 // Trash the Town: "Until end of turn, target creature gains "Whenever this creature deals combat damage to a player, draw two cards.""
 on(/^(?:until end of turn, )?(target creature(?: you control)?|it|that creature|~) gains "(.+)"(?: until end of turn)?$/, async (m, env) => {
@@ -3471,6 +3475,45 @@ on(/^(.+?) (?:has|have) base power and toughness (\d+)\/(\d+)(?: until end of tu
   }
   env.did.push(`sets base P/T to ${m[2]}/${m[3]}`);
 });
+// ---- layered changes on one permanent (types, colors, abilities, base P/T), timestamped
+const COLOR_WORD = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
+function addLayerFx(c, fx) {
+  c.layerFx = [...(c.layerFx || []), { ts: nextStamp(), ...fx }];
+}
+const capWords = (w) => w.split(/\s+/).filter(Boolean).map((x) => x[0].toUpperCase() + x.slice(1)).join(' ');
+// Turn to Frog: "Until end of turn, target creature loses all abilities and becomes a blue Frog with base power and toughness 1/1."
+on(/^(?:until end of turn, )?(target creature|it|that creature|enchanted creature) loses all abilities and becomes an? (white |blue |black |red |green |colorless )?([a-z -]+?) with base power and toughness (\d+)\/(\d+)( until end of turn)?$/, async (m, env) => {
+  const objs = await objects(env, m[1], { harm: true });
+  const eot = /until end of turn/.test(env.sentence);
+  for (const c of objs) {
+    addLayerFx(c, {
+      until: eot ? 'eot' : true, loseAll: true, base: { p: +m[4], t: +m[5] },
+      types: { subSet: capWords(m[3]) },
+      ...(m[2] ? { colors: { set: m[2].trim() === 'colorless' ? [] : [COLOR_WORD[m[2].trim()]] } } : {}),
+    });
+  }
+  env.did.push(`${objs.map(nameTag).join(', ')} becomes a ${m[2] || ''}${m[3]} ${m[4]}/${m[5]} with no abilities${eot ? ' until end of turn' : ''}`);
+}, { first: true });
+// Ovinize: "Until end of turn, target creature loses all abilities and has base power and toughness 0/1."
+on(/^(?:until end of turn, )?(target creature|it|that creature) loses all abilities and has base power and toughness (\d+)\/(\d+)( until end of turn)?$/, async (m, env) => {
+  const objs = await objects(env, m[1], { harm: true });
+  const eot = /until end of turn/.test(env.sentence);
+  for (const c of objs) addLayerFx(c, { until: eot ? 'eot' : true, loseAll: true, base: { p: +m[2], t: +m[3] } });
+  env.did.push(`${objs.map(nameTag).join(', ')} loses all abilities and becomes ${m[2]}/${m[3]}${eot ? ' until end of turn' : ''}`);
+}, { first: true });
+// "Target creature becomes black until end of turn." / "becomes colorless" / "becomes the color of your choice" (Distorting Lens)
+on(/^(?:until end of turn, )?(target [a-z ]+?|it|that creature|~) becomes (white|blue|black|red|green|colorless|the color of your choice|the colors? of your choice)( until end of turn)?$/, async (m, env) => {
+  const objs = /^~$/.test(m[1]) ? [card(env.src.iid)].filter(Boolean) : await objects(env, m[1], { harm: false });
+  let col = m[2];
+  if (/choice/.test(col)) {
+    const names = ['white', 'blue', 'black', 'red', 'green'];
+    const k = await env.choosers[env.me].choose({ prompt: `${cardName(env.src)}: choose a color`, options: names.map((x) => ({ label: x })), aiPick: () => 2 });
+    col = names[k] || 'black';
+  }
+  const eot = /until end of turn/.test(env.sentence);
+  for (const c of objs) addLayerFx(c, { until: eot ? 'eot' : true, colors: { set: col === 'colorless' ? [] : [COLOR_WORD[col]] } });
+  env.did.push(`${objs.map(nameTag).join(', ')} becomes ${col}${eot ? ' until end of turn' : ''}`);
+}, { first: true });
 // Layer 7d: "Switch target creature's power and toughness until end of turn." (applied after every other P/T effect)
 on(/^switch its power and toughness(?: until end of turn)?$/, async (m, env) => {
   const c = env.it && card(env.it.iid) ? card(env.it.iid) : env.src && card(env.src.iid);
@@ -5498,6 +5541,23 @@ export function attachTo(src, t) {
   }
   if (/Enchanted creature can't attack|Enchanted creature can't block|Enchanted creature doesn't untap/i.test(o)) t.pacifiedBy = src.iid;
   if (/Enchanted creature has base power and toughness 1\/1|Cursed/i.test(o) && /base power and toughness 1\/1/i.test(o)) t.setPT = { ts: nextStamp(), p: 1, t: 1 };
+  // Layered Auras: Frogify / Kenrith's Transformation, Darksteel Mutation, Deep Freeze, Song of the Dryads, Imprisoned in the Moon
+  {
+    const until = 'aura:' + src.iid;
+    t.layerFx = (t.layerFx || []).filter((e) => e.until !== until);
+    let mm;
+    if ((mm = o.match(/Enchanted creature loses all abilities and is an? (white|blue|black|red|green) ([A-Z][\w-]+) creature with base power and toughness (\d+)\/(\d+)/))) {
+      addLayerFx(t, { until, loseAll: true, base: { p: +mm[3], t: +mm[4] }, types: { set: 'Creature', sub: mm[2] }, colors: { set: [COLOR_WORD[mm[1]]] } });
+    } else if ((mm = o.match(/Enchanted creature is an? ([A-Z][\w-]+) artifact creature with base power and toughness (\d+)\/(\d+) and has ([a-z ]+?), and it loses all other abilities, card types, and creature types/))) {
+      addLayerFx(t, { until, loseAll: true, base: { p: +mm[2], t: +mm[3] }, types: { set: 'Artifact Creature', sub: mm[1] }, grants: [mm[4].trim()] });
+    } else if ((mm = o.match(/Enchanted creature has base power and toughness (\d+)\/(\d+), has ([a-z ]+?), loses all other abilities, and is an? (white|blue|black|red|green) ([A-Z][\w-]+) in addition to its other colors and types/))) {
+      addLayerFx(t, { until, loseAll: true, base: { p: +mm[1], t: +mm[2] }, grants: [mm[3].trim()], types: { subAdd: mm[5] }, colors: { add: [COLOR_WORD[mm[4]]] } });
+    } else if ((mm = o.match(/Enchanted permanent is a colorless ([A-Z][\w-]+) land\./))) {
+      addLayerFx(t, { until, types: { set: 'Land', sub: mm[1], dropSuper: false }, colors: { set: [] } });
+    } else if (/Enchanted permanent is a colorless land with "\{T\}: Add \{C\}" and loses all other card types and abilities/.test(o)) {
+      addLayerFx(t, { until, loseAll: true, types: { set: 'Land', sub: '' }, colors: { set: [] }, mana: ['C'] });
+    }
+  }
   // Spider-Man No More / Frogify-style: "Enchanted creature is a Citizen with base power and toughness 1/1. It has defender and loses all other abilities."
   {
     const im = o.match(/Enchanted creature is an? ([A-Z][a-z]+) with base power and toughness (\d+)\/(\d+)/);

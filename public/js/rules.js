@@ -13,21 +13,132 @@ export function face(inst) {
   const d = DB[inst.def];
   return d.faces[inst.face || 0] || d.faces[0];
 }
+// ============================================================ layers 4–7b: timestamped continuous effects
+// Board-wide ones come from the permanents on the battlefield (their timestamp is when they entered);
+// ones on a single permanent live in inst.layerFx: [{ ts, until, types, colors, loseAll, base, grants, mana }].
+const LAYER_RE = [
+  ['humility', /All creatures lose all abilities and have base power and toughness (\d+)\/(\d+)/i],
+  ['dressDown', /(?:^|\n)Creatures lose all abilities\./],
+  ['opal', /Each other non-Aura enchantment is a creature in addition to its other types and has base power and base toughness each equal to its mana value/i],
+  ['march', /Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value/i],
+  ['bloodMoon', /(?:^|\n)Nonbasic lands are Mountains\./],
+  ['lattice', /All permanents are artifacts in addition to their other types/i],
+  ['latticeColor', /spells, and permanents are colorless/i],
+  ['painter', /spells, and permanents are the chosen color in addition to their other colors/i],
+  ['shifting', /All nonland permanents are the chosen color/i],
+  ['adapt', /Creatures you control are the chosen type( in addition to their other types)?/i],
+];
+function layerFlags(def) {
+  const d = DB[def];
+  if (!d) return null;
+  if (d._lf === undefined) {
+    const txt = d.faces.map((f) => f.oracle || '').join('\n');
+    const out = [];
+    for (const [k, re] of LAYER_RE) {
+      const m = txt.match(re);
+      if (m) out.push([k, m]);
+    }
+    d._lf = out.length ? out : null;
+  }
+  return d._lf;
+}
+export function globalLayerFx() {
+  if (!G.s) return [];
+  if (readCache.on && readCache.layerFx) return readCache.layerFx;
+  const out = [];
+  for (const pid of ['p', 'ai'])
+    for (const iid of G.s.players[pid].zones.battlefield) {
+      const x = G.s.cards[iid];
+      if (!x || x.phasedOut || x.faceDown) continue;
+      const f = layerFlags(x.def);
+      if (f) for (const [k, m] of f) out.push({ k, m, src: x, ts: x.ts || 0 });
+    }
+  if (readCache.on) readCache.layerFx = out;
+  return out;
+}
+const printedTypes = (inst) => (face(inst).typeLine || DB[inst.def].typeLine || '').split(' // ')[0];
+const BASIC_COLOR = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
+// apply one type change to a type line ("Legendary Creature — Elf Druid")
+function applyTypes(t, ty) {
+  let [main, sub = ''] = t.split(' — ');
+  main = main.trim();
+  sub = sub.trim();
+  if (ty.set) {
+    // "is a blue Frog creature" / "is a colorless Forest land": loses its other card types and creature types (keeps supertypes)
+    const sup = (main.match(/\b(?:Legendary|Basic|Snow|World)\b/g) || []).filter((x) => !ty.dropSuper);
+    main = [...sup, ty.set].join(' ').trim();
+    sub = ty.sub || '';
+  } else {
+    if (ty.add && !new RegExp('\\b' + ty.add + '\\b').test(main)) main = (main.replace(/\bCreature\b/, '').trim() + ' ' + ty.add + (/\bCreature\b/.test(main) && ty.add !== 'Creature' ? ' Creature' : '')).replace(/\s+/g, ' ').trim();
+    if (ty.subSet !== undefined) sub = ty.subSet;
+    if (ty.subAdd) for (const w of ty.subAdd.split(' ')) if (w && !new RegExp('\\b' + w + '\\b').test(sub)) sub = (sub + ' ' + w).trim();
+  }
+  return sub ? `${main} — ${sub}` : main;
+}
+function typeFxOf(inst, base) {
+  const fx = [];
+  if (inst.animated && !/Creature/.test(base.split('—')[0])) fx.push({ ts: stampOf(inst.animated), ty: { add: 'Creature', subAdd: inst.animated.types && inst.animated.types !== 'Creature' ? inst.animated.types : '' } });
+  if (inst.auraType && G.s && G.s.cards[inst.auraType.src] && G.s.cards[inst.auraType.src].attachedTo === inst.iid) fx.push({ ts: stampOf((inst.auraBuffs || {})[inst.auraType.src] || inst.auraType), ty: { subSet: inst.auraType.type } });
+  if (inst.addTypes) {
+    if (!inst.addTypesTs) inst.addTypesTs = nextStamp();
+    const sup = /\bLegendary\b/.test(inst.addTypes);
+    const rest = inst.addTypes.replace(/\bLegendary\b/, '').replace(/^—\s*/, '').trim();
+    fx.push({ ts: inst.addTypesTs, ty: { legendary: sup, subAdd: rest } });
+  }
+  for (const e of inst.layerFx || []) if (e.types) fx.push({ ts: e.ts, ty: e.types });
+  if (inst.zone === 'battlefield')
+    for (const g of globalLayerFx()) {
+      if (g.k === 'opal' && g.src.iid !== inst.iid) fx.push({ ts: g.ts, ty: { add: 'Creature' }, when: (t) => /\bEnchantment\b/.test(t.split('—')[0]) && !/\bAura\b/.test(t) });
+      else if (g.k === 'march') fx.push({ ts: g.ts, ty: { add: 'Creature' }, when: (t) => /\bArtifact\b/.test(t.split('—')[0]) && !/\bCreature\b/.test(t.split('—')[0]) });
+      else if (g.k === 'bloodMoon') fx.push({ ts: g.ts, ty: { subSet: 'Mountain' }, when: (t) => /\bLand\b/.test(t.split('—')[0]) && !/\bBasic\b/.test(t.split('—')[0]) });
+      else if (g.k === 'lattice') fx.push({ ts: g.ts, ty: { add: 'Artifact' } });
+      else if (g.k === 'adapt' && g.src.chosenType && g.src.controller === inst.controller) fx.push({ ts: g.ts, ty: g.m[1] ? { subAdd: g.src.chosenType } : { subSet: g.src.chosenType }, when: (t) => /\bCreature\b/.test(t.split('—')[0]) });
+    }
+  return fx.sort((a, b) => a.ts - b.ts);
+}
 export function typeLine(inst) {
   if (inst.faceDown) return 'Creature';
   if (inst.becameTreasure) return 'Artifact — Treasure'; // Vraska, Betrayal's Sting
-  let t = face(inst).typeLine || DB[inst.def].typeLine;
+  let t = printedTypes(inst);
   if (inst.notLegendary) t = t.replace(/^Legendary /, '');
-  if (inst.animated && !/Creature/.test(t.split('—')[0])) t = t.replace(/^([^—]*)/, (m) => m.trim() + ' Creature ') + (inst.animated.types ? ' ' + inst.animated.types : '');
-  // "Enchanted creature is a Citizen" — it loses its other creature types
-  if (inst.auraType && G.s && G.s.cards[inst.auraType.src] && G.s.cards[inst.auraType.src].attachedTo === inst.iid) t = t.split('—')[0].trim() + ' — ' + inst.auraType.type;
-  if (inst.addTypes) {
-    const sup = /\bLegendary\b/.test(inst.addTypes) && !/^Legendary/.test(t);
-    const rest = inst.addTypes.replace(/\bLegendary\b/, '').trim();
-    t = (sup ? 'Legendary ' : '') + t + (rest ? ' ' + rest : '');
+  // Layer 4, in timestamp order (each one sees the result of the ones before it: Opalescence after March of the Machines…)
+  for (const f of typeFxOf(inst, t)) {
+    if (f.when && !f.when(t)) continue;
+    if (f.ty.legendary && !/^Legendary/.test(t)) t = 'Legendary ' + t;
+    t = applyTypes(t, f.ty);
   }
   return t;
 }
+// Layer 5: colors, in timestamp order
+function colorFx(inst) {
+  const fx = [];
+  for (const e of inst.layerFx || []) if (e.colors) fx.push({ ts: e.ts, c: e.colors });
+  if (inst.zone === 'battlefield')
+    for (const g of globalLayerFx()) {
+      if (g.k === 'latticeColor') fx.push({ ts: g.ts, c: { set: [] } });
+      else if (g.k === 'painter' && g.src.chosenColor) fx.push({ ts: g.ts, c: { add: [g.src.chosenColor] } });
+      else if (g.k === 'shifting' && g.src.chosenColor && !isLand(inst)) fx.push({ ts: g.ts, c: { set: [g.src.chosenColor] } });
+    }
+  return fx.sort((a, b) => a.ts - b.ts);
+}
+// Layer 6: when (if at all) it lost all its abilities — its own effects, Auras, Humility / Dress Down, Blood Moon
+export function lostAbilitiesAt(inst) {
+  if (!inst) return 0;
+  let lt = inst.lostAbilities ? inst.lostAt || 1 : 0;
+  for (const e of inst.layerFx || []) if (e.loseAll) lt = Math.max(lt, e.ts);
+  if (inst.zone === 'battlefield' && G.s) {
+    const fx = globalLayerFx();
+    if (fx.length) {
+      const creature = fx.some((g) => g.k === 'humility' || g.k === 'dressDown') && isCreature(inst);
+      for (const g of fx) {
+        if ((g.k === 'humility' || g.k === 'dressDown') && creature) lt = Math.max(lt, g.ts || 1);
+        if (g.k === 'bloodMoon' && /\bLand\b/.test(printedTypes(inst).split('—')[0]) && !/\bBasic\b/.test(printedTypes(inst))) lt = Math.max(lt, g.ts || 1);
+      }
+    }
+  }
+  return lt;
+}
+export const abilitiesGone = (inst) => lostAbilitiesAt(inst) > 0;
 const typeRe = new Map();
 export function isType(inst, t) {
   let re = typeRe.get(t);
@@ -46,7 +157,7 @@ export function hasSubtype(inst, t) {
   if (G.s && inst.zone === 'battlefield' && inst.owner && inst.controller && inst.owner !== inst.controller && !inst.token && isCreature(inst)) {
     for (const iid of G.s.players[inst.controller].zones.battlefield) {
       const x = G.s.cards[iid];
-      if (!x || x.phasedOut || x.lostAbilities || x === inst) continue;
+      if (!x || x.phasedOut || abilitiesGone(x) || x === inst) continue;
       const m = (face(x).oracle || '').match(/(?:Each creature|Creatures) you control but don't own[^.\n]*?(?:is an?|are) ([A-Z][a-z]+) in addition to (?:its|their) other types/);
       const sing = (w) => String(w).toLowerCase().replace(/ies$/, 'y').replace(/s$/, '');
       if (m && sing(m[1]) === sing(t)) return true;
@@ -60,6 +171,12 @@ export function isCreature(i) {
   if (!i) return false;
   if (i.faceDown) return true; // morph / manifest / disguise / cloak: a 2/2 creature
   if (i.impending && (i.counters || {}).time > 0) return false;
+  // layer 4: Opalescence, March of the Machines, Song of the Dryads, Darksteel Mutation… can make it a creature or stop it being one
+  const layered = (i.layerFx && i.layerFx.some((e) => e.types)) || (i.zone === 'battlefield' && globalLayerFx().some((g) => g.k === 'opal' || g.k === 'march'));
+  if (layered) {
+    if (/\bCreature\b/.test(typeLine(i).split('—')[0])) return true;
+    if ((i.layerFx || []).some((e) => e.types && e.types.set)) return false;
+  }
   const base = (face(i).typeLine || DB[i.def].typeLine).split('—')[0];
   if (/\bCreature\b/.test(base)) return true;
   if (i.animated) return true;
@@ -266,7 +383,18 @@ export function hasKw(inst, kw) {
 // Keyword counters (Ikoria and later): a deathtouch counter gives deathtouch, and so on
 const KEYWORD_COUNTERS = new Set(['flying', 'first strike', 'double strike', 'deathtouch', 'decayed', 'hexproof', 'indestructible', 'lifelink', 'menace', 'reach', 'shadow', 'trample', 'vigilance', 'haste']);
 function hasKwRaw(inst, kw) {
-  if (KEYWORD_COUNTERS.has(kw) && ((inst.counters || {})[kw] || 0) > 0 && !inst.lostAbilities) return true;
+  const gone = lostAbilitiesAt(inst);
+  if (KEYWORD_COUNTERS.has(kw) && ((inst.counters || {})[kw] || 0) > 0 && !gone) return true;
+  // keywords given by the same effect that took the rest away (Darksteel Mutation's indestructible, Deep Freeze's defender)
+  for (const e of inst.layerFx || []) if ((e.grants || []).includes(kw)) return true;
+  if (gone && !inst.lostAbilities) {
+    // Humility / Dress Down / an Aura: abilities granted after it still apply
+    const is = (g) => g === kw || String(g).startsWith(kw + ' ');
+    if ((inst.eotGrants || []).some(is)) return true;
+    for (const b of Object.values(inst.auraBuffs || {})) if (stampOf(b) > gone && (b.grants || []).some(is)) return true;
+    if (inst.zone === 'battlefield' && G.s) for (const x of staticMods(inst, helpers).timed || []) if (x.ts > gone && is(x.kw)) return true;
+    return false;
+  }
   if (inst.lostAbilities) {
     // Layer 6 by timestamp: abilities granted after it lost its abilities still apply
     const is = (g) => g === kw || String(g).startsWith(kw + ' ');
@@ -312,8 +440,12 @@ export function kwCost(inst, name, text) {
 
 export function colorsOf(inst) {
   if (inst.faceDown) return [];
-  if (/\bDevoid\b/.test(face(inst).oracle || '')) return [];
-  return DB[inst.def].colors || [];
+  let cols = /\bDevoid\b/.test(face(inst).oracle || '') ? [] : DB[inst.def].colors || [];
+  for (const f of colorFx(inst)) {
+    if (f.c.set) cols = [...f.c.set];
+    if (f.c.add) cols = [...new Set([...cols, ...f.c.add])];
+  }
+  return cols;
 }
 
 // ------------------------------------------------------------ protection
@@ -408,6 +540,19 @@ export function basePT(inst) {
     if (inst.setPT) consider(inst.setPT, stampOf(inst.setPT));
     for (const b of Object.values(inst.auraBuffs || {})) if (b.base) consider(b.base, stampOf(b));
     if (inst.animated && inst.animated.p !== undefined && (!/Creature/.test((face(inst).typeLine || '').split('—')[0]) || inst.animated.setsPT)) consider({ p: inst.animated.p, t: inst.animated.t }, stampOf(inst.animated));
+    for (const e of inst.layerFx || []) if (e.base) consider(e.base, e.ts);
+    if (inst.zone === 'battlefield' && G.s) {
+      const fx = globalLayerFx();
+      if (fx.length) {
+        const tl = typeLine(inst);
+        const mv = DB[inst.def].cmc || 0;
+        for (const g of fx) {
+          if (g.k === 'humility' && /\bCreature\b/.test(tl.split('—')[0])) consider({ p: +g.m[1], t: +g.m[2] }, g.ts);
+          else if (g.k === 'opal' && g.src.iid !== inst.iid && /\bEnchantment\b/.test(printedTypes(inst).split('—')[0]) && !/\bAura\b/.test(tl)) consider({ p: mv, t: mv }, g.ts);
+          else if (g.k === 'march' && /\bArtifact\b/.test(printedTypes(inst).split('—')[0]) && !/\bCreature\b/.test(printedTypes(inst).split('—')[0])) consider({ p: mv, t: mv }, g.ts);
+        }
+      }
+    }
     if (best) return { p: best.v.p, t: best.v.t };
   }
   if (inst.proto) return { ...inst.proto };
@@ -526,8 +671,19 @@ export function manaValueOf(cost) {
 // What a permanent can tap for: {colors, amount, sac?} or null.
 // Pain lands, Talismans, horizon lands, Mana Confluence: some of the colors cost 1 life to make.
 export function manaAbility(inst) {
-  // it lost all abilities: no mana abilities either (Vraska's Treasure keeps the one it was given)
-  if (inst.lostAbilities && !inst.becameTreasure) return null;
+  // an effect that gave it a mana ability (Imprisoned in the Moon: "{T}: Add {C}")
+  for (const e of inst.layerFx || []) if (e.mana) return isCreature(inst) && inst.sick && !hasKw(inst, 'haste') ? null : { colors: e.mana, amount: 1 };
+  // it lost all abilities: no mana abilities of its own (Vraska's Treasure keeps the one it was given) — but a land with a
+  // basic land type taps for that color (Blood Moon's Mountains, Song of the Dryads' Forest)
+  if ((inst.lostAbilities && !inst.becameTreasure) || (!inst.becameTreasure && abilitiesGone(inst)) || (inst.layerFx || []).some((e) => e.types && e.types.set)) {
+    const tl = typeLine(inst);
+    if (/\bLand\b/.test(tl.split('—')[0])) {
+      const cols = Object.entries(BASIC_COLOR).filter(([k]) => new RegExp('\\b' + k + '\\b').test(tl.split('—')[1] || '')).map(([, v]) => v);
+      if (cols.length && (abilitiesGone(inst) || (inst.layerFx || []).some((e) => e.types && e.types.set))) return { colors: cols, amount: 1 };
+    }
+    if (inst.lostAbilities && !inst.becameTreasure) return null;
+    if (abilitiesGone(inst)) return null;
+  }
   let r = manaAbilityRaw(inst);
   if (!r) return r;
   // Utopia Sprawl, Wild Growth, Fertile Ground, Wolfwillow Haven: "Whenever enchanted land is tapped for mana, its controller adds an additional …"
@@ -1055,7 +1211,7 @@ export function damageMods(amount, src, victimPid, opts = {}) {
   for (const pid of ['p', 'ai']) {
     for (const iid of G.s.players[pid].zones.battlefield) {
       const x = G.s.cards[iid];
-      if (!x || x.phasedOut || x.faceDown || x.lostAbilities) continue;
+      if (!x || x.phasedOut || x.faceDown || abilitiesGone(x)) continue;
       const o = oracle(x);
       if (!/damage/i.test(o)) continue;
       if (pid === srcCtl && /If a source you control would deal damage to (?:a permanent or player|an opponent or a permanent an opponent controls), it deals (double|triple) that damage/i.test(o)
@@ -1067,7 +1223,7 @@ export function damageMods(amount, src, victimPid, opts = {}) {
     if (victimPid !== pid) continue;
     for (const iid of G.s.players[pid].zones.battlefield) {
       const x = G.s.cards[iid];
-      if (!x || x.phasedOut || x.faceDown || x.lostAbilities) continue;
+      if (!x || x.phasedOut || x.faceDown || abilitiesGone(x)) continue;
       const o = oracle(x);
       if (/If a source would deal damage to you or a permanent you control, prevent half that damage, rounded up/i.test(o)) a = Math.floor(a / 2);
       if (!opts.combat && /Prevent all noncombat damage that would be dealt to you and other permanents you control/i.test(o) && (!opts.victim || opts.victim.iid !== x.iid)) a = 0;

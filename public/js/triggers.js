@@ -2,7 +2,7 @@
 // permanent whose rules text (or keyword) triggers on each event and resolves it.
 import { DB } from './data.js';
 import {
-  isCreature, sculptors, SECTORS, SECTOR_SIGN, isLand, isType, oracle, face, hasKw, kwNum, power, toughness, cardValue, hasSubtype, payCost, typeLine,
+  abilitiesGone, isCreature, sculptors, SECTORS, SECTOR_SIGN, isLand, isType, oracle, face, hasKw, kwNum, power, toughness, cardValue, hasSubtype, payCost, typeLine,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, log, nameTag, eventQueue, queueEvent, stateBased, cardName, move, toBattlefield, addCounters,
@@ -352,7 +352,7 @@ export function triggersOf(c, defOverride) {
 
 // ------------------------------------------------------------ keyword triggers
 function keywordTriggers(c) {
-  if (!c || c.faceDown || c.lostAbilities || c.zone === 'command') return [];
+  if (!c || c.faceDown || (c.zone === 'battlefield' ? abilitiesGone(c) : c.lostAbilities) || c.zone === 'command') return [];
   const out = [];
   const t = (event, text, extra = {}) => out.push({ event, text, raw: text, kw: true, ...extra });
   const f = (event, fn, label, extra = {}) => out.push({ event, fn, raw: label, kw: true, ...extra });
@@ -1331,10 +1331,12 @@ export async function settle() {
   const s0 = G.s;
   try {
     let guard = 0;
-    while (eventQueue.length && guard++ < 400) {
+    let processed = 0; // runaway loops (Scute Swarm copying itself on every landfall…) stop after 400 events, as before
+    while (eventQueue.length && guard++ < 400 && processed < 400) {
       // everything that happened at once triggers together: collect the whole batch, then put it on the stack
       // (active player's first, so the other player's resolve first), letting you order your own
-      const batch = eventQueue.splice(0, eventQueue.length);
+      const batch = eventQueue.splice(0, Math.min(eventQueue.length, 400 - processed));
+      processed += batch.length;
       const pending = [];
       const after = [];
       for (const ev of batch) {
@@ -1397,6 +1399,11 @@ export async function settle() {
         T.render();
         if (controller === 'p' && !G.settings.arenaMode) {
           log('p', `${nameTag(hit.src)} triggers: <i>${esc(hit.trig.text || hit.trig.raw)}</i>`);
+          continue;
+        }
+        // your trigger on the stack: the AI may counter it (Stifle)
+        if (controller === 'p' && T.aiRespondTrigger && (await T.aiRespondTrigger(hit, tText(hit)))) {
+          if (G.s !== s0) return;
           continue;
         }
         // the AI's trigger waits on the stack so you can respond to it (Stifle, an instant…)

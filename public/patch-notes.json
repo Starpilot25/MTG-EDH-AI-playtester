@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.9",
+    "title": "Full layer system; the AI answers your triggers",
+    "notes": [
+      "The AI can counter your triggered abilities. If it holds Stifle or another \"counter target triggered ability\" card and your trigger is worth stopping (big card draw, a pile of tokens, real damage, removal, an extra turn), it casts it. Small triggers like gaining 1 life are let through.",
+      "Types and colors (layers 4 and 5) now go by timestamp too. Effects that make something a creature, a Frog, a Mountain, an artifact or a color apply in the order they happened, and each one sees the result of the ones before it.",
+      "Board-wide layer effects: Humility, Dress Down, Opalescence, March of the Machines, Blood Moon (nonbasic lands become Mountains that tap for red), Mycosynth Lattice, Painter's Servant, Shifting Sky, Arcane Adaptation and Conspiracy. Humility + Opalescence follows the official ruling: whichever entered last decides whether Humility is a 4/4 or everything is 1/1.",
+      "Turn to Frog, Ovinize, Metamorphic Blast and \"becomes [color]\" change the creature's type, color and abilities, not just its P/T. Frogify, Kenrith's Transformation, Darksteel Mutation, Deep Freeze, Song of the Dryads and Imprisoned in the Moon work as Auras, and everything reverts when the Aura leaves.",
+      "A permanent that lost its abilities also loses its triggers, static effects and mana abilities, whichever effect took them away."
+    ]
+  },
+  {
     "version": "1.3.8",
     "title": "The stack, and rules layers",
     "notes": [

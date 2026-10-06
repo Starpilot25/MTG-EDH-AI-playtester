@@ -281,6 +281,47 @@ export async function aiMaybeCounter(spell, h) {
   return false;
 }
 
+// Your triggered ability is on the stack: the AI may Stifle it (Stifle, Tale's End, Spider-Sense…) when it matters enough
+export async function aiMaybeCounterTrigger(src, text, h) {
+  const t = String(text || '').toLowerCase();
+  const a = analyze(t);
+  let worth = 1;
+  const W = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7 };
+  const dm = t.match(/draws? (two|three|four|five|six|seven|\d+) cards/);
+  if (dm) worth += 1.5 * (W[dm[1]] || +dm[1] || 0);
+  else if (a.draw) worth += 1;
+  const tm = t.match(/create (a|an|one|two|three|four|five|six|seven|x|\d+) /);
+  if (a.token) worth += 1.5 * (tm ? W[tm[1]] || +tm[1] || 2 : 1) + 1;
+  if (a.removal || a.bounce || a.edict) worth += cardsIn(AI, 'battlefield').some((c) => !isLand(c) && threat(c) >= 5) ? 5 : 2;
+  if (a.wipe) worth += 8;
+  if (a.extraTurn || a.steal) worth += 8;
+  const bm = t.match(/deals? (\d+) damage/);
+  if (a.burn || bm) {
+    const amt = (a.burn && a.burn.amount) || (bm ? +bm[1] : 0);
+    worth += amt >= G.s.players.ai.life ? 50 : Math.min(6, amt * 1.5);
+  }
+  if (/search your library/.test(t)) worth += 3;
+  if (src && isCreature(src)) worth += threat({ ...src, zone: 'battlefield' }) / 4;
+  let bar = 4;
+  if (casualAI()) bar += 2;
+  if (worth < bar) return false;
+  const pool = sources(AI);
+  for (const c of cardsIn(AI, 'hand')) {
+    if (!/Counter target (?:activated or triggered|triggered) ability|Counter target [^.]*?triggered ability/i.test(oracle(c))) continue;
+    const pay = payCost(costOf(c), pool);
+    if (!pay) continue;
+    applyPayment(AI, pay);
+    log(AI, `AI responds with ${nameTag(c)}, countering ${src ? `your ${nameTag(src)}'s` : 'your'} triggered ability.`);
+    move(c.iid, 'graveyard');
+    G.s.ts.ai.spells++;
+    fire({ type: 'cast', iid: c.iid, def: c.def, controller: AI, from: 'hand' });
+    h.render();
+    await h.wait(G.settings.aiSpeed);
+    return true;
+  }
+  return false;
+}
+
 aiHelpers.landScore = (c) => scoreLandForColors(c, neededColors());
 
 // Everything cast.js needs to act for the AI.

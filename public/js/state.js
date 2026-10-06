@@ -1,6 +1,6 @@
 // Game state, zones and the actions both players use.
 import { DB } from './data.js';
-import { isCreature, isLand, power, toughness, isDead, def, isType, hasKw, oracle, face, typeLine, hasSubtype } from './rules.js';
+import { isCreature, isLand, power, toughness, isDead, def, isType, hasKw, oracle, face, typeLine, hasSubtype, abilitiesGone } from './rules.js';
 import { repl, playerFlag } from './statics.js';
 
 export const ZONES = ['library', 'hand', 'battlefield', 'graveyard', 'exile', 'command'];
@@ -205,7 +205,7 @@ export function tappedHook(c) {
   const first = c.firstTapTurn !== G.s.turn;
   c.firstTapTurn = G.s.turn;
   if (!first || G.s.active !== c.controller || !c.tapped) return;
-  const cap = G.s.players[c.controller].zones.battlefield.map((i) => G.s.cards[i]).find((x) => x && !x.phasedOut && !x.lostAbilities && /Whenever a creature you control becomes tapped during your turn, if it's the first time that creature has become tapped this turn, untap it/i.test(oracle(x)));
+  const cap = G.s.players[c.controller].zones.battlefield.map((i) => G.s.cards[i]).find((x) => x && !x.phasedOut && !abilitiesGone(x) && /Whenever a creature you control becomes tapped during your turn, if it's the first time that creature has become tapped this turn, untap it/i.test(oracle(x)));
   if (!cap) return;
   c.tapped = false;
   log(c.controller, `${nameTag(cap)}: ${nameTag(c)} untaps.`);
@@ -223,7 +223,7 @@ const RESET = ['chosenCardType', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'may
   'ringBearer', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -580,7 +580,7 @@ function drawReplacement(pid) {
     ts.drawStepDrew = true;
   }
   const oracleOf = (x) => (DB[x.def].faces[x.face || 0] || {}).oracle || '';
-  const field = (who) => s.players[who].zones.battlefield.map((i) => s.cards[i]).filter((x) => x && !x.phasedOut && !x.lostAbilities);
+  const field = (who) => s.players[who].zones.battlefield.map((i) => s.cards[i]).filter((x) => x && !x.phasedOut && !abilitiesGone(x));
   const other = pid === 'p' ? 'ai' : 'p';
   // Notion Thief (an opponent of the drawer)
   // Chains of Mephistopheles (anyone's): discard instead (then draw), or mill if they can't
@@ -766,6 +766,7 @@ export function withReadCache(fn) {
   readCache.statics = null;
   readCache.threat = null;
   readCache.kw = null;
+  readCache.layerFx = null;
   try {
     return fn();
   } finally {
@@ -857,6 +858,7 @@ export function cleanupDamage() {
     if (c.lostAbilities === 'eot') delete c.lostAbilities;
     else if (c.lostAbilities) c.lostEotN = 0; // this turn's granted abilities are gone; next turn's start fresh
     if (c.switchPT === 'eot') delete c.switchPT;
+    if (c.layerFx) c.layerFx = c.layerFx.filter((e) => e.until !== 'eot');
     delete c.eotText;
     if (c.setPTUntil === 'eot') {
       delete c.setPT;
@@ -945,6 +947,15 @@ export function stateBased() {
       if (c.auraBuffs)
         for (const k of Object.keys(c.auraBuffs))
           if (!s.cards[k] || s.cards[k].zone !== 'battlefield' || s.cards[k].attachedTo !== c.iid) delete c.auraBuffs[k];
+      // layered effects from an Aura that's gone (Frogify, Darksteel Mutation…)
+      if (c.layerFx && c.layerFx.some((e) => String(e.until).startsWith('aura:'))) {
+        const keep = c.layerFx.filter((e) => {
+          if (!String(e.until).startsWith('aura:')) return true;
+          const k = String(e.until).slice(5);
+          return s.cards[k] && s.cards[k].zone === 'battlefield' && s.cards[k].attachedTo === c.iid;
+        });
+        if (keep.length !== c.layerFx.length) c.layerFx = keep;
+      }
       // the Aura that took its abilities / set its type is gone
       if (String(c.lostAbilities || '').startsWith('aura:')) {
         const k = c.lostAbilities.slice(5);

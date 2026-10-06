@@ -3,6 +3,7 @@
 import { DB } from './data.js';
 import { G, readCache, cacheTwin } from './state.js';
 import { evalCond } from './effects.js';
+import { abilitiesGone } from './rules.js';
 
 const COLOR_WORDS = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
 const parsedCache = new Map();
@@ -250,7 +251,7 @@ function fieldRaw() {
   {
     for (const iid of G.s.players[pid].zones.battlefield) {
       const c = G.s.cards[iid];
-      if (c && !c.phasedOut && !c.faceDown && !c.lostAbilities) out.push(c);
+      if (c && !c.phasedOut && !c.faceDown && !abilitiesGone(c)) out.push(c);
     }
     for (const iid of G.s.players[pid].zones.command) {
       const c = G.s.cards[iid];
@@ -342,7 +343,7 @@ function staticModsRaw(c, helpers) {
 
 let inSelf = 0;
 function selfBuffs(c, helpers, out) {
-  if (c.phasedOut || c.faceDown || c.lostAbilities || inSelf > 2) return;
+  if (c.phasedOut || c.faceDown || abilitiesGone(c) || inSelf > 2) return;
   const list = staticsOf(c).self;
   if (!list || !list.length) return;
   inSelf++;
