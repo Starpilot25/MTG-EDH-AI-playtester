@@ -190,6 +190,12 @@ export function triggersOf(c, defOverride) {
     else if ((m = line.match(/^When(?:ever)? ~ (?:attacks or blocks|blocks or attacks)[^,]*, (.+)$/i))) {
       add('attacks', m[1], { self: true });
       add('blocks', m[1], { self: true });
+    } else if ((m = line.match(/^Whenever ~ attacks or becomes the target of a spell(?: or ability)?(?: an opponent controls)?, (.+)$/i))) {
+      // Goldspan Dragon
+      add('attacks', m[1], { self: true });
+      add('becomesTarget', m[1], { self: true, spellOnly: !/or ability/i.test(line), oppOnly: /an opponent controls/i.test(line) });
+    } else if ((m = line.match(/^Whenever ~ becomes the target of a spell(?: or ability)?(?: an opponent controls| you control)?(?: for the first time each turn)?, (.+)$/i))) {
+      add('becomesTarget', m[1], { self: true, spellOnly: !/or ability/i.test(line), oppOnly: /an opponent controls/i.test(line), mineOnly: /you control,/i.test(line) });
     } else if ((m = line.match(/^When(?:ever)? ~ attacks(?: and isn't blocked)?(?: alone)?[^,]*, (.+)$/i)))
       add(/isn't blocked/i.test(line) ? 'unblocked' : /alone/i.test(line) ? 'attacksAlone' : 'attacks', m[1], { self: true });
     else if ((m = line.match(/^When(?:ever)? ~ blocks(?: or becomes blocked)?[^,]*, (.+)$/i))) {
@@ -970,6 +976,15 @@ function matches(ev) {
         if (trig.event !== 'exiledBatch') return;
         const items = (ev.items || []).filter((x) => (!trig.other || x.iid !== c.iid) && (!trig.fromZones || trig.fromZones.includes(x.from)) && (!trig.mineOnly || x.owner === c.controller));
         if (items.length) out.push({ src: c, trig, amount: items.length, them: items.map((x) => x.iid) });
+      });
+      break;
+    case 'becomesTarget':
+      each((c, trig) => {
+        if (trig.event !== 'becomesTarget' || !trig.self || c.iid !== ev.iid) return;
+        if (trig.spellOnly && !ev.bySpell) return;
+        if (trig.oppOnly && ev.controller === c.controller) return;
+        if (trig.mineOnly && ev.controller !== c.controller) return;
+        out.push({ src: c, trig, thatPlayer: ev.controller });
       });
       break;
     case 'copySpell':

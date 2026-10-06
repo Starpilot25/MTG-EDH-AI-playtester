@@ -686,6 +686,11 @@ export function manaAbility(inst) {
   }
   let r = manaAbilityRaw(inst);
   if (!r) return r;
+  // Goldspan Dragon: "Treasures you control have "{T}, Sacrifice this artifact: Add two mana of any one color.""
+  if (r.sac && G.s && inst.zone === 'battlefield' && hasSubtype(inst, 'Treasure') && G.s.players[inst.controller].zones.battlefield.some((i) => {
+    const x = G.s.cards[i];
+    return x && !x.phasedOut && !abilitiesGone(x) && /Treasures you control have "\{T\}, Sacrifice this artifact: Add two mana of any one color\."/i.test(oracle(x));
+  })) r = { ...r, colors: ['W', 'U', 'B', 'R', 'G'], amount: 2 };
   // Utopia Sprawl, Wild Growth, Fertile Ground, Wolfwillow Haven: "Whenever enchanted land is tapped for mana, its controller adds an additional …"
   if (G.s && isLand(inst)) {
     for (const a of Object.values(G.s.cards)) {

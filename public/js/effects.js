@@ -753,6 +753,8 @@ async function pickTargets(env, phrase, opts = {}) {
     }
     kept.push(r);
   }
+  // "Whenever ~ becomes the target of a spell" (Goldspan Dragon, heroic-style cards)
+  for (const r of kept) if (r.iid && card(r.iid) && card(r.iid).zone === 'battlefield') queueEvent({ type: 'becomesTarget', iid: r.iid, bySpell: Object.prototype.hasOwnProperty.call(env, 'castFrom'), controller: me });
   return kept;
 }
 

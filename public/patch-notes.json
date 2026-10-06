@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.11",
+    "title": "Goldspan Dragon",
+    "notes": [
+      "Goldspan Dragon: it makes a Treasure when it becomes the target of a spell (yours or the AI's), not just when it attacks, and while it's out your Treasures tap for two mana.",
+      "\"Whenever ~ becomes the target of a spell (or ability)\" triggers work in general now."
+    ]
+  },
+  {
     "version": "1.3.10",
     "title": "Xorn and \"plus an additional token\" effects",
     "notes": [
