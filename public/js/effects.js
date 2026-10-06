@@ -15,6 +15,9 @@ import {
 // (Brainsurge can't put itself back, Windfall doesn't shuffle itself away, "cards in hand" counts exclude it).
 // triggers.js's shared hooks (castFree, render…), loaded lazily to avoid a circular import
 let T = {};
+export function bindTriggerHooks(t) {
+  T = t;
+}
 import('./triggers.js').then((m) => {
   T = m.T;
 }).catch(() => {});
@@ -1604,7 +1607,7 @@ on(/^each opponent exiles cards from the top of their library until they exile a
   env.did.push(`${who(o)} ${s_(o, 'exile')} ${all.length} card${all.length === 1 ? '' : 's'}${hit ? `, hitting ${nameTag(card(hit))}` : ''}`);
   if (hit) await castFromPool(env, [hit], { free: true });
 }, { first: true, multi: true });
-on(/^each player exiles cards from the top of their library until they exile a nonland card\. an opponent choses a nonland card exiled this way\. you may cast up to two spells from among the other cards exiled this way without paying their mana costs$/, async (m, env) => {
+on(/^each player exiles cards from the top of their library until they exile a nonland card\. an opponent choo?ses a nonland card exiled this way\. you may cast up to two spells from among the other cards exiled this way without paying their mana costs$/, async (m, env) => {
   const hits = [];
   for (const pid of [env.me, opp(env.me)]) {
     const { hit } = exileUntil(pid, (c) => !isLandFace_(c));

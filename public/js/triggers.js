@@ -10,7 +10,7 @@ import {
   withReadCache,
 } from './state.js';
 import {
-  resolveEffects, stripName, knownEffect, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords,
+  resolveEffects, stripName, knownEffect, bindTriggerHooks, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords,
 } from './effects.js';
 import { venture, takeInitiative } from './dungeon.js';
 
@@ -22,6 +22,7 @@ export const T = {
   castFree: null, // (pid, iid, opts) => Promise
   payMana: null, // (pid, cost, label) => Promise<boolean>
 };
+bindTriggerHooks(T);
 
 export const fire = (ev) => queueEvent(ev);
 

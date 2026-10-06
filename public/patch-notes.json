@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.99",
+    "title": "Plargg and Nassari fixed",
+    "notes": [
+      "Plargg and Nassari: the upkeep trigger now works with the card's real wording. Each player exiles until a nonland card, your opponent picks one you can't have, and you may cast the other for free. Before, the card's text wasn't recognised, so you never got to cast anything.",
+      "Under the hood: \"cast it for free\" effects that run during triggers are now always connected to the casting code."
+    ]
+  },
+  {
     "version": "1.2.98",
     "title": "Treasures pay for spells again",
     "notes": [
