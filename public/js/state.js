@@ -567,10 +567,65 @@ export function libTop(pid, n = 1) {
   return lib.slice(Math.max(0, lib.length - n)).reverse();
 }
 
-export function draw(pid, n = 1, silent = false) {
+// Draw replacements: Teferi's Ageless Insight / Alhammarret's Archive / Thought Reflection ("draw two cards instead"),
+// Notion Thief ("instead you skip that draw and you draw a card"). Each draw is replaced once by each effect.
+function drawReplacement(pid) {
+  const s = G.s;
+  const ts = s.ts[pid];
+  // the first card you draw in your draw step is exempt from "except the first one…"
+  let exempt = false;
+  if (s.step === 'draw' && s.active === pid && !ts.drawStepDrew) {
+    exempt = true;
+    ts.drawStepDrew = true;
+  }
+  const oracleOf = (x) => (DB[x.def].faces[x.face || 0] || {}).oracle || '';
+  const field = (who) => s.players[who].zones.battlefield.map((i) => s.cards[i]).filter((x) => x && !x.phasedOut && !x.lostAbilities);
+  const other = pid === 'p' ? 'ai' : 'p';
+  // Notion Thief (an opponent of the drawer)
+  const thief = field(other).find((x) => /If an opponent would draw a card except the first one they draw in each of their draw steps, instead (?:you skip|that player skips) that draw and you draw a card/i.test(oracleOf(x)));
+  if (thief && !exempt) return { stolenBy: other, by: thief };
+  // Narset, Parter of Veils (opponents) / Spirit of the Labyrinth (everyone): no more than one card each turn
+  const limit = field(other).find((x) => /Each opponent can't draw more than one card each turn/i.test(oracleOf(x)))
+    || [...field(pid), ...field(other)].find((x) => /Each player can't draw more than one card each turn/i.test(oracleOf(x)));
+  if (limit && (ts.drawn || 0) >= 1) return { blocked: limit };
+  let mult = 1;
+  const why = [];
+  for (const x of field(pid)) {
+    const o = oracleOf(x);
+    if (/If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead/i.test(o)) {
+      if (!exempt) {
+        mult *= 2;
+        why.push(x);
+      }
+    } else if (/If you would draw a card, draw two cards instead/i.test(o)) {
+      mult *= 2;
+      why.push(x);
+    }
+  }
+  return { mult, why };
+}
+
+export function draw(pid, n = 1, silent = false, opts = {}) {
   const lib = zoneOf(pid, 'library');
   let drawn = 0;
   for (let k = 0; k < n; k++) {
+    if (G.s.phase === 'play' && !opts.noRepl) {
+      const r = drawReplacement(pid);
+      if (r.blocked) {
+        log(pid, `${nameTag(r.blocked)}: ${pid === 'p' ? "you can't" : "the AI can't"} draw more than one card this turn.`);
+        continue;
+      }
+      if (r.stolenBy) {
+        log(r.stolenBy, `${nameTag(r.by)}: ${pid === 'p' ? 'you skip that draw' : 'the AI skips that draw'} and ${r.stolenBy === 'p' ? 'you draw' : 'the AI draws'} a card instead.`);
+        draw(r.stolenBy, 1, true, { noRepl: true });
+        continue;
+      }
+      if (r.mult > 1) {
+        log(pid, `${r.why.map((x) => nameTag(x)).join(', ')}: ${pid === 'p' ? 'you draw' : 'the AI draws'} ${r.mult} cards instead of 1.`);
+        drawn += draw(pid, r.mult, true, { noRepl: true });
+        continue;
+      }
+    }
     // dredge: you chose to dredge a card instead of this draw
     const pl = G.s.players[pid];
     if (pl.dredge && card(pl.dredge.iid) && card(pl.dredge.iid).zone === 'graveyard' && lib.length >= pl.dredge.n) {
@@ -582,6 +637,13 @@ export function draw(pid, n = 1, silent = false) {
       continue;
     }
     if (!lib.length) {
+      // Laboratory Maniac / Jace, Wielder of Mysteries: "If you would draw a card while your library has no cards in it, you win the game instead."
+      const lab = G.s.players[pid].zones.battlefield.map((i) => G.s.cards[i]).find((x) => x && !x.phasedOut && /If you would draw a card while your library has no cards in it, you win the game instead/i.test((DB[x.def].faces[x.face || 0] || {}).oracle || ''));
+      if (lab && G.s.phase === 'play') {
+        log(pid, `${nameTag(lab)}: ${pid === 'p' ? 'you win' : 'the AI wins'} the game instead of drawing from an empty library!`);
+        winGame(pid, nameTag(lab));
+        break;
+      }
       if (G.s.phase === 'play') {
         log(pid, `${pid === 'p' ? 'You try' : 'The AI tries'} to draw from an empty library.`);
         loseGame(pid, 'drew from an empty library');
