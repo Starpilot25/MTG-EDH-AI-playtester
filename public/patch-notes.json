@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.94",
+    "title": "Extra land drops",
+    "notes": [
+      "Explore and other \"you may play an additional land this turn\" spells no longer ask \"Yes/No\" when they resolve. They just give you the extra land drop, and the limit still applies afterwards. \"Two/three additional lands\" (Summer Bloom and friends) now count correctly too."
+    ]
+  },
+  {
     "version": "1.2.93",
     "title": "Thriving lands ask for a color",
     "notes": [

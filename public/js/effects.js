@@ -4261,9 +4261,10 @@ on(/^each player discards (?:their|his or her) hand,? then draws (seven|\w+) car
   }
   env.did.push(`each player wheels for ${n(m[1])}`);
 });
-on(/^(?:you )?(?:may )?play an additional land this turn/, async (m, env) => {
-  G.s.extraLandThisTurn = (G.s.extraLandThisTurn || 0) + 1;
-  env.did.push('may play an additional land this turn');
+on(/^(?:you )?(?:may )?play (?:up to )?(an|one|two|three) additional lands? this turn/, async (m, env) => {
+  const k = /^(an|one)$/.test(m[1]) ? 1 : n(m[1]);
+  G.s.extraLandThisTurn = (G.s.extraLandThisTurn || 0) + k;
+  env.did.push(`may play ${k === 1 ? 'an additional land' : k + ' additional lands'} this turn`);
 });
 
 // --- mana (rituals): a small mana pool, emptied between steps
@@ -4675,7 +4676,7 @@ async function runSentence(sentence, env) {
     if (env.lastCond) return;
     return runSentence(s.slice(s.indexOf(',') + 1).trim(), env);
   }
-  if ((m = low.match(/^you may (.+)$/)) && !/^you may (?:cast|play) (?:it|that card|those cards|them|the exiled card|spells from among|(?:the )?cards exiled (?:this way|with))/.test(low)) {
+  if ((m = low.match(/^you may (.+)$/)) && !/^you may (?:cast|play) (?:it|that card|those cards|them|the exiled card|spells from among|(?:the )?cards exiled (?:this way|with)|an additional land|up to (?:one|two|three) additional lands?|two additional lands)/.test(low)) {
     const yes = await mayAsk(env, s.slice(8));
     if (!yes) return;
     return runSentence(s.slice(8), env);
