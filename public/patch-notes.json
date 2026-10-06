@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.96",
+    "title": "Windfall fixed",
+    "notes": [
+      "Windfall: each player discards their hand, then every player draws as many cards as the most anyone discarded. Before, only you drew, and you drew 0."
+    ]
+  },
+  {
     "version": "1.2.95",
     "title": "Tapping shows right away",
     "notes": [

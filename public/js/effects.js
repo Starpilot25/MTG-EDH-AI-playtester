@@ -4267,6 +4267,18 @@ on(/^(?:target player|each player) shuffles (?:their|his or her) hand (?:and gra
   }
   env.did.push(`each player shuffles and draws ${n(m[1])}`);
 });
+// Windfall: "Each player discards their hand, then draws cards equal to the greatest number of cards a player discarded this way."
+on(/^each player discards (?:their|his or her) hand,? then draws cards equal to the greatest number of cards a player discarded this way/, async (m, env) => {
+  let most = 0;
+  for (const pid of ['p', 'ai']) {
+    const hand = [...zoneOf(pid, 'hand')];
+    hand.forEach((i) => discardCard(i));
+    most = Math.max(most, hand.length);
+  }
+  for (const pid of ['p', 'ai']) draw(pid, most, true);
+  env.lastAmount = most;
+  env.did.push(`each player discards their hand and draws ${most}`);
+}, { first: true });
 on(/^each player discards (?:their|his or her) hand,? then draws (seven|\w+) cards/, async (m, env) => {
   for (const pid of ['p', 'ai']) {
     [...zoneOf(pid, 'hand')].forEach((i) => discardCard(i));
