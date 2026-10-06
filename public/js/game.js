@@ -676,6 +676,7 @@ function declareAttack(cb, pid) {
     }
   }
   s.ts[pid].attacked = true;
+  s.ts[pid].attackedWith = (s.ts[pid].attackedWith || 0) + cb.attackers.length; // Windbrisk Heights: "attacked with three or more creatures this turn"
   const at = (i) => {
     const t = cb.targets[i];
     return t === 'p' || t === 'ai' ? '' : ` → ${nameTag(card(t))}`;

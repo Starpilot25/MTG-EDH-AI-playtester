@@ -120,10 +120,15 @@ export function oracle(inst) {
   }
   return oracleRaw(inst);
 }
+export const isRoomCard = (d) => !!d && d.faces && d.faces.length === 2 && /Room/.test(d.faces[0].typeLine || '') && /Room/.test(d.faces[1].typeLine || '');
 function oracleRaw(inst) {
   const f = face(inst);
   if (inst.becameTreasure) return inst.extraText || '';
   let text = f.oracle || '';
+  // a Room on the battlefield has the abilities of its unlocked doors ("this door" → which one)
+  if (inst.zone === 'battlefield' && inst.unlocked && isRoomCard(DB[inst.def])) {
+    text = DB[inst.def].faces.map((x, k) => (inst.unlocked[k] ? (x.oracle || '').replace(/\([^)]*\)/g, '').replace(/\bthis door\b/gi, `door ${k + 1}`) : '')).filter((t) => t.trim()).join('\n');
+  }
   // Spacecraft written as "2+ | {1}, {T}: …" instead of "STATION 2+" sections
   if (/(?:^|\n)Station\b/i.test(text) && /^\d+\+ \| /m.test(text)) text = text.replace(/^(\d+)\+ \| /gm, 'STATION $1+\n');
   if (/^STATION \d+\+ ?[|:—–-] ?\S/m.test(text)) text = text.replace(/^STATION (\d+)\+ ?[|:—–-] ?/gm, 'STATION $1+\n');

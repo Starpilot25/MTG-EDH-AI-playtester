@@ -223,7 +223,7 @@ const RESET = ['chosenCardType', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'may
   'ringBearer', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'playWhileCtl', 'exiledWithSrc', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -261,6 +261,12 @@ export function move(iid, zone, opts = {}) {
   if (zone === 'graveyard' && fromZone !== 'graveyard' && !c.token) queueEvent({ type: 'toGraveyard', iid, def: c.def, owner: c.owner, from: fromZone, controller: fromZone === 'battlefield' ? c.controller : c.owner });
   // "Its controller …" after it left (Path to Exile on a creature you'd stolen): remember who controlled it
   if (fromZone === 'battlefield' && zone !== 'battlefield') (s.lastCtl = s.lastCtl || {})[iid] = c.controller;
+  // Gwen Stacy: "You may play that card for as long as you control this creature" ends when it leaves or changes control
+  if (fromZone === 'battlefield' && (zone !== 'battlefield' || (opts.controller && opts.controller !== c.controller)))
+    for (const x of Object.values(s.cards)) if (x.playWhileCtl === iid) {
+      delete x.playWhileCtl;
+      x.mayPlay = null;
+    }
   // remove from old zone
   if (fromZone) {
     const arr = s.players[fromCtl].zones[fromZone];
@@ -312,6 +318,13 @@ export function move(iid, zone, opts = {}) {
   if (zone === 'battlefield' && fromZone !== 'battlefield') {
     c.sick = true;
     c.enteredTurn = s.turn;
+    // Rooms: the door that was cast enters unlocked ("When you unlock this door" triggers); put onto the battlefield otherwise, both stay locked
+    if (/Room/.test(DB[c.def].typeLine || '') && DB[c.def].faces.length === 2 && /Room/.test(DB[c.def].faces[1].typeLine || '')) {
+      const k = fromZone === 'stack' || c.castFace !== undefined ? c.castFace || 0 : -1;
+      c.unlocked = [k === 0, k === 1];
+      c.face = 0;
+      if (k >= 0) queueEvent({ type: 'unlock', iid, door: k, controller: opts.controller || c.controller });
+    }
     if (fromZone !== 'stack') c.castMode = c.castMode || null;
   }
   if (opts.controller) c.controller = opts.controller;
@@ -642,7 +655,7 @@ export function cacheTwin(inst) {
   if (!o) return null;
   if (o === inst) return o;
   if (o.face === inst.face && o.faceDown === inst.faceDown && o.zone === inst.zone && o.controller === inst.controller && o.counters === inst.counters
-    && o.extraText === inst.extraText && o.chosenType === inst.chosenType && o.chosenMode === inst.chosenMode && o.def === inst.def && o.lostAbilities === inst.lostAbilities) return o;
+    && o.extraText === inst.extraText && o.unlocked === inst.unlocked && o.chosenType === inst.chosenType && o.chosenMode === inst.chosenMode && o.def === inst.def && o.lostAbilities === inst.lostAbilities) return o;
   return null;
 }
 export function withReadCache(fn) {

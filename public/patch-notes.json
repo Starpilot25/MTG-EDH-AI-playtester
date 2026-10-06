@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.3.3",
+    "title": "Rooms, Hideaway, Gwen Stacy and more",
+    "notes": [
+      "Rooms work. Cast either door and that door enters unlocked, with its \"When you unlock this door\" ability triggering. Right-click the Room to unlock the other door by paying its mana cost as a sorcery; this doesn't use the stack. Only unlocked doors' abilities apply, and the card shows a 🔓/🔒 badge for each door. The AI unlocks its doors too.",
+      "Hideaway: the hidden card is no longer free to cast at any time. It's played only when the card says so (Windbrisk Heights after three attackers, Mosswort Bridge at 10 power, Howltooth Hollow with empty hands…), and you can play it as your land if it's a land. You can see your hidden card; the opponent can't. Watcher for Tomorrow returns its card when it leaves, and Evercoat Ursine plays its cards on combat damage.",
+      "Gwen Stacy: the exiled card stays playable for as long as you control her, not just that turn. Ghost-Spider gets its +1/+1 counter when you cast a spell or play a land from exile, and its \"Remove two counters\" ability takes any counters and can't be used without them.",
+      "Spinneret and Spiderling: its counter needs two or more attacking Spiders, and \"deals 4 or more damage\" exiles a card you can play until the end of your next turn.",
+      "Superior Foes of Spider-Man: triggers only on spells with mana value 4 or more, and the exiled card stays playable until it exiles the next one.",
+      "Franklin Richards, Ascendant: discovers 6 at the beginning of combat if you've cast a noncreature spell this turn.",
+      "Split and modal double-faced cards name both halves when you choose which one to cast."
+    ]
+  },
+  {
     "version": "1.3.2",
     "title": "\"Its controller\" after a stolen creature leaves",
     "notes": [

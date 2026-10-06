@@ -120,7 +120,7 @@ export function castOptions(pid, c) {
   const s = G.s;
   const ts = s.ts[pid];
   if (zone === 'hand' || (zone === 'command' && c.isCommander)) {
-    if (!isLandFace(f0)) add({ mode: 'normal', label: zone === 'command' ? `Cast commander (tax +${commanderTax(pid, c.iid)})` : 'Cast', cost: f0.manaCost || d.manaCost || '' });
+    if (!isLandFace(f0)) add({ mode: 'normal', label: zone === 'command' ? `Cast commander (tax +${commanderTax(pid, c.iid)})` : d.faces[1] && (d.layout === 'split' || d.layout === 'modal_dfc') ? `Cast ${f0.name}` : 'Cast', cost: f0.manaCost || d.manaCost || '' });
     if (d.layout === 'split' && d.faces[1]) {
       add({ mode: 'normal', face: 1, label: `Cast ${d.faces[1].name}`, cost: d.faces[1].manaCost });
       if (/\bFuse\b/.test(d.faces[1].oracle || '') && zone === 'hand') add({ mode: 'fuse', label: 'Cast both halves (fuse)', cost: f0.manaCost + d.faces[1].manaCost });
@@ -974,6 +974,7 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
   G.s.landsPlayed = (G.s.landsPlayed || 0) + 1;
   G.s.landPlayed = G.s.landsPlayed >= landsAllowed(pid);
   G.s.ts[pid].landsPlayed++;
+  G.s.lastLandPlay = { iid, from: c.zone, pid }; // Ghost-Spider: "whenever you play a land from exile"
   toBattlefield(iid, pid, pos);
   log(pid, `${pid === 'p' ? 'You play' : 'AI plays'} ${nameTag(c)}${c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : ''}${c.tapped ? ' (tapped)' : ''}.`);
   return true;
@@ -1184,6 +1185,17 @@ export async function activateAbility(pid, c, ab, env) {
     return env.say(`${pid === 'p' ? "You" : 'The AI'} can't activate abilities this turn.`);
   }
   switch (ab.kind) {
+    case 'unlock': {
+      // Rooms: pay a locked door's mana cost as a sorcery to unlock it — a special action, it doesn't use the stack
+      if (!(s.active === pid && (s.step === 'main1' || s.step === 'main2') && !s.stack && !s.pstack)) return env.say('You can unlock a door only as a sorcery.');
+      if (!c.unlocked || c.unlocked[ab.door]) return env.say('That door is already unlocked.');
+      const paid = await payM(ab.mana);
+      if (!paid) return false;
+      c.unlocked = c.unlocked.map((u, k) => u || k === ab.door);
+      log(pid, `${pid === 'p' ? 'You unlock' : 'AI unlocks'} ${esc(DB[c.def].faces[ab.door].name)}${c.unlocked.every(Boolean) ? ` — ${nameTag(c)} is fully unlocked` : ''}.`);
+      queueEvent({ type: 'unlock', iid: c.iid, door: ab.door, controller: pid });
+      return true;
+    }
     case 'loyalty': {
       // sorcery speed unless something lets you activate them at instant speed
       if (!instantLoyalty(c) && !(s.active === pid && (s.step === 'main1' || s.step === 'main2') && !s.stack && !s.pstack && !(s.combat && s.combat.attackers && s.combat.attackers.length))) {
@@ -1349,7 +1361,8 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.payEnergy && s.players[pid].counters.energy < ab.payEnergy) return env.say('Not enough energy.');
   if (ab.removeCounters) {
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
-    if (((c.counters || {})[ab.removeCounters[2].toLowerCase()] || 0) < k) return env.say('Not enough counters.');
+    const have = ab.removeCounters[2] ? (c.counters || {})[ab.removeCounters[2].toLowerCase()] || 0 : Object.values(c.counters || {}).reduce((a, v) => a + (v > 0 ? v : 0), 0);
+    if (have < k) return env.say('Not enough counters.');
   }
   // Cryptbreaker: "Tap three untapped Zombies you control" — check there are enough before paying anything
   const W_ = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5 };
@@ -1391,9 +1404,19 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.payLife && lifeCost) changeLife(pid, -lifeCost);
   if (ab.payEnergy) s.players[pid].counters.energy -= ab.payEnergy;
   if (ab.removeCounters) {
-    const kind = ab.removeCounters[2].toLowerCase();
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
-    c.counters[kind] -= k;
+    if (ab.removeCounters[2]) c.counters[ab.removeCounters[2].toLowerCase()] -= k;
+    else {
+      // any kind of counter: take from the most plentiful first
+      let left = k;
+      while (left > 0) {
+        const [kind] = Object.entries(c.counters || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])[0] || [];
+        if (!kind) break;
+        c.counters[kind]--;
+        if (!c.counters[kind]) delete c.counters[kind];
+        left--;
+      }
+    }
   }
   if (ab.exert) c.noUntapUntil = s.turn + 2;
   c.usedAbilities[ab.raw] = ab.exhaust ? 'ever' : s.turn;

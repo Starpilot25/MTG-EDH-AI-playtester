@@ -80,7 +80,7 @@ export function stripName(text, c) {
     if (fm) t = t.replace(new RegExp('\\b' + fm[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b(?! (?:of|the|from|and)\\b)', 'g'), '~');
   }
   return t
-    .replace(/\bthis (creature|artifact|enchantment|permanent|land|card|Aura|Equipment|Vehicle|spell|Saga|Class|Case|planeswalker|battle|Spacecraft)\b/gi, '~')
+    .replace(/\bthis (creature|artifact|enchantment|permanent|land|card|Aura|Equipment|Vehicle|spell|Saga|Class|Case|planeswalker|battle|Spacecraft|Room)\b/gi, "~")
     .replace(/[“”]/g, '"')
     .replace(/’/g, "'");
 }
@@ -118,6 +118,12 @@ export const unjoin = (t) => String(t || '').replace(/ ¶•/g, '\n•');
 export function activatedAbilities(c) {
   const t = joinBullets(stripName(oracle(c), c).replace(/\([^)]*\)/g, ''));
   const out = [];
+  // Rooms: "As a sorcery, you may pay the mana cost of a locked door to unlock it." (a special action, no stack)
+  if (c.zone === 'battlefield' && c.unlocked && DB[c.def].faces.length === 2) {
+    DB[c.def].faces.forEach((f, k) => {
+      if (!c.unlocked[k]) out.push({ kind: 'unlock', door: k, mana: f.manaCost || '', text: `Unlock ${f.name}`, raw: `Unlock ${f.name}`, costText: f.manaCost || "{0}", sorcery: true });
+    });
+  }
   for (const raw of t.split('\n')) {
     // "Exhaust — {4}: …" (activate only once): parse the ability after the label
     let line = raw.trim().replace(/^Exhaust\s*[—-]\s*/i, '');
@@ -190,7 +196,7 @@ export function activatedAbilities(c) {
       tapOther: (cost.match(/Tap (an?|one|two|three|four|five|\d+) untapped ([^,]+?)(?:,|$)/i) || null),
       discardN: (cost.match(/Discard (a|two|\d+) cards?/i) || [])[1],
       exert: /Exert ~/i.test(cost),
-      removeCounters: cost.match(/Remove (a|an|one|two|three|\d+|X) ([+-]\d+\/[+-]\d+|\w+) counters? from ~/i),
+      removeCounters: cost.match(/Remove (a|an|one|two|three|\d+|X) (?:([+-]\d+\/[+-]\d+|\w+) )?counters? from ~/i), // no kind: any counters (Ghost-Spider)
       payLife: (cost.match(/Pay (\d+) life/i) || [])[1] || (/Pay life equal to the number of colors in your commanders?'? color identity/i.test(cost) ? 'identity' : undefined),
       payEnergy: (cost.match(/\{E\}/g) || []).length,
       exileFromGy: cost.match(/Exile (a|two|three|\d+|X) (?:other )?(?:([a-z]+) )?cards? from your graveyard/i),
@@ -579,8 +585,16 @@ export function evalCond(cond, env) {
   if (/you have at least (\d+) life more than your starting life total/.test(c)) return s.players[me].life >= G.settings.startingLife + +c.match(/(\d+)/)[1];
   if ((m = c.match(/you have (\w+) or more \{e\}/))) return s.players[me].counters.energy >= n(m[1]);
   if ((m = c.match(/x is (\d+) or (?:more|greater)/))) return (env.x || 0) >= +m[1];
-  if ((m = c.match(/you control (another|a|an|two or more|three or more|four or more|five or more|seven or more) ([^,.]+?)$/))) {
-    const need = /two/.test(m[1]) ? 2 : /three/.test(m[1]) ? 3 : /four/.test(m[1]) ? 4 : /five/.test(m[1]) ? 5 : /seven/.test(m[1]) ? 7 : 1;
+  if (/^each player has no cards in hand$/.test(c)) return !zoneOf(me, 'hand').length && !zoneOf(them, 'hand').length;
+  if ((m = c.match(/^creatures you control have total power (\d+) or greater$/))) return permsOf(me).filter(isCreature).reduce((a, x) => a + Math.max(0, power(x)), 0) >= +m[1];
+  if (/^you(?:'ve| have) cast a noncreature spell this turn$/.test(c)) return (ts[me].noncreatureSpells || 0) > 0;
+  if (/^you(?:'ve| have) cast a creature spell this turn$/.test(c)) return (ts[me].spells || 0) > (ts[me].noncreatureSpells || 0);
+  if ((m = c.match(/^you attacked with (\w+) or more creatures this turn$/))) return (ts[me].attackedWith || 0) >= n(m[1]);
+  if (/^you attacked (?:with a creature )?this turn$/.test(c)) return !!ts[me].attacked;
+  // Evercoat Ursine: "if there are cards exiled with it" (hidden away)
+  if (/^there are cards exiled with (?:it|~|this [a-z]+)$/.test(c)) return !!env.src && Object.values(s.cards).some((x) => x.zone === 'exile' && (x.hiddenBy === env.src.iid || (x.exiledBy || []).includes?.(env.src.iid)));
+  if ((m = c.match(/you control (another|a|an|(?:two|three|four|five|six|seven|eight|nine|ten|\d+) or more) ([^,.]+?)$/))) {
+    const need = /^(?:another|a|an)$/.test(m[1]) ? 1 : n(m[1].replace(/ or more$/, ''));
     const phrase = m[2].replace(/s$/, '');
     return permsOf(me).filter((x) => (m[1] !== 'another' || x.iid !== (env.src || {}).iid) && matchesFilter(x, phrase)).length >= need;
   }
@@ -2004,10 +2018,11 @@ on(/^exile (?:the top (\w+) cards? of (?:your|target player's|each player's|that
   const k = n(m[1] || 'a', env.x);
   const pid = /target player|that player/.test(env.sentence) ? (env.thatPlayer || opp(env.me)) : env.me;
   const ids = libTop(pid, k);
-  const until = /next turn/.test(env.text) ? G.s.turn + 2 : G.s.turn;
+  const whileCtl = /for as long as you control (?:this creature|this permanent|~)(?![a-z])/.test(env.text) && env.src;
+  const until = whileCtl || /for as long as (?:it|they|that card|those cards) remains? exiled/.test(env.text) ? FOREVER : /next turn/.test(env.text) ? G.s.turn + 2 : G.s.turn;
   for (const i of ids) {
     move(i, 'exile');
-    if (/you may (?:play|cast)/.test(env.text)) Object.assign(card(i), { mayPlay: env.me, mayPlayUntil: until });
+    if (/you may (?:play|cast)/.test(env.text)) Object.assign(card(i), { mayPlay: env.me, mayPlayUntil: until, ...(whileCtl ? { playWhileCtl: env.src.iid } : {}) });
   }
   env.them_ = ids;
   env.it = ids[0] ? { iid: ids[0] } : null;
@@ -4715,6 +4730,60 @@ async function runText(text, env) {
   }
 }
 
+// Hideaway: play (or cast) the hidden card for free, if the condition holds
+async function hideawayPlay(env, hidden, canPlayLand, cond) {
+  env.lastMay = false;
+  if (cond) {
+    let ok = null;
+    try {
+      ok = evalCond(cond, env);
+    } catch (e) {
+      ok = null;
+    }
+    // a condition the engine can't check: you say whether it holds; the AI assumes it doesn't
+    if (ok === null) ok = env.me === 'ai' ? false : await env.choosers[env.me].confirm(cardName(env.src), `Is this true: “${cond}”?`, { yes: 'Yes', no: 'No' });
+    if (!ok) return env.did.push(`can't play the hidden card yet (${cond})`);
+  }
+  let pick = hidden[0];
+  if (hidden.length > 1) [pick] = await env.choosers[env.me].pickCards({ prompt: 'Play which hidden card?', cards: hidden.map((c) => c.iid), min: 0, max: 1, purpose: 'castFree', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 }).then((r) => [r[0] && card(r[0])]);
+  if (!pick) return;
+  const c = card(pick.iid || pick);
+  if (isLand(c)) {
+    if (!canPlayLand) return env.did.push(`can't cast ${nameTag(c)} (a land)`);
+    const { landsAllowed } = await import('./cast.js');
+    if ((G.s.landsPlayed || 0) >= landsAllowed(env.me) || G.s.active !== env.me) return env.did.push(`can't play ${nameTag(c)} now (no land drop left)`);
+    if (!(await env.choosers[env.me].confirm(cardName(c), `Play ${cardName(c)} (your land for the turn)?`, { aiPick: () => true }))) return;
+    delete c.hiddenBy;
+    delete c.hiddenExile;
+    G.s.lastLandPlay = { iid: c.iid, from: 'exile', pid: env.me };
+    toBattlefield(c.iid, env.me);
+    G.s.landsPlayed = (G.s.landsPlayed || 0) + 1;
+    env.lastMay = true;
+    return env.did.push(`plays ${nameTag(c)} from hideaway`);
+  }
+  if (!T.castFree) return;
+  if (!(await env.choosers[env.me].confirm(cardName(c), `Cast ${cardName(c)} without paying its mana cost?`, { aiPick: () => true }))) return;
+  delete c.hiddenExile;
+  let ok = false;
+  try {
+    ok = await T.castFree(env.me, c.iid);
+  } catch (e) {
+    if (!(e instanceof Cancelled)) throw e;
+  }
+  if (ok === false) return;
+  env.lastMay = true;
+  env.did.push(`casts ${nameTag(c)} from hideaway for free`);
+}
+// Watcher for Tomorrow: "When ~ leaves the battlefield, put the exiled card into its owner's hand."
+on(/^put the exiled card into its owner's hand$/, async (m, env) => {
+  const hidden = env.src ? Object.values(G.s.cards).filter((x) => x.zone === 'exile' && x.hiddenBy === env.src.iid) : [];
+  for (const c of hidden) {
+    delete c.hiddenExile;
+    move(c.iid, 'hand');
+  }
+  env.did.push(hidden.length ? `puts ${hidden.map(nameTag).join(', ')} into ${hidden[0].owner === 'p' ? 'your' : "the AI's"} hand` : 'has no card hidden away');
+}, { first: true });
+
 async function runSentence(sentence, env) {
   let s = sentence.trim().replace(/\.$/, '').replace(/^then,? /i, '');
   // X that depends on something done earlier in this same effect (Spellbound Dragon: "where X is the discarded card's mana value")
@@ -4793,6 +4862,13 @@ async function runSentence(sentence, env) {
     if (!yes) return;
     return runSentence(s.slice(8), env);
   }
+  // Hideaway: "You may play the exiled card without paying its mana cost if …" — the card this permanent hid away
+  {
+    const hm = low.match(/^(?:if there are cards exiled with (?:it|~), )?(?:you may )?(play|cast) (?:the exiled card|one of them|k of them|it) without paying (?:its|their) mana cost(?: if (.+))?$/);
+    const hidden = hm && env.src ? Object.values(G.s.cards).filter((x) => x.zone === 'exile' && x.hiddenBy === env.src.iid) : [];
+    if (hm && hidden.length) return hideawayPlay(env, hidden, hm[1] === 'play', hm[2]);
+    if (hm && /the exiled card/.test(low) && env.src && /\bHideaway\b/i.test(oracle(env.src))) return env.did.push('has no card hidden away');
+  }
   if ((m = low.match(/^(?:you may )?(?:cast|play) (it|that card|the exiled card|those cards|them|a spell from among them|that spell)(?: this turn| until end of turn| until the end of your next turn)?(?: without paying its mana cost)?/))) {
     const free = /without paying/.test(low);
     // Breaching Dragonstorm: "…without paying its mana cost if that spell's mana value is 8 or less"
@@ -4813,9 +4889,14 @@ async function runSentence(sentence, env) {
           env.did.push(`casts ${nameTag(c)} for free`);
         }
       } else {
+        // Superior Foes of Spider-Man: "…until you exile another card with this creature" — the newest card replaces the last
+        const untilNext = /until you exile another card with (?:this creature|~)(?![a-z])/.test(env.text || low) && env.src;
+        if (untilNext) for (const x of Object.values(G.s.cards)) if (x.exiledWithSrc === env.src.iid && x.iid !== c.iid) { x.mayPlay = null; delete x.exiledWithSrc; }
+        if (untilNext) c.exiledWithSrc = env.src.iid;
         Object.assign(c, {
           mayPlay: env.me,
-          mayPlayUntil: /for as long as (?:it|they|that card|those cards) remains? exiled/.test(env.text || low) ? FOREVER : /next turn/.test(low) ? G.s.turn + 2 : G.s.turn,
+          mayPlayUntil: /for as long as (?:it|they|that card|those cards) remains? exiled|for as long as you control (?:this creature|this permanent|~|it)(?![a-z])|until you exile another card with/.test(env.text || low) ? FOREVER : /next turn/.test(low) ? G.s.turn + 2 : G.s.turn,
+          ...(/for as long as you control (?:this creature|this permanent|~)(?![a-z])/.test(env.text || low) && env.src ? { playWhileCtl: env.src.iid } : {}),
           anyColorMana: anyManaText(env.text || low),
           castOnly: /^(?:you may )?cast\b/.test(low),
         });

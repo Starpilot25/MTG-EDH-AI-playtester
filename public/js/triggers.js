@@ -25,6 +25,11 @@ export const T = {
 bindTriggerHooks(T);
 
 export const fire = (ev) => queueEvent(ev);
+function mvLimit(line) {
+  const m = line.match(/spell with mana value (\d+) or (greater|more|less|fewer)/i);
+  if (!m) return {};
+  return /greater|more/i.test(m[2]) ? { mvMin: +m[1] } : { mvMax: +m[1] };
+}
 
 const ROMAN = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 };
 
@@ -72,6 +77,9 @@ export function triggersOf(c, defOverride) {
       add('dealtDamage', m[1], { self: true });
     } else if ((m = line.match(/^Whenever (?:enchanted|equipped) creature is dealt damage, (.+)$/i))) {
       add('dealtDamage', m[1], { attachedTo: true });
+    } else if ((m = line.match(/^Whenever ~ deals (\w+) or more damage, (.+)$/i))) {
+      // Spinneret and Spiderling: "Whenever ~ deals 4 or more damage"
+      add('dealsDamage', m[2], { self: true, minAmount: /^\d+$/.test(m[1]) ? +m[1] : { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7 }[m[1].toLowerCase()] || 1 });
     } else if ((m = line.match(/^Whenever ~ deals damage(?: to a player| to an opponent)?, (.+)$/i)) && !/combat damage/i.test(line)) {
       add(/to a player|to an opponent/i.test(line) ? 'dealsDamagePlayer' : 'dealsDamage', m[1], { self: true, oppOnly: /to an opponent/i.test(line) });
     } else if ((m = line.match(/^Whenever (?:enchanted|equipped) creature deals damage, (.+)$/i))) {
@@ -207,8 +215,9 @@ export function triggersOf(c, defOverride) {
       add('youAttack', m[1], { defend: true });
     else if ((m = line.match(/^Whenever (?:you attack|one or more (?:other )?(?:[\w-]+ )*?(?:creatures|[A-Z][\w-]+s) you control attack)[^,]*, (.+)$/i)))
       {
-      const km = line.match(/one or more (?:other )?(.+?) you control attack/i) || line.match(/with one or more (.+?)(?:,| with power)/i);
-      add('youAttack', m[1], { kind: km ? kindWords(km[1]) : '' });
+      const km = line.match(/one or more (?:other )?(.+?) you control attack/i) || line.match(/with one or more (.+?)(?:,| with power)/i) || line.match(/attack with (?:two|three|four|five|\d+) or more (.+?)(?:,| with power)/i);
+      const mn = line.match(/attack with (two|three|four|five|\d+) or more /i);
+      add('youAttack', m[1], { kind: km ? kindWords(km[1]) : '', minCount: mn ? ({ two: 2, three: 3, four: 4, five: 5 }[mn[1].toLowerCase()] || +mn[1]) : 0 });
     }
     else if ((m = line.match(/^Whenever a creature you control attacks alone, (.+)$/i)))
       add('attacksAlone', m[1], { anyOfMine: true });
@@ -238,7 +247,8 @@ export function triggersOf(c, defOverride) {
     else if ((m = line.match(/^Whenever you cast a spell that shares a creature type with (?:this creature|~), (.+)$/i)))
       add('cast', m[1], { spell: '', mine: true, sharesType: true });
     else if ((m = line.match(/^Whenever you cast (?:a|an|another|your first|your second) ([^,]*?)spell(?: each turn| during [^,]+| from [^,]+| with [^,]+| that [^,]+| this turn)?, (.+)$/i)))
-      add('cast', m[2], { spell: m[1].toLowerCase().trim(), mine: true, first: /your first/i.test(line), second: /your second/i.test(line), notSelf: /another/i.test(line), from: (line.match(/spell from (your hand|your graveyard|exile|anywhere other than your hand)/i) || [])[1] });
+      add('cast', m[2], { spell: m[1].toLowerCase().trim(), mine: true, first: /your first/i.test(line), second: /your second/i.test(line), notSelf: /another/i.test(line), from: (line.match(/spell from (your hand|your graveyard|exile|anywhere other than your hand)/i) || [])[1],
+        ...mvLimit(line) });
     else if ((m = line.match(/^Whenever you cast an? ((?:Aura|Equipment|Vehicle|historic|[A-Z]\w+)(?:(?:,|, or| or) (?:Aura|Equipment|Vehicle|[A-Z]\w+))*)(?: spell)?, (.+)$/)))
       add('cast', m[2], { spell: m[1].toLowerCase(), mine: true });
     else if ((m = line.match(/^When(?:ever)? an opponent casts (?:a|an|their first) ([^,]*?)spell[^,]*, (.+)$/i)))
@@ -256,6 +266,16 @@ export function triggersOf(c, defOverride) {
       add('lifeGained', m[3], { who: m[1].toLowerCase(), ...(m[2] ? { oncePerTurn: true } : {}) });
     else if ((m = line.match(/^Whenever (you|an opponent|a player) loses? life(?: during your turn)?, (.+)$/i)))
       add('lifeLost', m[2], { who: m[1].toLowerCase() });
+    else if ((m = line.match(/^When you unlock door (\d), (.+)$/i)))
+      add('unlock', m[2], { self: true, door: +m[1] - 1 });
+    else if ((m = line.match(/^Whenever you (?:fully )?unlock a (?:door|Room)[^,]*, (.+)$/i)))
+      add('unlock', m[1], { anyRoom: true, fully: /fully/i.test(line) });
+    else if ((m = line.match(/^Whenever you play a land from exile or cast a spell from exile, (.+)$/i))) {
+      // Ghost-Spider
+      add('landfall', m[1], { playedFrom: 'exile' });
+      add('cast', m[1], { spell: '', mine: true, from: 'exile' });
+    } else if ((m = line.match(/^Whenever you play a land from (exile|your graveyard), (.+)$/i)))
+      add('landfall', m[2], { playedFrom: m[1].toLowerCase() === 'exile' ? 'exile' : 'graveyard' });
     else if ((m = line.match(/^Whenever a land (?:you control enters|enters(?: the battlefield)? under your control)[^,]*, (.+)$/i)))
       add('landfall', m[1]);
     else if ((m = line.match(/^Whenever an? ([A-Z][\w-]+) token you control with power (\d+) or greater attacks, (.+)$/i)))
@@ -590,9 +610,9 @@ function keywordTriggers(c) {
     const ids = libTop(c.controller, k);
     if (!ids.length) return [];
     const [pick] = await ctx.choosers[c.controller].pickCards({ forced: true, prompt: `Hideaway ${k}: exile one face down`, cards: ids, min: 1, max: 1, purpose: 'hideaway', src: c, aiScore: (x) => DB[x.def].cmc });
-    move(pick, 'exile', { faceDown: true });
-    card(pick).hiddenBy = c.iid;
-    card(pick).mayPlayFree = c.controller;
+    move(pick, 'exile');
+    // you may look at it, the opponent can't; it's played only through the card's own condition ("play the exiled card…")
+    Object.assign(card(pick), { hiddenBy: c.iid, hiddenExile: c.controller });
     ids.filter((i) => i !== pick).forEach((i) => move(i, 'library', { to: 'bottom' }));
     return ['hides a card away'];
   }, 'Hideaway', { self: true });
@@ -875,6 +895,7 @@ function matches(ev) {
         }
         const atk = ids.map(card).filter((a) => a && (!trig.kind || matchesFilter(a, trig.kind)));
         if (trig.kind && !atk.length) return;
+        if (trig.minCount && atk.length < trig.minCount) return; // "attack with two or more Spiders"
         out.push({ src: c, trig, thatPlayer: ev.defender, amount: atk.length, them: atk.map((a) => a.iid) });
       });
       break;
@@ -918,12 +939,26 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== ev.type) return;
         if (trig.oppOnly && ev.player === c.controller) return;
+        if (trig.minAmount && (ev.amount || 0) < trig.minAmount) return;
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player, it: ev.other ? { iid: ev.other } : null });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player, it: { iid: ev.iid } });
       });
       break;
+    case 'unlock':
+      each((c, trig) => {
+        if (trig.event !== 'unlock') return;
+        if (trig.self && c.iid === ev.iid && trig.door === ev.door) out.push({ src: c, trig });
+        else if (trig.anyRoom && c.controller === ev.controller) {
+          const r = card(ev.iid);
+          if (trig.fully && !(r && r.unlocked && r.unlocked.every(Boolean))) return;
+          out.push({ src: c, trig, it: { iid: ev.iid } });
+        }
+      });
+      break;
     case 'landfall':
-      each((c, trig) => trig.event === 'landfall' && c.controller === ev.controller && out.push({ src: c, trig, it: { iid: ev.iid } }));
+      each((c, trig) => trig.event === 'landfall' && c.controller === ev.controller
+        && (!trig.playedFrom || (G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && G.s.lastLandPlay.from === trig.playedFrom))
+        && out.push({ src: c, trig, it: { iid: ev.iid } }));
       break;
     case 'cast': {
       const d = DB[ev.def];
@@ -937,6 +972,9 @@ function matches(ev) {
         if (trig.first && ts.spells !== 1) return;
         if (trig.second && ts.spells !== 2) return;
         if (!spellMatches(trig.spell, d, sc)) return;
+        // "a spell with mana value 4 or greater / 2 or less"
+        if (trig.mvMin !== undefined && (d.cmc || 0) < trig.mvMin) return;
+        if (trig.mvMax !== undefined && (d.cmc || 0) > trig.mvMax) return;
         if (trig.notOwned && (!sc || sc.owner === ev.controller)) return;
         if (trig.sharesType) {
           const mine_ = (typeLine(c).split('—')[1] || '').trim().split(/\s+/).filter(Boolean);
