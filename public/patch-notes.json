@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.97",
+    "title": "See what was chosen",
+    "notes": [
+      "Permanents that make a choice as they enter now show it on the card: the color for Thriving lands (and Utopia Sprawl, Caged Sun…), the creature type for Cavern of Souls and similar cards, the card type for Serra's Emissary, and the mode for Sieges. Hover the badge for details.",
+      "Two copies with different choices (say, a red and a blue Thriving Bluff) no longer stack together on the battlefield."
+    ]
+  },
+  {
     "version": "1.2.96",
     "title": "Windfall fixed",
     "notes": [
