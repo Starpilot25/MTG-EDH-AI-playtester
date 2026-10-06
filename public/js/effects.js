@@ -1621,6 +1621,32 @@ on(/^each player exiles cards from the top of their library until they exile a n
   if (veto) env.did.push(`${who(o)} ${s_(o, 'choose')} ${nameTag(card(veto))}`);
   await castFromPool(env, hits.filter((i) => i !== veto), { free: true, max: 2 });
 }, { first: true, multi: true });
+// Black Widow, Super Spy: "You may put a +1/+1 counter on ~. If you don't, you may cast the exiled nonland card until end of turn
+// and mana of any type can be spent to cast that spell."
+on(/^you may put an? \+1\/\+1 counter on ~\. if you don't, you may cast the exiled nonland card until end of turn and mana of any (?:type|color) can be spent to cast that spell$/, async (m, env) => {
+  const src = env.src && card(env.src.iid);
+  let hit = env.it && card(env.it.iid);
+  if (!hit || hit.zone !== 'exile' || isLand(hit)) {
+    const o = env.thatPlayer || opp(env.me);
+    hit = [...cardsIn(o, 'exile')].reverse().find((c) => !isLand(c)) || null;
+  }
+  const onBf = src && src.zone === 'battlefield';
+  let counter = !!onBf;
+  if (hit && onBf) {
+    // the AI takes the spell when it's worth more than a counter and it can afford it
+    const mana = cardsIn(env.me, 'battlefield').filter((x) => !x.tapped && (isLand(x) || (DB[x.def].produced || []).length)).length;
+    const aiPick = () => !((DB[hit.def].cmc || 0) >= 2 && (DB[hit.def].cmc || 0) <= mana);
+    counter = await env.choosers[env.me].confirm(cardName(src), `Put a +1/+1 counter on ${cardName(src)}? If you don't, you may cast ${cardName(hit)} this turn, spending mana as though it were mana of any type.`, { aiPick, yes: 'Put a counter', no: `Cast ${cardName(hit)} instead` });
+    if (env.me === 'ai') counter = aiPick();
+  }
+  if (counter && onBf) {
+    addCounters(src, '+1/+1', 1);
+    env.did.push(`puts a +1/+1 counter on ${nameTag(src)}`);
+  } else if (hit) {
+    grantPlay([hit.iid], env.me, { until: G.s.turn, anyMana: true, castOnly: true });
+    env.did.push(`may cast ${nameTag(hit)} this turn (mana of any type)`);
+  }
+}, { first: true, multi: true });
 // Laughing Jasper Flint
 on(/^exile the top x cards of target opponent's library, where x is the number of outlaws you control\. until end of turn, you may cast spells from among those cards, and mana of any (?:color|type) can be spent to cast those spells$/, async (m, env) => {
   const [t] = await playerTarget(env, 'target opponent');
@@ -4704,7 +4730,7 @@ async function runSentence(sentence, env) {
     if (env.lastCond) return;
     return runSentence(s.slice(s.indexOf(',') + 1).trim(), env);
   }
-  if ((m = low.match(/^you may (.+)$/)) && !/^you may (?:cast|play) (?:it|that card|those cards|them|the exiled card|spells from among|(?:the )?cards exiled (?:this way|with)|an additional land|up to (?:one|two|three) additional lands?|two additional lands)/.test(low)) {
+  if ((m = low.match(/^you may (.+)$/)) && !/^you may (?:cast|play) (?:it|that card|those cards|them|the exiled card|spells from among|(?:the )?cards exiled (?:this way|with)|an additional land|up to (?:one|two|three) additional lands?|two additional lands)/.test(low) && !H.some((h) => h.multi && /^\^you may /.test(h.re.source) && h.re.test(low))) {
     const yes = await mayAsk(env, s.slice(8));
     if (!yes) return;
     return runSentence(s.slice(8), env);

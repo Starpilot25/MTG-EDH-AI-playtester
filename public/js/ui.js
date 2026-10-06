@@ -880,7 +880,7 @@ export const playerChooser = {
   },
   confirm(title, body, info = {}) {
     const extra = info && info.cost ? ` (${String(info.cost).replace(/[{}]/g, '')})` : '';
-    return confirmDialog({ title, body }, info && info.cost ? `Pay${extra}` : 'Yes', info && info.cost ? "Don't" : 'No');
+    return confirmDialog({ title, body }, info && info.cost ? `Pay${extra}` : (info && info.yes) || 'Yes', info && info.cost ? "Don't" : (info && info.no) || 'No');
   },
   chooseNumber(req) {
     return askNumber(req.prompt, req.min ?? 0, { min: req.min ?? 0 }).then((v) => {

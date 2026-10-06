@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.0",
+    "title": "Black Widow, Super Spy fixed",
+    "notes": [
+      "Black Widow, Super Spy: when she deals combat damage to a player, they exile until a nonland card and you choose: put a +1/+1 counter on her, or skip the counter and cast the exiled card this turn using mana of any type. Before, choosing no counter did nothing; you never got the card."
+    ]
+  },
+  {
     "version": "1.2.99",
     "title": "Plargg and Nassari fixed",
     "notes": [
