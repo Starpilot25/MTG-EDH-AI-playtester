@@ -582,6 +582,12 @@ function drawReplacement(pid) {
   const field = (who) => s.players[who].zones.battlefield.map((i) => s.cards[i]).filter((x) => x && !x.phasedOut && !x.lostAbilities);
   const other = pid === 'p' ? 'ai' : 'p';
   // Notion Thief (an opponent of the drawer)
+  // Chains of Mephistopheles (anyone's): discard instead (then draw), or mill if they can't
+  const chains = [...field(pid), ...field(other)].find((x) => /If a player would draw a card except the first one they draw in each of their draw steps, that player discards a card instead/i.test(oracleOf(x)));
+  if (chains && !exempt) return { deferred: 'chains', by: chains };
+  // Underrealm Lich (yours): look at the top three, keep one, the rest go to the graveyard
+  const lich = field(pid).find((x) => /If you would draw a card, instead look at the top three cards of your library, then put one into your hand and the rest into your graveyard/i.test(oracleOf(x)));
+  if (lich) return { deferred: 'lich', by: lich };
   const thief = field(other).find((x) => /If an opponent would draw a card except the first one they draw in each of their draw steps, instead (?:you skip|that player skips) that draw and you draw a card/i.test(oracleOf(x)));
   if (thief && !exempt) return { stolenBy: other, by: thief };
   // Narset, Parter of Veils (opponents) / Spirit of the Labyrinth (everyone): no more than one card each turn
@@ -611,6 +617,11 @@ export function draw(pid, n = 1, silent = false, opts = {}) {
   for (let k = 0; k < n; k++) {
     if (G.s.phase === 'play' && !opts.noRepl) {
       const r = drawReplacement(pid);
+      if (r.deferred) {
+        // the draw is replaced; the choice (what to discard / which card to keep) is made right after this effect
+        queueEvent({ type: 'replacedDraw', kind: r.deferred, pid, by: r.by.iid });
+        continue;
+      }
       if (r.blocked) {
         log(pid, `${nameTag(r.blocked)}: ${pid === 'p' ? "you can't" : "the AI can't"} draw more than one card this turn.`);
         continue;

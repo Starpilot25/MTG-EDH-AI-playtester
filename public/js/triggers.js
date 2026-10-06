@@ -7,7 +7,7 @@ import {
 import {
   G, card, cardsIn, zoneOf, log, nameTag, eventQueue, queueEvent, stateBased, cardName, move, toBattlefield, addCounters,
   createToken, genericTokenDef, sacrifice, opp, libTop, esc,
-  withReadCache,
+  withReadCache, discard as discardCard, draw as drawCards,
 } from './state.js';
 import {
   resolveEffects, stripName, knownEffect, bindTriggerHooks, addMana, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords,
@@ -1140,6 +1140,37 @@ function matches(ev) {
 // ------------------------------------------------------------ special events
 async function specialEvent(ev) {
   const ch = T.choosers;
+  // draws replaced by Chains of Mephistopheles / Underrealm Lich
+  if (ev.type === 'replacedDraw') {
+    const pid = ev.pid;
+    const src = card(ev.by);
+    const c_ = ch[pid] || ch.ai;
+    if (ev.kind === 'chains') {
+      const hand = cardsIn(pid, 'hand');
+      if (hand.length) {
+        const [d] = await c_.pickCards({ forced: true, prompt: `${src ? cardName(src) : 'Chains of Mephistopheles'}: discard a card instead of drawing (then draw a card)`, cards: hand.map((x) => x.iid), min: 1, max: 1, purpose: 'discard', src, aiScore: (x) => (isLand(x) ? 5 : -(DB[x.def].cmc || 0)) });
+        if (d) {
+          log(pid, `${src ? nameTag(src) : 'Chains'}: ${pid === 'p' ? 'you discard' : 'the AI discards'} ${nameTag(card(d))} instead of drawing, then draw${pid === 'p' ? '' : 's'} a card.`);
+          discardCard(d);
+          drawCards(pid, 1, true, { noRepl: true });
+        }
+      } else {
+        const ids = libTop(pid, 1);
+        ids.forEach((i) => move(i, 'graveyard'));
+        log(pid, `${src ? nameTag(src) : 'Chains'}: ${pid === 'p' ? 'you have' : 'the AI has'} no card to discard, so ${pid === 'p' ? 'you mill' : 'it mills'} ${ids.map((i) => nameTag(card(i))).join(', ') || 'nothing'} instead of drawing.`);
+      }
+    } else if (ev.kind === 'lich') {
+      const ids = libTop(pid, 3);
+      if (ids.length) {
+        const [keep] = await c_.pickCards({ forced: true, prompt: `${src ? cardName(src) : 'Underrealm Lich'}: put one into your hand (the rest go to your graveyard)`, cards: ids, min: 1, max: 1, purpose: 'keep', src, aiScore: (x) => (isLand(x) ? 2 : DB[x.def].cmc || 0) });
+        const k = keep || ids[0];
+        move(k, 'hand');
+        ids.filter((i) => i !== k).forEach((i) => move(i, 'graveyard'));
+        log(pid, `${src ? nameTag(src) : 'Underrealm Lich'}: ${pid === 'p' ? 'you keep' : 'the AI keeps'} ${pid === 'p' ? nameTag(card(k)) : 'a card'} and put${pid === 'p' ? '' : 's'} ${ids.length - 1} into the graveyard instead of drawing.`);
+      }
+    }
+    return true;
+  }
   // Love on the Battlefield: those creatures get a +1/+1 counter when they deal combat damage to a player this combat
   if (ev.type === 'combatDamagePlayer' && card(ev.iid) && card(ev.iid).loveTurn === G.s.turn) {
     addCounters(card(ev.iid), '+1/+1', 1);

@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.6",
+    "title": "Prepared copies use the stack; Chains and Underrealm Lich",
+    "notes": [
+      "Prepared: casting a copy of a prepared creature's spell now puts it on the stack like any spell. The other player can respond to it or counter it (it's judged as the spell, so \"counter target instant spell\" works on a copied Seething Song). Countering the copy leaves the creature on the battlefield, unprepared. Checked against the real two-faced card data (Secrets of Strixhaven \"prepare\" cards).",
+      "Chains of Mephistopheles: a draw other than the first in a player's draw step becomes \"discard a card, then draw\", or a mill if their hand is empty.",
+      "Underrealm Lich: each of your draws becomes \"look at the top three, put one into your hand and the rest into your graveyard\"."
+    ]
+  },
+  {
     "version": "1.3.5",
     "title": "Draw replacement effects",
     "notes": [

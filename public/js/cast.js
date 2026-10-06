@@ -1214,9 +1214,25 @@ export async function activateAbility(pid, c, ab, env) {
       ts.spellsNotHand = (ts.spellsNotHand || 0) + 1;
       if (!/Creature/.test(f1.typeLine || '')) ts.noncreatureSpells++;
       log(pid, `${pid === 'p' ? 'You cast' : 'AI casts'} a copy of ${esc(f1.name)} (${nameTag(c)} is no longer prepared).`);
+      // the copy goes on the stack like any spell: the other player gets a chance to respond (and counter it)
+      const slot = pid === 'p' ? 'pstack' : 'stack';
+      s[slot] = { iid: c.iid, by: pid, face: 1, copyFace: 1 };
       queueEvent({ type: 'cast', iid: c.iid, def: c.def, controller: pid, from: 'battlefield', copyFace: 1 });
       if (env.render) env.render();
+      await settle();
       const spellSrc = { ...c, face: 1 };
+      let countered = false;
+      if (pid === 'ai' && env.respond && !aiSlaved()) {
+        const verdict = await env.respond(c.iid);
+        countered = verdict === 'counter';
+      } else if (pid === 'p' && env.aiCounter && !aiSlaved()) countered = await env.aiCounter(spellSrc);
+      countered = countered || !!(s[slot] && s[slot].countered);
+      s[slot] = null;
+      if (env.render) env.render();
+      if (countered) {
+        log(pid, `The copy of ${esc(f1.name)} is countered.`);
+        return true;
+      }
       const did = await resolveEffects(spellText(spellSrc), spellSrc, ctx({ x: paid.x || 0 }));
       log(pid, `Copy of ${esc(f1.name)}: ${did.join('; ') || 'resolves'}.`);
       return true;

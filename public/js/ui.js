@@ -674,14 +674,15 @@ function renderBanner() {
         ${r.forced ? '' : '<button data-act="tgt-cancel">Cancel <kbd>Esc</kbd></button>'}
       </div></div>`;
   } else if (s.pstack) {
-    html = `<div class="thinking"><span class="spinner"></span>Resolving ${esc(cardName(card(s.pstack.iid)))}…</div>`;
+    html = `<div class="thinking"><span class="spinner"></span>Resolving ${s.pstack.copyFace ? 'a copy of ' : ''}${esc(cardName({ ...card(s.pstack.iid), face: s.pstack.copyFace || card(s.pstack.iid).face }))}…</div>`;
   } else if (s.stack) {
-    const c = card(s.stack.iid);
+    // a prepared creature's spell copy shows as that spell
+    const c = s.stack.copyFace ? { ...card(s.stack.iid), face: s.stack.copyFace, zone: 'hand' } : card(s.stack.iid);
     const arena = G.settings.arenaMode;
     const responses = arena ? cardsIn('p', 'hand').concat(cardsIn('p', 'command')).filter(respondable).length : 0;
     html = `<div class="stack">
       <div class="stack-card">${cardHTML(c)}</div>
-      <div class="stack-copy"><span class="eyebrow">${s.stack.ability ? 'AI is activating an ability' : 'AI is casting'}</span><h3>${esc(cardName(c))}</h3>
+      <div class="stack-copy"><span class="eyebrow">${s.stack.ability ? 'AI is activating an ability' : s.stack.copyFace ? 'AI is casting a copy of' : 'AI is casting'}</span><h3>${esc(cardName(c))}</h3>
       <p>${esc(s.stack.ability || oracle(c)).replace(/~/g, esc(cardName(c))).replace(/\n/g, '<br>')}</p>
       ${(s.stack.targets || []).length ? `<p class="stack-targets">Targeting: ${s.stack.targets.map((t) => t.player ? `<b>${t.player === 'p' ? 'you' : 'the AI'}</b>` : card(t.iid) ? `<b>${card(t.iid).controller === 'p' ? 'your' : 'its own'} ${esc(cardName(card(t.iid)))}</b>` : '').filter(Boolean).join(', ')}</p>` : ''}
       ${arena ? `<p class="hint">${responses ? `You have ${responses} instant-speed card${responses > 1 ? 's' : ''} you can afford (glowing in your hand) — double-click one to respond, or let it resolve.` : 'You have nothing you can cast in response.'}</p>` : ''}

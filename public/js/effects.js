@@ -470,7 +470,7 @@ export function knownEffect(text) {
 
 // "counter target noncreature spell" etc.
 export function spellFilterOk(filter, c) {
-  const tl = DB[c.def].faces[0].typeLine;
+  const tl = (DB[c.def].faces[c.face || 0] || DB[c.def].faces[0]).typeLine;
   filter = (filter || '').trim();
   if (!filter) return true;
   if (/noncreature/.test(filter)) return !/Creature/.test(tl);
@@ -938,7 +938,10 @@ const on = (re, run, opts = {}) => (opts.first || on.first ? H.unshift({ re, run
 
 // --- counterspells
 on(/^counter (target [^.]*?spell(?:,? activated ability, or triggered ability| or ability)?)(?:[^.]*?unless its controller pays \{(\d+|x)\})?(?: for each ([^.]+))?/, async (m, env) => {
-  const tgt = env.stackTarget && card(env.stackTarget);
+  let tgt = env.stackTarget && card(env.stackTarget);
+  // a prepared creature's spell copy: judge it as that spell (an instant/sorcery), not the creature
+  const slot = G.s.stack && G.s.stack.iid === env.stackTarget ? G.s.stack : G.s.pstack && G.s.pstack.iid === env.stackTarget ? G.s.pstack : null;
+  if (tgt && slot && slot.copyFace) tgt = { ...tgt, face: slot.copyFace };
   const filter = m[1].replace(/^target /, '').replace(/spell.*$/, '');
   if (!tgt) return env.did.push('has no spell to counter');
   // an activated ability on the stack: only "counter target … ability" can counter it
