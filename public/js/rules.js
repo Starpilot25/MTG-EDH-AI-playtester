@@ -1067,8 +1067,34 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
       const dest = (amount) => (toPlayer ? { type: 'player', from: aid, to: tgt, amount } : { type: 'permanent', from: aid, to: tgt, amount });
       if (deals(a)) {
         let dmg = Math.max(0, /assigns combat damage equal to its toughness/i.test(oracle(a)) ? toughness(a) : power(a));
+        const plan = G.s && G.s.combat && G.s.combat.blocks === blocks && (G.s.combat.assign || {})[aid];
         if (!wasBlocked) {
           if (dmg > 0) pending.push(dest(dmg));
+        } else if (plan && bl.length) {
+          // the attacking player's own division (blockers that are gone pass their share on)
+          const tr = hasKw(a, 'trample');
+          const parts = bl.map((bid) => ({ bid, n: Math.max(0, plan[bid] || 0) }));
+          let toPl = tr ? Math.max(0, plan.player || 0) : 0;
+          let extra = Object.entries(plan).filter(([k]) => k !== 'player' && !bl.includes(k)).reduce((x, [, v]) => x + (v || 0), 0);
+          let total = parts.reduce((x, p) => x + p.n, 0) + toPl + extra;
+          // the damage changed since you divided it: trim or add (player first with trample, else the first blocker)
+          while (total > dmg) {
+            if (extra > 0) extra--;
+            else if (toPl > 0) toPl--;
+            else {
+              const last = [...parts].reverse().find((p) => p.n > 0);
+              if (!last) break;
+              last.n--;
+            }
+            total--;
+          }
+          if (total < dmg || extra > 0) {
+            const more = dmg - total + extra;
+            if (tr) toPl += more;
+            else parts[0].n += more;
+          }
+          for (const p of parts) if (p.n > 0) pending.push({ type: 'creature', from: aid, to: p.bid, amount: p.n });
+          if (toPl > 0) pending.push(dest(toPl));
         } else {
           for (const bid of bl) {
             if (dmg <= 0) break;

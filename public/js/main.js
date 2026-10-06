@@ -366,6 +366,7 @@ function initSetup() {
   $('#set-unlimited').checked = st.unlimitedMulligans ?? false;
   $('#set-pause').checked = st.pauseOnAiSpells ?? true;
   $('#set-treasure').checked = st.autoTreasure ?? true;
+  G.settings.orderTriggers = st.orderTriggers ?? true;
   $('#set-arena').checked = st.arenaMode ?? true;
   $('#set-speed').value = st.aiSpeed ?? 650;
   $('#set-aistyle').value = st.aiStyle ?? 'casual';
@@ -490,6 +491,10 @@ document.addEventListener('DOMContentLoaded', () => {
     store.set('settings', { ...store.get('settings', {}), autoTreasure: e.target.checked });
     $('#set-treasure').checked = e.target.checked;
   });
+  $('#gm-order').addEventListener('change', (e) => {
+    G.settings.orderTriggers = e.target.checked;
+    store.set('settings', { ...store.get('settings', {}), orderTriggers: e.target.checked });
+  });
   $('#gm-arena').addEventListener('change', (e) => (G.settings.arenaMode = e.target.checked));
   $('#gm-speed').addEventListener('change', (e) => (G.settings.aiSpeed = +e.target.value));
   $('#gm-layout').addEventListener('change', (e) => {
@@ -518,6 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-menu').addEventListener('click', () => {
     $('#gm-pause').checked = G.settings.pauseOnAiSpells;
     $('#gm-treasure').checked = G.settings.autoTreasure !== false;
+    $('#gm-order').checked = G.settings.orderTriggers !== false;
     $('#gm-arena').checked = G.settings.arenaMode;
     $('#gm-speed').value = G.settings.aiSpeed;
     $('#gm-aistyle').value = G.settings.aiStyle || 'casual';

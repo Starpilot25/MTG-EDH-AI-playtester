@@ -1332,7 +1332,12 @@ export async function settle() {
   try {
     let guard = 0;
     while (eventQueue.length && guard++ < 400) {
-      const ev = eventQueue.shift();
+      // everything that happened at once triggers together: collect the whole batch, then put it on the stack
+      // (active player's first, so the other player's resolve first), letting you order your own
+      const batch = eventQueue.splice(0, eventQueue.length);
+      const pending = [];
+      const after = [];
+      for (const ev of batch) {
       if (!ev) continue;
       if (G.s !== s0) break;
       if (await specialEvent(ev)) continue;
@@ -1373,7 +1378,17 @@ export async function settle() {
         }
         hits = hits.concat(extra);
       }
-      for (const hit of hits) {
+      for (const hit of hits) pending.push({ hit, ev });
+      if (ev.type === 'chapter') after.push(ev);
+      }
+      if (G.s !== s0) break;
+      // the order they resolve in
+      const act = G.s.active;
+      const mine = pending.filter((x) => (x.hit.controller || x.hit.src.controller) === 'p');
+      const theirs = pending.filter((x) => (x.hit.controller || x.hit.src.controller) !== 'p');
+      const ordered = mine.length > 1 ? await orderTriggers(mine) : mine;
+      const queue = act === 'p' ? [...theirs, ...ordered] : [...ordered, ...theirs];
+      for (const { hit, ev } of queue) {
         const controller = hit.controller || hit.src.controller;
         if (controller === 'p' && !G.settings.arenaMode) {
           log('p', `${nameTag(hit.src)} triggers: <i>${esc(hit.trig.text || hit.trig.raw)}</i>`);
@@ -1386,6 +1401,7 @@ export async function settle() {
         }
         if (G.s !== s0) return;
       }
+      for (const ev of after) {
       // sagas whose last chapter has resolved are sacrificed
       if (ev.type === 'chapter') {
         const c = card(ev.iid);
@@ -1401,6 +1417,7 @@ export async function settle() {
           }
         }
       }
+      }
     }
     if (G.s === s0) await assignSectors();
   } finally {
@@ -1410,6 +1427,25 @@ export async function settle() {
       T.render();
     }
   }
+}
+
+// Several of your triggers at once: you choose the order they resolve in (identical ones needn't be ordered)
+async function orderTriggers(list) {
+  if (!G.settings.arenaMode || G.settings.orderTriggers === false || !T.choosers || !T.choosers.p || !T.choosers.p.choose) return list;
+  const label = (x) => `${cardName(x.hit.src)}: ${String(x.hit.trig.text || x.hit.trig.raw || '').replace(/~/g, cardName(x.hit.src).split(',')[0]).slice(0, 110)}`;
+  if (new Set(list.map(label)).size < 2) return list;
+  const left = list.slice();
+  const out = [];
+  while (left.length > 1 && new Set(left.map(label)).size > 1) {
+    const k = await T.choosers.p.choose({
+      prompt: out.length ? `Which of your triggers resolves next? (${left.length} left)` : `${left.length} of your abilities triggered at the same time. Which resolves first?`,
+      options: left.map((x) => ({ label: label(x) })),
+      aiPick: () => 0,
+    });
+    const i = Math.max(0, Math.min(left.length - 1, typeof k === 'number' ? k : 0));
+    out.push(left.splice(i, 1)[0]);
+  }
+  return [...out, ...left];
 }
 
 async function legendChoice(ev) {

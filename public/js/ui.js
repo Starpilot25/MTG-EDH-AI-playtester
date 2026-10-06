@@ -793,6 +793,71 @@ hooks.askBlocks = () =>
     pendingBlocks = r;
     render();
   });
+// Several blockers (or trample): you divide the attacker's combat damage. Any division among the blockers is allowed;
+// damage can go past them to the player only with trample, once every blocker has been assigned lethal damage.
+hooks.assignDamage = (a, blockers, dmg, trample, deathtouch) =>
+  new Promise((resolve) => {
+    const lethal = (b) => (deathtouch ? 1 : Math.max(0, toughness(b) - (b.damage || 0)));
+    const dflt = () => {
+      const m = {};
+      let left = dmg;
+      for (const b of blockers) {
+        const g = Math.min(left, lethal(b));
+        m[b.iid] = g;
+        left -= g;
+      }
+      if (left > 0) {
+        if (trample) m.player = left;
+        else m[blockers[0].iid] += left;
+      }
+      if (trample && m.player === undefined) m.player = 0;
+      return m;
+    };
+    let plan = dflt();
+    const rows = () => blockers.map((b) => `<div class="as-row" data-k="${b.iid}"><span class="as-name">${esc(cardName(b))} <small>${power(b)}/${toughness(b) - (b.damage || 0)} · lethal ${lethal(b)}</small></span>
+        <button data-d="-1" data-k="${b.iid}">−</button><b class="as-n">${plan[b.iid] || 0}</b><button data-d="1" data-k="${b.iid}">+</button></div>`).join('')
+      + (trample ? `<div class="as-row" data-k="player"><span class="as-name">The AI <small>(trample)</small></span><button data-d="-1" data-k="player">−</button><b class="as-n">${plan.player || 0}</b><button data-d="1" data-k="player">+</button></div>` : '');
+    const used = () => Object.values(plan).reduce((x, v) => x + (v || 0), 0);
+    const problem = () => {
+      if (used() !== dmg) return `Assign all ${dmg} damage (${dmg - used()} left).`;
+      if (trample && (plan.player || 0) > 0 && blockers.some((b) => (plan[b.iid] || 0) < lethal(b))) return 'With trample, damage can go to the player only after every blocker has lethal damage.';
+      return '';
+    };
+    const dlg = openDialog(`<span class="eyebrow">Combat damage</span><h3>Divide ${esc(cardName(a))}'s ${dmg} damage</h3>
+      <p class="hint">${blockers.length > 1 ? 'Split it among the blockers however you like.' : ''}${trample ? ' With trample, anything beyond lethal for every blocker can go to the AI.' : ''}${deathtouch ? ' Deathtouch: 1 damage is lethal.' : ''}</p>
+      <div class="as-list">${rows()}</div><p class="as-msg"></p>
+      <div class="btns"><button class="primary" id="as-ok">Deal damage</button><button id="as-def">Default</button></div>`, { noClose: true });
+    const sync = () => {
+      $('.as-list', dlg).innerHTML = rows();
+      const pr = problem();
+      $('.as-msg', dlg).textContent = pr;
+      $('#as-ok', dlg).disabled = !!pr;
+    };
+    dlg.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-d]');
+      if (b) {
+        const k = b.dataset.k;
+        const d = +b.dataset.d;
+        if (d > 0 && used() >= dmg) {
+          // take one from the player first, then from the blocker with the most
+          const from = (plan.player || 0) > 0 && k !== 'player' ? 'player' : Object.keys(plan).filter((x) => x !== k && (plan[x] || 0) > 0).sort((x, y) => plan[y] - plan[x])[0];
+          if (!from) return;
+          plan[from]--;
+        }
+        plan[k] = Math.max(0, (plan[k] || 0) + d);
+        sync();
+        return;
+      }
+      if (e.target.closest('#as-def')) {
+        plan = dflt();
+        sync();
+      } else if (e.target.closest('#as-ok') && !problem()) {
+        closeDialog(true);
+        resolve(plan);
+      }
+    });
+    sync();
+  });
 // Attacking planeswalkers and battles: choose what each attacker goes after.
 hooks.attackTargets = (attackers, options) =>
   new Promise((resolve) => {

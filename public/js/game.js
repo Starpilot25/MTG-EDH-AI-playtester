@@ -4,7 +4,7 @@
 // "at the beginning of the next end step" clean-ups (dash, blitz, unearth, warp, mobilize…).
 import { DB } from './data.js';
 import {
-  oracle, hasSubtype, isCreature, hasKw, power, combatDamage, canBlock, isLand, isType, kwCost, canAttack, mustAttack, face, parseCost,
+  oracle, hasSubtype, isCreature, hasKw, power, toughness, combatDamage, canBlock, isLand, isType, kwCost, canAttack, mustAttack, face, parseCost,
 } from './rules.js';
 import {
   G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, aiSlaved, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
@@ -688,6 +688,22 @@ export async function resolvePlayerCombat() {
   const s = G.s;
   const cb = s.combat;
   cb.stage = 'busy';
+  // you divide each attacker's damage among its blockers (and the player, with trample)
+  if (G.settings.arenaMode && hooks.assignDamage) {
+    cb.assign = {};
+    for (const aid of cb.attackers) {
+      const a = card(aid);
+      const bl = (cb.blocks[aid] || []).filter((b) => card(b) && card(b).zone === 'battlefield');
+      if (!a || a.zone !== 'battlefield' || !bl.length) continue;
+      const trample = hasKw(a, 'trample');
+      if (bl.length < 2 && !trample) continue;
+      const dmg = Math.max(0, /assigns combat damage equal to its toughness/i.test(oracle(a)) ? toughness(a) : power(a));
+      if (dmg <= 0) continue;
+      const plan = await hooks.assignDamage(a, bl.map(card), dmg, trample, hasKw(a, 'deathtouch'));
+      if (G.s !== s) return;
+      if (plan) cb.assign[aid] = plan;
+    }
+  }
   applyCombat(cb.attackers, cb.blocks, 'ai', cb.targets);
   hooks.render();
   await settle();

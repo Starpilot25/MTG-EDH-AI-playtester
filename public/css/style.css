@@ -828,3 +828,10 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 #block-lines .bl-end { fill: none; stroke: var(--danger); stroke-width: 3; }
 #block-lines .bl-num circle { fill: var(--you); stroke: #0b1a24; stroke-width: 2; }
 #block-lines .bl-num text { fill: #0b1a24; font: 700 12px system-ui, sans-serif; }
+
+/* combat damage division */
+.as-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.as-row { display: grid; grid-template-columns: 1fr 32px 36px 32px; align-items: center; gap: 6px; }
+.as-row button { padding: 4px 0; }
+.as-n { text-align: center; font-size: 18px; }
+.as-msg { min-height: 1.2em; color: var(--muted); font-size: 13px; }

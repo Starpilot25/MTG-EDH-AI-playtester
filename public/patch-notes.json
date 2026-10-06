@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.7",
+    "title": "Order your triggers; divide combat damage",
+    "notes": [
+      "When several of your abilities trigger at the same time (one spell resolving, several creatures entering at once, combat damage…), you choose the order they resolve in. Identical triggers aren't asked about. Everything that triggered together now goes on the stack together: the active player's triggers first, so the other player's resolve first, as in the rules. Turn the prompt off with \"Ask me to order my triggers\" in the game menu (☰).",
+      "Combat damage: when your attacker is blocked by two or more creatures, or by one while it has trample, you divide its damage with +/− buttons. Any split among the blockers is allowed (the current rules have no damage assignment order). With trample, damage reaches the player only once every blocker has lethal damage (1 with deathtouch). \"Default\" fills in the usual lethal-to-each split."
+    ]
+  },
+  {
     "version": "1.3.6",
     "title": "Prepared copies use the stack; Chains and Underrealm Lich",
     "notes": [
