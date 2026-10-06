@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.95",
+    "title": "Tapping shows right away",
+    "notes": [
+      "When you activate an ability with {T} in its cost (Chaos Wand, Currency Converter…), the permanent is shown tapped (and your mana spent) as soon as you pay. Before, the board only updated after the ability had finished, so it looked untapped while you made its choices.",
+      "\"Cast a spell from among them for free\" choices (Chaos Wand, Etali, Crabomination…) no longer have a \"Cancel spell\" button that undid the whole ability. Choose none to skip the spell. Backing out of the free spell's own target also just skips that spell."
+    ]
+  },
+  {
     "version": "1.2.94",
     "title": "Extra land drops",
     "notes": [

@@ -1404,6 +1404,7 @@ export async function activateAbility(pid, c, ab, env) {
   const copiers = abilityCopiers(pid);
   const abText = ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim();
   if (await announceAbility(pid, srcSnap, abText, env)) return true;
+  if (env.render) env.render(); // show the costs as paid (the source tapped, mana spent) while the ability resolves
   let did;
   try {
     did = await resolveEffects(abText, srcSnap, ctx({ x }));

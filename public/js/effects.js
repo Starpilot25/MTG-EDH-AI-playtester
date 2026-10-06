@@ -1426,14 +1426,27 @@ async function castFromPool(env, ids, o = {}) {
   for (let k = 0; k < max; k++) {
     const pool = spellCards(ids).filter((i) => !cast_.includes(i) && card(i) && ['exile', 'graveyard', 'hand', 'library'].includes(card(i).zone));
     if (!pool.length || !T.castFree) break;
-    const [pick] = await env.choosers[env.me].pickCards({
-      prompt: o.prompt || (o.free ? 'Cast a spell from among them without paying its mana cost?' : 'Cast a spell from among them?'),
-      cards: pool, min: 0, max: 1, purpose: 'castFree', src: env.src, aiScore: (c) => (DB[c.def].cmc || 0) + (o.free ? 2 : 0),
-    });
+    let pick = null;
+    try {
+      [pick] = await env.choosers[env.me].pickCards({
+        prompt: o.prompt || (o.free ? 'Cast a spell from among them without paying its mana cost?' : 'Cast a spell from among them?'),
+        cards: pool, min: 0, max: 1, purpose: 'castFree', src: env.src, forced: true, aiScore: (c) => (DB[c.def].cmc || 0) + (o.free ? 2 : 0),
+      });
+    } catch (e) {
+      if (!(e instanceof Cancelled)) throw e;
+      pick = null;
+    }
     if (!pick) break;
     const c = card(pick);
     const cost = DB[c.def].faces[0].manaCost || DB[c.def].manaCost || '';
-    const ok = await T.castFree(env.me, pick, o.free ? {} : { cost: o.anyMana ? anyColorCost_(cost) : cost || '{0}', mode: 'impulse' });
+    // backing out of the free spell (e.g. cancelling its target) only skips the spell — the ability itself already happened
+    let ok;
+    try {
+      ok = await T.castFree(env.me, pick, o.free ? {} : { cost: o.anyMana ? anyColorCost_(cost) : cost || '{0}', mode: 'impulse' });
+    } catch (e) {
+      if (!(e instanceof Cancelled)) throw e;
+      ok = false;
+    }
     if (ok === false) {
       if (env.me === 'ai') break; // couldn't pay
       continue;
