@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.93",
+    "title": "Thriving lands ask for a color",
+    "notes": [
+      "Thriving lands now ask you to choose a color when they enter, with your card data's current wording, where \"enters tapped\" and \"As it enters, choose a color\" are on the same line. Before, that wording was missed, so you were never asked. The same fix applies to other \"As it enters, choose a creature type / card type\" cards."
+    ]
+  },
+  {
     "version": "1.2.92",
     "title": "Author of Shadows (really)",
     "notes": [

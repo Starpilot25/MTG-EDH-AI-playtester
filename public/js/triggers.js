@@ -427,7 +427,7 @@ function keywordTriggers(c) {
         return [`chooses ${card(c.iid).chosenMode}`];
       }, 'Choose a mode', { self: true });
   }
-  if (/(?:^|\n)As (?:~|this [a-z]+) enters(?: the battlefield)?, choose a creature type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenType)
+  if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a creature type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenType)
     f('enters', async () => {
       const t = await chooseCreatureType(c.controller, `${cardName(c)}: choose a creature type`);
       if (!t || !card(c.iid)) return [];
@@ -435,7 +435,7 @@ function keywordTriggers(c) {
       return [`chooses ${t}`];
     }, 'Choose a creature type', { self: true });
   // Serra's Emissary: "As ~ enters, choose a card type."
-  if (/(?:^|\n)As (?:~|this [a-z]+) enters(?: the battlefield)?, choose a card type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenCardType)
+  if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a card type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenCardType)
     f('enters', async () => {
       const types = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Battle', 'Kindred'];
       // the AI shuts off what the opponent has shown most of (usually creatures)
@@ -451,7 +451,7 @@ function keywordTriggers(c) {
       return [`chooses ${card(c.iid).chosenCardType.toLowerCase()}`];
     }, 'Choose a card type', { self: true });
   // "As ~ enters, choose a color" (Utopia Sprawl, Caged Sun, Gauntlet of Power…)
-  if (/(?:^|\n)As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a color/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenColor)
+  if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a color/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenColor)
     f('enters', async () => {
       // "choose a color other than red" (Thriving lands)
       const other = (o.match(/choose a color other than (white|blue|black|red|green)/i) || [])[1];
