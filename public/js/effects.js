@@ -832,7 +832,14 @@ function playersOf(env, phrase) {
   if (/^(?:each player|all players|everyone)$/.test(p)) return [me, opp(me)];
   if (/^(?:that player|its controller|its owner|their controller|that creature's controller|that permanent's controller|that spell's controller)$/.test(p)) {
     if (env.it && env.it.player) return [env.it.player];
-    if (env.it && env.it.iid && card(env.it.iid)) return [ctl(card(env.it.iid))];
+    if (env.it && env.it.iid) {
+      const c = card(env.it.iid);
+      if (c && c.zone === 'battlefield') return [c.controller];
+      // it has left the battlefield: "its controller" is whoever controlled it last ("its owner" is still the owner)
+      if (/owner/.test(p)) { if (c) return [c.owner]; }
+      else if (G.s.lastCtl && G.s.lastCtl[env.it.iid]) return [G.s.lastCtl[env.it.iid]];
+      if (c) return [ctl(c)];
+    }
     if (env.thatPlayer) return [env.thatPlayer];
     return [opp(me)];
   }

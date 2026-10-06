@@ -259,6 +259,8 @@ export function move(iid, zone, opts = {}) {
   }
   if (fromZone === 'graveyard' && zone !== 'graveyard') s.ts[c.owner].cardsLeftGy++;
   if (zone === 'graveyard' && fromZone !== 'graveyard' && !c.token) queueEvent({ type: 'toGraveyard', iid, def: c.def, owner: c.owner, from: fromZone, controller: fromZone === 'battlefield' ? c.controller : c.owner });
+  // "Its controller …" after it left (Path to Exile on a creature you'd stolen): remember who controlled it
+  if (fromZone === 'battlefield' && zone !== 'battlefield') (s.lastCtl = s.lastCtl || {})[iid] = c.controller;
   // remove from old zone
   if (fromZone) {
     const arr = s.players[fromCtl].zones[fromZone];

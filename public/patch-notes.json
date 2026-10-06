@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.2",
+    "title": "\"Its controller\" after a stolen creature leaves",
+    "notes": [
+      "Path to Exile, Swords to Plowshares, Generous Gift and other \"its controller gets…\" removal now reward the player who controlled the creature, not its owner. Exiling a creature you'd stolen gives you the basic land (or life, or Elephant). Before, the creature had already gone back to its owner by the time the effect asked, so the opponent got it. Works for stolen tokens too."
+    ]
+  },
+  {
     "version": "1.3.1",
     "title": "Spree, signets, Grenzo and land drops",
     "notes": [
