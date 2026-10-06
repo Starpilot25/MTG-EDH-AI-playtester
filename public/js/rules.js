@@ -608,7 +608,7 @@ function manaAbilityRaw(inst) {
   // Black Lotus, Lion's Eye Diamond style: "Sacrifice <name>: Add three mana of any one color."
   {
     const nm = DB[inst.def].name.split(' // ')[0];
-    const sm = o.split(nm).join('~').match(/(?:\{T\}, )?Sacrifice (?:this artifact|~): Add (one|two|three|\w+) mana of any (?:one )?color/);
+    const sm = o.split(nm).join('~').match(/(?:\{T\}, )?Sacrifice (?:this (?:artifact|token|permanent)|~): Add (one|two|three|\w+) mana of any (?:one )?color/);
     if (sm && !/Discard your hand/.test(o)) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: { one: 1, two: 2, three: 3 }[sm[1]] || 1, sac: true };
   }
   if (!produced.length) return null;
@@ -641,7 +641,7 @@ function manaAbilityPlain(inst, o, produced) {
   // Signets and filters: "{1}, {T}: Add {R}{G}." nets one extra mana of those colors
   if ((m = o.match(/\{1\}, \{T\}: Add (\{[WUBRGC]\})(\{[WUBRGC]\})/))) return { colors: produced, amount: 1 };
   // Treasure-like: "{T}, Sacrifice this artifact: Add one mana of any color."
-  if (/\{T\}, Sacrifice (?:this artifact|~|it): Add/.test(o) || /^Sacrifice (?:this artifact|~): Add/m.test(o)) return { colors: produced, amount: 1, sac: true };
+  if (/\{T\}, Sacrifice (?:this (?:artifact|token|permanent)|~|it): Add/.test(o) || /^Sacrifice (?:this (?:artifact|token|permanent)|~): Add/m.test(o)) return { colors: produced, amount: 1, sac: true };
   return null;
 }
 

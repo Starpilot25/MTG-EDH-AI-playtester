@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.98",
+    "title": "Treasures pay for spells again",
+    "notes": [
+      "Treasures made by cards (the ones with real token art) read \"Sacrifice this token\", and the game only understood \"Sacrifice this artifact\", so it didn't see them as mana at all: no auto-sacrifice, no paying with them, and the AI couldn't use its Treasures either. They now count as mana everywhere, and the \"Auto-sacrifice Treasures\" setting works with them.",
+      "Same fix for other sacrifice-for-mana tokens and permanents worded \"this token\" or \"this permanent\" (Gold, Lotus Petal-style tokens…)."
+    ]
+  },
+  {
     "version": "1.2.97",
     "title": "See what was chosen",
     "notes": [
