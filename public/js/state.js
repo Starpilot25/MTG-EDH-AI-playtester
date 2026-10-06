@@ -1113,15 +1113,47 @@ function canonicalToken(defId) {
   return tokenCanon[name];
 }
 
+// "If you would create one or more Treasure tokens, instead create those tokens plus an additional Treasure token." (Xorn, Jolene),
+// Worldwalker Helm (artifact tokens → plus a Map), Tippy-Toe (any tokens → plus a Food), Chatterfang (plus that many Squirrels)
+function tokenAdditions(defId, pid, n) {
+  const d = DB[defId];
+  if (!d || !G.s) return { same: 0, other: [] };
+  let same = 0;
+  const other = [];
+  for (const iid of G.s.players[pid].zones.battlefield) {
+    const x = G.s.cards[iid];
+    if (!x || x.phasedOut || abilitiesGone(x)) continue;
+    const o = (DB[x.def].faces[x.face || 0] || {}).oracle || '';
+    for (const m of o.matchAll(/If you would create one or more ((?:[A-Za-z]+ )?)tokens?, instead create those tokens plus an additional ([A-Z][a-z]+) token/g)) {
+      const kind = m[1].trim().toLowerCase();
+      const fits = !kind || (kind === 'artifact' ? /\bArtifact\b/.test(d.typeLine || '') : new RegExp('\\b' + kind + '\\b', 'i').test(d.name + ' ' + (d.typeLine || '')));
+      if (!fits) continue;
+      if (new RegExp('^' + m[2] + '$', 'i').test(d.name)) same++;
+      else other.push({ label: m[2], n: 1 });
+    }
+    if (/If one or more tokens would be created under your control, those tokens plus that many 1\/1 green Squirrel creature tokens are created instead/i.test(o) && !/^Squirrel$/i.test(d.name)) other.push({ label: 'Squirrel', n, pt: [1, 1], color: 'G' });
+  }
+  return { same, other };
+}
+
 export function createToken(defId, pid, n = 1, opts = {}) {
   defId = canonicalToken(defId);
   const made = [];
   let count = n;
+  // "…plus an additional …" replacements first, then doublers (the order that gives you the most)
+  const add = opts.noDouble || opts.noAdd ? { same: 0, other: [] } : tokenAdditions(defId, pid, n);
+  count += add.same;
   if (!opts.noDouble) for (let k = 0; k < repl('tokenDouble', pid); k++) count *= 2;
+
   for (let k = 0; k < count; k++) {
     const iid = makeCard(defId, pid, null, { token: true, ...(opts.extra || {}) });
     toBattlefield(iid, pid, { tapped: opts.tapped });
     made.push(iid);
+  }
+  // the additional tokens come after the ones asked for (callers use the first for "it"/"that token")
+  for (const o of add.other) {
+    const extra = o.pt ? genericTokenDef(o.pt[0], o.pt[1], o.label, o.color) : genericTokenDef(0, 0, o.label);
+    createToken(extra, pid, o.n, { noAdd: true, tapped: false });
   }
   if (made.length) queueEvent({ type: 'tokensCreated', pid, ids: made });
   return made;

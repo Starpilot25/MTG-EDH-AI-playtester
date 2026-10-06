@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.10",
+    "title": "Xorn and \"plus an additional token\" effects",
+    "notes": [
+      "Xorn and Jolene, the Plunder Queen: whenever you'd create Treasures, you create one more. Worldwalker Helm adds a Map to artifact tokens, Tippy-Toe adds a Food to any tokens, and Chatterfang adds that many 1/1 Squirrels. These apply before Doubling Season and other doublers, so Xorn + Doubling Season turns 1 Treasure into 4."
+    ]
+  },
+  {
     "version": "1.3.9",
     "title": "Full layer system; the AI answers your triggers",
     "notes": [
