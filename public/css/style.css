@@ -476,6 +476,8 @@ button.mini { width: 20px; height: 20px; padding: 0; font-size: 13px; line-heigh
 .badge.sick { color: var(--muted); }
 .badge.ring { background: #2a2216; color: #ffd36b; border-color: #c9a227; font-weight: 700; white-space: nowrap; }
 .st.ring { color: #ffd36b; }
+.badge.kwgain { background: #14281f; color: #8fe0b6; border-color: #3f8f69; font-weight: 700; font-size: 9px; padding: 1px 3px; white-space: normal; max-width: 100%; line-height: 1.15; }
+.badge.kwlost { background: #2b1714; color: #ff9a86; border-color: #8f4a3f; font-weight: 700; font-size: 9px; padding: 1px 3px; white-space: normal; max-width: 100%; line-height: 1.15; }
 .tag.atk { background: var(--danger); color: #fff; border-color: var(--danger); }
 .tag.blk { background: var(--you); color: #0b1a24; border-color: var(--you); }
 

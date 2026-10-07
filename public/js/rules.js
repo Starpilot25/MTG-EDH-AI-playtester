@@ -353,6 +353,29 @@ function kwInTextRaw(text, kw) {
   return false;
 }
 
+// Keywords a permanent has that aren't printed on it (from Auras, Equipment, anthems, counters, spells, its own "as long as …"),
+// and printed ones it has lost — for the badges on the card
+const KW_SHOW = ['flying', 'first strike', 'double strike', 'deathtouch', 'lifelink', 'trample', 'vigilance', 'haste', 'reach', 'menace', 'hexproof', 'indestructible',
+  'shroud', 'defender', 'infect', 'wither', 'prowess', 'skulk', 'fear', 'intimidate', 'shadow', 'horsemanship', 'decayed', 'ward', 'flanking', 'banding', 'changeling'];
+export function keywordChanges(inst) {
+  if (!inst || inst.faceDown || inst.zone !== 'battlefield') return { gained: [], lost: [] };
+  const printed = ((DB[inst.def].faces[inst.face || 0] || DB[inst.def].faces[0]).oracle || '');
+  const gained = [];
+  const lost = [];
+  for (const kw of KW_SHOW) {
+    const has = hasKw(inst, kw);
+    const onCard = kwInText(printed, kw);
+    if (has && !onCard) gained.push(kw);
+    else if (!has && onCard) lost.push(kw);
+  }
+  // "protection from red", "hexproof from black", "landwalk"
+  for (const g of grantsOf(inst)) {
+    const x = String(g).toLowerCase();
+    if (/^(?:protection|hexproof) from |walk$/.test(x) && !gained.includes(x) && !kwInText(printed, x)) gained.push(x);
+  }
+  return { gained, lost };
+}
+
 export function grantsOf(inst) {
   const g = [...(inst.grants || []), ...(inst.eotGrants || [])];
   for (const b of Object.values(inst.auraBuffs || {})) {

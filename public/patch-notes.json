@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.16",
+    "title": "Gained and lost keywords on cards",
+    "notes": [
+      "Creatures now show a green badge with any keywords they have that aren't printed on the card, for example \"+Fly Link\". This covers keywords from Auras, Equipment, anthems, keyword counters, pump spells and \"as long as\" abilities. Hover over the badge for the full names.",
+      "A red badge shows printed keywords a creature has lost (\"−Fly\"), or \"⊘ blank\" when it has lost all its abilities."
+    ]
+  },
+  {
     "version": "1.3.15",
     "title": "Ring-bearer indicator",
     "notes": [

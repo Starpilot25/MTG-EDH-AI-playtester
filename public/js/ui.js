@@ -1,7 +1,7 @@
 // The tabletop: rendering, drag and drop, menus, dialogs and shortcuts.
 import { DB, searchTokens } from './data.js';
 import {
-  hasSubtype, isLand, isCreature, isType, power, toughness, basePT, oracle, isPermanentCard, canBlock, canAttack, hasKw, face, payCostKeep,
+  hasSubtype, isLand, isCreature, isType, power, toughness, basePT, oracle, isPermanentCard, canBlock, canAttack, hasKw, face, payCostKeep, keywordChanges, abilitiesGone,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, esc, snapshot, undo, redo, shuffle, mill, libTop,
@@ -113,6 +113,18 @@ function cardHTML(c, opts = {}) {
     if (tx) badges.push(`<span class="badge tax" title="Attacking ${c.controller === 'p' ? 'you' : 'the AI'}${tx.andPws ? ' or ' + (c.controller === 'p' ? 'your' : 'its') + ' planeswalkers' : ''} costs {${tx.per}} per creature">⚔ {${tx.per}} each</span>`);
   }
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
+  // keywords it gained (Auras, Equipment, anthems, counters, pump spells) or lost
+  if (c.zone === 'battlefield' && !c.faceDown) {
+    const KW_SHORT = { flying: 'Fly', 'first strike': '1st', 'double strike': '2x', deathtouch: 'DT', lifelink: 'Link', trample: 'Trmp', vigilance: 'Vig', haste: 'Hst', reach: 'Rch', menace: 'Men', hexproof: 'Hex', indestructible: 'Ind', shroud: 'Shroud', defender: 'Def', infect: 'Infect', wither: 'Wither' };
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    const { gained, lost } = keywordChanges(c);
+    if (gained.length) {
+      const short = gained.map((k) => KW_SHORT[k] || (/^protection from (\w+)/.test(k) ? 'Pro ' + k.match(/^protection from (\w+)/)[1] : cap(k)));
+      badges.push(`<span class="badge kwgain" title="Gained: ${esc(gained.map(cap).join(', '))}">+${esc(short.length > 4 ? short.slice(0, 3).join(' ') + ' +' + (short.length - 3) : short.join(' '))}</span>`);
+    }
+    if (abilitiesGone(c)) badges.push('<span class="badge kwlost" title="Has lost all its abilities">⊘ blank</span>');
+    else if (lost.length) badges.push(`<span class="badge kwlost" title="Lost: ${esc(lost.map(cap).join(', '))}">−${esc(lost.map((k) => KW_SHORT[k] || cap(k)).join(' '))}</span>`);
+  }
   // the Ring-bearer, and how many of the Ring's abilities it has
   {
     const rl = ringLevel(c);
