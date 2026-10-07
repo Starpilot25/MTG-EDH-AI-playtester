@@ -363,7 +363,7 @@ function renderTop() {
   let next = 'Next step';
   if (s.step === 'main1') next = 'To combat';
   if (s.step === 'combat' && s.combat && s.combat.by === 'p') {
-    next = s.combat.stage === 'declare' ? (s.combat.attackers.length ? `Attack (${s.combat.attackers.length})` : 'Skip combat') : s.combat.stage === 'triggers' ? 'Resolving…' : 'Deal damage';
+    next = s.combat.stage === 'declare' ? (s.combat.attackers.length ? `Attack (${s.combat.attackers.length})` : 'Skip combat') : s.combat.stage === 'triggers' || s.combat.stage === 'begin' ? 'Resolving…' : 'Deal damage';
   }
   if (s.step === 'main2') next = 'To end step';
   if (s.step === 'end') next = 'Pass turn';

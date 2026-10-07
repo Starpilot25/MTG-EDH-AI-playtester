@@ -1208,6 +1208,7 @@ export function canAttack(inst) {
 export function mustAttack(inst) {
   const all = G.s && G.s.mustAttackAll;
   if (all && all.pid === inst.controller && G.s.turn < all.until && (!all.from || G.s.turn >= all.from)) return true;
+  if (G.s && inst.mustAttackTurn === G.s.turn) return true; // Legion Warboss: "That token … attacks this combat if able"
   return !!inst.goaded || /attacks each (?:combat|turn) if able/i.test(oracle(inst));
 }
 

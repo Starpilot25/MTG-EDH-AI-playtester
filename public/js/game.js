@@ -412,15 +412,26 @@ async function aiWindow(kind) {
 export async function playerNextStep() {
   const s = G.s;
   if (s.active !== 'p' || run.aiBusy) return;
-  if (s.combat && (s.combat.stage === 'triggers' || s.combat.stage === 'busy')) return;
+  // a game saved or undone mid-way through beginning-of-combat triggers: go on to declaring attackers
+  if (s.combat && s.combat.stage === 'begin' && !run.beginning) s.combat.stage = 'declare';
+  if (s.combat && (s.combat.stage === 'triggers' || s.combat.stage === 'busy' || s.combat.stage === 'begin')) return;
   if (s.step === 'main1') {
     setStep('combat');
-    s.combat = { by: 'p', attackers: [], blocks: {}, targets: {}, stage: 'declare' };
-    // goaded creatures and "attacks each combat if able" go in automatically
-    for (const c of cardsIn('p', 'battlefield')) if (mustAttack(c) && canAttack(c)) s.combat.attackers.push(c.iid);
+    // beginning of combat: its triggers resolve before attackers are declared
+    s.combat = { by: 'p', attackers: [], blocks: {}, targets: {}, stage: 'begin' };
     fire({ type: 'beginCombat', active: 'p' });
     hooks.render();
-    await settle();
+    run.beginning = true;
+    try {
+      await settle();
+    } finally {
+      run.beginning = false;
+    }
+    if (G.s !== s || s.winner || !s.combat || s.combat.stage !== 'begin') return hooks.render();
+    s.combat.stage = 'declare';
+    // goaded creatures and "attacks each combat if able" go in automatically
+    for (const c of cardsIn('p', 'battlefield')) if (mustAttack(c) && canAttack(c) && !s.combat.attackers.includes(c.iid)) s.combat.attackers.push(c.iid);
+    hooks.render();
   } else if (s.step === 'combat') {
     if (s.combat && s.combat.stage === 'declare' && s.combat.attackers.length) return confirmAttacks();
     if (s.combat && s.combat.stage === 'damage') return resolvePlayerCombat();

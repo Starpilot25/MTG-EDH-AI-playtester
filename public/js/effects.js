@@ -3490,6 +3490,15 @@ on(/^(?:until end of turn, )?(target creature|it|that creature) becomes an? ([a-
   }
   env.did.push(`${objs.map(nameTag).join(', ')} becomes a ${m[3]}/${m[4]} ${m[2]}`);
 }, { first: true });
+// Legion Warboss: "That token gains haste until end of turn and attacks this combat if able."
+on(/^(that token|those tokens|that creature|it|target creature(?: you control)?)( gains haste until end of turn and)? attacks? this combat if able$/, async (m, env) => {
+  const objs = /^target/.test(m[1]) ? await objects(env, m[1], { harm: false }) : (/those/.test(m[1]) && env.them_ ? env.them_ : env.it && env.it.iid ? [env.it.iid] : env.made || []).map((i) => (typeof i === 'object' ? i : card(i))).filter(Boolean);
+  for (const c of objs) {
+    if (m[2]) c.eotGrants = [...(c.eotGrants || []), 'haste'];
+    c.mustAttackTurn = G.s.turn;
+  }
+  if (objs.length) env.did.push(`${objs.map(nameTag).join(', ')}${m[2] ? ' gains haste and' : ''} must attack this combat`);
+}, { first: true });
 // Hildibrand Manderville: "you may cast it from your graveyard as an Adventure until the end of your next turn"
 on(/^(?:you may )?cast (?:it|~) from your graveyard as an adventure until the end of your next turn$/, async (m, env) => {
   const c = env.src && card(env.src.iid);
