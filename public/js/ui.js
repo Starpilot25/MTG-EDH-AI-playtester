@@ -6,7 +6,7 @@ import {
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, esc, snapshot, undo, redo, shuffle, mill, libTop,
   setLife, toBattlefield, createToken, stateBased, commanderTax, cardName, makeCard, CARD_W, CARD_H,
-  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, restoreInPlace, sacrifice, changeLife, withReadCache, aiSlaved, handControl,
+  STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, ringLevel, RING_TEXT, restoreInPlace, sacrifice, changeLife, withReadCache, aiSlaved, handControl,
 } from './state.js';
 import {
   hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn, attackTax, attackTaxOf,
@@ -113,6 +113,14 @@ function cardHTML(c, opts = {}) {
     if (tx) badges.push(`<span class="badge tax" title="Attacking ${c.controller === 'p' ? 'you' : 'the AI'}${tx.andPws ? ' or ' + (c.controller === 'p' ? 'your' : 'its') + ' planeswalkers' : ''} costs {${tx.per}} per creature">⚔ {${tx.per}} each</span>`);
   }
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
+  // the Ring-bearer, and how many of the Ring's abilities it has
+  {
+    const rl = ringLevel(c);
+    if (rl) {
+      const tip = `Ring-bearer — tempted ${(G.s.players[c.controller].ringTimes || rl)} time(s), level ${rl} of 4:\n` + RING_TEXT.map((t, k) => `${k < rl ? '✓' : '·'} ${k + 1}. ${t}`).join('\n');
+      badges.push(`<span class="badge ring" title="${esc(tip)}">💍 ${rl}/4</span>`);
+    }
+  }
   if (c.zone === 'battlefield' && c.prepared && d.faces[1]) badges.push(`<span class="badge chosen" title="Prepared: right-click to cast a copy of ${esc(d.faces[1].name)} (${esc(d.faces[1].manaCost || '')})">✦ Prepared</span>`);
   // Rooms: which doors are unlocked
   if (c.zone === 'battlefield' && c.unlocked && d.faces.length === 2)
@@ -431,7 +439,11 @@ function statusLine(pid) {
     if (xt) bits.push(`<span class="st xturn" title="${pid === 'p' ? 'You take' : 'The AI takes'} ${xt} more turn${xt > 1 ? 's' : ''} after this one">⟳ ${xt} extra turn${xt > 1 ? 's' : ''} left</span>`);
   }
   for (const e of pl.emblems || []) bits.push(`<span class="st" title="${esc(e)}">Emblem: ${esc(e.length > 28 ? e.slice(0, 26) + '…' : e)}</span>`);
-  if (pl.ring) bits.push(`<span class="st" title="The Ring has tempted ${pid === 'p' ? 'you' : 'the AI'} ${pl.ring} time(s)">Ring ${pl.ring}</span>`);
+  if (pl.ring) {
+    const rb = pl.ringBearer && card(pl.ringBearer);
+    const tip = `The Ring has tempted ${pid === 'p' ? 'you' : 'the AI'} ${pl.ringTimes || pl.ring} time(s). Ring-bearer: ${rb && rb.zone === 'battlefield' && rb.controller === pid ? cardName(rb) : 'none'}\n` + RING_TEXT.map((t, k) => `${k < pl.ring ? '✓' : '·'} ${k + 1}. ${t}`).join('\n');
+    bits.push(`<span class="st ring" title="${esc(tip)}">💍 Ring ${pl.ring}/4${rb && rb.zone === 'battlefield' && rb.controller === pid ? ' · ' + esc(cardName(rb).split(',')[0]) : ''}</span>`);
+  }
   const names = { energy: 'Energy', experience: 'Experience', rad: 'Rad', ticket: 'Tickets' };
   for (const [k, v] of Object.entries(pl.counters || {})) if (v) bits.push(`<span class="st">${esc(names[k] || k)} ${v}</span>`);
   const pool = (s.pool && s.pool[pid]) || [];

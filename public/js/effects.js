@@ -9,7 +9,7 @@ import {
 import {
   G, card, cardsIn as cardsInZone, zoneOf as zoneOfRaw, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef, namedTokenDef,
   stateBased, shuffle, cardName, opp, addCounters, loseAllAbilities, nextStamp, destroy, sacrifice, discard as discardCard, mill as millCards,
-  libTop, queueEvent, winGame, loseGame, esc, makeCard,
+  libTop, queueEvent, winGame, loseGame, esc, makeCard, ringLevel,
 } from './state.js';
 // A spell being cast stays in its zone until it resolves; effects must not see it in the hand
 // (Brainsurge can't put itself back, Windfall doesn't shuffle itself away, "cards in hand" counts exclude it).
@@ -332,7 +332,7 @@ export function matchesFilter(c, phrase) {
   }
   if (/\bmodified\b/.test(phrase) && !/unmodified/.test(phrase) && !isModified(c)) return false;
   if (/\btoken\b/.test(phrase) && !/nontoken/.test(phrase) && !c.token) return false;
-  if (/\blegendary\b/.test(phrase) && !/nonlegendary/.test(phrase) && !/Legendary/.test(typeLine(c))) return false;
+  if (/\blegendary\b/.test(phrase) && !/nonlegendary/.test(phrase) && !/Legendary/.test(typeLine(c)) && !ringLevel(c)) return false;
   if (/with flying/.test(phrase) && !hasKw(c, 'flying')) return false;
   for (const km of phrase.matchAll(/\bwith (menace|trample|deathtouch|lifelink|haste|vigilance|reach|first strike|double strike|defender|hexproof|indestructible|ward)\b/g)) if (!hasKw(c, km[1])) return false;
   if (/\byou don't own\b|\bbut don't own\b/.test(phrase) && c.owner === c.controller) return false;
@@ -555,7 +555,7 @@ export function evalCond(cond, env) {
   if ((m = c.match(/^(?:that creature|it) (?:was|is) (?:an? )?([a-z]+)$/)) && env.it && card(env.it.iid) && m[1] !== 'attacking' && m[1] !== 'tapped') {
     const t = card(env.it.iid);
     const ghost = t.zone === 'battlefield' ? t : { ...t, zone: 'battlefield' };
-    return m[1] === 'legendary' ? /Legendary/.test(typeLine(ghost)) : matchesFilter(ghost, m[1]);
+    return m[1] === 'legendary' ? /Legendary/.test(typeLine(ghost)) || !!ringLevel(t) : matchesFilter(ghost, m[1]);
   }
   // Captain Marvel: "if it's not a Kree"
   if (/^it's not an? ([a-z]+)$/.test(c)) return !(env.it && card(env.it.iid) && hasSubtype(card(env.it.iid), c.match(/^it's not an? ([a-z]+)$/)[1]));
@@ -671,7 +671,7 @@ export function evalCond(cond, env) {
   if ((m = c.match(/^an? ([a-z]+) died under your control this turn$/))) return ((ts[me] || {}).diedTypes || []).some((t) => new RegExp('\\b' + m[1], 'i').test(t));
   if (/^you have a full party$/.test(c)) return partySize(me) >= 4;
   if (/^~ is your ring-bearer$/.test(c)) return !!(env.src && card(env.src.iid) && card(env.src.iid).ringBearer);
-  if ((m = c.match(/^the ring has tempted you (\w+) or more times this game$/))) return (s.players[me].ring || 0) >= n(m[1]);
+  if ((m = c.match(/^the ring has tempted you (\w+) or more times this game$/))) return (s.players[me].ringTimes || s.players[me].ring || 0) >= n(m[1]);
   if ((m = c.match(/^an opponent lost (\w+) or more life this turn$/))) return ((ts[them] || {}).lifeLost || 0) >= n(m[1]);
   // "A and B": both halves must hold
   if (/ and /.test(c) && !/\band\/or\b/.test(c)) {
@@ -4542,6 +4542,7 @@ on(/^(?:it becomes|if it's neither day nor night, it becomes) (day|night)/, asyn
 on(/^the ring tempts you/, async (m, env) => {
   const pl = G.s.players[env.me];
   pl.ring = Math.min(4, (pl.ring || 0) + 1);
+  pl.ringTimes = (pl.ringTimes || 0) + 1;
   const cs = cardsIn(env.me, 'battlefield').filter(isCreature);
   if (cs.length) {
     const [pick] = await env.choosers[env.me].pickCards({ forced: true, prompt: 'The Ring tempts you: choose your Ring-bearer', cards: cs.map((c) => c.iid), min: 1, max: 1, purpose: 'ringbearer', src: env.src, aiScore: (c) => (hasKw(c, 'flying') ? 3 : 0) + power(c) });

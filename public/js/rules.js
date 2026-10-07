@@ -1,6 +1,6 @@
 // Rules helpers: card faces, types, keywords, power/toughness, mana, evasion, combat damage.
 import { DB } from './data.js';
-import { G, readCache, cacheTwin, queueEvent, nextStamp } from './state.js';
+import { G, readCache, cacheTwin, queueEvent, nextStamp, ringLevel } from './state.js';
 import { staticMods, setTextFn, countPhrase, playerFlag } from './statics.js';
 
 export const COLORS = ['W', 'U', 'B', 'R', 'G', 'C'];
@@ -1144,6 +1144,7 @@ export function canBlock(blocker, attacker) {
   if (hasKw(attacker, 'fear') && !isType(blocker, 'Artifact') && !colorsOf(blocker).includes('B')) return false;
   if (hasKw(attacker, 'intimidate') && !isType(blocker, 'Artifact') && !colorsOf(blocker).some((c) => colorsOf(attacker).includes(c))) return false;
   if (hasKw(attacker, 'skulk') && power(blocker) > power(attacker)) return false;
+  if (ringLevel(attacker) >= 1 && power(blocker) > power(attacker)) return false; // the Ring: can't be blocked by creatures with greater power
   for (const [kw, land] of Object.entries(LANDWALK)) {
     if (hasKw(attacker, kw) && G.s && G.s.players[blocker.controller].zones.battlefield.some((i) => G.s.cards[i] && typeLine(G.s.cards[i]).includes(land))) return false;
   }

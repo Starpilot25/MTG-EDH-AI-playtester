@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.15",
+    "title": "Ring-bearer indicator",
+    "notes": [
+      "Your Ring-bearer now has a 💍 badge showing how many of the Ring's four abilities it has (for example 💍 2/4). Hover over it to see which abilities are active.",
+      "The player panel shows the Ring level and the current Ring-bearer's name.",
+      "The Ring's abilities now apply: the Ring-bearer is legendary and can't be blocked by creatures with greater power (level 1), loots when it attacks (level 2), makes its blockers be sacrificed at end of combat (level 3), and makes each opponent lose 3 life when it deals combat damage to a player (level 4)."
+    ]
+  },
+  {
     "version": "1.3.14",
     "title": "Aristocrats fixes (Edgar deck)",
     "notes": [

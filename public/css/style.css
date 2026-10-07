@@ -474,6 +474,8 @@ button.mini { width: 20px; height: 20px; padding: 0; font-size: 13px; line-heigh
 .badge.count { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); font-weight: 700; }
 .badge.tax { background: #2a2216; color: var(--brass); border-color: var(--brass); }
 .badge.sick { color: var(--muted); }
+.badge.ring { background: #2a2216; color: #ffd36b; border-color: #c9a227; font-weight: 700; white-space: nowrap; }
+.st.ring { color: #ffd36b; }
 .tag.atk { background: var(--danger); color: #fff; border-color: var(--danger); }
 .tag.blk { background: var(--you); color: #0b1a24; border-color: var(--you); }
 

@@ -7,7 +7,7 @@ import {
 import {
   G, card, cardsIn, zoneOf, log, nameTag, eventQueue, queueEvent, stateBased, cardName, move, toBattlefield, addCounters,
   createToken, genericTokenDef, sacrifice, opp, libTop, esc,
-  withReadCache, discard as discardCard, draw as drawCards,
+  withReadCache, discard as discardCard, draw as drawCards, ringLevel,
 } from './state.js';
 import {
   resolveEffects, stripName, knownEffect, bindTriggerHooks, addMana, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords,
@@ -1196,6 +1196,19 @@ function matches(ev) {
       if (c) for (const trig of triggersOf(c)) if (trig.event === 'chapter' && trig.chapters.includes(ev.chapter)) out.push({ src: c, trig });
       break;
     }
+  }
+  // The Ring's abilities on your Ring-bearer (level 2: loot on attack, 3: blockers are sacrificed, 4: opponents lose 3)
+  {
+    const rb = (ev.type === 'attacks' || ev.type === 'blocked' || ev.type === 'combatDamagePlayer') && card(ev.iid);
+    const lvl = rb ? ringLevel(rb) : 0;
+    if (ev.type === 'attacks' && lvl >= 2) out.push({ src: rb, trig: { event: 'attacks', text: 'Draw a card, then discard a card.', raw: 'The Ring (Ring-bearer attacks)' }, thatPlayer: ev.defender });
+    if (ev.type === 'blocked' && lvl >= 3 && (ev.blockers || []).length)
+      out.push({ src: rb, trig: { event: 'blocked', raw: 'The Ring (Ring-bearer blocked)', fn: async () => {
+        const bs = (ev.blockers || []).map(card).filter((b) => b && b.zone === 'battlefield');
+        for (const b of bs) b.endOfCombat = 'sacrifice';
+        return bs.length ? [`${bs.map(nameTag).join(', ')} will be sacrificed at end of combat (the Ring)`] : [];
+      } } });
+    if (ev.type === 'combatDamagePlayer' && lvl >= 4 && ev.player !== rb.controller) out.push({ src: rb, trig: { event: 'combatDamagePlayer', text: 'Each opponent loses 3 life.', raw: 'The Ring (Ring-bearer deals combat damage)' }, thatPlayer: ev.player });
   }
   return out;
 }

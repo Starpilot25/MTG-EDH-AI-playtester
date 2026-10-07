@@ -1017,7 +1017,21 @@ export function stateBased() {
 }
 
 // ------------------------------------------------------------ legend rule
+// The Ring tempts you: how far along its abilities your Ring-bearer is (0 if this creature isn't your Ring-bearer)
+export function ringLevel(c) {
+  if (!c || !c.ringBearer || c.zone !== 'battlefield' || !G.s) return 0;
+  const pl = G.s.players[c.controller];
+  return pl && pl.ringBearer === c.iid ? Math.min(4, pl.ring || 0) : 0;
+}
+export const RING_TEXT = [
+  'Your Ring-bearer is legendary and can\'t be blocked by creatures with greater power.',
+  'Whenever your Ring-bearer attacks, draw a card, then discard a card.',
+  'Whenever your Ring-bearer becomes blocked by a creature, that creature\'s controller sacrifices it at end of combat.',
+  'Whenever your Ring-bearer deals combat damage to a player, each opponent loses 3 life.',
+];
+
 export function isLegendary(c) {
+  if (ringLevel(c) >= 1) return true;
   if (c.notLegendary || c.faceDown) return false;
   return /\bLegendary\b/.test(typeLine(c).split('—')[0]);
 }
