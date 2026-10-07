@@ -172,6 +172,8 @@ export function castOptions(pid, c) {
     let a;
     // Locke, Treasure Hunter: "Until end of turn, you may cast a spell from among those cards."
     if (c.mayCastFromGy === pid && c.mayCastFromGyTurn === s.turn && !isLandFace(f0)) add({ mode: 'impulse', label: 'Cast from graveyard (this turn)', cost: f0.manaCost || d.manaCost });
+    // Hildibrand Manderville: "you may cast it from your graveyard as an Adventure until the end of your next turn"
+    if (c.advFromGyUntil >= s.turn && c.advFromGyBy === pid && d.layout === 'adventure' && d.faces[1]) add({ mode: 'adventure', face: 1, label: `Cast ${d.faces[1].name} (Adventure, from graveyard)`, cost: d.faces[1].manaCost });
     if ((a = altCostAny(o0, 'Flashback'))) add({ mode: 'flashback', label: `Flashback ${a.mana}${a.other ? ' — ' + a.other : ''}`, cost: a.mana, other: a.other });
     else if (c.tempFlashback === s.turn && !isLandFace(f0)) add({ mode: 'flashback', label: `Flashback ${f0.manaCost}`, cost: f0.manaCost });
     if ((a = altCostAny(o0, 'Escape'))) add({ mode: 'escape', label: `Escape ${a.mana}${a.other ? ', ' + a.other : ''}`, cost: a.mana, other: a.other });
@@ -1055,6 +1057,8 @@ export async function useZoneAbility(pid, iid, ab, env) {
     return p;
   };
   switch (ab.kind) {
+    case 'gyAbility':
+      return activateAbility(pid, c, ab.ab, env);
     case 'cycling': {
       if (ab.other && !(await payOtherCost(pid, ab.other, c, env))) return false;
       const cp = await payM(ab.mana);
@@ -1477,6 +1481,7 @@ export async function activateAbility(pid, c, ab, env) {
   const srcSnap = c;
   if (ab.sac) sacrifice(c.iid);
   if (ab.returnToHand) move(c.iid, 'hand');
+  if (ab.exileSelf && c.zone !== 'exile') move(c.iid, 'exile');
   const copiers = abilityCopiers(pid);
   const abText = ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim();
   if (await announceAbility(pid, srcSnap, abText, env)) return true;

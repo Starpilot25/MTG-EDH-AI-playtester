@@ -209,6 +209,7 @@ export function activatedAbilities(c) {
       collectEvidence: (cost.match(/Collect evidence (\d+)/i) || [])[1],
       forage: /Forage/i.test(cost),
       returnToHand: /Return ~ to its owner's hand/i.test(cost),
+      exileSelf: /(?:^|, )Exile (?:~|this card)(?: from your graveyard)?(?:,|$)/i.test(cost), // Renew, Scavenge-style costs
       mana: (cost.match(/\{(?!T\}|Q\}|E\})[^}]+\}/g) || []).join(''),
       costText: cost,
       text: unjoin(m[2]),
@@ -249,6 +250,14 @@ export function zoneAbilities(c) {
       if ((m = line.match(/^Encore ((?:\{[^}]+\})+)/i))) out.push({ kind: 'encore', mana: m[1], label: `Encore ${m[1]}`, sorcery: true });
       if ((m = line.match(/^Dredge (\d+)/i))) out.push({ kind: 'dredge', n: +m[1], label: `Dredge ${m[1]} (instead of your next draw)` });
       if ((m = line.match(/^Recover ((?:\{[^}]+\})+)/i))) void m;
+    }
+  }
+  // Renew, Project Deathlok Soldier: activated abilities that work from the graveyard ("{2}{B}: Return this card from your graveyard to your hand")
+  if (c.zone === 'graveyard') {
+    const short = cardName(c).split(',')[0];
+    for (const ab of activatedAbilities(c)) {
+      if (ab.kind !== 'ability' || !/(?:~|this card) from your graveyard/i.test(`${ab.costText} ${ab.text}`)) continue;
+      out.push({ kind: 'gyAbility', ab, mana: ab.mana, sorcery: ab.sorcery, label: `${ab.costText}: ${ab.text}`.replace(/~/g, short).replace(/\s*Activate only as a sorcery\./i, '') });
     }
   }
   return out;
@@ -542,6 +551,12 @@ export function evalCond(cond, env) {
   if (/^you put a counter on a creature this turn$/.test(c)) return !!(ts[me] || {}).counterOnCreature;
   // Rescue: "if it was an artifact"
   if (/^it was an artifact$/.test(c)) return !!(env.it && card(env.it.iid) && isType(card(env.it.iid), 'Artifact'));
+  // Taborax: "If that creature was a Cleric"; Andúril: "If that creature is legendary"
+  if ((m = c.match(/^(?:that creature|it) (?:was|is) (?:an? )?([a-z]+)$/)) && env.it && card(env.it.iid) && m[1] !== 'attacking' && m[1] !== 'tapped') {
+    const t = card(env.it.iid);
+    const ghost = t.zone === 'battlefield' ? t : { ...t, zone: 'battlefield' };
+    return m[1] === 'legendary' ? /Legendary/.test(typeLine(ghost)) : matchesFilter(ghost, m[1]);
+  }
   // Captain Marvel: "if it's not a Kree"
   if (/^it's not an? ([a-z]+)$/.test(c)) return !(env.it && card(env.it.iid) && hasSubtype(card(env.it.iid), c.match(/^it's not an? ([a-z]+)$/)[1]));
   if ((m = c.match(/^(?:it|~|this [a-z]+) has (\w+) or more ([a-z+\/0-9-]+) counters on it$/))) return ((env.src && env.src.counters) || {})[m[2]] >= n(m[1]);
@@ -557,6 +572,10 @@ export function evalCond(cond, env) {
   if (/it's night/.test(c)) return s.dayNight === 'night';
   if (/it's day/.test(c)) return s.dayNight === 'day';
   if (/a creature died this turn/.test(c)) return !!s.ts.creatureDied;
+  if ((m = c.match(/^(\w+) or more creatures died this turn$/))) return (s.ts.creaturesDiedN || 0) >= n(m[1]);
+  if (/^a creature died under your control this turn$/.test(c)) return !!((ts[me] || {}).diedTypes || []).length;
+  // Alpharael (Void): "if a nonland permanent left the battlefield this turn or a spell was warped this turn"
+  if (/^a nonland permanent left the battlefield this turn or a spell was warped this turn$/.test(c)) return !!(s.ts.nonlandLeft || s.ts.warped);
   if (/you attacked (?:with a creature )?this turn/.test(c)) return !!ts[me].attacked;
   if (/you(?:'ve| have) scried or surveilled this turn/.test(c)) return !!ts[me].scried;
   if (/you(?:'ve| have) surveilled this turn/.test(c)) return !!(ts[me].surveilledCards || []).length || !!ts[me].scried;
@@ -588,9 +607,11 @@ export function evalCond(cond, env) {
   if (/max speed|your speed is 4/.test(c)) return s.players[me].speed >= 4;
   if ((m = c.match(/you have (\d+) or more life/))) return s.players[me].life >= +m[1];
   if ((m = c.match(/you have (\d+) or less life/))) return s.players[me].life <= +m[1];
+  if (/^(?:~|this card) is in your graveyard$/.test(c)) return !!(env.src && card(env.src.iid) && card(env.src.iid).zone === 'graveyard');
+  if ((m = c.match(/^an opponent has (\d+) or less life$/))) return s.players[them].life <= +m[1];
   if (/you have at least (\d+) life more than your starting life total/.test(c)) return s.players[me].life >= G.settings.startingLife + +c.match(/(\d+)/)[1];
   if ((m = c.match(/you have (\w+) or more \{e\}/))) return s.players[me].counters.energy >= n(m[1]);
-  if ((m = c.match(/x is (\d+) or (?:more|greater)/))) return (env.x || 0) >= +m[1];
+  if ((m = c.match(/x is (\w+) or (?:more|greater)/))) return (env.x || 0) >= n(m[1]);
   if (/^each player has no cards in hand$/.test(c)) return !zoneOf(me, 'hand').length && !zoneOf(them, 'hand').length;
   if ((m = c.match(/^creatures you control have total power (\d+) or greater$/))) return permsOf(me).filter(isCreature).reduce((a, x) => a + Math.max(0, power(x)), 0) >= +m[1];
   // Daredevil: "If that card is a Hero card"
@@ -906,7 +927,7 @@ function amountOf(word, env) {
     const it = /^(?:damage )?equal to ~'s/.test(w) ? env.src : env.it && env.it.iid ? card(env.it.iid) : env.src;
     return it ? Math.max(0, toughness(it)) : 0;
   }
-  if ((m = w.match(/^(?:damage )?equal to (?:that creature's|its) (?:mana value|converted mana cost)/))) {
+  if ((m = w.match(/^(?:damage )?equal to (?:that creature's|that permanent's|that card's|its) (?:mana value|converted mana cost)/))) {
     const it = env.it && env.it.iid ? card(env.it.iid) : env.src;
     return it ? DB[it.def].cmc || 0 : 0;
   }
@@ -1088,9 +1109,18 @@ on(/^if you don't control it, its controller loses (\d+) life$/, async (m, env) 
   changeLife(pid, -+m[1]);
   env.did.push(`${who(pid)} ${s_(pid, 'lose')} ${m[1]} life`);
 }, { first: true });
+// Qarsi Revenant (Renew): "Put a flying counter, a deathtouch counter, and a lifelink counter on target creature."
+on(/^put ((?:an? [a-z+\/0-9-]+ counter,? (?:and )?)+)on (target [a-z ]+?)$/, async (m, env) => {
+  const kinds = [...m[1].matchAll(/an? ([a-z+\/0-9-]+) counter/g)].map((x) => x[1]);
+  if (kinds.length < 2) return 'pass';
+  const objs = await objects(env, m[2], { harm: kinds.every((k) => k.startsWith('-') || k === 'stun') });
+  for (const c of objs) for (const k of kinds) addCounters(c, k, 1);
+  env.did.push(objs.length ? `puts ${kinds.join(', ')} counters on ${objs.map(nameTag).join(', ')}` : 'finds no target');
+}, { first: true });
 // The Reaper, King No More: "Put a -1/-1 counter on each of up to two target creatures."
-on(/^put an? ([+-]\d+\/[+-]\d+|[a-z]+) counter on each of (up to (?:one|two|three|four)|two|three|four) target ([a-z ]+?)$/, async (m, env) => {
-  const objs = await objects(env, `${m[2]} target ${m[3]}`, { harm: m[1].startsWith('-') || m[1] === 'stun' });
+on(/^put an? ([+-]\d+\/[+-]\d+|[a-z]+) counter on each of (up to (?:one|two|three|four|x)|two|three|four|x) target ([a-z ]+?)$/, async (m, env) => {
+  if (/(?:^|\s)x$/.test(m[2]) && !env.x) return env.did.push('puts no counters (X is 0)');
+  const objs = await objects(env, `${m[2]} target ${m[3]}`, { harm: m[1].startsWith('-') || m[1] === 'stun' || m[1] === 'decayed' });
   for (const c of objs) addCounters(c, m[1], 1);
   env.did.push(`puts a ${m[1]} counter on ${objs.length ? objs.map(nameTag).join(', ') : 'nothing'}`);
 }, { first: true });
@@ -1314,9 +1344,9 @@ on(/^return ~ to the battlefield attached to that creature at the beginning of t
   env.did.push(`${nameTag(env.src)} will return attached at the next end step`);
 }, { first: true });
 // Arcane Denial: "Its controller may draw up to two cards at the beginning of the next turn's upkeep. You draw a card at the beginning of the next turn's upkeep."
-on(/^(its controller|you) (?:may )?draws? (up to )?(a|one|two|three) cards? at the beginning of the next turn's upkeep$/, async (m, env) => {
+on(/^(its controller |you )?(?:may )?draws? (up to )?(a|one|two|three) cards? at the beginning of the next turn's upkeep$/, async (m, env) => {
   const tc = env.it && env.it.iid && card(env.it.iid);
-  const pid = m[1] === 'you' ? env.me : tc ? tc.controller || tc.owner : env.it && env.it.player;
+  const pid = !m[1] || m[1] === 'you ' ? env.me : tc ? tc.controller || tc.owner : env.it && env.it.player;
   if (!pid) return;
   const k = m[3] === 'a' ? 1 : n(m[3]);
   G.s.delayed.push({ at: 'nextUpkeep', pid, n: k, upTo: !!m[2], after: G.s.turn, why: env.src ? cardName(env.src) : 'delayed draw' });
@@ -2855,15 +2885,18 @@ on(/^you and (target opponent|target player|each opponent) each draw (\w+) cards
   }
 }, { first: true });
 // Mortuary Mire, Noxious Revival: "Put target creature card from your graveyard on top of your library."
-on(/^put (target [^.]+?) from (your|a|target player's) graveyard on top of (?:your|its owner's|their) library$/, async (m, env) => {
+on(/^put ((?:any number of |up to (?:one|two|three) )?target [^.]+?) from (your|a|target player's) graveyard on top of (?:your|its owner's|their) library$/, async (m, env) => {
   const pids = m[2] === 'your' ? [env.me] : ['p', 'ai'];
-  const filter = m[1].replace(/^target /, '').replace(/ ?cards?$/, '').trim() || 'card';
+  const many = /^any number of /.test(m[1]) ? Infinity : /^up to (\w+)/.test(m[1]) ? n(m[1].match(/^up to (\w+)/)[1]) : 1;
+  const filter = m[1].replace(/^(?:any number of |up to \w+ )?target /, '').replace(/ ?cards?$/, '').trim() || 'card';
   const pool = pids.flatMap((pid) => cardsIn(pid, 'graveyard')).filter((c) => matchesFilter(c, filter));
   if (!pool.length) return env.did.push('finds nothing');
-  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Put a ${filter} card on top of its owner's library`, cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'regrowth', src: env.src, aiScore: (c) => (c.owner === env.me ? DB[c.def].cmc : -DB[c.def].cmc) });
-  if (!pick) return;
-  move(pick, 'library');
-  env.did.push(`puts ${nameTag(card(pick))} on top of its owner's library`);
+  // Bone Harvest: any number; the AI stacks its best one or two (the last one chosen ends up on top)
+  const max = Math.min(many, pool.length);
+  const picks = await env.choosers[env.me].pickCards({ prompt: max > 1 ? `Put any number of ${filter} cards on top of the library (the last one chosen ends up on top)` : `Put a ${filter} card on top of its owner's library`, cards: pool.map((c) => c.iid), min: many === 1 ? 1 : 0, max: env.me === 'ai' && many === Infinity ? Math.min(2, max) : max, purpose: 'regrowth', src: env.src, aiScore: (c) => (c.owner === env.me ? DB[c.def].cmc : -DB[c.def].cmc) });
+  if (!picks.length) return;
+  for (const pick of picks.slice().reverse()) move(pick, 'library');
+  env.did.push(`puts ${picks.map((i) => nameTag(card(i))).join(', ')} on top of ${picks.length > 1 ? 'the library' : "its owner's library"}`);
 }, { first: true });
 // Soul of Windgrace: "Put a land card from a graveyard onto the battlefield tapped under your control."
 on(/^put (a|an|one) ([a-z ]+?) cards? from (a|your|an opponent's) graveyards? onto the battlefield( tapped)?(?: under your control)?$/, async (m, env) => {
@@ -3024,7 +3057,7 @@ on(/^(.+?) fights? (.+)$/, async (m, env) => {
 });
 
 // --- drawing, discarding, milling
-on(/^(you |target player |each player |that player |its controller |target opponent |each opponent )?draws? (a|an|one|two|three|four|five|six|seven|eight|x|\d+|cards? equal to [^,.]+?|that many) cards?(?: and (?:you )?lose (\d+) life)?/, async (m, env) => {
+on(/^(you |target player |each player |that player |its controller |target opponent |each opponent )?draws? (a|an|one|two|three|four|five|six|seven|eight|x|\d+|cards? equal to [^,.]+?|that many) cards?(?: and (?:you )?lose (\d+|x|that much) life)?/, async (m, env) => {
   const pids = m[1] ? await playerTarget(env, m[1].trim(), false) : [env.me];
   let k = /that many/.test(m[2]) ? env.lastAmount || 0 : /equal to/.test(m[2]) ? amountOf(m[2].replace(/^cards? /, ''), env) : n(m[2], env.x);
   for (const pid of pids) {
@@ -3032,7 +3065,11 @@ on(/^(you |target player |each player |that player |its controller |target oppon
     draw(pid, k, true);
     env.them_ = zoneOf(pid, 'hand').filter((i) => !before.has(i));
     env.did.push(`${who(pid)} ${s_(pid, 'draw')} ${k}`);
-    if (m[3]) changeLife(pid, -+m[3], false);
+    if (m[3]) {
+      const l = m[3] === 'x' ? env.x || 0 : m[3] === 'that much' ? k : +m[3];
+      changeLife(pid, -l, false);
+      env.did.push(`${who(pid)} ${s_(pid, 'lose')} ${l} life`);
+    }
   }
 });
 on(/^(you |target player |each player |that player |target opponent |each opponent |its controller )?discards? (a|one|two|three|x|\d+|your|their|his or her) (?:cards?|hand)( at random)?/, async (m, env) => {
@@ -3446,6 +3483,24 @@ on(/^(?:until end of turn, )?(target creature|it|that creature) becomes an? ([a-
     addLayerFx(c, { until: /until end of turn/.test(env.sentence) ? 'eot' : true, types: { subSet: capWords(words.join(' ')) }, ...(col ? { colors: { set: col === 'colorless' ? [] : [COLOR_WORD[col]] } } : {}) });
   }
   env.did.push(`${objs.map(nameTag).join(', ')} becomes a ${m[3]}/${m[4]} ${m[2]}`);
+}, { first: true });
+// Hildibrand Manderville: "you may cast it from your graveyard as an Adventure until the end of your next turn"
+on(/^(?:you may )?cast (?:it|~) from your graveyard as an adventure until the end of your next turn$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  if (!c || c.zone !== 'graveyard') return env.did.push('is no longer in the graveyard');
+  c.advFromGyUntil = G.s.active === env.me ? G.s.turn + 2 : G.s.turn + 1;
+  c.advFromGyBy = env.me;
+  env.did.push(`${nameTag(c)} can be cast as an Adventure from the graveyard until the end of ${who(env.me) === 'you' ? 'your' : "the AI's"} next turn`);
+}, { first: true });
+// Rabid Attack: "Until end of turn, any number of target creatures you control each get +1/+0 and gain "When this creature dies, draw a card.""
+on(/^(?:until end of turn, )?((?:any number of |up to \w+ )?target creatures?(?: you control)?) (?:each )?gets? ([+-]\d+)\/([+-]\d+) and gains? "(.+)"(?: until end of turn)?$/, async (m, env) => {
+  const raw = (env.sentence.match(/"(.+)"/) || [])[1] || m[4];
+  const objs = await objects(env, m[1], { harm: false });
+  for (const c of objs) {
+    pumpEOT(c, { p: +m[2], t: +m[3] });
+    c.eotText = (c.eotText ? c.eotText + '\n' : '') + raw;
+  }
+  env.did.push(objs.length ? `${objs.map(nameTag).join(', ')} get${objs.length === 1 ? 's' : ''} ${m[2]}/${m[3]} and “${raw}” until end of turn` : 'no creatures chosen');
 }, { first: true });
 // Trash the Town: "Until end of turn, target creature gains "Whenever this creature deals combat damage to a player, draw two cards.""
 on(/^(?:until end of turn, )?(target creature(?: you control)?|it|that creature|~) gains "(.+)"(?: until end of turn)?$/, async (m, env) => {
@@ -3935,7 +3990,7 @@ on(/^put (\w+) cards? from your hand on (?:top|the bottom) of your library(?: in
   env.did.push(`puts ${k} card${k > 1 ? 's' : ''} back`);
 });
 // --- flicker and delayed returns
-on(/^return (it|that card|the exiled card|them|those cards|the exiled cards|that creature|each card exiled this way) to the battlefield( transformed)?(?: under (its owner's|their owners'|their owner's|your|its controller's) control)?( tapped)?( at the beginning of the next end step)?$/, async (m, env) => {
+on(/^return (it|that card|the exiled card|them|those cards|the exiled cards|that creature|each card exiled this way) to the battlefield( transformed)?(?: under (its owner's|their owners'|their owner's|your|its controller's) control)?( tapped)?( at the beginning of the next end step)?(?: with an? ([a-z+\/0-9-]+) counter on (?:it|them|each of them))?$/, async (m, env) => {
   let ids = env.them_ && env.them_.length && /them|those|each/.test(m[1]) ? env.them_ : env.it && env.it.iid ? [env.it.iid] : env.them_ || [];
   // Oblivion Ring & co.: "the exiled card" is whatever this permanent exiled
   const src = env.src && env.src.iid;
@@ -3953,7 +4008,9 @@ on(/^return (it|that card|the exiled card|them|those cards|the exiled cards|that
     }
     toBattlefield(i, ctlr, { tapped: !!m[4] });
     if (m[2] && DB[c.def].faces.length > 1) card(i).face = 1;
-    env.did.push(`returns ${nameTag(card(i))} to the battlefield${m[2] ? ' transformed' : ''}`);
+    // Luminous Broodmoth: "with a flying counter on it"
+    if (m[6] && card(i) && card(i).zone === 'battlefield') addCounters(card(i), m[6], 1);
+    env.did.push(`returns ${nameTag(card(i))} to the battlefield${m[2] ? ' transformed' : ''}${m[6] ? ` with a ${m[6]} counter` : ''}`);
   }
 });
 // Otherworldly Journey, Semester's End: "At the beginning of the next end step, return that card / each of them to the battlefield …"
@@ -4206,13 +4263,29 @@ on(/^return (.+?) from (your|a|target player's|an opponent's|each player's|all) 
 });
 function moveReturned(env, c, dest, tapped) {
   const nm = nameTag(c);
-  if (/battlefield/.test(dest)) toBattlefield(c.iid, /under your control/.test(env.sentence) ? env.me : c.owner, { tapped: !!tapped });
-  else if (/top of your library/.test(dest)) move(c.iid, 'library');
+  if (/battlefield/.test(dest)) {
+    const sent = String(env.sentence || '').toLowerCase();
+    toBattlefield(c.iid, /under your control/.test(sent) ? env.me : c.owner, { tapped: !!tapped });
+    const y = card(c.iid);
+    // Grim Reaper, Interceptor: "… to the battlefield tapped and attacking (with a finality counter on it)"
+    if (y && y.zone === 'battlefield') {
+      if (/tapped and attacking/.test(sent) && G.s.combat) {
+        y.tapped = true;
+        y.attacking = true;
+        if (!G.s.combat.attackers.includes(y.iid)) G.s.combat.attackers.push(y.iid);
+        const tg = G.s.combat.targets || (G.s.combat.targets = {});
+        const first = G.s.combat.attackers.find((a) => a !== y.iid && tg[a]);
+        tg[y.iid] = (first && tg[first]) || opp(env.me);
+      }
+      const cm = sent.match(/with an? ([a-z+\/0-9-]+) counter on it/);
+      if (cm) addCounters(y, cm[1], 1);
+    }
+  } else if (/top of your library/.test(dest)) move(c.iid, 'library');
   else move(c.iid, 'hand');
   env.it = { iid: c.iid };
   env.did.push(`returns ${nm} to ${/battlefield/.test(dest) ? 'the battlefield' : /library/.test(dest) ? 'the top of the library' : 'hand'}`);
 }
-on(/^put (?:a|up to (\w+)) (land|creature|permanent|[a-z]+) cards? from your hand onto the battlefield( tapped)?/, async (m, env) => {
+on(/^put (?:an?|up to (\w+)) ((?:[a-z]+ )?(?:land|creature|permanent|[a-z]+)) cards? from your hand onto the battlefield( tapped)?/, async (m, env) => {
   const k = m[1] ? n(m[1]) : 1;
   const pool = cardsIn(env.me, 'hand').filter((c) => matchesFilter(c, m[2]) && (m[2] !== 'permanent' || isPermanentCard(DB[c.def])));
   if (!pool.length) return;
@@ -4747,7 +4820,7 @@ function prep(text, src) {
 
 async function runText(text, env) {
   // modal spells: "Choose one —" with bullet modes
-  const mm = text.match(/^([\s\S]*?)Choose (one|two|three|one or both|one or more|any number|up to (?:one|two|three)|one that hasn't been chosen)(?: or more)?(?:\. You may choose the same mode more than once)?(?: at random)?(?: ?(?:—|-)|\.)\s*\n?((?:\s*•[^\n]*\n?)+)([\s\S]*)$/i);
+  const mm = text.match(/^([\s\S]*?)Choose (one|two|three|four|one or both|one or more|any number|up to (?:one|two|three|four|five)|one that hasn't been chosen)(?: or more)?(?:\. You may choose the same mode more than once)?(?: at random)?(?: ?(?:—|-)|\.)\s*\n?((?:\s*•[^\n]*\n?)+)([\s\S]*)$/i);
   if (mm) {
     // "Whenever a player casts a spell, if it isn't that player's turn, choose one —" (an intervening if before the modes)
     const ifm = mm[1].match(/(^|[.\n]\s*)if ([^,.]+),\s*$/i);
@@ -4775,6 +4848,11 @@ async function runText(text, env) {
     let max = /^one(?: that hasn't been chosen)?$/.test(want) ? 1 : /^two$/.test(want) ? 2 : /^three$/.test(want) ? 3 : modes.length;
     if (/up to one/.test(want)) max = 1;
     if (/up to two/.test(want)) max = 2;
+    if (/up to three/.test(want)) max = 3;
+    if (/up to four|^four$/.test(want)) max = 4;
+    if (/up to five/.test(want)) max = 5;
+    // Moment of Reckoning: "You may choose the same mode more than once." — offer each mode that many times
+    if (/You may choose the same mode more than once/i.test(mm[0]) && !fresh && max < 99) modes = Array.from({ length: max }, () => modes).flat();
     if (env.entwined) max = modes.length;
     const min = /any number|up to/.test(want) ? 0 : /one or (?:both|more)/.test(want) ? 1 : Math.min(max, modes.length);
     const picks = env.modes || (await env.choosers[env.me].chooseModes({
@@ -4797,6 +4875,24 @@ async function runText(text, env) {
   const skip = new Set();
   // "If X, … instead": when X holds, the previous sentence doesn't happen
   for (let i = 0; i < sentences.length; i++) {
+    // Andúril: "If that creature is legendary, instead create two of those tokens that are tapped and attacking."
+    const sm2 = i > 0 && sentences[i].match(/^if (.+?), instead (.+?)\.?$/i);
+    if (sm2) {
+      if (!evalCond(sm2[1], env)) {
+        skip.add(i);
+        continue;
+      }
+      const prev = sentences[i - 1];
+      const ta = sm2[2].match(/^create (\w+) of (?:those|these) tokens that are tapped and attacking$/i);
+      if (ta && /^create /i.test(prev)) {
+        sentences[i - 1] = prev.replace(/^create \w+ /i, `create ${ta[1]} `).replace(/\btapped (?!and attacking)/i, '').replace(/\b(tokens?)\b( with [^.]+)?\.?$/i, '$1 that are tapped and attacking$2.');
+        skip.add(i);
+      } else {
+        skip.add(i - 1);
+        sentences[i] = sm2[2] + '.';
+      }
+      continue;
+    }
     const sm = sentences[i].match(/^if (.+?), (.+?) instead\.?$/i);
     if (!(sm && i > 0)) continue;
     if (!evalCond(sm[1], env)) {
@@ -4852,6 +4948,7 @@ async function runText(text, env) {
       }
     }
     if (joinedRun) continue;
+    if (env.xWhere && /\bx\b/i.test(sentences[i])) whereX(env);
     const consumed = await runSentence(sentences[i], env);
     if (consumed === 'rest') return;
   }
@@ -5148,7 +5245,7 @@ async function runSentence(sentence, env) {
     if (hm && hidden.length) return hideawayPlay(env, hidden, hm[1] === 'play', hm[2]);
     if (hm && /the exiled card/.test(low) && env.src && /\bHideaway\b/i.test(oracle(env.src))) return env.did.push('has no card hidden away');
   }
-  if ((m = low.match(/^(?:you may )?(?:cast|play) (it|that card|the exiled card|those cards|them|a spell from among them|that spell)(?: this turn| until end of turn| until the end of your next turn)?(?: without paying its mana cost)?/))) {
+  if (!/ as an adventure /.test(low) && (m = low.match(/^(?:you may )?(?:cast|play) (it|that card|the exiled card|those cards|them|a spell from among them|that spell)(?: this turn| until end of turn| until the end of your next turn)?(?: without paying its mana cost)?/))) {
     const free = /without paying/.test(low);
     // Breaching Dragonstorm: "…without paying its mana cost if that spell's mana value is 8 or less"
     const capm = low.match(/if (?:that spell's|its) mana value is (\d+) or less/);
@@ -5339,8 +5436,8 @@ export async function resolveEffects(text, src, ctx) {
     env.x = (DB[sp.def].faces.length > 1 && f.manaCost ? manaValueOf(f.manaCost) : DB[sp.def].cmc || 0) + xs * (sp.xPaid || 0);
   }
   else if (xm) {
-    const v = countPhrase(env.me, xm[2], helpers, src.iid);
-    if (v !== null) env.x = xm[1] === 'half ' ? (xm[3] === 'up' ? Math.ceil(v / 2) : Math.floor(v / 2)) : xm[1] === 'twice ' ? v * 2 : v;
+    env.xWhere = xm;
+    whereX(env);
   }
   const prevActor = G.curActor;
   G.curActor = env.me;
@@ -5356,6 +5453,27 @@ export async function resolveEffects(text, src, ctx) {
   if (env.unknown.length && env.did.length) env.did.push(`<i>by hand: ${esc(env.unknown.join(' ').slice(0, 140))}</i>`);
   ctx.lastEnv = env;
   return env.did;
+}
+
+// "where X is …": worked out when the effect starts and again before each sentence that uses X
+// (Savanti Romero puts a counter on itself first, then draws X)
+function whereX(env) {
+  const xm = env.xWhere;
+  if (!xm) return;
+  const ph = xm[2].trim();
+  const me = env.me;
+  const ts = (G.s.ts || {})[me] || {};
+  const src = env.src && card(env.src.iid) && card(env.src.iid).zone === env.src.zone ? card(env.src.iid) : env.src;
+  let v = null;
+  // Elenda's Hierophant: "where X is its power" as it died (last known information)
+  if (/^(?:its|~'s) power$/.test(ph)) v = env.event && env.event.type === 'dies' && env.event.iid === (env.src || {}).iid && env.event.power !== undefined ? env.event.power : src ? power(src) : 0;
+  else if (/^(?:its|~'s) toughness$/.test(ph)) v = env.event && env.event.type === 'dies' && env.event.iid === (env.src || {}).iid && env.event.toughness !== undefined ? env.event.toughness : src ? toughness(src) : 0;
+  else if (/^(?:the )?amount of life you(?:'ve)? gained this turn$/.test(ph)) v = ts.lifeGained || 0;
+  else if (/^speed$/.test(ph)) v = G.s.players[me].speed || 0;
+  else if (/^counters on (?:~|it|this [a-z]+)$/.test(ph)) v = Object.values((src && src.counters) || {}).reduce((a, k) => a + (k > 0 ? k : 0), 0);
+  else if (/^permanents you(?:'ve| have) sacrificed this turn$/.test(ph)) v = ts.sacrificed || 0;
+  else v = countPhrase(me, ph, helpers, env.src && env.src.iid);
+  if (v !== null) env.x = xm[1] === 'half ' ? (xm[3] === 'up' ? Math.ceil(v / 2) : Math.floor(v / 2)) : xm[1] === 'twice ' ? v * 2 : v;
 }
 
 function kwCostText(c, name) {
@@ -5649,6 +5767,11 @@ export function modeValue(t, env) {
   if (/double the number of each kind of counter you have/.test(low)) {
     const pc = G.s.players[me].counters || {};
     v += Object.values(pc).reduce((a, x) => a + (x || 0), 0) - (G.s.players[me].poison || 0) * 3 - 1;
+  }
+  // Moment of Reckoning: "Return target nonland permanent card from your graveyard to the battlefield"
+  if ((m = low.match(/return target ([a-z ]+?) cards? from your graveyard to (the battlefield|your hand)/))) {
+    const gy = cardsIn(me, 'graveyard').filter((c) => matchesFilter(c, m[1]) && (!/permanent/.test(m[1]) || isPermanentCard(DB[c.def])));
+    v += gy.length ? 2 + Math.max(...gy.map((c) => DB[c.def].cmc || 0)) / (m[2] === 'the battlefield' ? 2 : 4) : -8;
   }
   if (/exile (?:all cards from )?target (?:player|opponent)'s graveyard/.test(low)) {
     const gy = cardsIn(them, 'graveyard');

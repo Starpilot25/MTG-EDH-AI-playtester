@@ -213,7 +213,8 @@ export const aiChooser = {
     const score = req.aiScore || (() => 1);
     const order = req.modes.map((t, k) => ({ k, s: score(t) })).sort((a, b) => b.s - a.s);
     let want = Math.max(req.min ?? 1, 1);
-    if (!req.spree && !req.escalate) want = Math.max(want, Math.min(req.max, req.min ?? 1));
+    // "choose up to four / one or more / any number" with no extra cost: take every mode worth doing
+    if (!req.spree && !req.escalate) want = Math.max(want, Math.min(req.max, req.min ?? 1), req.max > (req.min ?? 1) ? Math.min(req.max, order.filter((o) => o.s > 0).length) : 0);
     else
       for (const o of order.slice(1)) {
         const extra = req.spree ? (req.modes[o.k].match(/^\+((?:\{[^}]+\})+)/) || [])[1] : req.escalate;
@@ -936,6 +937,8 @@ async function zoneActions(h, post) {
       if ((ab.kind === 'foretell' || ab.kind === 'plot' || ab.kind === 'suspend') && !post) continue;
       if (ab.kind === 'channel' && !knownEffect(ab.text)) continue;
       if (ab.kind === 'channel' && !post) continue;
+      // Renew, "{2}{B}: Return this card from your graveyard to your hand": in the second main phase, when it does something
+      if (ab.kind === 'gyAbility' && (!post || !knownEffect(ab.ab.text) || (/\btarget creature/i.test(ab.ab.text) && !cardsIn(AI, 'battlefield').some(isCreature)))) continue;
       await safely(h, () => useZoneAbility(AI, c.iid, ab, aiEnv(h)));
       h.render();
       break;

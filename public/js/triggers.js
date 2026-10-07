@@ -57,7 +57,9 @@ export function triggersOf(c, defOverride) {
       let t = effect.trim().replace(/ ¶•/g, '\n•');
       const oncePerTurn = /This ability triggers only once each turn\.?/i.test(t);
       t = t.replace(/\s*This ability triggers only once each turn\.?/i, '');
-      out.push({ event, text: t, optional: /^you may\b/i.test(t), raw: line, oncePerTurn, ...extra });
+      // Bloodghast, Darklight Phoenix, Interceptor: abilities that work while the card is in its owner's graveyard
+      const fromGy = !extra.self && !extra.attachedTo && /\b(?:return|put) (?:~|this card) from your graveyard\b|\bif (?:~|this card) is in your graveyard\b/i.test(t) && !/return it to the battlefield tapped and attacking/i.test(t);
+      out.push({ event, text: t, optional: /^you may\b/i.test(t), raw: line, oncePerTurn, ...(fromGy ? { fromGy } : {}), ...extra });
     };
     // enters
     if ((m = line.match(/^When(?:ever)? ~ enters(?: the battlefield)? or leaves the battlefield, (.+)$/i))) {
@@ -116,6 +118,22 @@ export function triggersOf(c, defOverride) {
     else if ((m = line.match(/^When(?:ever)? ~ dies or is put into exile from the battlefield, (.+)$/i))) {
       add('dies', m[1], { self: true });
       add('leaves', m[1], { self: true, toZone: 'exile' });
+    } else if ((m = line.match(/^When(?:ever)? ~ dies or is put into exile while its power is (\d+) or greater, (.+)$/i))) {
+      // Syr Vondam, Sunstar Exemplar
+      add('dies', m[2], { self: true, minPower: +m[1] });
+      add('leaves', m[2], { self: true, toZone: 'exile', minPower: +m[1] });
+    } else if ((m = line.match(/^Whenever (another|a) (nontoken )?creature you control dies or is put into exile, (.+)$/i))) {
+      // Syr Vondam: "Whenever another creature you control dies or is put into exile"
+      add('dies', m[3], { mine: true, other: m[1] === 'another', nontoken: !!m[2] });
+      add('leaves', m[3], { mine: true, kind: 'creature', toZone: 'exile', nontoken: !!m[2] });
+    } else if ((m = line.match(/^Whenever (another|an?|one or more) (nontoken )?creatures? you control (with|without) (flying|[a-z ]+?) dies?, (.+)$/i))) {
+      // Luminous Broodmoth: "Whenever a creature you control without flying dies"
+      add('dies', m[5], { mine: true, other: m[1] === 'another', nontoken: !!m[2], kind: `creature ${m[3].toLowerCase()} ${m[4].toLowerCase()}` });
+    } else if ((m = line.match(/^Whenever (?:one or more )?(other )?creatures and\/or artifacts you control die, (.+)$/i))) {
+      // G'raha Tia: artifacts going to the graveyard from the battlefield count too
+      add('dies', m[2], { mine: true, other: !!m[1], kind: 'creature or artifact', noncreatureToo: true });
+    } else if ((m = line.match(/^Whenever another player loses the game, (.+)$/i))) {
+      add('playerLost', m[1], {}); // Sengir, the Dark Baron (in a two-player game the game is over by then)
     } else if ((m = line.match(/^When(?:ever)? ~ dies, (.+)$/i)) || (m = line.match(/^When ~ is put into (?:a|your) graveyard from the battlefield, (.+)$/i)))
       add('dies', m[1], { self: true });
     else if ((m = line.match(/^Whenever ~ or another (nontoken )?(creature|[A-Z][\w-]+) (you control )?dies, (.+)$/i))) {
@@ -726,10 +744,30 @@ function onField() {
   return out;
 }
 
+// graveyard cards with abilities that trigger from the graveyard (cached per card definition)
+const gyTrigCache = new Map();
+function gyTriggerCards() {
+  const out = [];
+  for (const pid of ['p', 'ai'])
+    for (const c of cardsIn(pid, 'graveyard')) {
+      let k = gyTrigCache.get(c.def);
+      if (k === undefined) {
+        const txt = (DB[c.def].faces || []).map((f) => f.oracle || '').join('\n');
+        const nm = String(DB[c.def].name || '').split(' // ')[0];
+        const names = [nm, nm.split(',')[0]].filter(Boolean).map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+        k = new RegExp(`(?:^|\\n)(?:[^\\n]* — )?(?:When|Whenever|At)\\b[^\\n]*\\b(?:(?:return|put) (?:this card|${names}) from your graveyard|is in your graveyard)`, 'i').test(txt);
+        gyTrigCache.set(c.def, k);
+      }
+      if (k) out.push(c);
+    }
+  return out;
+}
+
 function matches(ev) {
   const out = [];
   const each = (fn) => {
-    for (const c of onField()) for (const trig of triggersOf(c)) fn(c, trig);
+    for (const c of onField()) for (const trig of triggersOf(c)) if (!trig.fromGy) fn(c, trig);
+    for (const c of gyTriggerCards()) for (const trig of triggersOf({ ...c, controller: c.owner })) if (trig.fromGy) fn(c, trig);
   };
   const whoOk = (trigWho, c, pid) => !trigWho || (trigWho === 'you' ? pid === c.controller : trigWho === 'an opponent' ? pid !== c.controller : true);
   switch (ev.type) {
@@ -761,8 +799,8 @@ function matches(ev) {
     }
     case 'dies': {
       const dead = card(ev.iid) || { iid: ev.iid, def: ev.def, face: ev.face, controller: ev.controller, owner: ev.owner, zone: 'graveyard', counters: ev.counters || {}, token: ev.token, grants: [] };
-      const ghost = { ...dead, zone: 'battlefield', counters: ev.counters || {}, controller: ev.controller };
-      for (const trig of triggersOf(ghost, ev.def)) if (trig.event === 'dies' && trig.self) out.push({ src: dead, trig, controller: ev.controller });
+      const ghost = { ...dead, zone: 'battlefield', counters: ev.counters || {}, controller: ev.controller, ...(ev.granted ? { extraText: ev.granted } : {}) };
+      for (const trig of triggersOf(ghost, ev.def)) if (trig.event === 'dies' && trig.self && !(trig.minPower && !(ev.power >= trig.minPower))) out.push({ src: dead, trig, controller: ev.controller });
       if (ev.wasBlitzed) out.push({ src: dead, trig: { event: 'dies', text: 'draw a card', raw: 'Blitz' }, controller: ev.controller });
       // "When enchanted creature dies" / "Whenever equipped creature dies"
       for (const aid of ev.attached || []) {
@@ -789,10 +827,11 @@ function matches(ev) {
     }
     case 'leaves': {
       const gone = card(ev.iid) || { iid: ev.iid, def: ev.def, face: ev.face, controller: ev.controller, owner: ev.owner, zone: ev.to, counters: {}, grants: [] };
-      for (const trig of triggersOf({ ...gone, zone: 'battlefield', controller: ev.controller }, ev.def)) if (trig.event === 'leaves' && trig.self && (!trig.toZone || trig.toZone === ev.to)) out.push({ src: gone, trig, controller: ev.controller });
+      for (const trig of triggersOf({ ...gone, zone: 'battlefield', controller: ev.controller }, ev.def)) if (trig.event === 'leaves' && trig.self && (!trig.toZone || trig.toZone === ev.to) && !(trig.minPower && !(ev.power >= trig.minPower))) out.push({ src: gone, trig, controller: ev.controller });
       const goneDef = DB[ev.def];
       each((c, trig) => {
         if (trig.event !== 'leaves' || !(trig.mine || trig.anyController) || c.iid === ev.iid) return;
+        if (trig.toZone && trig.toZone !== ev.to) return;
         if (trig.mine && c.controller !== ev.controller) return;
         if (trig.tokenOnly && !ev.token) return;
         if (trig.nontoken && (ev.token || (gone && gone.token))) return;
@@ -849,6 +888,15 @@ function matches(ev) {
       const gone = card(ev.iid);
       if (gone && ev.fromBattlefield) for (const trig of triggersOf({ ...gone, zone: 'battlefield', controller: ev.controller }, ev.def)) if (trig.event === 'dies' && trig.self) out.push({ src: gone, trig, controller: ev.controller });
       each((c, trig) => trig.event === 'putIntoGraveyard' && c.controller === ev.owner && out.push({ src: c, trig }));
+      // G'raha Tia: "Whenever one or more other creatures and/or artifacts you control die"
+      if (gone && ev.fromBattlefield)
+        each((c, trig) => {
+          if (trig.event !== 'dies' || !trig.noncreatureToo) return;
+          if (trig.mine && ev.controller !== c.controller) return;
+          if (trig.other && c.iid === ev.iid) return;
+          if (trig.kind && !matchesFilter({ ...gone, zone: 'battlefield' }, trig.kind)) return;
+          out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: ev.controller });
+        });
       break;
     }
     case 'combatDamagePlayer':
@@ -1530,7 +1578,7 @@ async function resolveTrigger(hit, controller, ev) {
   if (trig.optional) {
     text = text.replace(/^you may /i, '');
     // the AI takes optional triggers unless they cost it something
-    const yes = controller === 'ai' ? knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}\n\nDo it?`);
+    const yes = controller === 'ai' ? /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}\n\nDo it?`);
     if (!yes) return;
     ctx.lastMay = true; // "you may discard a card. If you do, draw two cards."
   }

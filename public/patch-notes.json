@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.3.14",
+    "title": "Aristocrats fixes (Edgar deck)",
+    "notes": [
+      "Cards that work from your graveyard now trigger there: Bloodghast returns on landfall, Darklight Phoenix returns at the start of combat after two or more creatures died, and Interceptor, Shadow's Hound comes back tapped and attacking when you attack with a legendary creature.",
+      "Graveyard abilities can now be activated from the graveyard menu: Renew (Qarsi Revenant, Rot-Curse Rakshasa) and \"Return this card from your graveyard to your hand\" (Project Deathlok Soldier). Costs that exile the card itself are now paid.",
+      "Luminous Broodmoth returns your creatures without flying with a flying counter. G'raha Tia draws when your creatures or artifacts die. Syr Vondam triggers on creatures dying or being exiled, and destroys a permanent when it leaves with 4 or more power.",
+      "Elenda's Hierophant makes tokens equal to its power as it died. Moseo, Savanti Romero, The Speed Demon and Obsessive Pursuit now count X correctly, and Savanti and The Speed Demon make you lose the life too.",
+      "Taborax draws when a Cleric dies. Andúril makes attacking tokens when it equips a legendary creature. Alpharael's Void trigger works. Grim Reaper returns its creature tapped and attacking with a finality counter.",
+      "Voice of the Blessed gets flying and vigilance at four counters. Bloodghast has haste when you're at 10 life or less. Feed the Swarm makes you lose life equal to the destroyed permanent's mana value.",
+      "Bone Harvest puts any number of creature cards on top and draws at the next upkeep instead of right away. Moment of Reckoning lets you pick up to four modes, repeats allowed. Rabid Attack works.",
+      "Hildibrand Manderville: after he dies you can cast Gentleman's Rise from your graveyard until the end of your next turn.",
+      "The AI now takes every useful mode on \"choose up to\" spells, and pays for optional \"pay {X}: if you do\" triggers when it can."
+    ]
+  },
+  {
     "version": "1.3.13",
     "title": "AI: no casting into an empty graveyard",
     "notes": [

@@ -63,7 +63,7 @@ function parseStatics(text, selfName) {
       out.self.push({ p: +m[1], t: +m[2], each: m[3], grants: [] });
       continue;
     }
-    if ((m = sl.match(/^as long as (.+?), ~ gets ([+-]\d+)\/([+-]\d+)(?: and (?:has|gains) (.+?))?\.?$/))) {
+    if ((m = sl.match(/^as long as (.+?), (?:~|it) gets ([+-]\d+)\/([+-]\d+)(?: and (?:has|gains) (.+?))?\.?$/))) {
       out.self.push({ cond: m[1], p: +m[2], t: +m[3], grants: kwList(m[4]) });
       continue;
     }
@@ -71,7 +71,7 @@ function parseStatics(text, selfName) {
       out.self.push({ cond: m[4], p: +m[1], t: +m[2], grants: kwList(m[3]) });
       continue;
     }
-    if ((m = sl.match(/^as long as (.+?), ~ (?:has|gains) (.+?)\.?$/)) || ((m = sl.match(/^~ has (.+?) as long as (.+?)\.?$/)) && (m = [m[0], m[2], m[1]]))) {
+    if ((m = sl.match(/^as long as (.+?), (?:~|it) (?:has|gains) (.+?)\.?$/)) || ((m = sl.match(/^~ has (.+?) as long as (.+?)\.?$/)) && (m = [m[0], m[2], m[1]]))) {
       const g = kwList(m[2]);
       if (g.length) {
         out.self.push({ cond: m[1], p: 0, t: 0, grants: g });

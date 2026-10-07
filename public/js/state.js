@@ -253,16 +253,19 @@ export function move(iid, zone, opts = {}) {
   // events for triggered abilities
   if (fromZone === 'battlefield' && zone !== 'battlefield') {
     s.ts[c.controller].permLeft = true;
+    if (!isLand(c)) s.ts.nonlandLeft = true;
     const attachedHere = Object.values(s.cards).filter((a) => a.attachedTo === iid && a.zone === 'battlefield');
     if (requested === 'graveyard' && isCreature(c)) {
       s.ts.creatureDied = true;
+      s.ts.creaturesDiedN = (s.ts.creaturesDiedN || 0) + 1;
       queueEvent({
         type: 'dies', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token,
         power: power(c), toughness: toughness(c), counters: { ...(c.counters || {}) }, isCommander: c.isCommander, merged: c.merged || [],
+        granted: [c.extraText, c.eotText].filter(Boolean).join('\n') || undefined, // "When this creature dies, …" it gained (Rabid Attack)
         wasBlitzed: c.castMode === 'blitz', attached: attachedHere.map((a) => a.iid), attachedCtl: Object.fromEntries(attachedHere.map((a) => [a.iid, a.controller])),
       });
     } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token, fromBattlefield: true });
-    queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone, wasAttacking: !!c.attacking });
+    queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone, wasAttacking: !!c.attacking, power: isCreature(c) ? power(c) : undefined });
     if (requested === 'graveyard' && isCreature(c)) (s.ts[c.controller].diedTypes = s.ts[c.controller].diedTypes || []).push(typeLine(c));
   }
   if (fromZone === 'graveyard' && zone !== 'graveyard') s.ts[c.owner].cardsLeftGy++;
@@ -904,6 +907,7 @@ export function sacrifice(iid) {
   const c = card(iid);
   if (!c || c.zone !== 'battlefield') return false;
   queueEvent({ type: 'sacrificed', iid, def: c.def, controller: c.controller, token: c.token, types: typeLine(c) });
+  if (G.s.ts && G.s.ts[c.controller]) G.s.ts[c.controller].sacrificed = (G.s.ts[c.controller].sacrificed || 0) + 1;
   move(iid, 'graveyard');
   return true;
 }
