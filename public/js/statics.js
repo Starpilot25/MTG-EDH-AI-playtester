@@ -15,6 +15,7 @@ const lines = (text) =>
     .map((l) => l.trim())
     .filter(Boolean);
 
+const SELF_KW = /^(?:flying|first strike|double strike|deathtouch|lifelink|trample|vigilance|haste|reach|menace|hexproof|indestructible|shroud|defender|infect|wither|skulk|prowess|fear|intimidate|shadow|horsemanship|protection from [a-z ]+|ward \{\d+\}|hexproof from [a-z]+)$/;
 export function kwList(s) {
   return s
     ? s
@@ -70,6 +71,28 @@ function parseStatics(text, selfName) {
     if ((m = sl.match(/^~ gets ([+-]\d+)\/([+-]\d+)(?: and (?:has|gains) (.+?))? as long as (.+?)\.?$/))) {
       out.self.push({ cond: m[4], p: +m[1], t: +m[2], grants: kwList(m[3]) });
       continue;
+    }
+    // unconditional ones (Max speed — "This creature gets +1/+2.", "This creature has double strike.")
+    if ((m = sl.match(/^~ gets ([+-]\d+)\/([+-]\d+)(?: and (?:has|gains) (.+?))?\.?$/))) {
+      out.self.push({ p: +m[1], t: +m[2], grants: kwList(m[3]) });
+      continue;
+    }
+    // Tsagan: "~ has deathtouch and other creatures you control have first strike."
+    if ((m = sl.match(/^~ has (.+?) and (other creatures you control (?:have|get) .+?)\.?$/))) {
+      const g = kwList(m[1]);
+      const sub = parseStatics(m[2], selfName);
+      if (g.length && g.every((k) => SELF_KW.test(k)) && sub.anthems.length) {
+        out.self.push({ p: 0, t: 0, grants: g });
+        out.anthems.push(...sub.anthems);
+        continue;
+      }
+    }
+    if ((m = sl.match(/^~ has (.+?)\.?$/)) && !/ as long as | if | for each /.test(sl)) {
+      const g = kwList(m[1]);
+      if (g.length && g.every((k) => SELF_KW.test(k))) {
+        out.self.push({ p: 0, t: 0, grants: g });
+        continue;
+      }
     }
     if ((m = sl.match(/^as long as (.+?), (?:~|it) (?:has|gains) (.+?)\.?$/)) || ((m = sl.match(/^~ has (.+?) as long as (.+?)\.?$/)) && (m = [m[0], m[2], m[1]]))) {
       const g = kwList(m[2]);

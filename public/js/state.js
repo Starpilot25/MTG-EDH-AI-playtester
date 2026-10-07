@@ -584,7 +584,7 @@ function drawReplacement(pid) {
     exempt = true;
     ts.drawStepDrew = true;
   }
-  const oracleOf = (x) => (DB[x.def].faces[x.face || 0] || {}).oracle || '';
+  const oracleOf = (x) => oracle(x); // the active text ("Max speed — " lines only at max speed)
   const field = (who) => s.players[who].zones.battlefield.map((i) => s.cards[i]).filter((x) => x && !x.phasedOut && !abilitiesGone(x));
   const other = pid === 'p' ? 'ai' : 'p';
   // Notion Thief (an opponent of the drawer)

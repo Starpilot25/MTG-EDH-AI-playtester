@@ -6,7 +6,7 @@
 import { DB } from './data.js';
 import {
   isLand, isCreature, isType, hasSubtype, oracle, face, hasKw, kwNum, kwCost, power, toughness, cardValue,
-  manaAbility, payCost, parseCost, isPermanentCard, typeLine, colorsOf,
+  manaAbility, payCost, parseCost, isPermanentCard, typeLine, colorsOf, maxSpeedText,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, toBattlefield, createToken, genericTokenDef, stateBased,
@@ -116,7 +116,7 @@ export function castOptions(pid, c) {
   const d = DB[c.def];
   const zone = c.zone;
   const f0 = d.faces[0];
-  const o0 = stripName(f0.oracle || '', c);
+  const o0 = stripName(maxSpeedText(f0.oracle || '', pid), c);
   const opts = [];
   const add = (o) => opts.push({ face: 0, from: zone, ...o });
   const s = G.s;

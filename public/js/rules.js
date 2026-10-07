@@ -239,6 +239,12 @@ export function oracle(inst) {
   }
   return oracleRaw(inst);
 }
+// "Max speed — …" abilities exist only while their controller's speed is 4
+export function maxSpeedText(text, pid) {
+  if (!/(?:^|\n)Max speed — /.test(text || '')) return text;
+  const on = !!(G.s && pid && G.s.players[pid] && (G.s.players[pid].speed || 0) >= 4);
+  return text.split('\n').map((l) => (/^Max speed — /.test(l) ? (on ? l.replace(/^Max speed — /, '') : null) : l)).filter((l) => l !== null).join('\n');
+}
 export const isRoomCard = (d) => !!d && d.faces && d.faces.length === 2 && /Room/.test(d.faces[0].typeLine || '') && /Room/.test(d.faces[1].typeLine || '');
 function oracleRaw(inst) {
   const f = face(inst);
@@ -270,6 +276,7 @@ function oracleRaw(inst) {
       if (m) text += '\n' + (face(m).oracle || '');
     }
   }
+  text = maxSpeedText(text, inst.controller || inst.owner);
   if (inst.extraText) text += '\n' + inst.extraText;
   if (inst.eotText) text += '\n' + inst.eotText; // "until end of turn, it gains \"…\"" (Trash the Town)
   for (const b of Object.values(inst.auraBuffs || {})) if (b.text) text += '\n' + b.text;

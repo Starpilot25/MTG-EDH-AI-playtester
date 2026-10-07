@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.22",
+    "title": "Max speed fixed",
+    "notes": [
+      "\"Max speed —\" abilities now work only once your speed reaches 4, and every kind works. Before, only the triggered ones (\"At the beginning of…\", \"Whenever…\") did.",
+      "Fixed: stat and keyword boosts (Burnout Bashtronaut's double strike, Walking Sarcophagus +1/+2, Gastal Raider, Tsagan), activated and mana abilities (Gas Guzzler, Starting Column, Muraganda Raceway's {C}{C}), graveyard abilities (the Surveyors), cost reductions (Racers' Scoreboard) and casting from the graveyard (Lightwheel Enhancements).",
+      "Vnwxt, Verbose Host and Lightwheel Enhancements no longer act as if you were always at max speed."
+    ]
+  },
+  {
     "version": "1.3.21",
     "title": "Minthara, Merciless Soul",
     "notes": [
