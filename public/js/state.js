@@ -272,6 +272,8 @@ export function move(iid, zone, opts = {}) {
   if (zone === 'graveyard' && fromZone !== 'graveyard' && !c.token) queueEvent({ type: 'toGraveyard', iid, def: c.def, owner: c.owner, from: fromZone, controller: fromZone === 'battlefield' ? c.controller : c.owner });
   // "Its controller …" after it left (Path to Exile on a creature you'd stolen): remember who controlled it
   if (fromZone === 'battlefield' && zone !== 'battlefield') (s.lastCtl = s.lastCtl || {})[iid] = c.controller;
+  // last known power and toughness, with counters and pumps (Swords to Plowshares: "life equal to its power")
+  if (fromZone === 'battlefield' && zone !== 'battlefield' && isCreature(c)) (s.lki = s.lki || {})[iid] = { p: power(c), t: toughness(c) };
   // Gwen Stacy: "You may play that card for as long as you control this creature" ends when it leaves or changes control
   if (fromZone === 'battlefield' && (zone !== 'battlefield' || (opts.controller && opts.controller !== c.controller)))
     for (const x of Object.values(s.cards)) if (x.playWhileCtl === iid) {

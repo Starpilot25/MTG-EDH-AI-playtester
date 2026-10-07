@@ -914,6 +914,12 @@ async function playerTarget(env, phrase, harm = true) {
   return pick && pick.player ? [pick.player] : [];
 }
 
+// Power/toughness as it last was on the battlefield (with counters, Auras, pumps) once it has left
+function lkiPT(c) {
+  const live = card(c.iid);
+  if ((!live || live.zone !== 'battlefield') && G.s.lki && G.s.lki[c.iid]) return G.s.lki[c.iid];
+  return { p: power(c), t: toughness(c) };
+}
 function amountOf(word, env) {
   const w = String(word || '').toLowerCase().trim();
   if (/^x$/.test(w)) return env.x || 0;
@@ -921,11 +927,11 @@ function amountOf(word, env) {
   let m;
   if ((m = w.match(/^(?:damage )?equal to (?:~'s|its|that creature's|the sacrificed creature's|enchanted creature's|equipped creature's) power/))) {
     const it = /^(?:damage )?equal to (?:~'s)/.test(w) ? env.src : env.it && env.it.iid ? card(env.it.iid) : env.src;
-    return it ? Math.max(0, power(it)) : 0;
+    return it ? Math.max(0, lkiPT(it).p) : 0;
   }
   if ((m = w.match(/^(?:damage )?equal to (?:~'s|its|that creature's|the sacrificed creature's|enchanted creature's|equipped creature's) toughness/))) {
     const it = /^(?:damage )?equal to ~'s/.test(w) ? env.src : env.it && env.it.iid ? card(env.it.iid) : env.src;
-    return it ? Math.max(0, toughness(it)) : 0;
+    return it ? Math.max(0, lkiPT(it).t) : 0;
   }
   if ((m = w.match(/^(?:damage )?equal to (?:that creature's|that permanent's|that card's|its) (?:mana value|converted mana cost)/))) {
     const it = env.it && env.it.iid ? card(env.it.iid) : env.src;
@@ -5467,7 +5473,7 @@ function whereX(env) {
   const src = env.src && card(env.src.iid) && card(env.src.iid).zone === env.src.zone ? card(env.src.iid) : env.src;
   let v = null;
   // Elenda's Hierophant: "where X is its power" as it died (last known information)
-  if (/^(?:its|~'s) power$/.test(ph)) v = env.event && env.event.type === 'dies' && env.event.iid === (env.src || {}).iid && env.event.power !== undefined ? env.event.power : src ? power(src) : 0;
+  if (/^(?:its|~'s) power$/.test(ph)) v = env.event && env.event.type === 'dies' && env.event.iid === (env.src || {}).iid && env.event.power !== undefined ? env.event.power : src ? lkiPT(src).p : 0;
   else if (/^(?:its|~'s) toughness$/.test(ph)) v = env.event && env.event.type === 'dies' && env.event.iid === (env.src || {}).iid && env.event.toughness !== undefined ? env.event.toughness : src ? toughness(src) : 0;
   else if (/^(?:the )?amount of life you(?:'ve)? gained this turn$/.test(ph)) v = ts.lifeGained || 0;
   else if (/^speed$/.test(ph)) v = G.s.players[me].speed || 0;

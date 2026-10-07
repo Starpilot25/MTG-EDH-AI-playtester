@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.17",
+    "title": "Swords to Plowshares uses the creature's real power",
+    "notes": [
+      "Swords to Plowshares and other \"equal to its power/toughness\" effects now use the creature's power as it last was on the battlefield, counting +1/+1 counters, Auras, Equipment and pumps. Before, they used the printed power once the creature had left.",
+      "This also fixes effects that count a sacrificed or exiled creature's power, like Fling."
+    ]
+  },
+  {
     "version": "1.3.16",
     "title": "Gained and lost keywords on cards",
     "notes": [
