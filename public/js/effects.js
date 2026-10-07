@@ -4318,11 +4318,17 @@ function moveReturned(env, c, dest, tapped) {
       }
       const cm = sent.match(/with an? ([a-z+\/0-9-]+) counter on it/);
       if (cm) addCounters(y, cm[1], 1);
+      // Pre-War Formalwear: "… to the battlefield and attach ~ to it"
+      if (/ and attach (?:~|this (?:equipment|aura|artifact)) to it\b/.test(sent) && env.src && card(env.src.iid) && card(env.src.iid).zone === 'battlefield' && isCreature(y)) {
+        attachTo(card(env.src.iid), y);
+        var attachNote = `attaches ${nameTag(card(env.src.iid))} to it`;
+      }
     }
   } else if (/top of your library/.test(dest)) move(c.iid, 'library');
   else move(c.iid, 'hand');
   env.it = { iid: c.iid };
   env.did.push(`returns ${nm} to ${/battlefield/.test(dest) ? 'the battlefield' : /library/.test(dest) ? 'the top of the library' : 'hand'}`);
+  if (typeof attachNote === 'string') env.did.push(attachNote);
 }
 on(/^put (?:an?|up to (\w+)) ((?:[a-z]+ )?(?:land|creature|permanent|[a-z]+)) cards? from your hand onto the battlefield( tapped)?/, async (m, env) => {
   const k = m[1] ? n(m[1]) : 1;

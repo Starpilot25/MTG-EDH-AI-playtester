@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.23",
+    "title": "Pre-War Formalwear",
+    "notes": [
+      "Pre-War Formalwear now attaches itself to the creature it returns, so that creature gets +2/+2 and vigilance right away. Before, the creature came back but the Equipment stayed unattached.",
+      "This also fixes other cards that return a creature and \"attach this to it\"."
+    ]
+  },
+  {
     "version": "1.3.22",
     "title": "Max speed fixed",
     "notes": [
