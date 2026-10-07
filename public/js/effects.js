@@ -4,7 +4,7 @@
 import { DB } from './data.js';
 import {
   hasSubtype, isLand, isCreature, isType, oracle, hasKw, power, toughness, cardValue, face, typeLine, colorsOf,
-  isProtectedFrom, SECTORS, SECTOR_SIGN, kwCost, payCost, manaValueOf, isPermanentCard, manaAbility,
+  isProtectedFrom, SECTORS, SECTOR_SIGN, kwCost, payCost, manaValueOf, isPermanentCard, manaAbility, basePT,
 } from './rules.js';
 import {
   G, card, cardsIn as cardsInZone, zoneOf as zoneOfRaw, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef, namedTokenDef,
@@ -311,6 +311,7 @@ export function subtypeWords(phrase) {
 }
 export function matchesFilter(c, phrase) {
   phrase = phrase.toLowerCase();
+  let m0;
   const d = DB[c.def];
   for (const m of phrase.matchAll(/non-?(\w+)/g)) {
     const w = m[1];
@@ -334,6 +335,11 @@ export function matchesFilter(c, phrase) {
   if (/\btoken\b/.test(phrase) && !/nontoken/.test(phrase) && !c.token) return false;
   if (/\blegendary\b/.test(phrase) && !/nonlegendary/.test(phrase) && !/Legendary/.test(typeLine(c)) && !ringLevel(c)) return false;
   if (/with flying/.test(phrase) && !hasKw(c, 'flying')) return false;
+  // Duskana: "with base power and toughness 2/2"
+  if ((m0 = phrase.match(/base power and toughness (\d+)\/(\d+)/))) {
+    const b = basePT(c);
+    if (+b.p !== +m0[1] || +b.t !== +m0[2]) return false;
+  }
   for (const km of phrase.matchAll(/\bwith (menace|trample|deathtouch|lifelink|haste|vigilance|reach|first strike|double strike|defender|hexproof|indestructible|ward)\b/g)) if (!hasKw(c, km[1])) return false;
   if (/\byou don't own\b|\bbut don't own\b/.test(phrase) && c.owner === c.controller) return false;
   if (/without flying/.test(phrase) && hasKw(c, 'flying')) return false;
@@ -1662,6 +1668,18 @@ on(/^for each opponent, gain control of up to one target nonlegendary creature t
   move(pick, 'battlefield', { controller: env.me });
   if (card(pick) && env.src) card(pick).controlWhile = { src: env.src.iid, prev, by: env.me, youControl: false };
   env.did.push(`gains control of ${nameTag(card(pick))}`);
+}, { first: true });
+// Duskana: "draw a card for each creature you control with base power and toughness 2/2"
+on(/^(?:you )?draw (a|one|two|three) cards? for each (.+)$/, async (m, env) => {
+  if (/but don't own$|,| this way$| this turn$/.test(m[2])) return 'pass';
+  let k = null;
+  const wm = m[2].match(/^(other )?((?:[\w-]+ )*?)(creature|artifact|permanent|land|[a-z]+)s? you control( with .+)?$/);
+  if (wm && wm[4]) k = cardsIn(env.me, 'battlefield').filter((c) => !(wm[1] && c.iid === env.src.iid) && matchesFilter(c, `${wm[2]}${wm[3]}${wm[4]}`)).length;
+  else if (/^(?:[\w-]+ ){0,3}?[\w-]+ (?:you control|your opponents control|on the battlefield|in your graveyard)$/.test(m[2])) k = countPhrase(env.me, m[2], helpers, env.src && env.src.iid);
+  if (k === null) return 'pass';
+  const total = n(m[1]) * k;
+  if (total) draw(env.me, total, true);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${total}`);
 }, { first: true });
 on(/^draw a card for each creature you control but don't own$/, async (m, env) => {
   const k = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && c.owner !== env.me).length;

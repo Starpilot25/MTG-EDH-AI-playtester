@@ -223,6 +223,9 @@ export function triggersOf(c, defOverride) {
       add('blocked', m[1], { self: true });
     else if ((m = line.match(/^Whenever equipped creature attacks, (.+)$/i)) || (m = line.match(/^Whenever enchanted creature attacks, (.+)$/i)))
       add('attacks', m[1], { attachedTo: true });
+    else if ((m = line.match(/^Whenever (a|another) ((?:[\w-]+ ){0,2}?)creature you control (with [^,]+?) attacks, (.+)$/i)))
+      // Duskana: "Whenever a creature you control with base power and toughness 2/2 attacks"
+      add('attacks', m[4], { anyOfMine: true, kind: `${m[2].trim()} creature ${m[3]}`.trim(), other: m[1] === 'another' });
     else if ((m = line.match(/^Whenever (?:a|another) ((?:[\w-]+ ){0,2}?)creature you control attacks[^,]*, (.+)$/i)))
       add('attacks', m[2], { anyOfMine: true, kind: m[1].trim() });
     else if ((m = line.match(/^Whenever (a|an|another) ([A-Z][\w-]+) you control attacks[^,]*, (.+)$/)))

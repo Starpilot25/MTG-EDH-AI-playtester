@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.19",
+    "title": "Duskana, the Rage Mother",
+    "notes": [
+      "Duskana, the Rage Mother: when she enters you draw a card for each creature you control with base power and toughness 2/2 (before, you drew only one). Whenever one of those creatures attacks, it now gets +3/+3, and +1/+1 counters don't stop it counting.",
+      "\"Draw a card for each creature you control with …\" now works on other cards too."
+    ]
+  },
+  {
     "version": "1.3.18",
     "title": "Beginning of combat comes before attacks",
     "notes": [
