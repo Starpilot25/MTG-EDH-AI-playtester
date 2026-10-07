@@ -16,7 +16,7 @@ import {
   manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, landOptions, playLand, landsAllowed, applyPayment,
   activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft, instantLoyalty,
 } from './cast.js';
-import { T, fire, settle } from './triggers.js';
+import { T, fire, settle, triggersOf } from './triggers.js';
 import { DUNGEONS, venture, takeInitiative } from './dungeon.js';
 import {
   Cancelled, activatedAbilities, zoneAbilities,
@@ -537,6 +537,46 @@ function exileReady(pid) {
   </div>`;
 }
 
+// Cards in the graveyard that can do something from there: flashback, escape, unearth, Renew, "return this card…",
+// and cards with abilities that trigger from the graveyard (Bloodghast, Darklight Phoenix)
+const GY_TAG = { flashback: 'Flashback', escape: 'Escape', jumpstart: 'Jump-start', retrace: 'Retrace', aftermath: 'Aftermath', disturb: 'Disturb', harmonize: 'Harmonize', mayhem: 'Mayhem', fromGraveyard: 'Cast', impulse: 'This turn', adventure: 'Adventure' };
+function graveyardReady(pid) {
+  const items = [];
+  for (const c of cardsIn(pid, 'graveyard')) {
+    const tags = [];
+    let ready = false;
+    try {
+      for (const o of castOptions(pid, c)) {
+        const t = GY_TAG[o.mode] || 'Cast';
+        if (!tags.includes(t)) tags.push(t);
+        ready = true;
+      }
+      const text = oracle(c);
+      for (const ab of zoneAbilities(c)) {
+        let t;
+        if (ab.kind === 'gyAbility') {
+          const key = (ab.ab.text || '').slice(0, 24);
+          const lm = text.split('\n').find((l) => l.includes(key) && / — /.test(l));
+          t = lm ? lm.split(' — ')[0].trim() : /to your hand/i.test(ab.ab.text) ? 'To hand' : /to the battlefield/i.test(ab.ab.text) ? 'Return' : 'Ability';
+        } else t = ab.label.split(' ')[0];
+        if (!tags.includes(t)) tags.push(t);
+        if (ab.kind !== 'dredge') ready = true;
+      }
+      if (!tags.length && triggersOf({ ...c, controller: c.owner }).some((tr) => tr.fromGy)) tags.push('Returns');
+    } catch (e) {
+      continue;
+    }
+    if (!tags.length) continue;
+    items.push({ c, tag: tags.slice(0, 2).join(' · '), title: tags.join(', '), ready });
+  }
+  if (!items.length) return '';
+  items.sort((a, b) => b.ready - a.ready);
+  return `<div class="exile-ready gy-ready" title="Cards ${pid === 'p' ? 'you' : 'the AI'} can use from the graveyard${pid === 'p' ? ' — double-click or right-click one for its options' : ''}">
+    <div class="er-title">From graveyard <b>${items.length}</b></div>
+    <div class="er-cards">${items.map(({ c, tag, title, ready }) => `<div class="er-item ${ready ? 'ready' : 'waiting'}" title="${esc(title)}${ready ? '' : ' (triggers on its own)'}">${cardHTML(c, { small: true })}<span class="er-tag">${esc(tag)}</span></div>`).join('')}</div>
+  </div>`;
+}
+
 // your commander just left play: you choose whether it goes to the command zone
 function commanderChoice() {
   const items = Object.values(G.s.cards).filter((c) => c.owner === 'p' && c.isCommander && c.cmdAsk && c.cmdAsk === c.zone);
@@ -568,6 +608,7 @@ function renderOpp() {
     ${lifeBlock('ai')}
     <div class="piles">${pile('ai', 'library', 'Library')}${pile('ai', 'graveyard', 'Grave')}${pile('ai', 'exile', 'Exile')}${commandZone('ai')}</div>
     ${exileReady('ai')}
+    ${graveyardReady('ai')}
     <div class="hand-row"><span class="lbl">Hand</span>${backs}</div>
     ${handControl('p', 'ai') ? '<p class="hint sl-hint">Sen Triplets: double-click the AI\'s cards to play or cast them with your mana.</p>' : ''}`;
 
@@ -732,7 +773,8 @@ function renderMine() {
     ${lifeBlock('p')}
     <div class="piles">${pile('p', 'library', 'Library')}${pile('p', 'graveyard', 'Grave')}${pile('p', 'exile', 'Exile')}${commandZone('p')}</div>
     ${commanderChoice()}
-    ${exileReady('p')}`;
+    ${exileReady('p')}
+    ${graveyardReady('p')}`;
 }
 
 function freeSpotFor(c) {
@@ -2318,6 +2360,18 @@ export function bindEvents() {
     if (c && isMine(c) && (c.zone === 'hand' || c.zone === 'command')) castByPlayer(c.iid);
     else if (c && c.owner === 'ai' && c.zone === 'hand' && handControl('p', 'ai')) castByPlayer(c.iid);
     else if (c && c.zone === 'exile' && el.closest('.exile-ready') && (c.owner === 'p' || c.mayPlay === 'p' || c.mayPlayFree === 'p')) castByPlayer(c.iid);
+    else if (c && c.zone === 'graveyard' && el.closest('.gy-ready') && c.owner === 'p') {
+      // one way to use it: do that; several (flashback and an ability…): show the menu
+      const opts = castOptions('p', c);
+      const abs = zoneAbilities(c);
+      if (opts.length === 1 && !abs.length) castByPlayer(c.iid, { option: opts[0] });
+      else if (!opts.length && abs.length === 1) zoneAbility(c, abs[0]);
+      else {
+        menuDoc = el.ownerDocument;
+        const r = el.getBoundingClientRect();
+        menuForCard(c, r.right, r.top);
+      }
+    }
   });
 
   document.addEventListener('contextmenu', (e) => {

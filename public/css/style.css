@@ -770,6 +770,7 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 
 /* castable from exile: foretold, plotted, adventure, impulse… */
 .exile-ready { border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px 8px; background: rgb(0 0 0 / 0.15); }
+.exile-ready + .exile-ready { margin-top: 8px; }
 .er-title { font: 700 11px var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
 .er-title b { color: var(--brass); }
 .er-cards { display: flex; flex-wrap: wrap; gap: 8px 6px; }
