@@ -822,6 +822,12 @@ function wardCost(c) {
       if (wm) return { n: +wm[1] };
     }
   }
+  // Minthara: "ward {X}, where X is the number of experience counters you have"
+  const wx = oracle(c).match(/\bward \{X\}, where X is (?:the number of )?([^.\n]+)/i);
+  if (wx) {
+    const v = countPhrase(c.controller, wx[1], helpers, c.iid);
+    return v ? { n: v } : null;
+  }
   const m = oracle(c).match(/\bWard (?:\{(\d+)\}|—(.+?)(?:\.|$))/m) || [...(c.grants || []), ...(c.eotGrants || [])].join('|').match(/ward \{(\d+)\}/);
   if (!m) return null;
   if (m[1]) return { n: +m[1] };

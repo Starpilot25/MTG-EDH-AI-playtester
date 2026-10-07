@@ -87,8 +87,9 @@ function parseStatics(text, selfName) {
       }
     }
     // anthems: "Other Elf creatures you control get +1/+1 and have …"
-    if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?(?: for each [^.]+)?\.?$/))) {
-      out.anthems.push({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: kwList(m[5]) });
+    if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?(?: for each ([^.]+))?\.?$/))) {
+      // Minthara: "Creatures you control get +1/+0 for each experience counter you have."
+      out.anthems.push({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: kwList(m[5]), ...(m[6] ? { each: m[6] } : {}) });
       continue;
     }
     if ((m = l.match(/^(other )?([\w-]+?)s you control get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?\.?$/)) && m[2] !== 'creature') {
@@ -331,8 +332,13 @@ function staticModsRaw(c, helpers) {
         }
         if (!ok) continue;
       }
-      out.p += a.p;
-      out.t += a.t;
+      let k = 1;
+      if (a.each) {
+        const v = countPhrase(src.controller, a.each, helpers, src.iid);
+        k = v === null ? 1 : v; // a count it can't work out: as before, once
+      }
+      out.p += a.p * k;
+      out.t += a.t * k;
       out.grants.push(...a.grants);
       for (const kw of a.grants) out.timed.push({ kw, ts: src.ts || 0 });
     }
@@ -492,6 +498,15 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   }
   const inHand = (w) => s.players[w].zones.hand.filter((i) => !((s.stack && s.stack.iid === i) || (s.pstack && s.pstack.iid === i) || (s.resolving || []).includes(i))).length;
   if (/^cards? in your hand/.test(p)) return inHand(pid);
+  // Intrepid Adversary, Call for Unity: "for each valor counter on ~"; Armament Master: "for each Equipment attached to ~"
+  if (srcIid && s.cards[srcIid]) {
+    const self = s.cards[srcIid];
+    if ((m = p.match(/^([a-z+\/0-9-]+) counters? on (?!target|each|a |an |another|creatures|permanents|all )(?!.*\byou control\b)[^,]+$/))) return (self.counters || {})[m[1]] || 0;
+    if ((m = p.match(/^(aura and equipment|auras? and\/or equipment|equipment|auras?) attached to (?!target)[^,]+$/)))
+      return Object.values(s.cards).filter((a) => a.zone === 'battlefield' && a.attachedTo === srcIid && (/equipment/.test(m[1]) && helpers && helpers.typeLine(a).includes('Equipment') || /aura/.test(m[1]) && helpers && helpers.typeLine(a).includes('Aura'))).length;
+  }
+  // "experience counter you have", "energy counters you have"
+  if ((m = p.match(/^(\w+) counters? you have$/))) return m[1] === 'poison' ? s.players[pid].poison || 0 : (s.players[pid].counters || {})[m[1]] || 0;
   if (/^cards? in (?:target opponent's|an opponent's|each opponent's) hand/.test(p)) return inHand(opp);
   if (/^cards? in all graveyards/.test(p)) return gy('p').length + gy('ai').length;
   if (/^creature cards in all graveyards/.test(p)) return [...gy('p'), ...gy('ai')].filter((c) => /Creature/.test(DB[c.def].typeLine)).length;

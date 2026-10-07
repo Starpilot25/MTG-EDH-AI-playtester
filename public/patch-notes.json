@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.21",
+    "title": "Minthara, Merciless Soul",
+    "notes": [
+      "Minthara, Merciless Soul: your creatures now get +1/+0 for each experience counter you have. Before, they got +1/+0 no matter how many you had.",
+      "Minthara's ward now costs {X}, where X is your number of experience counters. Before, she had no ward.",
+      "\"Creatures you control get +N/+N for each …\" now counts properly on other cards too, like Intrepid Adversary (valor counters) and Call for Unity (unity counters)."
+    ]
+  },
+  {
     "version": "1.3.20",
     "title": "\"From graveyard\" panel",
     "notes": [
