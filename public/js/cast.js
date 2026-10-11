@@ -173,8 +173,10 @@ export function castOptions(pid, c) {
       if (/\bFuse\b/.test(d.faces[1].oracle || '') && zone === 'hand') add({ mode: 'fuse', label: 'Cast both halves (fuse)', cost: f0.manaCost + d.faces[1].manaCost });
       if (/\bAftermath\b/.test(d.faces[1].oracle || '')) opts.splice(opts.findIndex((x) => x.face === 1), 1);
     }
-    if (d.layout === 'adventure' && d.faces[1]) add({ mode: 'adventure', face: 1, label: `Cast ${d.faces[1].name} (Adventure)`, cost: d.faces[1].manaCost });
-    if ((d.layout === 'modal_dfc' || d.layout === 'omen') && d.faces[1] && !isLandFace(d.faces[1])) add({ mode: d.layout === 'omen' ? 'omen' : 'back', face: 1, label: `Cast ${d.faces[1].name}`, cost: d.faces[1].manaCost });
+    // an Omen half is never an Adventure, even if the card data calls the card one
+    if (d.layout === 'adventure' && d.faces[1] && /\bOmen\b/.test(d.faces[1].typeLine || '')) add({ mode: 'omen', face: 1, label: `Cast ${d.faces[1].name} (Omen)`, cost: d.faces[1].manaCost });
+    else if (d.layout === 'adventure' && d.faces[1]) add({ mode: 'adventure', face: 1, label: `Cast ${d.faces[1].name} (Adventure)`, cost: d.faces[1].manaCost });
+    if ((d.layout === 'modal_dfc' || d.layout === 'omen') && d.faces[1] && !isLandFace(d.faces[1])) add({ mode: d.layout === 'omen' ? 'omen' : 'back', face: 1, label: `Cast ${d.faces[1].name}${d.layout === 'omen' ? ' (Omen)' : ''}`, cost: d.faces[1].manaCost });
     let m;
     const alts = [
       ['Dash', 'dash'], ['Evoke', 'evoke'], ['Blitz', 'blitz'], ['Bestow', 'bestow'], ['Overload', 'overload'], ['Surge', 'surge'],
@@ -827,10 +829,10 @@ async function resolveSpell(pid, c, opt, info, env) {
   if (G.s !== s || !card(c.iid)) return;
   // where it goes now
   const o = oracle({ ...c, face: fIdx });
-  if (opt.mode === 'adventure') {
+  if (opt.mode === 'adventure' && !/\bOmen\b/.test((d.faces[fIdx] || {}).typeLine || '')) {
     move(c.iid, 'exile');
     c.onAdventure = true;
-  } else if (opt.mode === 'omen') {
+  } else if (opt.mode === 'omen' || /\bOmen\b/.test((d.faces[fIdx] || {}).typeLine || '')) {
     move(c.iid, 'library');
     shuffle(c.owner);
   } else if (info.buyback) move(c.iid, 'hand');

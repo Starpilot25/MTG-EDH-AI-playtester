@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.28",
+    "title": "Omens are no longer treated as Adventures",
+    "notes": [
+      "Casting an Omen spell now always shuffles the card into your library. Before, the card data called these cards Adventures, so the game exiled them \"on an adventure\".",
+      "The cast option now reads \"Cast … (Omen)\" so you can tell it apart."
+    ]
+  },
+  {
     "version": "1.3.27",
     "title": "Omens",
     "notes": [

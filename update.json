@@ -1,12 +1,12 @@
 {
-  "version": "1.3.27",
+  "version": "1.3.28",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "e39c52fb6135e578eac3978f963960ce734fc7fc7690659c6626690490d86a57",
     "public/index.html": "1848de5425414eb96ec2a80cd3c35f0f2210022a6b4351974a1f79b59284ac55",
     "public/js/ai.js": "c145f4544247fce5e527fbcf0ff489f754a3dbd522866a3590f929aca1c8b0db",
     "public/js/aicombat.js": "9123049a30a90b1b7434fa520dbc9fb79c8458e41ee2049a3762735f0af87953",
-    "public/js/cast.js": "61d8cd01332395edfd95428b2d270f1c2a27e221b03f2afde17e06842f946398",
+    "public/js/cast.js": "42a87dc7c0c7be572e3e99a98875ef7b6288e97068da6a75f9cc896fa67e5684",
     "public/js/data.js": "b65d03f5cc029395dc77dd3438640fbe977526e15b135706e7a20a601fe3927a",
     "public/js/dungeon.js": "0471bcc526f2edd1bbd2a8f8891c18df03b672b6fd22e23dfcdec5fe7e46289f",
     "public/js/effects.js": "0086fdcf8f9429dc215d84c8267b2c5af9b677fee7ee5faca431b5144ab05c37",
@@ -17,6 +17,6 @@
     "public/js/statics.js": "183d37df628583bb0b85ee8a8462a54171b423e99ee0f0a10596c7cc6e0171d1",
     "public/js/triggers.js": "e755c7edf05411220ba89ac82f63547615dc65cfc1fc7e0322b0f44849e2275a",
     "public/js/ui.js": "b54593ff0ab7cdb0f99db3209ca03b75461bef3c0b5651cbb5da7cbec93d32f7",
-    "public/patch-notes.json": "2a7877ec168f36f9a5135337b678f2fd65937b21817ed8c6cfebd8c2542e739c"
+    "public/patch-notes.json": "7c6e104f60660b41a4639c32dfd47b581545d2dedf374919c2351c821d49e3b1"
   }
 }
