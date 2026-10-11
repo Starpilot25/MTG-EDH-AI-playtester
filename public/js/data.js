@@ -24,7 +24,8 @@ export function normalize(c) {
   const def = {
     id: c.id,
     name: c.name,
-    layout: c.layout,
+    // Omen cards (Tarkir: Dragonstorm): a permanent with an "Instant — Omen"/"Sorcery — Omen" half, whatever layout the data calls it
+    layout: faces.length > 1 && faces.slice(1).some((f) => /\bOmen\b/.test(f.typeLine)) ? 'omen' : c.layout,
     cmc: c.cmc || 0,
     manaCost: c.mana_cost || faces[0].manaCost,
     typeLine: c.type_line || faces[0].typeLine,

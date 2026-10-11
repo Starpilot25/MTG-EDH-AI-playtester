@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.27",
+    "title": "Omens",
+    "notes": [
+      "Omen cards (Tarkir: Dragonstorm) are now always recognized, whatever form the card data comes in. Right-click one in your hand to cast either the creature or its Omen spell.",
+      "An Omen spell shuffles the card back into your library after it resolves (not into the graveyard or exile). Instant Omens can be cast at instant speed, and the AI casts Omens too."
+    ]
+  },
+  {
     "version": "1.3.26",
     "title": "AI transforms Gwen Stacy; counters cancel; four card fixes",
     "notes": [
