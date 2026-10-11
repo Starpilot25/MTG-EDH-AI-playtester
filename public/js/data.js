@@ -555,6 +555,199 @@ Deck
 1 Sulfur Falls
 1 Unclaimed Territory`,
   },
+  msh_doom: {
+    label: "Doom Prevails (Doctor Doom, King of Latveria)",
+    set: "Marvel Super Heroes Commander",
+    bracket: 2,
+    text: `Commander
+1 Doctor Doom, King of Latveria
+
+Deck
+1 Loki, the Deceiver
+1 Abomination, World Ravager
+1 Baron Strucker, HYDRA Overlord
+1 Batroc the Leaper
+1 Chameleon, Master of Disguise
+1 Containment Construct
+1 Helmut Zemo, Mastermind
+1 Iron Monger, Sadistic Tycoon
+1 Kang Prime
+1 Kang, Temporal Tyrant
+1 Killmonger, Ruthless Usurper
+1 Klaw, Master of Sound
+1 Lady Loki, Agent of Chaos
+1 Living Laser
+1 Madame Hydra
+1 Molecule Man
+1 Moonstone, Harsh Mistress
+1 Prowler, Clawed Thief
+1 Puppet Master, String Puller
+1 Red Ghost, Intangible Genius
+1 Spark Double
+1 Stilt-Man, Towering Terror
+1 Superior Foes of Spider-Man
+1 The Frightful Four
+1 The Squadron Sinister
+1 Titan of Littjara
+1 Titania, Proud Pummeler
+1 Tombstone, Career Criminal
+1 Tri-Sentinel, Act of Vengeance
+1 Typhoid Mary, Fractured
+1 Ultron, Unlimited
+1 Arcane Signet
+1 Currency Converter
+1 Damocles Base, Sword of Kang
+1 Doom's Time Platform
+1 Loki's Scepter
+1 Patchwork Banner
+1 Progenitor's Icon
+1 Skullclamp
+1 Sol Ring
+1 Swiftfoot Boots
+1 Talisman of Dominance
+1 Talisman of Indulgence
+1 Blasphemous Act
+1 Endless Ranks of HYDRA
+1 Extract Power
+1 Kindred Dominance
+1 Night's Whisper
+1 Syphon Mind
+1 Toxic Deluge
+1 Vandalblast
+1 Age of Ultron
+1 Archnemesis
+1 Black Market Connections
+1 Glorious Purpose
+1 Kang Dynasty
+1 Propaganda
+1 Bedevil
+1 Chaos Warp
+1 Lethal Scheme
+1 Terminate
+1 Withering Torment
+1 Canyon Slough
+1 Choked Estuary
+1 Coastal Peak
+1 Command Tower
+1 Crumbling Necropolis
+1 Dragonskull Summit
+1 Drowned Catacomb
+1 Exotic Orchard
+1 Fetid Pools
+1 Foreboding Ruins
+1 Frostboil Snarl
+4 Island
+1 Luxury Suite
+5 Mountain
+1 Path of Ancestry
+1 Scavenger Grounds
+1 Scorched Geyser
+1 Secluded Courtyard
+1 Smoldering Marsh
+1 Sulfur Falls
+1 Sunken Hollow
+6 Swamp
+1 Terramorphic Expanse
+1 Unclaimed Territory
+1 Villainous Hideout`,
+  },
+  tdc_jeskai: {
+    label: "Jeskai Striker (Shiko and Narset, Unified)",
+    set: "Tarkir: Dragonstorm Commander",
+    bracket: 2,
+    text: `Commander
+1 Shiko and Narset, Unified
+
+Deck
+1 Archmage Emeritus
+1 Baral and Kari Zev
+1 Caldera Pyremaw
+1 Elsha, Threefold Master
+1 Goblin Electromancer
+1 Guttersnipe
+1 Haughty Djinn
+1 Lier, Disciple of the Drowned
+1 Manaform Hellkite
+1 Mangara, the Diplomat
+1 Monastery Mentor
+1 Storm-Kiln Artist
+1 Third Path Iconoclast
+1 Transcendent Dragon
+1 Velomachus Lorehold
+1 Veyran, Voice of Duality
+1 Voracious Bibliophile
+1 Young Pyromancer
+1 Abrade
+1 Big Score
+1 Consider
+1 Electrodominance
+1 Expansion // Explosion
+1 Frantic Search
+1 Magma Opus
+1 Narset's Reversal
+1 Opt
+1 Pongify
+1 Prismari Command
+1 Sublime Epiphany
+1 Swords to Plowshares
+1 Think Twice
+1 Transforming Flourish
+1 Ancestral Vision
+1 Baral's Expertise
+1 Compulsive Research
+1 Curse of the Swine
+1 Deep Analysis
+1 Dismantling Wave
+1 Expressive Iteration
+1 Faithless Looting
+1 Mana Geyser
+1 Ponder
+1 Preordain
+1 Rite of Replication
+1 Time Wipe
+1 Vanquish the Horde
+1 Will of the Jeskai
+1 Adaptive Training Post
+1 Arcane Signet
+1 Azorius Signet
+1 Boros Signet
+1 Fellwar Stone
+1 Izzet Signet
+1 Sol Ring
+1 Talisman of Progress
+1 Aligned Heart
+1 Curse of Opulence
+1 Ghostly Prison
+1 Shiny Impetus
+1 Tempest Technique
+1 Whirlwind of Thought
+1 Adarkar Wastes
+1 Ash Barrens
+1 Battlefield Forge
+1 Cascade Bluffs
+1 Clifftop Retreat
+1 Command Tower
+1 Evolving Wilds
+1 Exotic Orchard
+1 Ferrous Lake
+1 Glacial Fortress
+1 Irrigated Farmland
+5 Island
+5 Mountain
+4 Plains
+1 Mystic Monastery
+1 Path of Ancestry
+1 Perilous Landscape
+1 Prairie Stream
+1 Reliquary Tower
+1 Rugged Prairie
+1 Shivan Reef
+1 Skycloud Expanse
+1 Sulfur Falls
+1 Temple of Enlightenment
+1 Temple of Epiphany
+1 Temple of Triumph`,
+  },
   fdn_angels: {
     label: 'Calling All Angels (Giada, Font of Hope)',
     set: 'Foundations Commander',

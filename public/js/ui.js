@@ -826,7 +826,12 @@ function renderBanner() {
   const s = G.s;
   const el = $('#banner');
   let html = '';
-  if (pendingTarget) {
+  const over = s.winner && !s.continueAfterWin;
+  if (over) {
+    html = `<div class="combat-bar ${s.winner === 'p' ? 'win' : 'danger'}"><span class="eyebrow">Game over</span>
+      <h3>${s.winner === 'p' ? 'You win' : 'The AI wins'}</h3><p>${esc(s.players[opp(s.winner)].lost || '')}</p>
+      <div class="btns"><button class="primary" data-act="rematch">Rematch</button><button data-act="continue">Keep playing</button><button data-act="newdecks">Change decks</button></div></div>`;
+  } else if (pendingTarget) {
     const r = pendingTarget.req;
     const srcName = r.src ? cardName(card(r.src.iid) || r.src) : '';
     html = `<div class="combat-bar targeting"><span class="eyebrow">${esc(srcName)}</span>
@@ -888,10 +893,6 @@ function renderBanner() {
       <div class="btns"><button class="primary" data-act="blocks">${Object.values(cb.blocks).some((b) => b.length) ? 'Confirm blocks' : 'No blocks'} <kbd>Enter</kbd></button></div></div>`;
   } else if (run.aiBusy) {
     html = `<div class="thinking"><span class="spinner"></span>${s.active === 'p' ? 'AI is deciding whether to respond…' : 'AI is taking its turn…'}</div>`;
-  } else if (s.winner && !s.continueAfterWin) {
-    html = `<div class="combat-bar ${s.winner === 'p' ? 'win' : 'danger'}"><span class="eyebrow">Game over</span>
-      <h3>${s.winner === 'p' ? 'You win' : 'The AI wins'}</h3><p>${esc(s.players[opp(s.winner)].lost || '')}</p>
-      <div class="btns"><button class="primary" data-act="rematch">Rematch</button><button data-act="continue">Keep playing</button><button data-act="newdecks">Change decks</button></div></div>`;
   }
   el.innerHTML = html;
   el.hidden = !html;

@@ -57,11 +57,42 @@ function threatRaw(c) {
   if (/creatures you control get \+|other [a-z ]*creatures you control get \+|creatures you control have/i.test(o)) t += 3;
   if (/(?:^|\n)[^:\n]*: (?!Add\b)/.test(o) && !isType(c, 'Planeswalker')) t += 1;
   if (/(?:spells|abilities) your opponents cast cost|can't cast|can't attack you|doesn't untap/i.test(o)) t += 2;
-  if (manaAbility({ ...c, tapped: false, sick: false })) t += isLand(c) ? 0 : 1;
+  t += engineValue(c, o);
+  {
+    const ma = manaAbility({ ...c, tapped: false, sick: false });
+    if (ma) t += isLand(c) ? 0 : 1 + (ma.amount >= 2 && !ma.sac ? 2 : 0); // fast mana (Sol Ring, Grim Monolith)
+  }
   if (isLand(c) && !isCreature(c)) t = Math.min(t, 1) + 0.3;
   t += ((DB[c.def] && DB[c.def].cmc) || 0) * 0.3;
   if (c.token && !isCreature(c)) t *= 0.5;
   return t;
+}
+
+// What a permanent's rules text does for its controller over time, beyond its body: card-draw engines, token and
+// Treasure makers, doublers, drain, cost reducers, Equipment and Auras, win conditions. Read off the oracle text.
+function engineValue(c, o) {
+  const repeat = /(?:^|\n)(?:[A-Z][\w' ]+ — )?(?:Whenever|At the beginning)[^\n]*|(?:^|\n)[^\n:]*\{T\}[^\n:]*:[^\n]*/g;
+  const lines = (o.match(repeat) || []).join('\n').replace(/(?:an opponent|a player|that player|each player|target player|the player) draws? (?:a|an|their|\w+) (?:\w+ )?cards?/gi, '');
+  const ongoing = o.split('\n').filter((l) => !/^When (?!ever)/.test(l)).join('\n'); // not one-shot "When ~ enters" text
+  let v = 0;
+  // card advantage engines: Rhystic Study, Phyrexian Arena, Esper Sentinel, Necropotence, Mystic Remora
+  if (/\bdraws? (?:a|an additional|one|two|three|\w+) cards?|draw cards? equal|put (?:it|that card|those cards) into your hand/i.test(lines) || /^Skip your draw step/im.test(o)) v += 4;
+  // token / Treasure makers (Smothering Tithe, Young Pyromancer, Monastery Mentor)
+  if (/\bcreates? (?:a|an|one|two|three|x|\w+) [^.\n]*?tokens?/i.test(lines)) v += 2.5;
+  // drain on a trigger (Blood Artist, Guttersnipe)
+  if (/\b(?:each opponent|target opponent|that player|target player) loses \w+ life|deals \w+ damage to each opponent/i.test(lines)) v += 2;
+  // doublers and amplifiers (Doubling Season, Anointed Procession, Panharmonicon)
+  if (/twice that many|that many plus one|triggers an additional time|double the (?:number|amount|damage)|deals double|that much damage plus/i.test(o)) v += 5;
+  // cost reducers
+  if (/(?:spells|abilities)[^.]* you cast cost \{\d\} less|costs? \{\d\} less to cast|cost \{\d\} less to activate/i.test(o) && !/your opponents cast/i.test(o)) v += 2.5;
+  // extra turns, extra combats, alternate wins
+  if (/extra turn|additional combat phase/i.test(ongoing)) v += 5;
+  if (/you win the game|(?:that player|each opponent|target player) loses the game/i.test(ongoing)) v += 6;
+  // Equipment and Auras that pump: what they add to whatever wears them
+  const eq = o.match(/(?:Equipped|Enchanted) creature gets \+(\d+)\/\+(\d+)/i);
+  if (eq) v += (+eq[1] * 1.2 + +eq[2] * 0.4) * (c.attachedTo ? 0.5 : 1); // when attached, the creature's own threat already counts the bonus
+  if (/(?:Equipped|Enchanted) creature has [^.]*(?:protection|hexproof|indestructible|double strike|flying|trample)/i.test(o)) v += 1.5;
+  return v;
 }
 
 export function evasive(c) {

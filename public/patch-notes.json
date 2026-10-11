@@ -1,5 +1,22 @@
 [
   {
+    "version": "1.3.32",
+    "title": "Two new precons, smarter AI threat reads, and fixes",
+    "notes": [
+      "New precon decks: Doom Prevails (Doctor Doom, King of Latveria) from Marvel Super Heroes Commander, and Jeskai Striker (Shiko and Narset, Unified) from Tarkir: Dragonstorm Commander.",
+      "Fixed: losing during the AI's turn could leave the screen stuck on \"AI is taking its turn…\". The game-over banner now always shows.",
+      "Once-per-turn triggers (\"This ability triggers only once each turn\", \"for the first time each turn\") no longer go on the stack again after they've triggered that turn.",
+      "Vedalken Engineer now makes two mana of one color, usable for artifact spells and artifact abilities.",
+      "Auto-pay spends mana that can only pay for certain things (Vedalken Engineer, Orb of Dragonkind and similar) before your normal lands, and won't tap a Sol Ring-style source for a single mana when one land would do.",
+      "AI threat assessment: the AI now values card-draw engines (Rhystic Study, Phyrexian Arena), Treasure and token makers, doublers (Doubling Season), drain effects, cost reducers, fast mana, Equipment and win conditions much higher, so it removes the right things.",
+      "The AI no longer hits its own creatures with \"up to X targets\" damage (Batroc the Leaper).",
+      "\"Your first instant or sorcery spell each turn\" now means the first of that kind, even if you cast a creature earlier (Baral and Kari Zev, Lady Loki).",
+      "Commanders: Shiko and Narset copies your second spell each turn if it targets, otherwise draws a card. Doctor Doom's combat connive works with Ultron, Iron Monger and Glorious Purpose.",
+      "Card fixes from the two decks: Mangara, Baral's Expertise, Electrodominance, Baral and Kari Zev (First Mate Ragavan), Curse of Opulence, Glorious Purpose, Typhoid Mary (random mode), Will of the Jeskai, Syphon Mind, Batroc the Leaper, Loki's Scepter, Killmonger, Damocles Base, Transcendent Dragon, Adaptive Training Post, Endless Ranks of HYDRA, Doom's Time Platform, Helmut Zemo, Living Laser, Lady Loki, Stilt-Man, Klaw, Transforming Flourish, Magma Opus (discard for a Treasure), Curse of the Swine.",
+      "The AI now kicks multikicker spells as many times as it can afford."
+    ]
+  },
+  {
     "version": "1.3.31",
     "title": "Combat windows: after attack triggers and after blocks",
     "notes": [

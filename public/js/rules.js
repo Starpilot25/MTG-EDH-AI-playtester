@@ -869,10 +869,11 @@ function manaAbilityRaw(inst) {
     return r ? { ...r, onlyFor: 'abilities' } : r;
   }
   // Giada: "Spend this mana only to cast an Angel spell."
-  const only = o.match(/\{T\}: Add [^.]+\. Spend this mana only to cast (?:an? )?([A-Z][\w-]+|creature|artifact|instant or sorcery|noncreature) (?:creature )?spells?/);
+  // Vedalken Engineer: "Spend this mana only to cast artifact spells or activate abilities of artifacts."
+  const only = o.match(/\{T\}: Add [^.]+\. Spend this mana only to cast (?:an? )?([A-Z][\w-]+|creature|artifact|instant or sorcery|noncreature) (?:creature )?spells?( or activate abilities of (?:artifacts|\1s))?/);
   if (only) {
     const r = manaAbilityPlain(inst, o, produced);
-    return r ? { ...r, onlyFor: only[1] } : r;
+    return r ? { ...r, onlyFor: only[1], ...(only[2] ? { abilitiesOf: only[1] } : {}) } : r;
   }
   return manaAbilityPlain(inst, o, produced);
 }
@@ -886,6 +887,9 @@ function manaAbilityPlain(inst, o, produced) {
   }
   if (m) {
     let amount = 1;
+    // "{T}: Add two mana of any one color." (Vedalken Engineer, Gilded Lotus-style)
+    const am = m[1].match(/^(two|three|four|five) mana of any one color$/i);
+    if (am) return { colors: produced.length ? produced : ['W', 'U', 'B', 'R', 'G'], amount: { two: 2, three: 3, four: 4, five: 5 }[am[1].toLowerCase()] };
     const syms = m[1].match(/\{[WUBRGC]\}/g);
     if (syms && !/\bor\b/.test(m[1]) && /^(\{[WUBRGC]\})+$/.test(m[1].replace(/\s/g, ''))) amount = syms.length;
     return { colors: produced, amount };
@@ -984,7 +988,7 @@ function payCostRaw(cost, sources, opts = {}) {
   const units = [];
   for (const s of sources) {
     if (s.each) for (const col of s.each) units.push({ iid: s.iid, colors: [col], sac: !!s.sac, kind: s.kind || '', act: !!s.activation, multi: true });
-    else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '', pain: s.pain || null, multi: s.amount > 1 });
+    else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '', pain: s.pain || null, multi: s.amount > 1, restricted: !!s.restricted });
   }
   // quick no: not enough mana at all, or a color nobody makes
   if (units.length < c.pips.length + c.generic + extra + (opts.minX || 0) * c.x) return null;
@@ -1007,6 +1011,9 @@ function payCostRaw(cost, sources, opts = {}) {
   for (const u of units) for (const col of u.colors) supply[col] = (supply[col] || 0) + 1;
   // what it costs to spend this unit (lower is better)
   const srcCost = new Map();
+  const needTotal = c.pips.length + c.generic + extra + (opts.minX || 0) * c.x;
+  const perSrc = new Map();
+  for (const u of units) perSrc.set(u.iid, (perSrc.get(u.iid) || 0) + 1);
   const baseCost = (u) => {
     if (srcCost.has(u.iid)) return srcCost.get(u.iid);
     let v = 0;
@@ -1023,9 +1030,10 @@ function payCostRaw(cost, sources, opts = {}) {
       if (cc && !isLand(cc)) v += 0.5;
       // sources with other things to do (utility lands, rocks with abilities)
       if (cc && /(?:^|\n)[^\n:]*\{[^}]+\}[^\n:]*: (?!Add\b)/.test(oracle(cc))) v += 3;
-      v += (u.colors.length - 1) * 1.2; // keep flexible sources
+      if (!u.restricted) v += (u.colors.length - 1) * 1.2; // keep flexible sources
       if (u.colors.every((col) => col === 'C')) v -= 1; // colorless rocks pay generic first
-      if (u.multi) v -= 0.6; // one tap, several mana (Sol Ring, bounce lands)
+      if (u.multi) v -= (perSrc.get(u.iid) || 1) > needTotal ? -1.5 : 0.6; // one tap, several mana (Sol Ring, bounce lands) — unless most of it would go to waste
+      if (u.restricted) v -= 8; // mana that can only pay for some things: spend it whenever it's allowed
       if (u.act) v -= 4;
     }
     srcCost.set(u.iid, v);

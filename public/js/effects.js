@@ -116,7 +116,7 @@ export function spellText(c) {
   // Spree: "Spree (Choose one or more additional costs.)\n+ {2} — …\n+ {B}{B} — …" works like "Choose one or more —" with a cost on each mode
   if (/(?:^|\n)Spree\b/.test(o)) o = o.replace(/(^|\n)Spree\b[^\n]*/, '$1Choose one or more —').replace(/(^|\n)\+\s*((?:\{[^}]+\})+)\s*—\s*/g, '$1• +$2 — ');
   return o
-    .replace(/Choose one\. If you control a commander as you cast (?:this spell|~), you may choose both\.\s*/i, cmdr ? 'Choose one or both —\n' : 'Choose one —\n')
+    .replace(/Choose one\. If you control a commander as you cast (?:this spell|~), you may choose both(?: instead)?\.\s*/i, cmdr ? 'Choose one or both —\n' : 'Choose one —\n')
     .replace(/\([^)]*\)/g, '')
     .split('\n')
     .filter((l) => l.trim() && !KEYWORD_LINE.test(l.trim()) && !/^(As an additional cost|This spell costs|~ costs|You may cast ~|Spend only|This spell can't be countered|~ can't be countered|When you cast ~|When you cycle ~|Split second|Cast ~ only|Cast this spell only|Strive|Kicker|Flash$)/i.test(l.trim()))
@@ -249,6 +249,8 @@ export function zoneAbilities(c) {
       if ((m = line.match(/^(Commander )?Ninjutsu ((?:\{[^}]+\})+)/i))) out.push({ kind: 'ninjutsu', mana: m[2], label: `Ninjutsu ${m[2]}` });
       if ((m = line.match(/^Channel — ((?:\{[^}]+\})*),? ?Discard ~: (.+)$/i))) out.push({ kind: 'channel', mana: m[1], text: m[2], label: `Channel ${m[1]}` });
       if ((m = line.match(/^Bloodrush — ((?:\{[^}]+\})+), Discard ~: (.+)$/i))) out.push({ kind: 'channel', mana: m[1], text: m[2], label: `Bloodrush ${m[1]}` });
+      // Magma Opus: "{U/R}{U/R}, Discard ~: Create a Treasure token."
+      if ((m = line.match(/^((?:\{[^}]+\})+), Discard ~: (.+)$/i))) out.push({ kind: 'channel', mana: m[1], text: m[2], label: `Discard: ${m[2].replace(/\.$/, '')}` });
       if ((m = line.match(/^Transmute ((?:\{[^}]+\})+)/i))) out.push({ kind: 'transmute', mana: m[1], label: `Transmute ${m[1]}`, sorcery: true });
       if ((m = line.match(/^Reinforce (\d+)—((?:\{[^}]+\})+)/i))) out.push({ kind: 'reinforce', n: +m[1], mana: m[2], label: `Reinforce ${m[1]}` });
       if ((m = line.match(/^Forecast — ((?:\{[^}]+\})+), Reveal ~[^:]*: (.+)$/i))) out.push({ kind: 'forecast', mana: m[1], text: m[2], label: `Forecast ${m[1]}` });
@@ -634,6 +636,7 @@ function turnHistoryCond(c, env) {
   if ((m = c.match(/^~ has an? ([a-z+\/0-9-]+) counter on it$/))) return ((src && src.counters) || {})[m[1]] > 0;
   if ((m = c.match(/^~ doesn't have an? ([a-z+\/0-9-]+) counter on it$/))) return !(((src && src.counters) || {})[m[1]] > 0);
   if ((m = c.match(/^~ has (\w+) or fewer ([a-z+\/0-9-]+) counters on it$/))) return (((src && src.counters) || {})[m[2]] || 0) <= n(m[1]);
+  if ((m = c.match(/^(?:~|it|this [a-z]+) has fewer than (\w+) ([a-z+\/0-9-]+) counters on it$/))) return (((src && src.counters) || {})[m[2]] || 0) < n(m[1]);
   if (/^~ has counters on it$/.test(c)) return Object.values((src && src.counters) || {}).some((v) => v > 0);
   // this permanent's state
   if (/^~ is equipped$/.test(c)) return !!src && Object.values(s.cards).some((x) => x.zone === 'battlefield' && x.attachedTo === src.iid && /Equipment/.test(typeLine(x)));
@@ -1233,12 +1236,12 @@ function amountOf(word, env) {
   if (/^x$/.test(w)) return env.x || 0;
   if (/^\d+$/.test(w) || WORDNUM[w]) return n(w, env.x);
   let m;
-  if ((m = w.match(/^(?:damage )?equal to (?:~'s|its|that creature's|the sacrificed creature's|enchanted creature's|equipped creature's) power/))) {
-    const it = /^(?:damage )?equal to (?:~'s)/.test(w) ? env.src : env.it && env.it.iid ? card(env.it.iid) : env.src;
+  if ((m = w.match(/^(?:damage )?equal to (?:~'s|its|his|her|that creature's|the sacrificed creature's|enchanted creature's|equipped creature's) power/))) {
+    const it = /^(?:damage )?equal to (?:~'s|his|her)/.test(w) ? env.src : env.it && env.it.iid ? card(env.it.iid) : env.src;
     return it ? Math.max(0, lkiPT(it).p) : 0;
   }
-  if ((m = w.match(/^(?:damage )?equal to (?:~'s|its|that creature's|the sacrificed creature's|enchanted creature's|equipped creature's) toughness/))) {
-    const it = /^(?:damage )?equal to ~'s/.test(w) ? env.src : env.it && env.it.iid ? card(env.it.iid) : env.src;
+  if ((m = w.match(/^(?:damage )?equal to (?:~'s|its|his|her|that creature's|the sacrificed creature's|enchanted creature's|equipped creature's) toughness/))) {
+    const it = /^(?:damage )?equal to (?:~'s|his|her)/.test(w) ? env.src : env.it && env.it.iid ? card(env.it.iid) : env.src;
     return it ? Math.max(0, lkiPT(it).t) : 0;
   }
   if ((m = w.match(/^(?:damage )?equal to (?:that creature's|that permanent's|that card's|its) (?:mana value|converted mana cost)/))) {
@@ -2243,6 +2246,13 @@ on(/^its controller looks at the top card of that opponent's library and exiles 
   grantPlay(ids, pid, { anyMana: true, hidden: true });
   env.did.push(`${who(pid)} ${s_(pid, 'exile')} the top card of ${whoseLib(env.thatPlayer || opp(pid))} library to play`);
 }, { first: true, multi: true });
+// Klaw, Master of Sound
+on(/^look at the top card of that player's library, then exile it face down\. you may play it for as long as it remains exiled\. mana of any (?:color|type) can be spent to cast a spell this way$/, async (m, env) => {
+  const from = env.thatPlayer || opp(env.me);
+  const ids = exileTop(from, 1);
+  grantPlay(ids, env.me, { anyMana: true, hidden: true });
+  env.did.push(`${who(env.me)} ${s_(env.me, 'exile')} the top card of ${whoseLib(from)} library face down to play`);
+}, { first: true, multi: true });
 on(/^that player creates a treasure token$/, async (m, env) => {
   const pid = env.thatPlayer || env.me;
   createToken(genericTokenDef(0, 0, 'Treasure'), pid, 1);
@@ -2583,7 +2593,7 @@ on(/^(?:put|shuffle) (.+?) (?:on top of|on the bottom of|into) (?:its|their) own
 }, { skipIf: /graveyard|from your hand/ });
 
 // --- damage
-on(/^(~|it|that creature|enchanted creature|equipped creature|target creature you control|each creature|each other creature)?\s?deals? (\d+|x|damage equal to [^.]+?|that much damage|twice that much damage) (?:damage )?to (.+?)(?:\. |$)/, async (m, env) => {
+on(/^(~|it|he|she|that creature|enchanted creature|equipped creature|target creature you control|each creature|each other creature)?\s?deals? (\d+|x|damage equal to [^.]+?|that much damage|twice that much damage) (?:damage )?to (.+?)(?:\. |$)/, async (m, env) => {
   let amount = /that much/.test(m[2]) ? env.lastAmount || 0 : /^damage equal/.test(m[2]) ? amountOf(m[2].replace(/^damage /, ''), env) : amountOf(m[2], env);
   if (/twice that much/.test(m[2])) amount *= 2;
   let source = env.src;
@@ -2597,7 +2607,9 @@ on(/^(~|it|that creature|enchanted creature|equipped creature|target creature yo
     // each creature deals damage equal to its power to … (rare)
     return;
   }
-  let to = m[3].replace(/\.$/, '');
+  let to = m[3].replace(/\.$/, '').replace(/, where x is .+$/, '');
+  // Batroc the Leaper: "to each of up to X targets"
+  to = to.replace(/^each of (up to (?:x|\w+)) targets$/, '$1 any target');
   const divided = /divided as you choose/.test(env.sentence);
   to = to.replace(/ divided as you choose among (.+)$/, ' $1').replace(/^(?:one|any number of) /, '');
   await dealDamage(env, source, amount, to, divided);
@@ -3136,7 +3148,7 @@ on(/^(you|target player|target opponent) gets? an emblem with ['"](.+)['"]$/, as
   env.did.push(`${who(pid)} ${s_(pid, 'get')} an emblem: “${esc(txt)}”`);
 }, { first: true });
 // Way of the Cryomancer: "When you next cast an instant or sorcery spell this turn, copy that spell."
-on(/^when you next cast an? (instant or sorcery|instant|sorcery|creature|noncreature) spell this turn, copy that spell$/, async (m, env) => {
+on(/^when you next cast an? (instant or sorcery|instant|sorcery|creature|noncreature) spell this turn, copy (?:that spell|it)(?: and you may choose new targets for the copy)?$/, async (m, env) => {
   G.s.copyNext = [...(G.s.copyNext || []), { pid: env.me, turn: G.s.turn, types: m[1] === 'instant or sorcery' ? ['Instant', 'Sorcery'] : [m[1][0].toUpperCase() + m[1].slice(1)] }];
   env.did.push(`will copy ${who(env.me) === 'you' ? 'your' : 'its'} next ${m[1]} spell this turn`);
 }, { first: true });
@@ -3159,6 +3171,18 @@ on(/^create (.+?) tokens? named ([a-z~][a-z~' -]*?)(?: with ([^.]+))?$/, async (
     c.def = id;
   }
   if (env.did.length) env.did[env.did.length - 1] = env.did[env.did.length - 1].replace(/creates (\d+) .+? tokens?$/, (x, k) => `creates ${k} ${nm} token${+k === 1 ? '' : 's'}`);
+}, { first: true });
+// Baral and Kari Zev: "create First Mate Ragavan, a legendary 2/1 red Monkey Pirate creature token"
+on(/^create (?!(?:a|an|one|two|three|four|five|x|that many|tokens?)\b)([a-z~][a-z~' -]+?), (?:a|an) (legendary )?([^,]+?) tokens?$/, async (m, env) => {
+  await runSentence(`create a ${m[3]} token named ${m[1]}`, env);
+  if (m[2]) for (const i of env.them_ || []) {
+    const c = card(i);
+    const d = c && DB[c.def];
+    if (d && !/Legendary/.test(d.typeLine)) {
+      d.typeLine = 'Legendary ' + d.typeLine;
+      d.faces = d.faces.map((f, k) => (k ? f : { ...f, typeLine: 'Legendary ' + f.typeLine }));
+    }
+  }
 }, { first: true });
 // Chittering Witch: "Create a number of 1/1 black Rat creature tokens equal to the number of opponents you have."
 on(/^create a number of (.+?) tokens? equal to (.+)$/, async (m, env) => {
@@ -3278,10 +3302,35 @@ on(/^(?:you may )?cast (?:up to one )?target ([a-z ]+?) card(?: with mana value 
   const { T } = await import('./triggers.js');
   if (T.castFree) {
     const c = card(pick);
-    if (/exile it instead/.test(env.text)) c.exileOnResolve = true;
+    if (/exile it instead/.test(env.text)) G.s.exileOnResolve = { ...(G.s.exileOnResolve || {}), [pick]: true };
     await T.castFree(env.me, pick, {});
     env.did.push(`casts ${nameTag(c)} for free`);
   }
+}, { first: true });
+// Helmut Zemo: "you may cast target instant or sorcery card with mana value less than or equal to his power from your graveyard"
+// (paying its cost). "If you cast a spell this way, put a +1/+1 counter on ~."
+on(/^(?:you may )?cast target ([a-z ]+?) card with mana value less than or equal to (?:his|her|its|~'s) power from your graveyard$/, async (m, env) => {
+  env.lastMay = false;
+  const src = (env.src && card(env.src.iid)) || env.src;
+  const cap = src ? Math.max(0, power(src)) : 0;
+  const kind = m[1].trim();
+  const pool = cardsIn(env.me, 'graveyard').filter((c) => matchesAny(c, kind) && (DB[c.def].cmc || 0) <= cap);
+  if (!pool.length) return env.did.push('finds nothing to cast');
+  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Cast a ${kind} card with mana value ${cap} or less from your graveyard (paying its cost)?`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'castFree', src: env.src, aiScore: (c) => DB[c.def].cmc });
+  if (!pick) return;
+  const { T } = await import('./triggers.js');
+  if (!T.castFree) return;
+  const c = card(pick);
+  if (/exile it instead/.test(env.text)) G.s.exileOnResolve = { ...(G.s.exileOnResolve || {}), [pick]: true };
+  const cost = DB[c.def].faces[0].manaCost || DB[c.def].manaCost || '';
+  const ok = await T.castFree(env.me, pick, cost ? { cost } : {});
+  if (G.s.exileOnResolve) delete G.s.exileOnResolve[pick]; // used up (or never cast)
+  env.lastMay = !!ok;
+  env.did.push(ok ? `casts ${nameTag(c)} from the graveyard` : `doesn't cast ${nameTag(c)}`);
+}, { first: true });
+on(/^if you cast a spell this way, (.+)$/, async (m, env, raw) => {
+  if (!env.lastMay) return;
+  await runSentence(raw.replace(/^if you cast a spell this way,\s*/i, ''), env);
 }, { first: true });
 // Ox Drover: "Target opponent creates a 1/1 white Ox creature token and you draw a card."
 on(/^(target opponent|each opponent) creates (.+?) tokens?(?: and you draw (a|one|two) cards?)?$/, async (m, env) => {
@@ -3554,7 +3603,7 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
       G.s.combat.attackers.push(i);
       tk.attacking = true;
     }
-    if (/sacrifice (?:it|that token|them) at the beginning of the next end step|exile (?:it|that token|them) at the beginning of the next end step/.test(env.text)) tk.endOfTurn = /exile/.test(env.text) ? 'exile' : 'sacrifice';
+    if (/sacrifice (?:it|that token|them|the tokens?) at the beginning of the next end step|exile (?:it|that token|them|the tokens?) at the beginning of the next end step/.test(env.text)) tk.endOfTurn = /exile/.test(env.text) ? 'exile' : 'sacrifice';
   }
   env.them_ = made;
   env.it = made[0] ? { iid: made[0] } : null;
@@ -4189,21 +4238,34 @@ on(/^sacrifice (a|an|another|one|two|three|x|\d+) ([^.]+?)$/, async (m, env) => 
   env.lastMay = picks.length > 0;
 });
 on(/^sacrifice (~|it|that creature|that token|them|enchanted creature|equipped creature)$/, async (m, env) => {
-  const objs = await objects(env, m[1]);
+  const objs = (await objects(env, m[1])).filter((c) => c && c.zone === 'battlefield');
   objs.forEach((c) => {
     env.did.push(`sacrifices ${nameTag(c)}`);
     sacrifice(c.iid);
   });
+  env.lastMay = objs.length > 0; // "Sacrifice it. If you do, …"
 });
 
 // "You may cast one of them without paying its mana cost" (Mad Wizard's Lair, Discover-like effects)
-on(/^(?:you may )?cast (?:one|a spell|up to one|any number) (?:of them|from among them|of those cards)(?: [^.]*?)? without paying (?:its|their) mana costs?/, async (m, env) => {
-  const pool = (env.them_ || []).map(card).filter((c) => c && ['hand', 'exile', 'library', 'graveyard'].includes(c.zone) && !isLand(c));
-  if (!pool.length || !(env.castFree || T.castFree)) return;
-  const [pick] = await env.choosers[env.me].pickCards({ prompt: 'Cast one of them without paying its mana cost?', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'castFree', src: env.src, aiScore: (c) => DB[c.def].cmc });
-  if (!pick) return;
-  env.did.push(`casts ${nameTag(card(pick))} for free`);
-  await (env.castFree || T.castFree)(env.me, pick, {});
+on(/^(?:you may )?cast (?:one|a spell|up to one|any number|any number of spells) (?:of them|from among them|of those cards)(?: [^.]*?)? without paying (?:its|their) mana costs?/, async (m, env) => {
+  const many = /any number/.test(m[0]);
+  const zone0 = new Map((env.them_ || []).map((i) => [i, card(i) && card(i).zone]));
+  for (let k = 0; k < (many ? 20 : 1); k++) {
+    // still where they were put (not cast yet)
+    const pool = (env.them_ || []).map(card).filter((c) => c && ['hand', 'exile', 'library', 'graveyard'].includes(c.zone) && c.zone === zone0.get(c.iid) && !isLand(c));
+    if (!pool.length || !(env.castFree || T.castFree)) return;
+    const [pick] = await env.choosers[env.me].pickCards({ prompt: many ? 'Cast another of them without paying its mana cost?' : 'Cast one of them without paying its mana cost?', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'castFree', src: env.src, aiScore: (c) => DB[c.def].cmc });
+    if (!pick) return;
+    env.did.push(`casts ${nameTag(card(pick))} for free`);
+    zone0.set(pick, null);
+    await (env.castFree || T.castFree)(env.me, pick, {});
+  }
+});
+// Glorious Purpose: "...You may cast any number of spells from among them without paying their mana costs. Put the rest into your hand."
+on(/^put the rest into your hand$/, async (m, env) => {
+  const rest = (env.them_ || []).map(card).filter((c) => c && (c.zone === 'exile' || c.zone === 'library') && c.owner === env.me);
+  for (const c of rest) move(c.iid, 'hand');
+  env.did.push(`puts ${rest.length} card${rest.length === 1 ? '' : 's'} into hand`);
 });
 // "Reveal the top X cards of your library, where X is that spell's mana value." (Sunbird's Invocation)
 on(/^(reveal|exile|look at) the top x cards? of your library, where x is (.+)$/, async (m, env) => {
@@ -4230,6 +4292,152 @@ on(/^(?:you may )?cast (?:a|an|one|up to one) ?([a-z ]*?)(?:spell|card)(?: with 
   env.them_ = env.them_.filter((i) => i !== pick);
   env.did.push(`casts ${nameTag(card(pick))} for free`);
   await (env.castFree || T.castFree)(env.me, pick, {});
+});
+// Loki's Scepter: "Until end of turn, it becomes a Villain in addition to its other types and gains haste."
+on(/^until end of turn, (it|that creature|target creature) becomes an? ([a-z][a-z ]*?) in addition to its other types(?: and gains ([a-z ]+))?$/, async (m, env) => {
+  const [c] = await objects(env, m[1]);
+  if (!c) return;
+  const sub = m[2].split(/\s+/).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+  c.layerFx = [...(c.layerFx || []), { ts: nextStamp(), until: 'eot', types: { subAdd: sub } }];
+  if (m[3]) c.eotGrants = [...(c.eotGrants || []), ...m[3].split(/,? and |, /).map((x) => x.trim())];
+  env.did.push(`${nameTag(c)} becomes a ${sub}${m[3] ? ' and gains ' + m[3] : ''} until end of turn`);
+}, { first: true });
+// Will of the Jeskai: "Each player may discard their hand and draw five cards."
+on(/^each player may discard their hand and draw (\w+) cards$/, async (m, env) => {
+  const k = n(m[1], env.x);
+  for (const pid of [env.me, opp(env.me)]) {
+    const hand = cardsIn(pid, 'hand');
+    const lands = cardsIn(pid, 'battlefield').filter(isLand).length;
+    const yes = pid === 'ai'
+      ? hand.length < k || hand.filter((c) => (isLand(c) ? lands >= 5 : (DB[c.def].cmc || 0) > lands + 2)).length * 2 >= hand.length
+      : await env.choosers.p.confirm(cardName(env.src), `Discard your hand (${hand.length} card${hand.length === 1 ? '' : 's'}) and draw ${k}?`, {});
+    if (!yes) {
+      env.did.push(`${who(pid)} ${pid === 'p' ? 'keep' : 'keeps'} ${pid === 'p' ? 'your' : 'its'} hand`);
+      continue;
+    }
+    for (const c of hand) discardCard(c.iid);
+    draw(pid, k, true);
+    env.did.push(`${who(pid)} ${s_(pid, 'discard')} ${hand.length} and ${s_(pid, 'draw')} ${k}`);
+  }
+}, { first: true });
+// Curse of the Swine: "For each creature exiled this way, its controller creates a 2/2 green Boar creature token."
+on(/^for each (?:creature|permanent) (?:exiled|destroyed) this way, its controller creates (.+? tokens?)$/, async (m, env) => {
+  const gone = (env.exiledThisWay || env.them_ || []).map(card).filter(Boolean);
+  const by = {};
+  for (const c of gone) {
+    const ctl = c.lastController || c.controller || c.owner;
+    by[ctl] = (by[ctl] || 0) + 1;
+  }
+  for (const [pid, k] of Object.entries(by)) for (let i = 0; i < k; i++) await runSentence(`create ${m[1]}`, { ...env, me: pid, did: env.did });
+}, { first: true });
+// Killmonger: "that player sacrifices an artifact of their choice and you create a Treasure token"
+on(/^((?:that|target|defending) player|each opponent|target opponent) (sacrifices|discards|exiles|mills|loses) (.+?) and you (create|draw|gain|put|scry|surveil) (.+)$/, async (m, env, raw) => {
+  const at = raw.toLowerCase().indexOf(' and you ');
+  await runSentence(raw.slice(0, at), env);
+  await runSentence(raw.slice(at + 5), env);
+}, { first: true });
+// Transcendent Dragon: "When this creature enters, if you cast it, counter target spell. If that spell is countered this way,
+// exile it instead of putting it into its owner's graveyard, then you may cast it without paying its mana cost."
+on(/^if you cast it, (counter target .+)$/, async (m, env, raw) => {
+  const src = (env.src && card(env.src.iid)) || env.src;
+  if (!(env.castFrom || (src && src.castFrom))) return env.did.push("wasn't cast, so nothing is countered");
+  await runSentence(raw.replace(/^if you cast it,\s*/i, ''), env);
+}, { first: true });
+on(/^if that spell is countered this way, exile it instead of putting it into its owner's graveyard, then you may cast it without paying its mana cost$/, async (m, env) => {
+  const slot = [G.s.stack, G.s.pstack].find((x) => x && x.countered && env.it && x.iid === env.it.iid);
+  if (!slot) return;
+  slot.exileCountered = true;
+  slot.stealCast = env.me; // cast.js casts it for us once it's in exile
+  env.did.push('will exile it and may cast it for free');
+}, { first: true });
+// Living Laser: "for each card you've discarded this turn, create a token that's a copy of ~, except the token isn't legendary.
+// The tokens enter tapped and attacking."
+on(/^for each card you've discarded this turn, create a token that's a copy of ~(, except .+)?$/, async (m, env) => {
+  const k = ((G.s.ts[env.me] || {}).discarded || []).length;
+  if (!k) return env.did.push("hasn't discarded a card this turn");
+  const attacking = /the tokens enter tapped and attacking/i.test(env.fullText || env.text || '');
+  await runSentence(`create ${k} ${attacking ? 'tapped and attacking ' : ''}tokens that are copies of ~${m[1] || ''}`, env);
+}, { first: true });
+on(/^the tokens enter tapped and attacking$/, async () => {}, { first: true }); // done when they were made
+// Lady Loki: "~ deals damage to each opponent equal to the difference between that spell's mana value and that nonland card's mana value"
+on(/^~ deals damage to each opponent equal to the difference between that spell's mana value and that nonland card's mana value$/, async (m, env) => {
+  const sp = env.event && env.event.iid && card(env.event.iid);
+  const nl = env.it && env.it.iid && card(env.it.iid);
+  if (!sp || !nl || nl.iid === sp.iid) return env.did.push('no difference to deal');
+  const k = Math.abs((DB[sp.def].cmc || 0) - (DB[nl.def].cmc || 0));
+  if (k > 0) await dealDamage(env, (env.src && card(env.src.iid)) || env.src, k, 'each opponent');
+  else env.did.push('deals no damage (same mana value)');
+}, { first: true });
+on(/^it gains "(?:~|this permanent|this creature|this artifact) can't be sacrificed" until the end of your next turn$/, async (m, env) => {
+  const c = env.it && env.it.iid && card(env.it.iid);
+  if (!c || c.zone !== 'battlefield') return;
+  c.cantSacUntil = G.s.turn + (G.s.active === env.me ? 2 : 1);
+  env.did.push(`${nameTag(c)} can't be sacrificed until the end of ${who(env.me) === 'you' ? 'your' : "the AI's"} next turn`);
+}, { first: true });
+// Glorious Purpose: "put a +1/+1 counter on that creature and a plan counter on ~"
+on(/^put (a|an|one|two|three) ([^ ]+) counters? on (that creature|it|target creature you control) and (a|an|one|two|three) ([^ ]+) counters? on ~$/, async (m, env) => {
+  await runSentence(`put ${m[1]} ${m[2]} counter${n(m[1]) > 1 ? 's' : ''} on ${m[3]}`, env);
+  await runSentence(`put ${m[4]} ${m[5]} counter${n(m[4]) > 1 ? 's' : ''} on ~`, env);
+}, { first: true });
+// Transforming Flourish: "If that permanent is destroyed this way, its controller exiles cards from the top of their library until
+// they exile a nonland card, then they may cast that card without paying its mana cost."
+on(/^if that permanent is destroyed this way, its controller exiles cards from the top of their library until they exile a nonland card, then they may cast that card without paying its mana cost$/, async (m, env) => {
+  const snap = (env.thisWay || [])[0];
+  if (!snap) return env.did.push('nothing was destroyed');
+  const pid = snap.controller;
+  const lib = zoneOf(pid, 'library');
+  let hit = null;
+  let k = 0;
+  while (lib.length && !hit) {
+    const i = lib[lib.length - 1];
+    move(i, 'exile');
+    k++;
+    if (!isLand(card(i))) hit = card(i);
+  }
+  env.did.push(`${who(pid)} ${s_(pid, 'exile')} ${k} card${k === 1 ? '' : 's'}${hit ? `, revealing ${nameTag(hit)}` : ''}`);
+  if (!hit) return;
+  const { T } = await import('./triggers.js');
+  const yes = pid === 'ai' || (await env.choosers.p.confirm(cardName(env.src), `Cast ${cardName(hit)} without paying its mana cost?`, {}));
+  if (yes && T.castFree) await T.castFree(pid, hit.iid, {});
+}, { first: true });
+// Syphon Mind (two players: "each other player" is your opponent)
+on(/^each other player (.+)$/, async (m, env) => runSentence(`each opponent ${m[1]}`, env));
+// Baral's Expertise / Electrodominance: "You may cast a spell with mana value 4 (X) or less from your hand without paying its mana cost."
+// Baral and Kari Zev: "you may cast a spell with lesser mana value that shares a card type with it from your hand without paying its mana cost"
+const CARD_TYPES = ['artifact', 'creature', 'enchantment', 'instant', 'sorcery', 'planeswalker', 'battle', 'kindred'];
+const cardTypesOfDef = (d) => CARD_TYPES.filter((t) => new RegExp(`\\b${t}\\b`, 'i').test(((d.faces && d.faces[0] && d.faces[0].typeLine) || d.typeLine || '').split('—')[0]));
+on(/^(?:you may )?cast (?:a|an) ?([a-z ]*?)spell with (?:mana value (x|\d+|one|two|three|four|five|six) or less|lesser mana value(?: that shares a card type with it)?) from your hand without paying its mana cost$/, async (m, env) => {
+  const it = env.it && env.it.iid ? card(env.it.iid) : null;
+  const lesser = /lesser mana value/.test(m[0]);
+  const cap = lesser ? (it ? (DB[it.def].cmc || 0) - 1 : -1) : m[2] === 'x' ? env.x || 0 : n(m[2]);
+  const share = /shares a card type/.test(m[0]) && it ? cardTypesOfDef(DB[it.def]) : null;
+  const kind = (m[1] || '').trim();
+  const pool = cardsIn(env.me, 'hand').filter((c) => !isLand(c) && (DB[c.def].cmc || 0) <= cap && (!kind || matchesAny(c, kind)) && (!share || cardTypesOfDef(DB[c.def]).some((t) => share.includes(t))));
+  const cf = env.castFree || T.castFree;
+  if (!pool.length || !cf) {
+    env.lastMay = false;
+    return env.did.push('no spell in hand to cast for free');
+  }
+  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Cast a spell${lesser ? ' with lesser mana value' : ` with mana value ${cap} or less`} from your hand for free?`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'castFree', src: env.src, aiScore: (c) => DB[c.def].cmc });
+  env.lastMay = !!pick;
+  if (!pick) return;
+  env.did.push(`casts ${nameTag(card(pick))} from hand for free`);
+  await cf(env.me, pick, {});
+});
+// Shiko and Narset, Unified (Flurry): "copy that spell if it targets a permanent or player, and you may choose new targets for the copy.
+// If you don't copy a spell this way, draw a card."
+export const targetsPermOrPlayer = (text) =>
+  /\bany target\b|\btarget (?:[\w-]+ ){0,4}?(?:creatures?|players?|opponents?|permanents?|artifacts?|enchantments?|lands?|planeswalkers?|battles?)\b(?! cards?\b)/i.test(String(text || '').replace(/\([^)]*\)/g, ''));
+on(/^copy that spell if it targets a permanent or player, and you may choose new targets for the copy$/, async (m, env) => {
+  const sp = env.it && env.it.iid ? card(env.it.iid) : null;
+  env.copiedSpell = false;
+  if (!sp || !targetsPermOrPlayer(spellText({ ...sp, face: sp.castFace || 0 }))) return env.did.push("that spell doesn't target a permanent or player");
+  env.copiedSpell = true;
+  await runSentence('copy that spell', env);
+});
+on(/^if you don't copy a spell this way, (.+)$/, async (m, env) => {
+  if (env.copiedSpell) return;
+  await runSentence(m[1], env);
 });
 function xFrom(phrase, env) {
   const p = phrase.toLowerCase();
@@ -5167,7 +5375,7 @@ on(/^put (it|that card) onto the battlefield( tapped)?( under your control)?$/, 
   env.did.push(`puts ${nameTag(c)} onto the battlefield`);
 }, { first: true });
 // Davros: "each opponent who lost 3 or more life this turn faces a villainous choice — A, or B"
-on(/^each opponent (?:who lost (\w+) or more life this turn )?faces a villainous choice — (.+?), or (.+)$/, async (m, env) => {
+on(/^(?:each opponent|that player|target opponent|defending player) (?:who lost (\w+) or more life this turn )?faces a villainous choice — (.+?), or (.+)$/, async (m, env) => {
   const them = opp(env.me);
   if (m[1] && ((G.s.ts[them] || {}).lifeLost || 0) < n(m[1])) return;
   const raw = env.sentence.split(' — ')[1] || '';
@@ -5175,13 +5383,24 @@ on(/^each opponent (?:who lost (\w+) or more life this turn )?faces a villainous
   const k = await env.choosers[them].choose({
     prompt: `${cardName(env.src)}: villainous choice`,
     options: opts.map((o) => ({ label: o[0].toUpperCase() + o.slice(1) })),
-    aiPick: () => (/discards?/.test(opts[1]) && cardsIn(them, 'hand').length > 2 ? 1 : 0),
+    aiPick: () => {
+      // Damocles Base: sacrifice a nontoken creature, or lose life and the opponent draws — give up a creature that matters little
+      if (/sacrifices? a (nontoken )?creature/.test(opts[0])) {
+        const mine = cardsIn(them, 'battlefield').filter((c) => isCreature(c) && !(/nontoken/.test(opts[0]) && c.token));
+        if (!mine.length) return 0;
+        const cheapest = Math.min(...mine.map((c) => (DB[c.def].cmc || 0) + power(c)));
+        return cheapest <= 4 || G.s.players[them].life <= 6 ? 0 : 1;
+      }
+      return /discards?/.test(opts[1]) && cardsIn(them, 'hand').length > 2 ? 1 : 0;
+    },
   });
   env.thatPlayer = them;
   env.it = { player: them };
   env.did.push(`${who(them)} ${s_(them, 'choose')}: ${opts[k]}`);
   void raw;
-  await runSentence(opts[k].replace(/^that player /, 'target opponent '), env);
+  // "they sacrifice …" / "they lose 2 life and you draw two cards"
+  const pick = opts[k].replace(/^they (\w+?)(e?s)? /, (x, v) => `that player ${v}${/(?:s|sh|ch|x)$/.test(v) ? 'es' : 's'} `).replace(/^that player /, 'target opponent ');
+  await runSentence(pick, env);
 }, { first: true });
 // Hazel of the Rootbloom: "If that token is a Squirrel, instead create two tokens that are copies of it."
 on(/^if that token is an? ([a-z]+), instead create (\w+) tokens that are copies of it/, async (m, env) => {
@@ -5249,7 +5468,7 @@ function prep(text, src) {
 
 async function runText(text, env) {
   // modal spells: "Choose one —" with bullet modes
-  const mm = text.match(/^([\s\S]*?)Choose (one|two|three|four|one or both|one or more|any number|up to (?:one|two|three|four|five)|one that hasn't been chosen)(?: or more)?(?:\. You may choose the same mode more than once)?(?: at random)?(?: ?(?:—|-)|\.)\s*\n?((?:\s*•[^\n]*\n?)+)([\s\S]*)$/i);
+  const mm = text.match(/^([\s\S]*?)Choose (one|two|three|four|one or both|one or more|any number|up to (?:one|two|three|four|five)|one that hasn't been chosen)(?: or more)?(?:\. You may choose the same mode more than once)?(?: at random(?:\. If you discarded a card this turn, you choose one instead)?)?(?: ?(?:—|-)|\.)\s*\n?((?:\s*•[^\n]*\n?)+)([\s\S]*)$/i);
   if (mm) {
     // "Whenever a player casts a spell, if it isn't that player's turn, choose one —" (an intervening if before the modes)
     const ifm = mm[1].match(/(^|[.\n]\s*)if ([^,.]+),\s*$/i);
@@ -5284,7 +5503,9 @@ async function runText(text, env) {
     if (/You may choose the same mode more than once/i.test(mm[0]) && !fresh && max < 99) modes = Array.from({ length: max }, () => modes).flat();
     if (env.entwined) max = modes.length;
     const min = /any number|up to/.test(want) ? 0 : /one or (?:both|more)/.test(want) ? 1 : Math.min(max, modes.length);
-    const picks = env.modes || (await env.choosers[env.me].chooseModes({
+    // Typhoid Mary: "Choose one at random. If you discarded a card this turn, you choose one instead."
+    const atRandom = / at random/i.test(mm[0].slice(mm[1].length, mm[0].length - mm[3].length - mm[4].length)) && !(/If you discarded a card this turn, you choose one instead/i.test(mm[0]) && (G.s.ts[env.me].discarded || []).length);
+    const picks = env.modes || (atRandom ? [Math.floor(Math.random() * modes.length)] : null) || (await env.choosers[env.me].chooseModes({
       prompt: `${cardName(env.src)}: choose ${want}`, modes: modes.map((t) => t.replace(/\s+$/, '')), min, max: Math.min(max, modes.length), src: env.src,
       escalate: kwCostText(env.src, 'Escalate'), spree: /Spree/i.test(oracle(env.src)),
       aiScore: (t) => modeValue(t, env),
@@ -5294,7 +5515,8 @@ async function runText(text, env) {
     for (const k of picks) {
       let t = modes[k];
       t = t.replace(/^\+((?:\{[^}]+\})+) — /, ''); // spree costs are paid when casting
-      t = t.replace(/^[A-Z][A-Za-z' ,-]{2,40} — (?=[A-Z])/, ''); // mode names ("Sell Contraband — Create a Treasure token.")
+      t = t.replace(/^(?:[A-Z][A-Za-z' ,-]{2,40}|~) — (?=[A-Z])/, ''); // mode names ("Sell Contraband — Create a Treasure token.")
+      if (atRandom) env.did.push(`randomly chose: ${t.replace(/\.$/, '')}`);
       await runText(t, env);
     }
     if (mm[4].trim()) await runText(mm[4], env);
@@ -5437,6 +5659,16 @@ on(/^(?:~|it|this creature) becomes prepared$/, async (m, env) => {
 // The War Doctor: "If a creature dealt damage this way would die this turn, exile it instead."
 on(/^if a creature dealt damage this way would die this turn, exile it instead$/, async (m, env) => {
   for (const i of env.damagedThisWay || []) if (card(i) && card(i).zone === 'battlefield') card(i).exileIfDiesTurn = G.s.turn;
+}, { first: true });
+// Doom's Time Platform: "exile target nonland card from your graveyard with two time counters on it"
+on(/^exile (target (?:nonland )?card from your graveyard) with (\w+) time counters? on it$/, async (m, env) => {
+  const [r] = await pickTargets(env, m[1], { harm: false, purpose: 'reanimate' });
+  const c = r && r.iid && card(r.iid);
+  if (!c || c.zone !== 'graveyard') return env.did.push('no card to exile');
+  move(c.iid, 'exile');
+  c.counters = { ...(c.counters || {}), time: n(m[2]) };
+  env.it = { iid: c.iid };
+  env.did.push(`exiles ${nameTag(c)} with ${n(m[2])} time counters`);
 }, { first: true });
 // The Tenth / Eleventh Doctor: suspend by time counters
 on(/^if it doesn't have suspend, it gains suspend$/, async (m, env) => {
@@ -5584,6 +5816,10 @@ on(/^put the exiled card into its owner's hand$/, async (m, env) => {
 
 async function runSentence(sentence, env) {
   let s = sentence.trim().replace(/\.$/, '').replace(/^then,? /i, '');
+  // Marvel/Spider-Man cards name their creature "he"/"she": "He gets +1/+0 until end of turn"
+  s = s.replace(/^(?:he|she) (?=gets|gains|has|can't|connives|fights|explores|becomes|loses|attacks|blocks|isn't)/i, 'it ');
+  // "gets +1/+0 until end of turn for each artifact defending player controls" → "gets +1/+0 for each … until end of turn"
+  s = s.replace(/^(.+? gets? [+-][\dx]+\/[+-][\dx]+) (until end of turn) (for each .+)$/i, '$1 $3 $2');
   // X that depends on something done earlier in this same effect (Spellbound Dragon: "where X is the discarded card's mana value")
   {
     const dm = s.match(/, where X is (?:the discarded card's|that card's|the total) mana value(?: of the discarded cards| of those cards)?$/i);
@@ -5899,6 +6135,7 @@ function whereX(env) {
   else if (/^(?:its|~'s) toughness$/.test(ph)) v = env.event && env.event.type === 'dies' && env.event.iid === (env.src || {}).iid && env.event.toughness !== undefined ? env.event.toughness : src ? toughness(src) : 0;
   else if (/^(?:the )?amount of life you(?:'ve)? gained this turn$/.test(ph)) v = ts.lifeGained || 0;
   else if (/^speed$/.test(ph)) v = G.s.players[me].speed || 0;
+  else if (/^(?:the number of )?times (?:~|he|she|it|this spell) was kicked$/.test(ph)) v = typeof env.kicked === 'number' ? env.kicked : env.kicked ? 1 : 0;
   else if (/^counters on (?:~|it|this [a-z]+)$/.test(ph)) v = Object.values((src && src.counters) || {}).reduce((a, k) => a + (k > 0 ? k : 0), 0);
   else if (/^permanents you(?:'ve| have) sacrificed this turn$/.test(ph)) v = ts.sacrificed || 0;
   else v = countPhrase(me, ph, helpers, env.src && env.src.iid);

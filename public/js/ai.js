@@ -152,13 +152,13 @@ export const aiChooser = {
       if (pool[0] && (req.amount === undefined || threat(pool[0]) >= 2 || !(req.players || []).includes(P))) return { iid: pool[0].iid };
       if (req.players && req.players.includes(P)) return { player: P };
       if (pool[0]) return { iid: pool[0].iid };
-      if (req.forced && cands[0]) return { iid: cands.sort((a, b) => threat(a) - threat(b))[0].iid };
+      if (req.forced && !req.optional && cands[0]) return { iid: cands.sort((a, b) => threat(a) - threat(b))[0].iid };
       return null;
     }
     const own = cands.filter((c) => c.controller === AI).sort(byThreat);
     if (own[0]) return { iid: own[0].iid };
     if (req.players && req.players.includes(AI)) return { player: AI };
-    if (req.forced && cands[0]) return { iid: cands.sort((a, b) => threat(a) - threat(b))[0].iid };
+    if (req.forced && !req.optional && cands[0]) return { iid: cands.sort((a, b) => threat(a) - threat(b))[0].iid };
     return null;
   },
   async pickCards(req) {
@@ -286,6 +286,7 @@ export async function aiMaybeCounter(spell, h) {
     log(AI, `AI responds with ${nameTag(c)}, targeting your ${nameTag(spell)}.`);
     move(c.iid, 'graveyard');
     G.s.ts.ai.spells++;
+    G.s.ts.ai.castIids = [...(G.s.ts.ai.castIids || []), c.iid];
     fire({ type: 'cast', iid: c.iid, def: c.def, controller: AI, from: 'hand' });
     h.render();
     await h.wait(G.settings.aiSpeed);
@@ -332,6 +333,7 @@ export async function aiMaybeCounterTrigger(src, text, h) {
     log(AI, `AI responds with ${nameTag(c)}, countering ${src ? `your ${nameTag(src)}'s` : 'your'} triggered ability.`);
     move(c.iid, 'graveyard');
     G.s.ts.ai.spells++;
+    G.s.ts.ai.castIids = [...(G.s.ts.ai.castIids || []), c.iid];
     fire({ type: 'cast', iid: c.iid, def: c.def, controller: AI, from: 'hand' });
     h.render();
     await h.wait(G.settings.aiSpeed);

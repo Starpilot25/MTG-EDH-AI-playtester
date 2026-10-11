@@ -221,7 +221,7 @@ const RESET = ['chosenCardType', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'may
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'castMode', 'xPaid', 'impending',
-  'ringBearer', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
+  'ringBearer', 'cantSacUntil', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
   'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
@@ -940,6 +940,11 @@ export function destroy(iid, opts = {}) {
 export function sacrifice(iid) {
   const c = card(iid);
   if (!c || c.zone !== 'battlefield') return false;
+  // Stilt-Man: 'It gains "This permanent can't be sacrificed" until the end of your next turn.'
+  if (c.cantSacUntil && G.s.turn <= c.cantSacUntil) {
+    log(c.controller, `${cardName(c)} can't be sacrificed.`);
+    return false;
+  }
   queueEvent({ type: 'sacrificed', iid, def: c.def, controller: c.controller, token: c.token, types: typeLine(c) });
   if (G.s.ts && G.s.ts[c.controller]) (G.s.ts[c.controller].sacTypes = G.s.ts[c.controller].sacTypes || []).push(typeLine(c));
   if (G.s.ts && G.s.ts[c.controller]) G.s.ts[c.controller].sacrificed = (G.s.ts[c.controller].sacrificed || 0) + 1;

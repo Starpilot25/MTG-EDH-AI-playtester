@@ -67,11 +67,13 @@ export function triggersOf(c, defOverride) {
     let m;
     const add = (event, effect, extra = {}) => {
       let t = effect.trim().replace(/ ¶•/g, '\n•');
+      // Adaptive Training Post: "if this artifact has fewer than three charge counters on it, put a charge counter on it" — "it" is the artifact
+      t = t.replace(/^(if (?:this [a-z]+|~) has [^,]*counters? on it, put [^.]*?counters? on) it\b/i, '$1 ~');
       const oncePerTurn = /This ability triggers only once each turn\.?|Do this only once each turn\.?/i.test(t);
       t = t.replace(/\s*(?:This ability triggers|Do this) only once each turn\.?/i, '');
       // Bloodghast, Darklight Phoenix, Interceptor: abilities that work while the card is in its owner's graveyard
       const fromGy = !extra.self && !extra.attachedTo && /\b(?:return|put) (?:~|this card) from your graveyard\b|\bif (?:~|this card) is in your graveyard\b/i.test(t) && !/return it to the battlefield tapped and attacking/i.test(t);
-      out.push({ event, text: t, optional: /^you may\b/i.test(t), raw: line, oncePerTurn, ...(fromGy ? { fromGy } : {}), ...extra });
+      out.push({ event, text: t, optional: /^you may\b/i.test(t), raw: line, oncePerTurn, ...(/Do this only once each turn/i.test(effect) ? { doOnce: true } : {}), ...(fromGy ? { fromGy } : {}), ...extra });
     };
     // enters
     if ((m = line.match(/^When(?:ever)? ~ enters(?: the battlefield)? or leaves the battlefield, (.+)$/i))) {
@@ -204,8 +206,8 @@ export function triggersOf(c, defOverride) {
       add('attacks', m[2], { anyOfMine: true, kind, chosenType: kind === 'chosen type' });
       add('enters', m[2], { mine: true, kind: kind === 'chosen type' ? '' : kind, chosenType: kind === 'chosen type' });
     }
-    else if ((m = line.match(/^When the (tenth|fifth|third|twentieth) \+1\/\+1 counter is put on ~, (.+)$/i)))
-      add('counterPut', m[2], { self: true, kind: '+1/+1', nth: { third: 3, fifth: 5, tenth: 10, twentieth: 20 }[m[1].toLowerCase()] });
+    else if ((m = line.match(/^When the (tenth|fifth|third|sixth|seventh|twentieth) (\+1\/\+1|[a-z]+) counter is put on ~, (.+)$/i)))
+      add('counterPut', m[3], { self: true, kind: m[2].toLowerCase(), nth: { third: 3, fifth: 5, sixth: 6, seventh: 7, tenth: 10, twentieth: 20 }[m[1].toLowerCase()] });
     else if ((m = line.match(/^Whenever you put one or more counters on another creature, (.+)$/i)))
       add('counterPut', m[1], { anyCreature: true, byMe: true, other: true, anyKind: true });
     // combat
@@ -295,6 +297,10 @@ export function triggersOf(c, defOverride) {
         ...mvLimit(line) });
     else if ((m = line.match(/^Whenever you cast an? ((?:Aura|Equipment|Vehicle|historic|[A-Z]\w+)(?:(?:,|, or| or) (?:Aura|Equipment|Vehicle|[A-Z]\w+))*)(?: spell)?, (.+)$/)))
       add('cast', m[2], { spell: m[1].toLowerCase(), mine: true });
+    else if ((m = line.match(/^Whenever you cast your (first|second) ((?:[A-Za-z]+, )+or [A-Za-z]+) spell each turn, (.+)$/i)))
+      add('cast', m[3], { spell: m[2].toLowerCase(), mine: true, first: /first/i.test(m[1]), second: /second/i.test(m[1]) });
+    else if ((m = line.match(/^When(?:ever)? an opponent casts their second spell each turn, (.+)$/i)))
+      add('cast', m[1], { spell: '', theirs: true, second: true });
     else if ((m = line.match(/^When(?:ever)? an opponent casts (?:a|an|their first) ([^,]*?)spell[^,]*, (.+)$/i)))
       add('cast', m[2], { spell: m[1].toLowerCase().trim(), theirs: true });
     else if ((m = line.match(/^Whenever a player casts (?:a|an) ([^,]*?)spell[^,]*, (.+)$/i)))
@@ -329,7 +335,7 @@ export function triggersOf(c, defOverride) {
       // Shadow of the Goblin, The Lost and the Damned
       add('landfall', m[2], /^you play/i.test(m[1]) ? { playedFrom: 'notHand' } : { enteredFrom: 'notHand' });
       add('cast', m[2], { spell: '', mine: true, from: 'anywhere other than your hand' });
-    } else if ((m = line.match(/^Whenever you play a land from exile or cast a spell from exile, (.+)$/i))) {
+    } else if ((m = line.match(/^Whenever you play a land from exile or cast a spell from exile, (.+)$/i)) || (m = line.match(/^Whenever you play a card from exile, (.+)$/i))) {
       // Ghost-Spider
       add('landfall', m[1], { playedFrom: 'exile' });
       add('cast', m[1], { spell: '', mine: true, from: 'exile' });
@@ -370,6 +376,14 @@ export function triggersOf(c, defOverride) {
     }
     else if ((m = line.match(/^Whenever (?:~|a creature you control) explores, (.+)$/i)))
       add('explored', m[1]);
+    else if ((m = line.match(/^Whenever (~|a creature you control) connives, (.+)$/i)))
+      add('connived', m[2], { self: m[1] === '~' });
+    // Mangara, the Diplomat
+    else if ((m = line.match(/^Whenever an opponent attacks with creatures, if two or more of those creatures are attacking you(?: and\/or planeswalkers you control)?, (.+)$/i)))
+      add('youAttack', m[1], { defend: true, minCount: 2 });
+    // Curse of Opulence (two-player: the only one attacking the enchanted player is you)
+    else if ((m = line.match(/^Whenever enchanted player is attacked, (.+?)(?: Each opponent attacking that player does the same\.)?$/i)))
+      add('youAttack', m[1], { enchanted: true });
     else if ((m = line.match(/^When(?:ever)? ~ becomes monstrous, (.+)$/i)))
       add('monstrous', m[1], { self: true });
     else if ((m = line.match(/^When ~ exploits a creature, (.+)$/i)))
@@ -737,6 +751,8 @@ function spellMatches(filter, d, c) {
   if (!filter) return true;
   const f = filter.replace(/\bspells?\b/, '').trim();
   if (!f) return true;
+  // "instant, sorcery, or Villain spell" (Lady Loki)
+  if (/, /.test(f)) return f.split(/,\s*(?:or\s+)?/).some((part) => spellMatches(part.trim(), d, c));
   if (/noncreature/.test(f)) return !/Creature/.test(t);
   if (/instant or sorcery|instant and sorcery/.test(f)) return /Instant|Sorcery/.test(t);
   if (/^creature/.test(f)) {
@@ -973,6 +989,7 @@ function matches(ev) {
         if (trig.event !== 'youAttack') return;
         if (trig.defend) {
           if (c.controller !== ev.defender || c.controller === ev.controller) return;
+          if (trig.minCount && ((G.s.combat && G.s.combat.attackers) || []).filter((a) => ((G.s.combat.targets || {})[a] || ev.defender) === c.controller || (card((G.s.combat.targets || {})[a]) || {}).controller === c.controller).length < trig.minCount) return;
           // "attach this Aura to that player" does nothing when it already enchants them
           if (/attach (?:this aura|~) to that player/i.test(trig.text) && (c.enchantedPlayer || opp(c.controller)) === ev.controller) return;
           out.push({ src: c, trig, thatPlayer: ev.controller });
@@ -1087,9 +1104,11 @@ function matches(ev) {
         if (trig.mine && c.controller !== ev.controller) return;
         if (trig.theirs && c.controller === ev.controller) return;
         if (trig.notSelf && c.iid === ev.iid) return;
-        if (trig.first && ts.spells !== 1) return;
+        // "your first instant or sorcery spell each turn": the first of that kind, not the first spell overall
+        const nthOfKind = () => (ts.castIids || [ev.iid]).filter((i) => card(i) && spellMatches(trig.spell, DB[card(i).def], card(i))).length;
+        if (trig.first && (trig.spell ? nthOfKind() !== 1 : ts.spells !== 1)) return;
         if (trig.firstNotHand && (ts.spellsNotHand || 0) !== 1) return;
-        if (trig.second && ts.spells !== 2) return;
+        if (trig.second && (trig.spell ? nthOfKind() !== 2 : ts.spells !== 2)) return;
         if (!spellMatches(trig.spell, d, sc)) return;
         // "a spell with mana value 4 or greater / 2 or less"
         if (trig.mvMin !== undefined && (d.cmc || 0) < trig.mvMin) return;
@@ -1155,7 +1174,7 @@ function matches(ev) {
           out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: tgt.controller, amount: ev.n, counterKind: ev.kind });
           return;
         }
-        if (ev.kind !== '+1/+1' && ev.kind !== 'loyalty' && ev.kind !== '-1/-1') return;
+        if (ev.kind !== '+1/+1' && ev.kind !== 'loyalty' && ev.kind !== '-1/-1' && !(trig.nth && trig.kind === ev.kind)) return;
         if ((trig.kind || '+1/+1') !== ev.kind) return;
         if (trig.nth) {
           const now = (tgt.counters || {})[ev.kind] || 0;
@@ -1206,6 +1225,7 @@ function matches(ev) {
       each((c, trig) => trig.event === 'leftGraveyard' && c.controller === ev.owner && out.push({ src: c, trig, amount: ev.n }));
       break;
     case 'explored':
+    case 'connived':
     case 'monstrous':
     case 'exploited':
     case 'transformed':
@@ -1482,7 +1502,14 @@ export async function settle() {
         }
         hits = hits.concat(extra);
       }
-      for (const hit of hits) if (!interveningIfFails(hit, ev)) pending.push({ hit, ev });
+      for (const hit of hits) {
+        // "This ability triggers only once each turn" / "for the first time each turn": once it has triggered,
+        // it doesn't trigger again this turn (so it never shows up on the stack)
+        if (onceDone(hit)) continue;
+        if (interveningIfFails(hit, ev)) continue;
+        if (hit.trig && hit.trig.oncePerTurn && !hit.trig.doOnce) markOnce(hit);
+        pending.push({ hit, ev });
+      }
       if (ev.type === 'chapter') after.push(ev);
       }
       if (G.s !== s0) break;
@@ -1592,16 +1619,28 @@ async function legendChoice(ev) {
   T.render();
 }
 
+const onceKey = (hit) => `${hit.src && hit.src.iid}|${hit.trig.raw}`;
+function onceDone(hit) {
+  return !!(hit.trig && hit.trig.oncePerTurn && G.s.trigOnce && G.s.trigOnce[onceKey(hit)] === G.s.turn);
+}
+function markOnce(hit) {
+  G.s.trigOnce = G.s.trigOnce || {};
+  G.s.trigOnce[onceKey(hit)] = G.s.turn;
+}
 async function resolveTrigger(hit, controller, ev) {
   const { src, trig } = hit;
-  if (trig.oncePerTurn) {
-    src.trigTurns = src.trigTurns || {};
-    if (src.trigTurns[trig.raw] === G.s.turn) return;
-    src.trigTurns[trig.raw] = G.s.turn;
+  // a graveyard ability whose card has left the graveyard since it triggered (Endless Ranks of HYDRA already returned)
+  if (trig.fromGy && src.iid && card(src.iid) && card(src.iid).zone !== 'graveyard') return;
+  // "Do this only once each turn": the ability still triggers, but does nothing after the first time
+  if (trig.oncePerTurn && trig.doOnce) {
+    if (onceDone(hit)) return;
+    markOnce(hit);
   }
   const ctx = {
     me: controller, choosers: T.choosers, forced: true, thatPlayer: hit.thatPlayer, it: hit.it || null, wasAttacking: hit.wasAttacking, castFree: T.castFree, deadCounters: ev && ev.counters,
     kicked: src.kicked, x: hit.x !== undefined ? hit.x : src.xPaid || 0, castMode: src.castMode, castFrom: src.castFrom, event: ev,
+    // a spell waiting on the other side of the stack (Transcendent Dragon: "counter target spell")
+    stackTarget: controller === 'p' && G.s.stack && !G.s.stack.ability ? G.s.stack.iid : controller === 'ai' && G.s.pstack ? G.s.pstack.iid : null,
   };
   if (hit.amount !== undefined) {
     ctx.lastAmount = hit.amount;

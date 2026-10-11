@@ -481,7 +481,8 @@ export function playerFlag(pid, flag) {
 // ------------------------------------------------------------ counting phrases
 // "the number of creatures you control", "cards in your hand", "your devotion to black"…
 export function countPhrase(pid, phrase, helpers, srcIid) {
-  let p = String(phrase || '').toLowerCase().replace(/^the (?:total )?number of /, '').replace(/\.$/, '').trim();
+  let p = String(phrase || '').toLowerCase().replace(/^the (?:total )?number of /, '').replace(/\.$/, '').trim()
+    .replace(/\b(?:defending player|that player|the defending player) controls$/, 'an opponent controls'); // two players: the only one it can be
   // "for each tapped land your opponents control", "for each Goblin on the battlefield", "creature card in your graveyard"
   p = p.replace(/^((?:[\w-]+ ){0,3}?)([\w-]*[^s\s]) (you control|your opponents control|an opponent controls|on the battlefield)$/, '$1$2s $3')
     .replace(/\bcard (in|from) /, 'cards $1 ');

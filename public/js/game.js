@@ -993,7 +993,10 @@ export async function runAiTurn() {
     hooks.render();
     await wait(Math.min(400, G.settings.aiSpeed));
   } finally {
-    if (G.s === s) run.aiBusy = false;
+    if (G.s === s) {
+      run.aiBusy = false;
+      hooks.render(); // the game may have ended mid-turn: show the game-over banner, not the "AI is thinking" spinner
+    }
   }
   if (G.s !== s) return;
   if (!s.winner || s.continueAfterWin) await beginTurn(nextTurnOf('ai'));

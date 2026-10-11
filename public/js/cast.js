@@ -33,7 +33,7 @@ function restrictedOk(onlyFor, abilitiesOf, spell, opts) {
   if (!onlyFor) return true;
   if (onlyFor === 'abilities') return !!opts.ability; // The Enigma Jewel
   if (onlyFor === 'fromExile') return !!spell && spell.zone === 'exile' && !opts.ability;
-  if (opts.ability) return !!(abilitiesOf && spell && spell.zone === 'battlefield' && hasSubtype(spell, abilitiesOf));
+  if (opts.ability) return !!(abilitiesOf && spell && spell.zone === 'battlefield' && (/^[a-z]/.test(abilitiesOf) ? new RegExp(`\\b${abilitiesOf}\\b`, 'i').test(DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine || '') : hasSubtype(spell, abilitiesOf)));
   if (!spell || spell.zone === 'battlefield') return false;
   const tl = DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine;
   return /^[A-Z]/.test(onlyFor) ? hasSubtype({ ...spell, zone: 'hand' }, onlyFor) : onlyFor === 'noncreature' ? !/Creature/.test(tl) : new RegExp(onlyFor.split(' or ').join('|'), 'i').test(tl);
@@ -63,7 +63,7 @@ export function manaSources(pid, opts = {}) {
     const m = manaAbility(c);
     if (!m) continue;
     if (!restrictedOk(m.onlyFor, m.abilitiesOf, spell, opts)) continue;
-    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, activation: m.activation || 0 });
+    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, activation: m.activation || 0, restricted: !!m.onlyFor });
   }
   // Waterbend: untapped artifacts and creatures can each pay {1} of the waterbend cost
   if (opts.waterbend)
@@ -325,6 +325,13 @@ export function timingOk(pid, c, opt) {
  *       aiCounter(spell) -> bool, pos, free, costOverride, mode, quiet}
  * Returns true when the spell was cast.
  */
+// spells cast "from your graveyard … if that spell would be put into your graveyard, exile it instead" (Helmut Zemo, Snapcaster-likes)
+function exileInstead(iid) {
+  const m = G.s.exileOnResolve;
+  if (!m || !m[iid]) return false;
+  delete m[iid];
+  return true;
+}
 export async function castSpell(pid, iid, opt, env) {
   const s = G.s;
   const c = card(iid);
@@ -394,7 +401,11 @@ export async function castSpell(pid, iid, opt, env) {
   }
   const mk = altCost(o, 'Multikicker');
   if (mk && !env.free) {
-    const times = await ch.chooseNumber({ prompt: `Multikicker ${mk}: how many times?`, min: 0, max: 10, ai: 0 });
+    // AI: kick as many times as the mana it has allows
+    const mv = (cost) => ((cost || '').match(/\{(\d+)\}/g) || []).reduce((a, x) => a + +x.slice(1, -1), 0) + ((cost || '').match(/\{[WUBRGCS](?:\/[WUBRGP])?\}/g) || []).length;
+    const avail = pid === 'ai' ? manaSources(pid, { spell: c }).reduce((a, s_) => a + (s_.amount || 1), 0) : 0;
+    const aiTimes = pid === 'ai' && mv(mk) ? Math.max(0, Math.min(10, Math.floor((avail - mv(f.manaCost || DB[c.def].manaCost) - mv(info.extraMana)) / mv(mk)))) : 0;
+    const times = await ch.chooseNumber({ prompt: `Multikicker ${mk}: how many times?`, min: 0, max: 10, ai: aiTimes });
     for (let k = 0; k < times; k++) info.extraMana = (info.extraMana || '') + mk;
     info.kicked = times;
   }
@@ -524,6 +535,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (fromZone === 'command' && c.isCommander) s.players[pid].tax[c.iid] = (s.players[pid].tax[c.iid] || 0) + 1;
   const ts = s.ts[pid];
   ts.spells++;
+  ts.castIids = [...(ts.castIids || []), iid]; // "your first instant or sorcery spell each turn"
   if (fromZone === 'hand') ts.spellsFromHand = (ts.spellsFromHand || 0) + 1; // Jem Lightfoote
   else if (!opt.copy) ts.spellsNotHand = (ts.spellsNotHand || 0) + 1; // The Twelfth Doctor: "the first spell you cast from anywhere other than your hand"
   if (!/Creature/.test(f.typeLine)) ts.noncreatureSpells++;
@@ -539,6 +551,14 @@ export async function castSpell(pid, iid, opt, env) {
   env.render();
   await settle();
   if (G.s !== s) return false;
+  // a cast trigger moved the spell off the stack (Lady Loki: "exile it")
+  const leftStack = () => !opt.copy && card(iid) && card(iid).zone !== fromZone && !(fromZone === 'hand' && card(iid).zone === 'stack');
+  if (leftStack()) {
+    s[stackSlot] = null;
+    log(pid, `${nameTag(c)} left the stack.`);
+    env.render();
+    return true;
+  }
   // storm / gravestorm / replicate / casualty copies, cascade
   let copies = (hasKw(c, 'storm') ? ts.spells - 1 + s.ts[opp(pid)].spells : 0) + info.replicate + (info.casualty ? 1 : 0);
   // Way of the Cryomancer: "When you next cast an instant or sorcery spell this turn, copy that spell."
@@ -600,14 +620,26 @@ export async function castSpell(pid, iid, opt, env) {
       countered = await env.aiCounter(c);
     }
   }
+  if (leftStack()) {
+    s[stackSlot] = null;
+    log(pid, `${nameTag(c)} left the stack.`);
+    env.render();
+    return true;
+  }
   const exileCountered = s[stackSlot] && s[stackSlot].exileCountered;
+  const stealCast = s[stackSlot] && s[stackSlot].stealCast;
   const bounced = s[stackSlot] && s[stackSlot].bounced;
   const counteredByEffect = !!(s[stackSlot] && s[stackSlot].countered);
   s[stackSlot] = null;
   if (countered) {
     if (pid === 'ai' && !counteredByEffect) log(opp(pid), `You counter ${nameTag(c)}.`);
-    move(iid, bounced ? 'hand' : exileCountered || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard');
+    move(iid, bounced ? 'hand' : exileCountered || exileInstead(iid) || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard');
     env.render();
+    // Transcendent Dragon: "then you may cast it without paying its mana cost"
+    if (stealCast && card(iid) && card(iid).zone === 'exile') {
+      const yes = stealCast === 'ai' || (await env.choosers.p.confirm(cardName(c), `Cast ${cardName(c)} without paying its mana cost?`, {}));
+      if (yes) await castFree(stealCast, iid, env);
+    }
     return true;
   }
   // cascade: exile until a nonland card with lesser mana value, cast it free
@@ -836,7 +868,7 @@ async function resolveSpell(pid, c, opt, info, env) {
     move(c.iid, 'library');
     shuffle(c.owner);
   } else if (info.buyback) move(c.iid, 'hand');
-  else if (/^(flashback|escape|jumpstart|disturb|aftermath|harmonize)$/.test(opt.mode)) move(c.iid, 'exile');
+  else if (/^(flashback|escape|jumpstart|disturb|aftermath|harmonize)$/.test(opt.mode) || exileInstead(c.iid)) move(c.iid, 'exile'); // "If that spell would be put into your graveyard, exile it instead"
   else if (/\bRebound\b/.test(o) && c.castFrom === 'hand') {
     move(c.iid, 'exile');
     c.rebound = true;
@@ -1274,6 +1306,7 @@ export async function activateAbility(pid, c, ab, env) {
       c.prepared = false;
       const ts = s.ts[pid];
       ts.spells++;
+      ts.castIids = [...(ts.castIids || []), c.iid];
       ts.spellsNotHand = (ts.spellsNotHand || 0) + 1;
       if (!/Creature/.test(f1.typeLine || '')) ts.noncreatureSpells++;
       log(pid, `${pid === 'p' ? 'You cast' : 'AI casts'} a copy of ${esc(f1.name)} (${nameTag(c)} is no longer prepared).`);
