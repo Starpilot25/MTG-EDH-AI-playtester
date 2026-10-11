@@ -67,8 +67,8 @@ export function triggersOf(c, defOverride) {
     let m;
     const add = (event, effect, extra = {}) => {
       let t = effect.trim().replace(/ ¶•/g, '\n•');
-      const oncePerTurn = /This ability triggers only once each turn\.?/i.test(t);
-      t = t.replace(/\s*This ability triggers only once each turn\.?/i, '');
+      const oncePerTurn = /This ability triggers only once each turn\.?|Do this only once each turn\.?/i.test(t);
+      t = t.replace(/\s*(?:This ability triggers|Do this) only once each turn\.?/i, '');
       // Bloodghast, Darklight Phoenix, Interceptor: abilities that work while the card is in its owner's graveyard
       const fromGy = !extra.self && !extra.attachedTo && /\b(?:return|put) (?:~|this card) from your graveyard\b|\bif (?:~|this card) is in your graveyard\b/i.test(t) && !/return it to the battlefield tapped and attacking/i.test(t);
       out.push({ event, text: t, optional: /^you may\b/i.test(t), raw: line, oncePerTurn, ...(fromGy ? { fromGy } : {}), ...extra });
@@ -171,6 +171,8 @@ export function triggersOf(c, defOverride) {
       add('combatDamagePlayer', m[1], { anyOfMine: true, faceUpTurn: true });
     else if ((m = line.match(/^Whenever an enchanted creature you control deals combat damage to a player, (.+)$/i)))
       add('combatDamagePlayer', m[1], { anyOfMine: true, enchanted: true });
+    else if ((m = line.match(/^Whenever one or more (?:other )?cards? leave your graveyard, (.+)$/i)))
+      add('leftGraveyard', m[1], { mine: true }); // Advanced Reconstruction (level 2)
     else if ((m = line.match(/^Whenever one or more (?:other )?cards? (?:are put into|leave) your graveyard(?: from anywhere)?, (.+)$/i)))
       add('putIntoGraveyard', m[1], { mine: true });
     // theft decks: Don Andres, Gonti, Brainstealer Dragon, Breeches, J. Jonah Jameson, Labyrinth Raptor
@@ -927,8 +929,8 @@ function matches(ev) {
           return;
         }
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, amount: ev.amount });
-        else if (trig.anyOfMine && c.controller === ev.controller && !(trig.commander && !(atk && atk.isCommander)) && (!trig.kind || (atk && matchesFilter(atk, trig.kind))) && (!trig.faceUpTurn || (atk && atk.turnedUpTurn === G.s.turn)) && (!trig.enchanted || (atk && Object.values(G.s.cards).some((a) => a.attachedTo === atk.iid && a.zone === 'battlefield' && /Aura/.test(typeLine(a))))) && (!trig.withCounter || (atk && Object.entries(atk.counters || {}).some(([k, v]) => v > 0 && (trig.withCounter === 'any' || k === trig.withCounter))))) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid } });
-        else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid } });
+        else if (trig.anyOfMine && c.controller === ev.controller && !(trig.commander && !(atk && atk.isCommander)) && (!trig.kind || (atk && matchesFilter(atk, trig.kind))) && (!trig.faceUpTurn || (atk && atk.turnedUpTurn === G.s.turn)) && (!trig.enchanted || (atk && Object.values(G.s.cards).some((a) => a.attachedTo === atk.iid && a.zone === 'battlefield' && /Aura/.test(typeLine(a))))) && (!trig.withCounter || (atk && Object.entries(atk.counters || {}).some(([k, v]) => v > 0 && (trig.withCounter === 'any' || k === trig.withCounter))))) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid }, amount: ev.amount });
+        else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid }, amount: ev.amount });
       });
       // ciphered spells cast a copy
       for (const x of Object.values(G.s.cards)) {
@@ -1197,7 +1199,11 @@ function matches(ev) {
     case 'scry':
     case 'surveil':
     case 'ringTempts':
-      each((c, trig) => trig.event === ev.type && c.controller === ev.pid && out.push({ src: c, trig }));
+      // Elvish Mariner: "where X is the number of cards looked at while scrying this way"
+      each((c, trig) => trig.event === ev.type && c.controller === ev.pid && out.push({ src: c, trig, ...(ev.n !== undefined ? { x: ev.n, amount: ev.n } : {}) }));
+      break;
+    case 'leftGraveyard':
+      each((c, trig) => trig.event === 'leftGraveyard' && c.controller === ev.owner && out.push({ src: c, trig, amount: ev.n }));
       break;
     case 'explored':
     case 'monstrous':

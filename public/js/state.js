@@ -269,7 +269,13 @@ export function move(iid, zone, opts = {}) {
     queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone, wasAttacking: !!c.attacking, power: isCreature(c) ? power(c) : undefined });
     if (requested === 'graveyard' && isCreature(c)) (s.ts[c.controller].diedTypes = s.ts[c.controller].diedTypes || []).push(typeLine(c));
   }
-  if (fromZone === 'graveyard' && zone !== 'graveyard') s.ts[c.owner].cardsLeftGy++;
+  if (fromZone === 'graveyard' && zone !== 'graveyard') {
+    s.ts[c.owner].cardsLeftGy++;
+    // "Whenever one or more cards leave your graveyard": one event per batch
+    const lg = eventQueue.find((e) => e.type === 'leftGraveyard' && e.owner === c.owner);
+    if (lg) lg.n++;
+    else queueEvent({ type: 'leftGraveyard', owner: c.owner, n: 1 });
+  }
   if (zone === 'graveyard' && fromZone !== 'graveyard' && !c.token) queueEvent({ type: 'toGraveyard', iid, def: c.def, owner: c.owner, from: fromZone, controller: fromZone === 'battlefield' ? c.controller : c.owner });
   // "Its controller …" after it left (Path to Exile on a creature you'd stolen): remember who controlled it
   if (fromZone === 'battlefield' && zone !== 'battlefield') (s.lastCtl = s.lastCtl || {})[iid] = c.controller;

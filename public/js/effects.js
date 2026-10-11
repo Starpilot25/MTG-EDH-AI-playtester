@@ -364,7 +364,11 @@ export function matchesFilter(c, phrase) {
   if ((m = phrase.match(/power (\d+) or less/))) if (power(c) > +m[1]) return false;
   if ((m = phrase.match(/toughness (\d+) or less/))) if (toughness(c) > +m[1]) return false;
   if ((m = phrase.match(/toughness (\d+) or greater/))) if (toughness(c) < +m[1]) return false;
-  if (/with a \+1\/\+1 counter on it/.test(phrase) && !(c.counters || {})['+1/+1']) return false;
+  // Wave Goodbye: "each creature without a +1/+1 counter on it"
+  if (/without (?:a|any) \+1\/\+1 counters? on (?:it|them)/.test(phrase)) {
+    if ((c.counters || {})['+1/+1'] > 0) return false;
+  } else if (/with a \+1\/\+1 counter on it/.test(phrase) && !(c.counters || {})['+1/+1']) return false;
+  if (/without (?:a|any) counters? on (?:it|them)/.test(phrase) && Object.values(c.counters || {}).some((v) => v > 0)) return false;
   if (/with a counter on it/.test(phrase) && !Object.keys(c.counters || {}).length) return false;
   if (/\bmonocolored\b/.test(phrase) && colorsOf(c).length !== 1) return false;
   if (/\bmulticolored\b/.test(phrase) && colorsOf(c).length < 2) return false;
@@ -1241,6 +1245,8 @@ function amountOf(word, env) {
     const it = env.it && env.it.iid ? card(env.it.iid) : env.src;
     return it ? DB[it.def].cmc || 0 : 0;
   }
+  // Astarion (Friends): "equal to the amount of life you gained this turn"
+  if ((m = w.match(/^equal to the amount of life you (gained|lost) this turn$/))) return ((G.s.ts || {})[env.me] || {})[m[1] === 'gained' ? 'lifeGained' : 'lifeLost'] || 0;
   // The War Doctor: "equal to the number of time counters on it"
   if ((m = w.match(/^(?:damage )?equal to the number of ([a-z+\/0-9-]+) counters on (?:~|it|this [a-z]+)$/))) {
     const it = env.src && card(env.src.iid) ? card(env.src.iid) : env.src;
@@ -3473,7 +3479,10 @@ on(/^(you|target player|each player|its controller|that player|target opponent) 
 on(/^(each opponent|target opponent|target player|that player|each player|you|its controller|defending player|each other player|they|that opponent|the player) loses? (\d+|x|that much|life equal to [^.]+?|half (?:their|your) life,? rounded up|a third of (?:their|your) life,? rounded up)(?: life)?(?: and you gain (\d+|x|that much) life)?(?:\.|$| for each|,| and | unless| if )/, async (m, env) => {
   const pids = await playerTarget(env, /^(?:they|that opponent|the player)$/.test(m[1]) ? 'that player' : m[1]);
   for (const pid of pids) {
-    let k = /half/.test(m[2]) ? Math.ceil(G.s.players[pid].life / 2) : /third/.test(m[2]) ? Math.ceil(G.s.players[pid].life / 3) : m[2] === 'that much' ? env.lastAmount || 0 : /^life equal/.test(m[2]) ? amountOf(m[2].replace(/^life /, ''), env) : n(m[2], env.x);
+    let k = /half/.test(m[2]) ? Math.ceil(G.s.players[pid].life / 2) : /third/.test(m[2]) ? Math.ceil(G.s.players[pid].life / 3) : m[2] === 'that much' ? env.lastAmount || 0
+      // Astarion (Feed): "loses life equal to the amount of life they lost this turn"
+      : /^life equal to the amount of life (?:they|that player) lost this turn$/.test(m[2]) ? ((G.s.ts || {})[pid] || {}).lifeLost || 0
+      : /^life equal/.test(m[2]) ? amountOf(m[2].replace(/^life /, ''), env) : n(m[2], env.x);
     changeLife(pid, -k, false);
     env.lastAmount = k;
     env.did.push(`${who(pid)} ${s_(pid, 'lose')} ${k} life`);
@@ -4806,7 +4815,7 @@ on(/^(~|it|target creature you control|each creature you control|that creature) 
     queueEvent({ type: 'explored', iid: c.iid, controller: env.me });
   }
 });
-on(/^(~|it|he|she|they|(?:up to (?:one|two) )?(?:another )?target creatures?(?: you control)?|that creature|each creature you control|those creatures) connives?(?: (\w+))?/, async (m, env) => {
+on(/^(?:have )?(~|it|he|she|they|(?:up to (?:one|two) )?(?:another )?target creatures?(?: you control)?|that creature|each creature you control|those creatures) connives?(?: (\w+))?/, async (m, env) => {
   const subj = /^(he|she|they)$/.test(m[1]) ? '~' : m[1];
   const objs = /^up to/.test(subj) || /^~$|^it$|^that creature$/.test(subj) || /target/.test(subj) ? await objects(env, subj, { harm: false }) : await objects(env, subj);
   if (/target|each|those/.test(subj) && !objs.length) return;

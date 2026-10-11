@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.29",
+    "title": "Six card fixes",
+    "notes": [
+      "Wave Goodbye: creatures with +1/+1 counters now stay on the battlefield (before, it bounced everything).",
+      "Old Gnawbone: makes one Treasure for each point of combat damage (before, it made none).",
+      "Elvish Mariner: whenever you scry, it taps up to that many nonland permanents.",
+      "Astarion, the Decadent: Feed makes the opponent lose as much life as they already lost this turn, and Friends gains you as much as you already gained (before, both gave 0).",
+      "Baron Strucker, HYDRA Overlord: your other Villains entering can connive, once each turn.",
+      "Advanced Reconstruction: level 2's \"Whenever one or more cards leave your graveyard, deal 2 damage to each opponent\" works (before, it triggered on cards going into the graveyard)."
+    ]
+  },
+  {
     "version": "1.3.28",
     "title": "Omens are no longer treated as Adventures",
     "notes": [
