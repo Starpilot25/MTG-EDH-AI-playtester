@@ -393,7 +393,7 @@ function renderTop() {
   let next = 'Next step';
   if (s.step === 'main1') next = 'To combat';
   if (s.step === 'combat' && s.combat && s.combat.by === 'p') {
-    next = s.combat.stage === 'declare' ? (s.combat.attackers.length ? `Attack (${s.combat.attackers.length})` : 'Skip combat') : s.combat.stage === 'triggers' || s.combat.stage === 'begin' ? 'Resolving…' : 'Deal damage';
+    next = s.combat.stage === 'declare' ? (s.combat.attackers.length ? `Attack (${s.combat.attackers.length})` : 'Skip combat') : s.combat.stage === 'triggers' || s.combat.stage === 'begin' ? 'Resolving…' : s.combat.stage === 'window' ? 'Continue (banner)' : 'Deal damage';
   }
   if (s.step === 'main2') next = 'To end step';
   if (s.step === 'end') next = 'Pass turn';
@@ -851,6 +851,17 @@ function renderBanner() {
       ${arena ? `<p class="hint">${responses ? `You have ${responses} instant-speed card${responses > 1 ? 's' : ''} you can afford (glowing in your hand) — double-click one to respond, or let it resolve.` : 'You have nothing you can cast in response.'}</p>` : ''}
       <div class="btns"><button class="primary" data-act="resolve">Let it resolve <kbd>Enter</kbd></button>
       ${arena ? '' : '<button data-act="counter" title="Tabletop mode: counter it by hand">Counter it</button>'}</div></div></div>`;
+  } else if (pendingCombat && s.combat) {
+    const k = pendingCombat.kind;
+    const head = k === 'afterBlocks' ? 'Blockers declared' : k === 'aiAttack' ? 'The AI attacks you' : 'Attackers declared';
+    const what = k === 'afterBlocks'
+      ? 'Before damage: cast instants or activate abilities now. If you sacrifice a blocker, the attacker it blocked stays blocked (no damage to you unless it has trample).'
+      : k === 'aiAttack'
+        ? "You can't block, but you can respond: cast instants or activate abilities before damage."
+        : 'Attack triggers have resolved. Before the AI blocks, you can cast instants or activate abilities.';
+    html = `<div class="combat-bar ${k === 'beforeBlocks' ? '' : 'danger'}"><span class="eyebrow">${head}</span>
+      <p>${what}</p>
+      <div class="btns"><button class="primary" data-act="combat-go">${k === 'beforeBlocks' ? 'Continue to blocks' : 'Deal damage'} <kbd>Enter</kbd></button></div></div>`;
   } else if (s.combat && s.combat.by === 'p') {
     const cb = s.combat;
     if (cb.stage === 'declare') {
@@ -873,7 +884,7 @@ function renderBanner() {
     const total = cb.attackers.filter((a) => !(cb.blocks[a] || []).length).reduce((a, i) => a + Math.max(0, power(card(i))), 0);
     html = `<div class="combat-bar danger"><span class="eyebrow">The AI attacks you</span>
       <p>${cb.selected ? `Now click the attacker that <b>${esc(cardName(card(cb.selected)))}</b> should block.` : 'Click one of your untapped creatures, then the attacker it blocks. Click a blocker again to remove it.'}
-      Unblocked damage: <b>${total}</b>${total >= G.s.players.p.life ? ' — <b class="lethal">lethal</b>' : ''}.</p>
+      Unblocked damage: <b>${total}</b>${total >= G.s.players.p.life ? ' — <b class="lethal">lethal</b>' : ''}. You can also cast instants or activate abilities before you block.</p>
       <div class="btns"><button class="primary" data-act="blocks">${Object.values(cb.blocks).some((b) => b.length) ? 'Confirm blocks' : 'No blocks'} <kbd>Enter</kbd></button></div></div>`;
   } else if (run.aiBusy) {
     html = `<div class="thinking"><span class="spinner"></span>${s.active === 'p' ? 'AI is deciding whether to respond…' : 'AI is taking its turn…'}</div>`;
@@ -951,6 +962,32 @@ hooks.respond = (iid) => {
     render(); // light up the cards you can respond with
   });
 };
+// Combat windows where you get priority: after attack triggers (before blocks), and after blocks (before damage).
+// Only when you could actually do something: an instant or flash card you can afford, or an ability you can activate.
+let pendingCombat = null;
+function canActInCombat() {
+  if (canRespondNow() && G.settings.arenaMode) return true;
+  if (!G.settings.arenaMode) return true; // tabletop mode: always give the window
+  return cardsIn('p', 'battlefield').some((c) => activatedAbilities(c).some((ab) => {
+    if (ab.kind !== 'ability' || ab.sorcery) return false;
+    if (/^Add\b/.test(ab.text || '')) return false;
+    if (ab.tap && (c.tapped || (isCreature(c) && c.sick && !hasKw(c, 'haste')))) return false;
+    return !ab.mana || !!payCost(ab.mana.replace(/\{X\}/g, ''), manaSources('p', { ability: true }).filter((m) => m.iid !== c.iid || !ab.tap));
+  }));
+}
+hooks.combatWindow = (kind) => {
+  if (aiSlaved() || !canActInCombat()) return Promise.resolve();
+  return new Promise((r) => {
+    pendingCombat = { kind, resolve: r };
+    render();
+  });
+};
+function endCombatWindow() {
+  const p = pendingCombat;
+  pendingCombat = null;
+  if (p) p.resolve();
+  render();
+}
 hooks.askBlocks = () =>
   new Promise((r) => {
     pendingBlocks = r;
@@ -1387,7 +1424,7 @@ function confirmDialog(text, yes, no) {
 function canActNow() {
   if (G.s.phase !== 'play') return false;
   if (!run.aiBusy) return true;
-  return !!(pendingRespond || pendingBlocks);
+  return !!(pendingRespond || pendingBlocks || pendingCombat);
 }
 
 // Pay a mana cost with your mana pool, untapped lands, rocks and dorks (and convoke/delve/improvise
@@ -1503,7 +1540,7 @@ async function castByPlayer(iid, opts = {}) {
 // Cards that glow while the AI waits on you: things you can cast right now and afford.
 function respondable(c) {
   if (!G.settings.arenaMode || !G.s || c.owner !== 'p' || !['hand', 'command', 'graveyard', 'exile'].includes(c.zone)) return false;
-  if (!(pendingRespond || pendingBlocks)) return false;
+  if (!(pendingRespond || pendingBlocks || pendingCombat)) return false;
   return castOptions('p', c).some((o) => timingOk('p', c, o) && affordable(c, o));
 }
 function affordable(c, o) {
@@ -2520,6 +2557,7 @@ export function bindEvents() {
     }
     if (a === 'damage') return act(() => resolvePlayerCombat());
     if (a === 'blocks') return confirmBlocks();
+    if (a === 'combat-go') return endCombatWindow();
     if (a === 'shuffle-close') {
       act(() => {
         shuffle('p');
@@ -2700,6 +2738,7 @@ function onKey(e) {
       return r('resolve');
     }
     if (pendingBlocks) return confirmBlocks();
+    if (pendingCombat) return endCombatWindow();
     if (s.active === 'p' && !run.aiBusy) {
       if (e.shiftKey) return $('#btn-end').click();
       return $('#btn-next').click();

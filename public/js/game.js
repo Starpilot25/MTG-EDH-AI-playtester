@@ -415,7 +415,8 @@ export async function playerNextStep() {
   if (s.active !== 'p' || run.aiBusy) return;
   // a game saved or undone mid-way through beginning-of-combat triggers: go on to declaring attackers
   if (s.combat && s.combat.stage === 'begin' && !run.beginning) s.combat.stage = 'declare';
-  if (s.combat && (s.combat.stage === 'triggers' || s.combat.stage === 'busy' || s.combat.stage === 'begin')) return;
+  if (s.combat && s.combat.stage === 'window' && !run.inWindow) s.combat.stage = 'damage'; // reloaded mid-window
+  if (s.combat && (s.combat.stage === 'triggers' || s.combat.stage === 'busy' || s.combat.stage === 'begin' || s.combat.stage === 'window')) return;
   if (s.step === 'main1') {
     setStep('combat');
     // beginning of combat: its triggers resolve before attackers are declared
@@ -661,6 +662,18 @@ export async function confirmAttacks() {
   cb.attackers = cb.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
   await aiWindow('attackers'); // removal on an attacker, a flash blocker, a fog
   if (G.s !== s || !s.combat) return;
+  // your window after attack triggers, before blockers (pump an attacker, sacrifice something, flash in a creature…)
+  if (hooks.combatWindow) {
+    cb.stage = 'window';
+    run.inWindow = true;
+    try {
+      await hooks.combatWindow('beforeBlocks');
+    } finally {
+      run.inWindow = false;
+    }
+    if (G.s !== s || !s.combat) return;
+    cb.stage = 'triggers';
+  }
   cb.attackers = cb.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
   cb.blocks = aiChooseBlocks(cb.attackers);
   const bl = Object.entries(cb.blocks);
@@ -908,7 +921,8 @@ async function aiCombat() {
   attackers = attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
   s.combat.attackers = attackers;
   const canAnyBlock = cardsIn('p', 'battlefield').some((b) => attackers.some((a) => canBlock(b, card(a))));
-  if (canAnyBlock) await hooks.askBlocks();
+  if (canAnyBlock) await hooks.askBlocks(); // (you can also cast instants and activate abilities while choosing blocks)
+  else if (hooks.combatWindow) await hooks.combatWindow('aiAttack');
   if (G.s !== s) return;
   const cb = s.combat;
   // provoked creatures that could have blocked their provoker must
@@ -924,6 +938,9 @@ async function aiCombat() {
   await settle();
   if (G.s !== s || !s.combat) return;
   await aiInstantWindow(hooks, 'ownBlocked'); // pump an attacker or remove a blocker
+  if (G.s !== s || !s.combat) return;
+  // your window after blocks, before damage: sacrifice a blocker (the attacker stays blocked), cast a trick…
+  if (hooks.combatWindow && bl.length) await hooks.combatWindow('afterBlocks');
   if (G.s !== s || !s.combat) return;
   cb.attackers = cb.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
   applyCombat(cb.attackers, cb.blocks, 'p', cb.targets);

@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.31",
+    "title": "Combat windows: after attack triggers and after blocks",
+    "notes": [
+      "When the AI attacks and you've declared blockers, you now get a window before damage to cast instants or activate abilities. If you sacrifice a blocker there, the attacker stays blocked and deals you no damage (unless it has trample).",
+      "When you attack, after your attack triggers resolve you get a window before the AI blocks (to pump an attacker, sacrifice something, flash in a creature…). Click \"Continue to blocks\" or press Enter.",
+      "When the AI attacks and you have no creature that can block, you still get a window to respond before damage.",
+      "These windows only appear when you have something you could do (an affordable instant or flash card, or an ability you can activate), so combat isn't slowed down otherwise. In tabletop mode they always appear.",
+      "The block prompt now reminds you that you can cast instants and activate abilities before blocking."
+    ]
+  },
+  {
     "version": "1.3.30",
     "title": "See what spells and abilities are targeting",
     "notes": [
