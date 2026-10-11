@@ -4400,6 +4400,13 @@ on(/^if that permanent is destroyed this way, its controller exiles cards from t
   const yes = pid === 'ai' || (await env.choosers.p.confirm(cardName(env.src), `Cast ${cardName(hit)} without paying its mana cost?`, {}));
   if (yes && T.castFree) await T.castFree(pid, hit.iid, {});
 }, { first: true });
+// Kang Dynasty: "Until your next turn, whenever any of those creatures deals combat damage to a player, draw a card."
+on(/^until your next turn, whenever (?:any of those creatures|that creature|those creatures) deals? combat damage to a player, (draw a card|you draw a card)$/, async (m, env) => {
+  const objs = (await objects(env, 'those creatures')).filter((c) => c && c.zone === 'battlefield');
+  const until = G.s.turn + (G.s.active === env.me ? 2 : 1);
+  for (const c of objs) c.dmgDraw = [...(c.dmgDraw || []), { pid: env.me, src: env.src && env.src.iid, until, text: 'Draw a card.' }];
+  if (objs.length) env.did.push(`until ${env.me === 'p' ? 'your' : "the AI's"} next turn, ${who(env.me)} ${s_(env.me, 'draw')} a card whenever ${objs.map(nameTag).join(' or ')} deals combat damage to a player`);
+}, { first: true });
 // Syphon Mind (two players: "each other player" is your opponent)
 on(/^each other player (.+)$/, async (m, env) => runSentence(`each opponent ${m[1]}`, env));
 // Baral's Expertise / Electrodominance: "You may cast a spell with mana value 4 (X) or less from your hand without paying its mana cost."

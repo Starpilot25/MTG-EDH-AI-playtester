@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.33",
+    "title": "Kang Dynasty and Puppet Master",
+    "notes": [
+      "Kang Dynasty: after chapters I and II tap and goad a creature, you draw a card whenever that creature deals combat damage to a player, until your next turn.",
+      "Puppet Master, String Puller: its second ability now works. You get a Treasure whenever goaded creatures deal combat damage to your opponent. In a two-player game that happens when your own creatures are goaded (for example by the AI's Kang Dynasty)."
+    ]
+  },
+  {
     "version": "1.3.32",
     "title": "Two new precons, smarter AI threat reads, and fixes",
     "notes": [

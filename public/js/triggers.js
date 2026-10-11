@@ -299,6 +299,9 @@ export function triggersOf(c, defOverride) {
       add('cast', m[2], { spell: m[1].toLowerCase(), mine: true });
     else if ((m = line.match(/^Whenever you cast your (first|second) ((?:[A-Za-z]+, )+or [A-Za-z]+) spell each turn, (.+)$/i)))
       add('cast', m[3], { spell: m[2].toLowerCase(), mine: true, first: /first/i.test(m[1]), second: /second/i.test(m[1]) });
+    // Puppet Master, String Puller
+    else if ((m = line.match(/^Whenever one or more goaded creatures deal combat damage to (?:one of your opponents|an opponent), (.+)$/i)))
+      add('goadedDamage', m[1]);
     else if ((m = line.match(/^When(?:ever)? an opponent casts their second spell each turn, (.+)$/i)))
       add('cast', m[1], { spell: '', theirs: true, second: true });
     else if ((m = line.match(/^When(?:ever)? an opponent casts (?:a|an|their first) ([^,]*?)spell[^,]*, (.+)$/i)))
@@ -936,7 +939,15 @@ function matches(ev) {
         });
       break;
     }
-    case 'combatDamagePlayer':
+    case 'combatDamagePlayer': {
+      // Kang Dynasty: "Until your next turn, whenever any of those creatures deals combat damage to a player, draw a card."
+      const hitter = card(ev.iid);
+      for (const e of (hitter && hitter.dmgDraw) || []) {
+        if (G.s.turn >= e.until) continue;
+        const src = card(e.src) || hitter;
+        out.push({ src, controller: e.pid, trig: { event: 'combatDamagePlayer', text: e.text || 'Draw a card.', raw: `dmgDraw:${e.src}`, optional: false } });
+      }
+    }
       each((c, trig) => {
         if (trig.event !== 'combatDamagePlayer') return;
         const atk = card(ev.iid);
@@ -954,6 +965,11 @@ function matches(ev) {
       }
       break;
     case 'combatDamageOnce':
+      each((c, trig) => {
+        if (trig.event !== 'goadedDamage' || ev.player === c.controller) return;
+        const goaded = (ev.sources || []).filter((x) => { const a = card(x.iid); return a && a.goaded && (!a.goaded.until || G.s.turn < a.goaded.until); });
+        if (goaded.length) out.push({ src: c, trig, thatPlayer: ev.player, them: goaded.map((x) => x.iid) });
+      });
       each((c, trig) => {
         if (trig.event !== 'combatDamagedMe' || ev.player !== c.controller) return;
         if (trig.monarch && G.s.monarch !== c.controller) return;
