@@ -4,7 +4,7 @@
 // "at the beginning of the next end step" clean-ups (dash, blitz, unearth, warp, mobilize…).
 import { DB } from './data.js';
 import {
-  oracle, hasSubtype, isCreature, hasKw, power, toughness, combatDamage, canBlock, isLand, isType, kwCost, canAttack, mustAttack, face, parseCost,
+  oracle, hasSubtype, isCreature, hasKw, power, toughness, combatDamage, canBlock, isLand, isType, kwCost, canAttack, mustAttack, face, parseCost, typeLine,
 } from './rules.js';
 import {
   G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, aiSlaved, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
@@ -97,6 +97,7 @@ export async function beginTurn(pid) {
   s.landsPlayed = 0;
   s.extraLandThisTurn = 0;
   s.combat = null;
+  s.lastTs = s.ts; // "if you lost life last turn"
   s.ts = freshTurnStats();
   log('turn', `${pid === 'p' ? 'Your turn' : "AI's turn"} ${s.turns[pid]} (round ${Math.ceil(s.turn / 2)})${s.extraTurnNow ? ' (extra turn)' : ''}`);
   s.inExtraTurn = !!s.extraTurnNow;
@@ -382,7 +383,7 @@ function cleanupStep() {
     if (c.goaded && c.goaded.until && c.goaded.until <= s.turn) delete c.goaded;
   }
   cleanupDamage();
-  emptyPools();
+  emptyPools(true);
 }
 
 // Who takes the next turn (extra turns first).
@@ -745,7 +746,10 @@ async function endCombat(pid) {
 
 function fireAttacks(attackers, controller, defender) {
   const targets = (G.s.combat && G.s.combat.targets) || {};
-  for (const iid of attackers) fire({ type: 'attacks', iid, controller, defender, target: targets[iid] || defender });
+  for (const iid of attackers) {
+    if (card(iid)) card(iid).attackedTurn = G.s.turn;
+    fire({ type: 'attacks', iid, controller, defender, target: targets[iid] || defender });
+  }
   if (attackers.length === 1) fire({ type: 'attacksAlone', iid: attackers[0], controller, defender });
   if (attackers.length) fire({ type: 'youAttack', controller, defender });
 }
@@ -755,6 +759,7 @@ function fireBlocks(cb, defender) {
     const bl = (cb.blocks[iid] || []).filter((b) => card(b));
     if (bl.length) {
       fire({ type: 'blocked', iid, blockers: bl, defender });
+      for (const b of bl) if (card(b)) card(b).blockedTurn = G.s.turn;
       for (const b of bl) {
         card(b).blocking = true;
         fire({ type: 'blocks', iid: b, attacker: iid, defender: opp(defender) });
@@ -806,6 +811,12 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     s.ts[ev.controller].damagedOpp = true;
     if (ev.amount > 0) {
       fire({ type: 'combatDamagePlayer', iid: ev.from, controller: ev.controller, player: victim, amount: ev.amount });
+      if (G.s.ts[victim]) {
+        G.s.ts[victim].dmgTaken = (G.s.ts[victim].dmgTaken || 0) + ev.amount;
+        G.s.ts[victim].combatDmgTaken = true;
+        if (card(ev.from)) (G.s.ts[victim].combatDmgFromTypes = G.s.ts[victim].combatDmgFromTypes || []).push(typeLine(card(ev.from)));
+      }
+      if (card(ev.from)) card(ev.from).dmgPlayerTurn = G.s.turn;
       // toxic N / poisonous N: extra poison on top of the damage
       const o = oracle(src);
       const tox = o.match(/\bToxic (\d+)/i);

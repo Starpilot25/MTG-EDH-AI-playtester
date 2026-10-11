@@ -42,6 +42,11 @@ export function manaSources(pid, opts = {}) {
     } else if (m.onlyFor === 'fromExile') {
       if (!spell || spell.zone !== 'exile' || opts.ability) continue;
     } else if (m.onlyFor) {
+      // Orb of Dragonkind: "… or activate abilities of Dragons"
+      if (opts.ability && m.abilitiesOf && spell && spell.zone === 'battlefield' && hasSubtype(spell, m.abilitiesOf)) {
+        out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, activation: m.activation || 0 });
+        continue;
+      }
       if (!spell || spell.zone === 'battlefield' || opts.ability) continue;
       const tl = DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine;
       const ok = /^[A-Z]/.test(m.onlyFor) ? hasSubtype({ ...spell, zone: 'hand' }, m.onlyFor) : m.onlyFor === 'noncreature' ? !/Creature/.test(tl) : new RegExp(m.onlyFor.split(' or ').join('|'), 'i').test(tl);
@@ -77,6 +82,10 @@ export function applyPayment(pid, pay) {
     else if (card(sp.iid)) card(sp.iid).tapped = true;
   }
   if (usedPool.length && G.s.pool) G.s.pool[pid] = G.s.pool[pid].filter((_, k) => !usedPool.includes(k));
+  // Rain of Riches: remember that mana from a Treasure went into this payment
+  const tp = G.s.treasurePool;
+  if (usedPool.length && tp && tp.pid === pid && tp.turn === G.s.turn) G.s.treasureSpent = { pid, turn: G.s.turn };
+  if ((pay.sacs || []).some((iid) => card(iid) && hasSubtype(card(iid), 'Treasure'))) G.s.treasureSpent = { pid, turn: G.s.turn };
   for (const iid of pay.sacs || []) if (card(iid) && card(iid).zone === 'battlefield') sacrifice(iid);
   // pain lands and friends: 1 damage (or life) for each colored mana they made
   const hurt = (pay.pains || []).filter((i) => card(i));
@@ -87,7 +96,7 @@ export function applyPayment(pid, pay) {
 }
 
 export { anyColorCost };
-export function emptyPools() {
+export function emptyPools(endOfTurn = false) {
   if (!G.s || !G.s.pool) return;
   const next = { p: [], ai: [] };
   for (const pid of ['p', 'ai']) {
@@ -97,9 +106,27 @@ export function emptyPools() {
     // Upwelling, Kruphix, Omnath, Horizon Stone…
     if (cardsIn('p', 'battlefield').concat(cardsIn('ai', 'battlefield')).some((x) => /Players don't lose unspent mana as steps and phases end/i.test(oracle(x)))) next[pid] = left;
     else if (field.some((o) => /If you would lose unspent (?:green )?mana, that mana becomes colorless instead/i.test(o))) next[pid] = left.map(() => 'C');
-    else if (pid === 'p') log('p', `Unused mana empties from your pool (${left.length}).`);
+    else {
+      // Photon: "Until end of turn, you don't lose this mana as steps and phases end"
+      const k = G.s.keepMana && G.s.keepMana[pid];
+      const kept = [];
+      if (k && k.turn === G.s.turn && !endOfTurn) {
+        const want = [...k.list];
+        for (const sym of left) {
+          const j = want.indexOf(sym);
+          if (j >= 0) {
+            kept.push(sym);
+            want.splice(j, 1);
+          }
+        }
+        k.list = kept.slice();
+      }
+      next[pid] = kept;
+      if (pid === 'p' && left.length > kept.length) log('p', `Unused mana empties from your pool (${left.length - kept.length}).`);
+    }
   }
   G.s.pool = next;
+  if (!next.p.length && !next.ai.length) G.s.treasurePool = null;
 }
 
 // ------------------------------------------------------------ ways to cast a card
@@ -512,6 +539,19 @@ export async function castSpell(pid, iid, opt, env) {
     }
   }
   let cascades = (oracle({ ...c, face: fIdx }).replace(/\([^)]*\)/g, '').match(/(?:^|\n|, )cascade\b/gi) || []).length;
+  // Rain of Riches: "The first spell you cast each turn that mana from a Treasure was spent to cast has cascade."
+  if (!opt.copy) {
+    const usedTreasure = s.treasureSpent && s.treasureSpent.pid === pid && s.treasureSpent.turn === s.turn;
+    s.treasureSpent = null;
+    if (usedTreasure && !ts.rainCascade) {
+      const rains = cardsIn(pid, 'battlefield').filter((x) => /The first spell you cast each turn that mana from a Treasure was spent to cast has cascade/i.test(oracle(x)));
+      if (rains.length) {
+        ts.rainCascade = true;
+        cascades += rains.length;
+        log(pid, `${nameTag(rains[0])}: ${nameTag(c)} has cascade (Treasure mana was spent on it).`);
+      }
+    }
+  }
   // --- responses
   let countered = false;
   // Jace, Unraveler of Secrets emblem: "Whenever an opponent casts their first spell each turn, counter that spell."

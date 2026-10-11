@@ -772,6 +772,14 @@ function manaAbilityRaw(inst) {
     if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
     return cols.length ? { colors: cols, amount: 1 } : null;
   }
+  // Orb of Dragonkind: "{1}, {T}: Add two mana in any combination of colors. Spend this mana only to cast Dragon spells or activate abilities of Dragons."
+  {
+    const om = o.match(/(?:^|\n)\{(\d)\}, \{T\}: Add (two|three) mana in any combination of colors\. Spend this mana only to cast ([A-Z][\w-]+) spells( or activate abilities of \3s)?\./);
+    if (om) {
+      if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
+      return { colors: ['W', 'U', 'B', 'R', 'G'], amount: om[2] === 'three' ? 3 : 2, activation: +om[1], onlyFor: om[3], ...(om[4] ? { abilitiesOf: om[3] } : {}) };
+    }
+  }
   // Interdimensional Web Watch: "{T}: Add two mana in any combination of colors. Spend this mana only to cast spells from exile."
   {
     const am = o.match(/(?:^|\n)\{T\}: Add (two|three) mana in any combination of colors\.(?: Spend this mana only to cast spells from exile\.)?/);

@@ -11,7 +11,7 @@ import {
  casualAI, withReadCache, handControl } from './state.js';
 import {
   spellFilterOk, analyze, etbText, spellText, costOf, legalTargets, activatedAbilities, aiHelpers, knownEffect, zoneAbilities, understood, matchesFilter,
-  Cancelled,
+  Cancelled, _wardCost, _wardPayableNow,
 } from './effects.js';
 import { fire, settle } from './triggers.js';
 import { maxHandSize } from './statics.js';
@@ -67,8 +67,25 @@ export async function aiPay(pid, cost, label, opts = {}) {
 }
 
 // ------------------------------------------------------------ the AI's choices
+// Ward: can the AI pay it on top of what it's casting? (spare = mana left after the spell)
+let curWardSpare = Infinity;
+export function wardAffordable(t, spare = curWardSpare, who = AI) {
+  if (!t || t.controller === who) return true;
+  const w = _wardCost(t);
+  if (!w) return true;
+  if (w.n !== undefined) return spare >= w.n;
+  if (w.life !== undefined) return G.s.players[who].life > w.life + 5;
+  if (w.other) {
+    // "{2}, Pay 3 life": the mana has to fit in what's left over too
+    const mana = (w.other.match(/\{(\d+)\}/g) || []).reduce((a, x) => a + +x.slice(1, -1), 0);
+    if (mana && !/ or /i.test(w.other) && spare < mana) return false;
+    if (/poison|sacrifice (?:two|three)/i.test(w.other)) return false;
+    return _wardPayableNow(who, t);
+  }
+  return true;
+}
 function bestTarget(pid, phrase, pred = () => true) {
-  const list = legalTargets(phrase, AI).filter((c) => c.controller === pid && pred(c));
+  const list = legalTargets(phrase, AI).filter((c) => c.controller === pid && pred(c) && wardAffordable(c));
   list.sort((a, b) => threat(b) - threat(a));
   return list[0] || null;
 }
@@ -365,6 +382,15 @@ function scoreLandForColors(c, want) {
 
 // ------------------------------------------------------------ choosing spells
 function scoreSpell(c, pay, opt = {}) {
+  const was = curWardSpare;
+  curWardSpare = totalMana(sources(AI)) - ((pay && pay.payers ? pay.payers.length : 0) + (pay && pay.special ? pay.special.length : 0));
+  try {
+    return scoreSpellRaw(c, pay, opt);
+  } finally {
+    curWardSpare = was;
+  }
+}
+function scoreSpellRaw(c, pay, opt = {}) {
   const d = DB[c.def];
   const f = d.faces[opt.face || 0] || d.faces[0];
   const turn = G.s.turn;
@@ -593,7 +619,9 @@ function planMain(post) {
   const now = all.filter((o) => {
     if (o.role === 'counter' || o.role === 'fog' || o.role === 'trick') return false;
     if (o.role === 'removal') {
+      curWardSpare = o.spare;
       const t = o.a.removal ? bestTarget(P, o.a.removal.phrase) : o.a.bounce ? bestTarget(P, o.a.bounce.phrase) : null;
+      curWardSpare = Infinity;
       return (t && threat(t) >= 7) || (post && G.s.turn > 8 && o.score > 6);
     }
     if (o.role === 'flash' || o.role === 'value') return false; // cast at the end of the opponent's turn instead
@@ -1005,7 +1033,7 @@ function chooseInstant(kind) {
   const removalTargets = (o) => {
     const phrase = o.a.removal ? o.a.removal.phrase : o.a.bounce ? o.a.bounce.phrase : o.a.burn && /creature|any target/.test(o.a.burn.to) ? 'creature' : null;
     if (!phrase) return [];
-    let list = legalTargets(phrase, AI).filter((c) => c.controller === P);
+    let list = legalTargets(phrase, AI).filter((c) => c.controller === P && wardAffordable(c, o.spare));
     if (o.a.burn && !o.a.removal) list = list.filter((c) => isCreature(c) && toughness(c) - (c.damage || 0) <= o.a.burn.amount && !hasKw(c, 'indestructible'));
     if (o.a.removal && o.a.removal.verb === 'destroy') list = list.filter((c) => !hasKw(c, 'indestructible'));
     return list;

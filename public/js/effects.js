@@ -4,12 +4,12 @@
 import { DB } from './data.js';
 import {
   hasSubtype, isLand, isCreature, isType, oracle, hasKw, power, toughness, cardValue, face, typeLine, colorsOf,
-  isProtectedFrom, SECTORS, SECTOR_SIGN, kwCost, payCost, manaValueOf, isPermanentCard, manaAbility, basePT,
+  isProtectedFrom, SECTORS, SECTOR_SIGN, kwCost, payCost, manaValueOf, isPermanentCard, manaAbility, basePT, grantsOf,
 } from './rules.js';
 import {
   G, card, cardsIn as cardsInZone, zoneOf as zoneOfRaw, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef, namedTokenDef,
   stateBased, shuffle, cardName, opp, addCounters, loseAllAbilities, nextStamp, destroy, sacrifice, discard as discardCard, mill as millCards,
-  libTop, queueEvent, winGame, loseGame, esc, makeCard, ringLevel,
+  libTop, queueEvent, winGame, loseGame, esc, makeCard, ringLevel, aiSlaved,
 } from './state.js';
 // A spell being cast stays in its zone until it resolves; effects must not see it in the hand
 // (Brainsurge can't put itself back, Windfall doesn't shuffle itself away, "cards in hand" counts exclude it).
@@ -21,6 +21,20 @@ export function bindTriggerHooks(t) {
 import('./triggers.js').then((m) => {
   T = m.T;
 }).catch(() => {});
+let castMod = null;
+import('./cast.js').then((m) => {
+  castMod = m;
+}).catch(() => {});
+// Ward: could this player pay the ward cost right now? (so the AI doesn't target into a ward it can't pay)
+function wardPayableNow(pid, t) {
+  const w = wardCost(t);
+  if (!w) return true;
+  if (w.n !== undefined) return !castMod || !!payCost(`{${w.n}}`, castMod.manaSources(pid));
+  if (w.life !== undefined) return G.s.players[pid].life > w.life + 5;
+  if (w.other) return w.other.split(/ or (?=pay |discard |sacrifice |\{)/i).some((x) => wardPartsPayable(pid, t, x));
+  return true;
+}
+export const _wardPayableNow = wardPayableNow;
 const onStackIid = (i) => !!(G.s && ((G.s.stack && G.s.stack.iid === i) || (G.s.pstack && G.s.pstack.iid === i) || (G.s.resolving || []).includes(i)));
 function cardsIn(pid, z) {
   const out = cardsInZone(pid, z);
@@ -514,6 +528,171 @@ export function isModified(c) {
   if (Object.values(c.counters || {}).some((k) => k > 0)) return true;
   return Object.values(G.s.cards).some((a) => a.attachedTo === c.iid && a.zone === 'battlefield' && (/Equipment/.test(typeLine(a)) || (/Aura/.test(typeLine(a)) && a.controller === c.controller)));
 }
+// "At the beginning of …, if …" conditions about the turn so far, players' hands and life, counters on this permanent…
+function turnHistoryCond(c, env) {
+  const s = G.s;
+  const me = env.me;
+  const them = opp(me);
+  const ts = s.ts || {};
+  const my = ts[me] || {};
+  const last = (s.lastTs || {})[me] || {};
+  const lastThem = (s.lastTs || {})[them] || {};
+  const src = env.src && card(env.src.iid) ? card(env.src.iid) : env.src;
+  const tp = env.thatPlayer || (env.it && env.it.player) || them;
+  const handOf = (pid) => cardsIn(pid, 'hand').length;
+  const cmpN = (have, op, k) => (op === 'or more' || op === 'or greater' ? have >= k : op === 'or fewer' || op === 'or less' ? have <= k : op === 'exactly' ? have === k : op === 'fewer than' ? have < k : op === 'more than' ? have > k : have >= k);
+  const who = (w) => (/^(?:you|your)$/.test(w) ? me : /^that player|^they$/.test(w) ? tp : them);
+  const entered = (pid, f) => ((ts[pid] || {}).entered || []).filter((e) => f(e));
+  let m;
+  // descend / leaving / entering this turn
+  if (/^you descended this turn$/.test(c)) return (my.descended || 0) > 0;
+  if (/^a permanent left the battlefield under your control this turn$/.test(c)) return !!my.permLeft;
+  if (/^no permanents left the battlefield this turn$/.test(c)) return !(ts.p || {}).permLeft && !(ts.ai || {}).permLeft;
+  if ((m = c.match(/^(\w+) or more (nonland permanents|artifacts|creatures|permanents|lands) entered(?: the battlefield)? under your control this turn$/))) {
+    const k = n(m[1]);
+    const f = { 'nonland permanents': (e) => !/\bLand\b/.test(e.types), artifacts: (e) => /Artifact/.test(e.types), creatures: (e) => /Creature/.test(e.types), permanents: () => true, lands: (e) => /\bLand\b/.test(e.types) }[m[2]];
+    return entered(me, f).length >= k;
+  }
+  if ((m = c.match(/^(?:a|an|another) (face-down creature|planeswalker|artifact|creature|land|[a-z]+) entered(?: the battlefield)? under your control this turn$/))) {
+    const other = /^another/.test(c);
+    return entered(me, (e) => (!other || e.iid !== (src || {}).iid) && (m[1] === 'face-down creature' ? e.faceDown : new RegExp('\\b' + m[1], 'i').test(e.types))).length > 0;
+  }
+  if (/^you had a land enter the battlefield under your control this turn$/.test(c)) return entered(me, (e) => /\bLand\b/.test(e.types)).length > 0;
+  if (/^you had another creature enter the battlefield under your control last turn$/.test(c)) return ((last.entered || []).filter((e) => /Creature/.test(e.types)).length) > 0;
+  if (/^you created a token this turn$/.test(c)) return entered(me, (e) => e.token).length > 0;
+  if (/^(?:a|one or more) cards? left your graveyard this turn$/.test(c)) return (my.cardsLeftGy || 0) > 0;
+  if (/^a creature card left your graveyard this turn$/.test(c)) return !!my.creatureLeftGy;
+  if ((m = c.match(/^(\w+) or more cards were put into your graveyard (?:this turn from anywhere|from anywhere this turn)$/))) return (my.toGy || 0) >= n(m[1]);
+  if ((m = c.match(/^(\w+) or more cards were put into your graveyard from anywhere other than the battlefield this turn$/))) return (my.toGyNotBf || 0) >= n(m[1]);
+  if (/^a creature card was put into your graveyard from anywhere this turn$/.test(c)) return !!my.creatureToGy;
+  if (/^an artifact or creature was put into a graveyard from the battlefield this turn$/.test(c)) return !!ts.artOrCreatureToGy;
+  if (/^an enchantment was put into your graveyard from the battlefield this turn$/.test(c)) return !!my.enchantmentToGy;
+  if (/^a land you controlled was put into your graveyard from the battlefield this turn$/.test(c)) return !!my.landToGy;
+  if (/^a permanent was put into your hand from the battlefield this turn$/.test(c)) return !!my.bouncedToHand;
+  if (/^one or more cards were put into exile this turn$/.test(c)) return !!ts.exiledAny;
+  // deaths
+  if (/^no creatures died this turn$/.test(c)) return !ts.creatureDied;
+  if ((m = c.match(/^(\w+) or more creatures died under your control this turn$/))) return ((my.diedTypes || []).length) >= n(m[1]);
+  if (/^a creature died under an opponent's control this turn$/.test(c)) return !!(((ts[them] || {}).diedTypes || []).length);
+  if ((m = c.match(/^another ([a-z]+) died under your control this turn$/))) return (my.diedTypes || []).some((t) => new RegExp('\\b' + m[1], 'i').test(t));
+  // sacrifices, discards, cycling
+  if (/^you sacrificed (?:a permanent|one or more permanents) this turn$/.test(c)) return (my.sacrificed || 0) > 0;
+  if ((m = c.match(/^you sacrificed (\w+) or more ([a-z]+?)s? this turn$/))) return (my.sacTypes || []).filter((t) => new RegExp('\\b' + m[2], 'i').test(t)).length >= n(m[1]);
+  if ((m = c.match(/^you sacrificed an? ([a-z]+) this turn$/))) return (my.sacTypes || []).some((t) => new RegExp('\\b' + m[1], 'i').test(t));
+  if (/^you discarded a card this turn$/.test(c)) return (my.discarded || []).length > 0;
+  if (/^an opponent discarded a card this turn$/.test(c)) return ((ts[them] || {}).discarded || []).length > 0;
+  if (/^a player discarded a card this turn$/.test(c)) return ((ts.p || {}).discarded || []).length + ((ts.ai || {}).discarded || []).length > 0;
+  // life and damage
+  if (/^you gained or lost life this turn$/.test(c)) return (my.lifeGained || 0) > 0 || (my.lifeLost || 0) > 0;
+  if (/^you gained and lost life this turn$/.test(c)) return (my.lifeGained || 0) > 0 && (my.lifeLost || 0) > 0;
+  if (/^you didn't lose life this turn$/.test(c)) return !(my.lifeLost > 0);
+  if ((m = c.match(/^you lost (\w+) or more life this turn$/))) return (my.lifeLost || 0) >= n(m[1]);
+  if ((m = c.match(/^a player lost (\w+) or more life this turn$/))) return Math.max((ts.p || {}).lifeLost || 0, (ts.ai || {}).lifeLost || 0) >= n(m[1]);
+  if (/^you lost life last turn$/.test(c)) return (last.lifeLost || 0) > 0;
+  if (/^an opponent lost life last turn$/.test(c)) return (lastThem.lifeLost || 0) > 0;
+  if ((m = c.match(/^you(?: were|'ve been) dealt (\w+) or more damage this turn$/))) return (my.dmgTaken || 0) >= n(m[1]);
+  if ((m = c.match(/^an opponent was dealt (\w+) or more damage this turn$/))) return ((ts[them] || {}).dmgTaken || 0) >= n(m[1]);
+  if (/^an opponent was dealt noncombat damage last turn$/.test(c)) return !!lastThem.noncombatDmgTaken;
+  if ((m = c.match(/^a player was dealt combat damage by an? ([a-z]+) this turn$/))) return [...((ts.p || {}).combatDmgFromTypes || []), ...((ts.ai || {}).combatDmgFromTypes || [])].some((t) => new RegExp('\\b' + m[1], 'i').test(t));
+  if ((m = c.match(/^you have exactly (\w+) life$/))) return s.players[me].life === n(m[1]);
+  if ((m = c.match(/^(?:that player|an opponent) has (\w+) or less life$/))) return s.players[/^that/.test(c) ? tp : them].life <= n(m[1]);
+  if ((m = c.match(/^each player has (\w+) or less life$/))) return s.players.p.life <= n(m[1]) && s.players.ai.life <= n(m[1]);
+  if (/^you have more life than an opponent$/.test(c)) return s.players[me].life > s.players[them].life;
+  if (/^a player has more life than each other player$/.test(c)) return s.players.p.life !== s.players.ai.life;
+  if (/^that player has less than half their starting life total$/.test(c)) return s.players[tp].life < (G.settings.startingLife || 40) / 2;
+  // spells and draws this turn
+  if (/^you didn't cast a spell this turn$/.test(c)) return !(my.spells > 0);
+  if (/^(?:that player|they) didn't cast a spell this turn$/.test(c)) return !((ts[tp] || {}).spells > 0);
+  if ((m = c.match(/^they cast (\w+) or more spells this turn$/))) return ((ts[tp] || {}).spells || 0) >= n(m[1]);
+  if (/^that player didn't cast a creature spell this turn$/.test(c)) return !(((ts[tp] || {}).spells || 0) > ((ts[tp] || {}).noncreatureSpells || 0));
+  if (/^you've cast both a creature spell and a noncreature spell this turn$/.test(c)) return (my.noncreatureSpells || 0) > 0 && (my.spells || 0) > (my.noncreatureSpells || 0);
+  if (/^you've cast an instant or sorcery spell this turn$/.test(c)) return (my.instantSorcery || 0) > 0 || (my.noncreatureSpells || 0) > 0;
+  if ((m = c.match(/^you've cast (\w+) or more instant and sorcery spells this turn$/))) return (my.instantSorcery || my.noncreatureSpells || 0) >= n(m[1]);
+  if ((m = c.match(/^you(?:'ve)? drawn? (\w+) or more cards this turn$/)) || (m = c.match(/^you drew (\w+) or more cards this turn$/))) return (my.drawn || 0) >= n(m[1]);
+  if (/^you've drawn more than one card this turn$/.test(c)) return (my.drawn || 0) > 1;
+  if (/^you drew a card last turn$/.test(c)) return (last.drawn || 0) > 0;
+  if (/^you didn't play a land this turn$/.test(c)) return !(my.landsPlayed > 0) && !s.landPlayed;
+  // attacking
+  if (/^you didn't attack with a creature this turn$/.test(c)) return !my.attacked;
+  if (/^no creatures attacked this turn$/.test(c)) return !(ts.p || {}).attacked && !(ts.ai || {}).attacked;
+  if (/^(?:~|it) didn't attack this turn$/.test(c)) return !(src && src.attackedTurn === s.turn);
+  if (/^(?:~|it) attacked this turn$/.test(c)) return !!(src && src.attackedTurn === s.turn);
+  if (/^(?:~|it) attacked or blocked this turn$/.test(c)) return !!(src && (src.attackedTurn === s.turn || src.blockedTurn === s.turn));
+  if (/^(?:~|it) didn't attack or come under your control this turn$/.test(c)) return !!(src && src.attackedTurn !== s.turn && src.enteredTurn !== s.turn);
+  if (/^(?:~|it) dealt damage to an opponent this turn$/.test(c)) return !!(src && src.dmgPlayerTurn === s.turn);
+  if (/^(?:~|it) (?:entered|entered the battlefield) this turn$/.test(c)) return !!(src && src.enteredTurn === s.turn);
+  if (/^(?:~|it) didn't enter the battlefield this turn$/.test(c)) return !(src && src.enteredTurn === s.turn);
+  if (/^(?:a counter was put on ~|you put a counter on ~) this turn$/.test(c)) return !!(src && src.counterTurn === s.turn);
+  // counters on this permanent
+  if ((m = c.match(/^there (?:are|is) (\w+) or more ([a-z+\/0-9-]+) counters? on ~$/))) return ((src && src.counters) || {})[m[2]] >= n(m[1]);
+  if ((m = c.match(/^there are one or more ([a-z+\/0-9-]+) counters on ~$/))) return ((src && src.counters) || {})[m[1]] > 0;
+  if ((m = c.match(/^there are no ([a-z+\/0-9-]+) counters on ~$/)) || (m = c.match(/^~ has no ([a-z+\/0-9-]+) counters on it$/))) return !(((src && src.counters) || {})[m[1]] > 0);
+  if ((m = c.match(/^~ has an? ([a-z+\/0-9-]+) counter on it$/))) return ((src && src.counters) || {})[m[1]] > 0;
+  if ((m = c.match(/^~ doesn't have an? ([a-z+\/0-9-]+) counter on it$/))) return !(((src && src.counters) || {})[m[1]] > 0);
+  if ((m = c.match(/^~ has (\w+) or fewer ([a-z+\/0-9-]+) counters on it$/))) return (((src && src.counters) || {})[m[2]] || 0) <= n(m[1]);
+  if (/^~ has counters on it$/.test(c)) return Object.values((src && src.counters) || {}).some((v) => v > 0);
+  // this permanent's state
+  if (/^~ is equipped$/.test(c)) return !!src && Object.values(s.cards).some((x) => x.zone === 'battlefield' && x.attachedTo === src.iid && /Equipment/.test(typeLine(x)));
+  if (/^~ is enchanted$/.test(c)) return !!src && Object.values(s.cards).some((x) => x.zone === 'battlefield' && x.attachedTo === src.iid && /Aura/.test(typeLine(x)));
+  if ((m = c.match(/^~ is enchanted by (\w+) or more auras$/))) return !!src && Object.values(s.cards).filter((x) => x.zone === 'battlefield' && x.attachedTo === src.iid && /Aura/.test(typeLine(x))).length >= n(m[1]);
+  if (/^~ isn't prepared$/.test(c)) return !(src && src.prepared);
+  if (/^~ is on the battlefield$/.test(c)) return !!(src && src.zone === 'battlefield');
+  if (/^you both own and control ~$/.test(c)) return !!(src && src.owner === me && src.controller === me && src.zone === 'battlefield');
+  if (/^enchanted creature is untapped$/.test(c)) { const h = src && src.attachedTo && card(src.attachedTo); return !!h && !h.tapped; }
+  if ((m = c.match(/^enchanted creature's power is (\w+) or greater$/))) { const h = src && src.attachedTo && card(src.attachedTo); return !!h && power(h) >= n(m[1]); }
+  // hands, libraries, graveyards
+  if ((m = c.match(/^(you|that player|an opponent) (?:has|have) (no|one or fewer|exactly \w+|\w+ or (?:more|fewer|less)|fewer than \w+|more than \w+|a) cards? in (?:your |their |his or her )?hand$/))) {
+    const pid = who(m[1].split(' ')[0] === 'that' ? 'that player' : m[1]);
+    const h = handOf(pid);
+    const q = m[2];
+    if (q === 'no') return h === 0;
+    if (q === 'a') return h > 0;
+    if (q === 'one or fewer') return h <= 1;
+    const qm = q.match(/^(exactly|fewer than|more than)? ?(\w+)(?: (or more|or fewer|or less))?$/);
+    return qm ? cmpN(h, qm[1] || qm[3], n(qm[2])) : null;
+  }
+  if ((m = c.match(/^(?:a player|that player) has one or fewer cards in hand$/))) return Math.min(handOf('p'), handOf('ai')) <= 1;
+  if (/^an opponent has no cards in hand$/.test(c)) return handOf(them) === 0;
+  if (/^a player has more cards in hand than each other player$/.test(c)) return handOf('p') !== handOf('ai');
+  if ((m = c.match(/^you have (\w+) or more cards in your library$/))) return cardsIn(me, 'library').length >= n(m[1]);
+  if ((m = c.match(/^(?:you have )?(\w+) or more (creature )?cards are in your graveyard$/)) || (m = c.match(/^you have (\w+) or more (creature )?cards in your graveyard$/))) return cardsIn(me, 'graveyard').filter((x) => !m[2] || /Creature/.test(DB[x.def].typeLine || '')).length >= n(m[1]);
+  if ((m = c.match(/^there are fewer than (\w+) creature cards in your graveyard$/))) return cardsIn(me, 'graveyard').filter((x) => /Creature/.test(DB[x.def].typeLine || '')).length < n(m[1]);
+  if (/^~ is the only creature card in your graveyard$/.test(c)) return cardsIn(me, 'graveyard').filter((x) => /Creature/.test(DB[x.def].typeLine || '')).length === 1 && !!src && src.zone === 'graveyard';
+  // the board
+  if (/^no creatures are on the battlefield$/.test(c)) return ![...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].some(isCreature);
+  if ((m = c.match(/^there are (\w+) or more (creatures|lands) on the battlefield$/))) return [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((x) => (m[2] === 'lands' ? isLand(x) : isCreature(x))).length >= n(m[1]);
+  if ((m = c.match(/^there are no ([a-z]+?)s? on the battlefield$/))) return ![...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].some((x) => matchesFilter(x, m[1]));
+  if ((m = c.match(/^you control (\w+) or fewer lands$/))) return cardsIn(me, 'battlefield').filter(isLand).length <= n(m[1]);
+  if (/^you control exactly one creature$/.test(c)) return cardsIn(me, 'battlefield').filter(isCreature).length === 1;
+  if ((m = c.match(/^you control (\w+) or more ([a-z]+?)s$/))) return cardsIn(me, 'battlefield').filter((x) => matchesFilter(x, m[2])).length >= n(m[1]);
+  if ((m = c.match(/^you don't control an? ([a-z ]+)$/))) return !cardsIn(me, 'battlefield').some((x) => matchesFilter(x, m[1]));
+  if ((m = c.match(/^you control one or more ([a-z]+?)s$/))) return cardsIn(me, 'battlefield').some((x) => matchesFilter(x, m[1]));
+  if (/^your opponents control no creatures$/.test(c)) return !cardsIn(them, 'battlefield').some(isCreature);
+  if (/^a player controls no creatures$/.test(c)) return !cardsIn('p', 'battlefield').some(isCreature) || !cardsIn('ai', 'battlefield').some(isCreature);
+  if ((m = c.match(/^an opponent controls (\w+) or more creatures$/))) return cardsIn(them, 'battlefield').filter(isCreature).length >= n(m[1]);
+  if ((m = c.match(/^that player controls more (lands|creatures) than (?:you|each other player)$/))) { const f = m[1] === 'lands' ? isLand : isCreature; return cardsIn(tp, 'battlefield').filter(f).length > cardsIn(opp(tp), 'battlefield').filter(f).length; }
+  if ((m = c.match(/^a player controls more (creatures|[a-z]+s) than each other player$/))) { const f = (x) => (m[1] === 'creatures' ? isCreature(x) : matchesFilter(x, m[1].replace(/s$/, ''))); return cardsIn('p', 'battlefield').filter(f).length !== cardsIn('ai', 'battlefield').filter(f).length; }
+  if ((m = c.match(/^that player controls an? ([a-z]+)$/))) return cardsIn(tp, 'battlefield').some((x) => matchesFilter(x, m[1]));
+  if (/^all lands on the battlefield are islands$/.test(c)) return [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter(isLand).every((x) => hasSubtype(x, 'Island'));
+  if ((m = c.match(/^all nonland permanents you control are (white|blue|black|red|green)$/))) return cardsIn(me, 'battlefield').filter((x) => !isLand(x)).every((x) => colorsOf(x).includes(COLOR_WORDS[m[1]]));
+  if ((m = c.match(/^creatures you control have total toughness (\w+) or greater$/))) return cardsIn(me, 'battlefield').filter(isCreature).reduce((a, x) => a + Math.max(0, toughness(x)), 0) >= n(m[1]);
+  if (/^an opponent is the monarch$/.test(c)) return s.monarch === them;
+  if (/^there is no monarch$/.test(c)) return !s.monarch;
+  if (/^you['’]re the monarch$/.test(c)) return s.monarch === me;
+  if (/^it's an opponent's turn$/.test(c)) return s.active !== me;
+  if (/^it's not the first turn of the game$/.test(c)) return s.turn > 1;
+  if (/^your control your commander$/.test(c)) return cardsIn(me, 'battlefield').some((x) => x.isCommander);
+  if (/^~ wasn't kicked$/.test(c)) return !(env.kicked || (src && src.kicked));
+  if (/^your team gained life this turn$/.test(c)) return (my.lifeGained || 0) > 0;
+  if ((m = c.match(/^there are (\w+) colors among permanents you control$/))) return new Set(cardsIn(me, 'battlefield').flatMap((x) => colorsOf(x))).size >= n(m[1]);
+  if (/^~ is suspended$/.test(c)) return !!(src && src.suspended && src.zone === 'exile');
+  if ((m = c.match(/^there are (\w+) or more cards exiled with ~$/)) || (m = c.match(/^(\w+) or more cards have been exiled with ~$/))) return !!src && Object.values(s.cards).filter((x) => x.zone === 'exile' && (x.exiledLinked === src.iid || x.hiddenBy === src.iid || (x.exiledBy || []).includes?.(src.iid))).length >= n(m[1]);
+  if (/^~ was dealt damage this turn$/.test(c)) return !!(src && (src.damage || 0) > 0);
+  if (/^a \+1\/\+1 counter was put on a permanent under your control this turn$/.test(c)) return !!my.counterOnCreature;
+  if ((m = c.match(/^your devotion to (\w+)(?: and (\w+))? is (\w+) or greater$/))) { const v = countPhrase(me, `devotion to ${m[1]}${m[2] ? ' and ' + m[2] : ''}`, helpers, src && src.iid); return v === null ? null : v >= n(m[3]); }
+  return null;
+}
+
 export function evalCond(cond, env) {
   const c = cond.toLowerCase().replace(/^it's |^it is /, "it's ").trim();
   const me = env.me;
@@ -679,6 +858,10 @@ export function evalCond(cond, env) {
   if (/^~ is your ring-bearer$/.test(c)) return !!(env.src && card(env.src.iid) && card(env.src.iid).ringBearer);
   if ((m = c.match(/^the ring has tempted you (\w+) or more times this game$/))) return (s.players[me].ringTimes || s.players[me].ring || 0) >= n(m[1]);
   if ((m = c.match(/^an opponent lost (\w+) or more life this turn$/))) return ((ts[them] || {}).lifeLost || 0) >= n(m[1]);
+  {
+    const v = turnHistoryCond(c, env);
+    if (v !== null) return v;
+  }
   // "A and B": both halves must hold
   if (/ and /.test(c) && !/\band\/or\b/.test(c)) {
     const parts = c.split(/ and /);
@@ -746,6 +929,12 @@ async function pickTargets(env, phrase, opts = {}) {
   // "Tap target permanent, then untap another target permanent": not one already chosen by this ability
   if (/\banother target\b/.test(p) && env.pickedSoFar) cands = cands.filter((c) => !env.pickedSoFar.includes(c.iid));
   if (opts.filter) cands = cands.filter(opts.filter);
+  // the AI steers clear of opponents' permanents whose ward it can't pay, when there's another choice
+  if (me === 'ai' && !aiSlaved()) {
+    const ok = cands.filter((c) => ctl(c) === me || wardPayableNow(me, c));
+    // only when an opponent's permanent is still on offer (otherwise removal would land on its own creature)
+    if (ok.length < cands.length && ok.some((c) => ctl(c) !== me)) cands = ok;
+  }
   let players = [];
   if (playerTarget) {
     players = /opponent/.test(kind) ? [opp(me)] : [opp(me), me];
@@ -790,21 +979,79 @@ export async function payWard(me, t, chooser, src, choosers) {
   const w = wardCost(t);
   if (!w) return true;
   const label = `Ward on ${cardName(t)}`;
+  if (w.n !== undefined && !w.waterbend) return chooser.payUnless(w.n, label, w);
   if (w.n !== undefined) return chooser.payUnless(w.n, label, w);
-  if (w.life) {
-    if (me === 'ai') {
+  const ai = me === 'ai';
+  if (w.life !== undefined) {
+    if (G.s.players[me].life < w.life) return false;
+    if (ai) {
       if (G.s.players.ai.life <= w.life + 5) return false;
     } else if (!(await chooser.confirm(label, `Pay ${w.life} life? If you don't, your spell or ability is countered.`, {}))) return false;
     changeLife(me, -w.life);
+    log(me, `${who(me) === 'you' ? 'You pay' : 'The AI pays'} ${w.life} life for ${nameTag(t)}'s ward.`);
     return true;
   }
-  if (w.other) {
-    if (me !== 'ai' && !(await chooser.confirm(label, `${w.other}? If you don't, your spell or ability is countered.`, {}))) return false;
-    const { payOtherCost, applyPayment } = await import('./cast.js');
-    const { aiPay } = await import('./ai.js');
-    const pay = async (pid, cost, lbl, o) => (pid === 'ai' ? aiPay(pid, cost, lbl, o) : null);
+  // everything else: one or more parts ("{2}, Pay 3 life"), possibly a choice ("Discard a card or pay {3}")
+  let text = w.other;
+  const alts = text.split(/ or (?=pay |discard |sacrifice |\{)/i);
+  if (alts.length > 1) {
+    const fits = (x) => wardPartsPayable(me, t, x);
+    const ok = alts.map((x, k) => ({ x, k })).filter((o) => fits(o.x));
+    if (!ok.length) return false;
+    if (ai) text = ok[ok.length - 1].x; // the AI prefers paying mana (listed last) over discarding
+    else {
+      const k = await chooser.choose({ prompt: `${label}: pay which? (If you don't, your spell or ability is countered.)`, options: [...ok.map((o) => ({ label: o.x })), { label: "Don't pay" }], aiPick: () => 0 });
+      if (k === null || k === undefined || k < 0 || k >= ok.length) return false;
+      text = ok[k].x;
+    }
+  } else {
+    if (!wardPartsPayable(me, t, text)) return false;
+    if (ai) {
+      // the AI won't take five poison counters or sacrifice most of its board for one spell
+      if (/poison/i.test(text) && (G.s.players.ai.poison || 0) + 5 >= 8) return false;
+      if (/sacrifice (?:two|three)/i.test(text)) return false;
+    } else if (!(await chooser.confirm(label, `${text}? If you don't, your spell or ability is countered.`, {}))) return false;
+  }
+  const { payOtherCost, applyPayment } = await import('./cast.js');
+  const { aiPay } = await import('./ai.js');
+  const pay = async (pid, cost, lbl, o) => (pid === 'ai' ? aiPay(pid, cost, lbl, o) : T && T.payPlayer ? T.payPlayer(cost, lbl, o) : null);
+  for (let part of text.split(/, (?=pay|discard|sacrifice|\{|get|collect|blight|exile|tap|return|remove)/i)) {
+    part = part.trim().replace(/\.$/, '');
+    let m;
+    if ((m = part.match(/^(?:pay )?((?:\{\d+\})+)$/i))) {
+      const n = (m[1].match(/\d+/g) || []).reduce((a, x) => a + +x, 0);
+      if (!(await chooser.payUnless(n, label, { n }))) return false;
+      continue;
+    }
+    if ((m = part.match(/^pay (\d+) life$/i))) {
+      if (G.s.players[me].life < +m[1]) return false;
+      changeLife(me, -+m[1]);
+      continue;
+    }
+    if ((m = part.match(/^get (\w+) poison counters?$/i))) {
+      G.s.players[me].poison = (G.s.players[me].poison || 0) + n(m[1]);
+      log(me, `${who(me) === 'you' ? 'You get' : 'The AI gets'} ${n(m[1])} poison counters (ward).`);
+      continue;
+    }
+    if (/^discard a card at random$/i.test(part)) {
+      const hand = cardsIn(me, 'hand');
+      if (!hand.length) return false;
+      const pick = hand[Math.floor(Math.random() * hand.length)];
+      log(me, `${who(me) === 'you' ? 'You discard' : 'The AI discards'} ${nameTag(pick)} at random (ward).`);
+      discardCard(pick.iid);
+      continue;
+    }
+    if ((m = part.match(/^discard (?:a|an) ([a-z ,]+?) card$/i))) {
+      const kinds = m[1].split(/,? or |, /).map((x) => x.trim()).filter(Boolean);
+      const pool = cardsIn(me, 'hand').filter((x) => kinds.some((k) => matchesFilter(x, k)));
+      if (!pool.length) return false;
+      const [pick] = await (choosers || { [me]: chooser })[me].pickCards({ forced: true, prompt: `${label}: discard a ${m[1]} card`, cards: pool.map((x) => x.iid), min: 1, max: 1, purpose: 'discard', src: t, aiScore: (x) => -(DB[x.def].cmc || 0) });
+      if (!pick) return false;
+      discardCard(pick);
+      continue;
+    }
     try {
-      return await payOtherCost(me, w.other, src || t, { choosers: choosers || { [me]: chooser }, pay, applyPayment });
+      if (!(await payOtherCost(me, part.toLowerCase(), src || t, { choosers: choosers || { [me]: chooser }, pay, applyPayment }))) return false;
     } catch (e) {
       if (e instanceof Cancelled) return false;
       throw e;
@@ -812,30 +1059,75 @@ export async function payWard(me, t, chooser, src, choosers) {
   }
   return true;
 }
+// Can this player pay these ward parts at all? (Checked before asking.)
+function wardPartsPayable(pid, t, text) {
+  for (let part of String(text).split(/, (?=pay|discard|sacrifice|\{|get|collect|blight)/i)) {
+    part = part.trim().replace(/\.$/, '').toLowerCase();
+    let m;
+    if ((m = part.match(/^(?:pay )?((?:\{\d+\})+)$/))) {
+      const k = (m[1].match(/\d+/g) || []).reduce((a, x) => a + +x, 0);
+      if (castMod && !payCost(`{${k}}`, castMod.manaSources(pid))) return false;
+    } else if ((m = part.match(/^pay (\d+) life$/))) {
+      if (G.s.players[pid].life < +m[1]) return false;
+    } else if (/^discard/.test(part)) {
+      if (!cardsIn(pid, 'hand').length) return false;
+      const dm = part.match(/^discard (?:a|an) ([a-z ,]+?) card$/);
+      if (dm && dm[1] !== 'card') {
+        const kinds = dm[1].split(/,? or |, /).map((x) => x.trim()).filter(Boolean);
+        if (!cardsIn(pid, 'hand').some((x) => kinds.some((k) => matchesFilter(x, k)))) return false;
+      }
+    } else if ((m = part.match(/^sacrifice (a|an|one|two|three|\d+) (.+)$/))) {
+      const k = n(m[1]);
+      const kinds = m[2].replace(/s$/, '').split(/ or /);
+      if (cardsIn(pid, 'battlefield').filter((x) => kinds.some((kk) => matchesFilter(x, kk.replace(/s\b/, '')))).length < k) return false;
+    }
+  }
+  return true;
+}
 
 function wardCost(c) {
-  if (c.faceDown && c.wardTwo) return { n: 2 };
+  if (c.faceDown && c.wardTwo) return { n: 2, raw: '{2}' };
   // Gold-Forged Thopteryx: "Each legendary permanent you control has ward {2}."
   if (c.zone === 'battlefield' && /Legendary/.test(typeLine(c))) {
     for (const x of cardsIn(c.controller, 'battlefield')) {
       const wm = !abilitiesGone(x) && oracle(x).match(/Each legendary permanent you control has ward \{(\d+)\}/i);
-      if (wm) return { n: +wm[1] };
+      if (wm) return { n: +wm[1], raw: `{${wm[1]}}` };
     }
   }
+  const o = oracle(c).replace(/ ?\([^)]*\)/g, '');
   // Minthara: "ward {X}, where X is the number of experience counters you have"
-  const wx = oracle(c).match(/\bward \{X\}, where X is (?:the number of )?([^.\n]+)/i);
+  const wx = o.match(/\bward \{X\}, where X is (?:the number of )?([^.\n]+)/i);
   if (wx) {
     const v = countPhrase(c.controller, wx[1], helpers, c.iid);
-    return v ? { n: v } : null;
+    return v ? { n: v, raw: `{${v}}` } : null;
   }
-  const m = oracle(c).match(/\bWard (?:\{(\d+)\}|—(.+?)(?:\.|$))/m) || [...(c.grants || []), ...(c.eotGrants || [])].join('|').match(/ward \{(\d+)\}/);
+  // "Ward {2}", "Ward—Pay 3 life.", "Ward—Discard a card.", "Ward—{2}, Pay 3 life.", "Ward—Discard a card or pay {3}."
+  // its own ward, or one given by something else (Bronze Guardian: "Other artifacts you control have ward {2}")
+  const own = o.match(/(?:^|, )ward(?: \{(\d+)\}|—([^\n"]+?)(?:\.|"|$))/im);
+  const given = c.zone === 'battlefield' ? grantsOf(c).map((g) => String(g).match(/^ward(?: \{(\d+)\}|—(.+?))\.?$/i)).find(Boolean) : null;
+  let m = own || given;
+  // Mishra, Tamer of Mak Fawa: 'Permanents you control have "Ward—Sacrifice a permanent."'
+  if (!m && c.zone === 'battlefield')
+    for (const x of cardsIn(c.controller, 'battlefield')) {
+      if (abilitiesGone(x)) continue;
+      const qm = oracle(x).match(/(?:^|\n)(other )?([a-z ]*?)(permanents|creatures|artifacts|enchantments|lands) you control have "ward(?: \{(\d+)\}|—([^"]+?))\.?"/i);
+      if (qm && !(qm[1] && x.iid === c.iid) && matchesFilter(c, `${qm[2]}${qm[3].replace(/s$/, '')}`)) {
+        m = [qm[0], qm[4], qm[5]];
+        break;
+      }
+    }
   if (!m) return null;
-  if (m[1]) return { n: +m[1] };
-  const wb = (m[2] || '').match(/^Waterbend \{(\d+)\}/i);
-  if (wb) return { n: +wb[1], waterbend: true };
-  const life = (m[2] || '').match(/Pay (\d+) life/i);
-  if (life) return { life: +life[1] };
-  return { other: m[2] };
+  if (m[1]) return { n: +m[1], raw: `{${m[1]}}` };
+  const raw = (m[2] || '').trim().replace(/~/g, cardName(c));
+  const wb = raw.match(/^Waterbend \{(\d+)\}$/i);
+  if (wb) return { n: +wb[1], waterbend: true, raw };
+  const mana = raw.match(/^\{(\d+)\}$/);
+  if (mana) return { n: +mana[1], raw };
+  const life = raw.match(/^Pay (\d+) life$/i);
+  if (life) return { life: +life[1], raw };
+  // Phyrexian Fleshgorger, Raubahn: "Pay life equal to ~'s power"
+  if (/^Pay life equal to .+'s power$/i.test(raw)) return { life: Math.max(0, power(c)), raw };
+  return { other: raw, raw };
 }
 
 function playerHexproof(pid, caster, src) {
@@ -1238,9 +1530,18 @@ on(/^add that much mana of any one color$/, async (m, env) => {
   const k = env.thatMuch || env.lastAmount || 0;
   if (!k) return;
   addMana(env.me, Array.from({ length: k }, () => 'ANY'));
+  env.lastManaAdded = { sym: 'ANY', n: k };
   env.did.push(`adds ${k} mana of any one color`);
 }, { first: true });
-on(/^until end of turn, you don't lose this mana as steps and phases end$/, async () => {}, { first: true });
+// Photon: the mana it added stays in your pool until the end of the turn
+on(/^until end of turn, you don't lose this mana as steps and phases end$/, async (m, env) => {
+  const a = env.lastManaAdded;
+  if (!a) return;
+  const keep = (G.s.keepMana = G.s.keepMana || {});
+  const prev = keep[env.me] && keep[env.me].turn === G.s.turn ? keep[env.me].list : [];
+  keep[env.me] = { turn: G.s.turn, list: [...prev, ...Array.from({ length: a.n }, () => a.sym)] };
+  env.did.push('that mana stays until end of turn');
+}, { first: true });
 // Niv-Mizzet, Ghost Counsel: "you may pay that much life. if you do, draw that many cards"
 on(/^(?:you may )?pay that much life\. if you do, draw that many cards$/, async (m, env) => {
   const k = env.thatMuch || 0;
@@ -1352,7 +1653,7 @@ on(/^reveal cards from the top of your library until you reveal a (creature|land
 }, { first: true, multi: true });
 // Love on the Battlefield: "Whenever either of those creatures deals combat damage to a player this combat, put a +1/+1 counter on it."
 on(/^whenever either of those creatures deals combat damage to a player this combat, put a \+1\/\+1 counter on it$/, async (m, env) => {
-  for (const i of env.them_ || []) if (card(i)) card(i).loveTurn = G.s.turn;
+  for (const i of env.trigThem || env.them_ || []) if (card(i)) card(i).loveTurn = G.s.turn;
 }, { first: true });
 // Gift of Immortality
 on(/^return ~ to the battlefield attached to that creature at the beginning of the next end step$/, async (m, env) => {
@@ -3036,6 +3337,11 @@ export function damagePlayer(env, source, pid, amount) {
     env.did.push(`deals ${amount} damage to ${who(pid)}`);
   }
   if (source && source.zone === 'battlefield' && hasKw(source, 'lifelink')) changeLife(ctl(source), amount, false);
+  if (G.s.ts && G.s.ts[pid]) {
+    G.s.ts[pid].dmgTaken = (G.s.ts[pid].dmgTaken || 0) + amount;
+    G.s.ts[pid].noncombatDmgTaken = true;
+  }
+  if (source && source.iid && card(source.iid)) card(source.iid).dmgPlayerTurn = G.s.turn;
   env.lastAmount = amount;
   if (source && source.iid) {
     queueEvent({ type: 'dealsDamage', iid: source.iid, amount, player: pid });
@@ -3190,7 +3496,7 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
   const of = m[2];
   if (/target/.test(of)) [orig] = await objects(env, of, { harm: false });
   else if (/equipped|enchanted/.test(of)) orig = env.src.attachedTo ? card(env.src.attachedTo) : null;
-  else if (/^(?:~|it|that creature|the exiled card|the sacrificed creature)/.test(of)) orig = env.it && env.it.iid ? card(env.it.iid) || null : env.src;
+  else if (/^(?:~|it|that creature|that card|the exiled card|the discarded card|the sacrificed creature)/.test(of)) orig = env.it && env.it.iid ? card(env.it.iid) || null : env.src;
   if (!orig && /^(?:~|it)/.test(of)) orig = env.src;
   if (!orig) return env.did.push('has nothing to copy');
   const made = createToken(orig.def, env.me, count, { tapped: /tapped/.test(m[1]) });
@@ -3202,6 +3508,15 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
     { const sl = except.match(/its starting loyalty is (\d+)/); if (sl) tk.counters.loyalty = +sl[1]; }
     if (/has haste|gains haste|have haste/.test(except)) tk.grants = [...(tk.grants || []), 'haste'];
     if (/it's 1\/1|it's a 1\/1|they're 1\/1|base power and toughness 1\/1/.test(except)) tk.setPT = { ts: nextStamp(), p: 1, t: 1 };
+    // Hashaton: "except it's a 4/4 black Zombie" (its creature types and color are replaced)
+    {
+      const rp = !/in addition to its other/.test(except) && except.match(/(?:it's|they're) (?:an? )?(\d+)\/(\d+) ((?:white|blue|black|red|green|colorless) )?([a-z][a-z-]*)\b/i);
+      if (rp) {
+        tk.setPT = { ts: nextStamp(), p: +rp[1], t: +rp[2] };
+        const col = rp[3] ? rp[3].trim().toLowerCase() : null;
+        addLayerFx(tk, { until: true, types: { subSet: capWords(rp[4]) }, ...(col ? { colors: { set: col === 'colorless' ? [] : [COLOR_WORD[col]] } } : {}) });
+      }
+    }
     // Ember Island Production: "it's a 4/4 Hero in addition to its other types" / "a 2/2 Coward"
     {
       const pt = except.match(/(?:it's|they're) (?:an? )?(\d+)\/(\d+)(?: ([a-z][a-z -]*?))? in addition to its other types/i);
@@ -5219,7 +5534,7 @@ async function runSentence(sentence, env) {
   // "For each opponent, …" in a two-player game is just "the opponent"
   if (/^for each opponent, /i.test(s)) s = s.replace(/^for each opponent, /i, '').replace(/that player controls/gi, 'an opponent controls').replace(/that player/gi, 'target opponent');
   // pure rules reminders that need no action
-  if (/^(?:activate (?:this ability )?only (?:as a sorcery|once each turn|during your turn|any time you could cast a sorcery)|choose new targets for the cop(?:y|ies)|(?:it|they) can't be regenerated|you can cast only one more spell this turn|if you search your library this way, shuffle|this ability triggers only once each turn|do this only once each turn|put them back in any order|each mode must target a different player|you may choose the same mode more than once|until end of turn, you don't lose this mana as steps and phases end|if that spell is countered this way, exile it instead of putting it into its owner's graveyard|those votes are revealed|it's still a land|exile ~ with \w+ time counters on it|if the copy is a permanent spell, it gains haste|the flashback cost is equal to its mana cost)$/i.test(s)) return;
+  if (/^(?:activate (?:this ability )?only (?:as a sorcery|once each turn|during your turn|any time you could cast a sorcery)|choose new targets for the cop(?:y|ies)|(?:it|they) can't be regenerated|you can cast only one more spell this turn|if you search your library this way, shuffle|this ability triggers only once each turn|do this only once each turn|put them back in any order|each mode must target a different player|you may choose the same mode more than once|if that spell is countered this way, exile it instead of putting it into its owner's graveyard|those votes are revealed|it's still a land|exile ~ with \w+ time counters on it|if the copy is a permanent spell, it gains haste|the flashback cost is equal to its mana cost)$/i.test(s)) return;
   if (!s) return;
   {
     const aw = s.match(/^([A-Z][A-Za-z' ]{2,30}?) — (.+)$/);

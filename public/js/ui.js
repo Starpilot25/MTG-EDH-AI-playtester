@@ -1635,6 +1635,7 @@ async function floatMana(c) {
     c.tapped = true;
     c.floated = { syms, step: G.s.step, turn: G.s.turn };
     log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${x}}`).join(''))}.`);
+    if (m.sac && hasSubtype(c, 'Treasure')) G.s.treasurePool = { pid: 'p', turn: G.s.turn }; // Rain of Riches
     if (m.sac) sacrifice(c.iid);
     if (m.pain && syms.some((x) => m.pain.includes(x))) {
       changeLife('p', -1, false);

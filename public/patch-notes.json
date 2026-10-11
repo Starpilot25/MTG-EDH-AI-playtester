@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.3.24",
+    "title": "Ward, \"if\" triggers, and five card fixes",
+    "notes": [
+      "Ward: costs other than mana never worked (\"Ward—Pay 3 life\", \"Ward—Discard a card\", \"Ward—Sacrifice a creature\", poison, collect evidence, blight, \"Discard a card or pay {2}\", \"{3}, Pay 3 life\"). They all work now, for you and for the AI. Ward given by other cards works too (Bronze Guardian's artifacts, Mishra, Tamer of Mak Fawa).",
+      "The AI now counts ward when it picks targets: it won't aim removal at a creature whose ward it can't pay if there's another target, and it keeps mana free to pay ward when it can.",
+      "\"At the beginning of …, if …\" triggers: when the condition is false they no longer trigger at all, so they don't pause the game or show on the stack. The game also now reads about 200 more of these conditions, like \"if you descended this turn\", \"if two or more nonland permanents entered under your control this turn\", \"if that player has one or fewer cards in hand\" and \"if you lost life last turn\".",
+      "Love on the Battlefield: triggers only when you attack with exactly two creatures, and the +1/+1 counters now go on those two creatures.",
+      "Photon, Mighty Marvel: the mana it adds stays in your pool until the end of the turn.",
+      "Rain of Riches: the first spell each turn that you pay for with Treasure mana now has cascade.",
+      "Hashaton, Scarab's Fist: discarding a creature card lets you pay {2}{U} for a tapped 4/4 black Zombie token copy of it.",
+      "Orb of Dragonkind: its {1}, {T} ability makes two mana for Dragon spells (and Dragons' abilities) only."
+    ]
+  },
+  {
     "version": "1.3.23",
     "title": "Pre-War Formalwear",
     "notes": [

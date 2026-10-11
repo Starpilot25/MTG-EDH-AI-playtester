@@ -99,6 +99,7 @@ function newPlayer(name) {
   };
 }
 
+const isCreatureCard = (c) => /Creature/.test((DB[c.def].faces[c.face || 0] || DB[c.def].faces[0]).typeLine || DB[c.def].typeLine || '');
 export function freshTurnStats() {
   const one = () => ({ loyaltyActivated: 0, spells: 0, noncreatureSpells: 0, lifeLost: 0, lifeGained: 0, damagedOpp: false, attacked: false, landsPlayed: 0, drawn: 0, cardsLeftGy: 0, permLeft: false, speedUp: false, discarded: [] });
   return { p: one(), ai: one(), creatureDied: false, warped: false };
@@ -355,7 +356,31 @@ export function move(iid, zone, opts = {}) {
     else arr.push(iid);
   } else if (typeof opts.to === 'number') arr.splice(opts.to, 0, iid);
   else arr.push(iid);
-  if (zone === 'battlefield' && fromZone !== 'battlefield') entering(c, opts);
+  if (zone === 'battlefield' && fromZone !== 'battlefield') {
+    entering(c, opts);
+    // what entered under whose control this turn ("if two or more nonland permanents entered the battlefield under your control this turn")
+    const tsc = s.ts && s.ts[c.controller];
+    if (tsc) (tsc.entered = tsc.entered || []).push({ iid, types: typeLine(c), token: !!c.token, faceDown: !!c.faceDown });
+  }
+  // the turn's history for "if …" conditions
+  if (s.ts && fromZone !== zone) {
+    const tso = s.ts[c.owner];
+    if (zone === 'graveyard' && tso) {
+      tso.toGy = (tso.toGy || 0) + 1;
+      if (fromZone !== 'battlefield') tso.toGyNotBf = (tso.toGyNotBf || 0) + 1;
+      if (isCreatureCard(c)) tso.creatureToGy = true;
+      if (!c.token && /Artifact|Creature|Enchantment|Land|Planeswalker|Battle/.test(DB[c.def].typeLine || '')) tso.descended = (tso.descended || 0) + 1; // descend
+    }
+    if (fromZone === 'graveyard' && tso && isCreatureCard(c)) tso.creatureLeftGy = true;
+    if (zone === 'exile') s.ts.exiledAny = true;
+    if (fromZone === 'battlefield' && zone === 'hand') (s.ts[fromCtl] || {}).bouncedToHand = true;
+    if (fromZone === 'battlefield' && zone === 'graveyard') {
+      const tl = DB[c.def].typeLine || '';
+      if (/Artifact|Creature/.test(tl)) s.ts.artOrCreatureToGy = true;
+      if (/Enchantment/.test(tl) && tso) tso.enchantmentToGy = true;
+      if (/Land/.test(tl) && tso) tso.landToGy = true;
+    }
+  }
   // theft (Jhoira, Control Magic, Treachery…): remember it so the player gets a popup naming the card
   if (zone === 'battlefield' && s.phase === 'play' && !c.token && c.controller !== c.owner && (fromZone !== 'battlefield' || fromCtl !== c.controller)) {
     s.stealNotes = [...(s.stealNotes || []), { iid, by: c.controller, from: c.owner, fromZone }];
@@ -542,6 +567,7 @@ export function addCounters(c, kind, n, opts = {}) {
   }
   for (const key of Object.keys(c.counters)) if (!c.counters[key] && key !== 'loyalty' && key !== 'lore' && key !== 'defense') delete c.counters[key];
   const by = opts.by || G.curActor || null;
+  if (n > 0) c.counterTurn = G.s.turn; // "if you put a counter on ~ this turn" 
   if (n > 0 && by && G.s.ts && G.s.ts[by] && c.zone === 'battlefield' && isCreature(c)) G.s.ts[by].counterOnCreature = true;
   if (n > 0 && !opts.silent) queueEvent({ type: 'counterPut', iid: c.iid, kind, n, controller: c.controller, by });
   return n;
@@ -909,6 +935,7 @@ export function sacrifice(iid) {
   const c = card(iid);
   if (!c || c.zone !== 'battlefield') return false;
   queueEvent({ type: 'sacrificed', iid, def: c.def, controller: c.controller, token: c.token, types: typeLine(c) });
+  if (G.s.ts && G.s.ts[c.controller]) (G.s.ts[c.controller].sacTypes = G.s.ts[c.controller].sacTypes || []).push(typeLine(c));
   if (G.s.ts && G.s.ts[c.controller]) G.s.ts[c.controller].sacrificed = (G.s.ts[c.controller].sacrificed || 0) + 1;
   move(iid, 'graveyard');
   return true;

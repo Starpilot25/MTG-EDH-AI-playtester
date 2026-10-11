@@ -10,8 +10,20 @@ import {
   withReadCache, discard as discardCard, draw as drawCards, ringLevel,
 } from './state.js';
 import {
-  resolveEffects, stripName, knownEffect, bindTriggerHooks, addMana, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords,
+  resolveEffects, stripName, knownEffect, bindTriggerHooks, addMana, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords, evalCond,
 } from './effects.js';
+// Intervening "if" (rule 603.4): "At the beginning of your end step, if you gained life this turn, …" doesn't trigger at all
+// when the condition is false (it's checked again when it resolves)
+function interveningIfFails(hit, ev) {
+  const m = String(hit.trig.text || '').match(/^if ([^,]+?), /i);
+  if (!m || /^(?:you do|you don't|you did|they do|they don't|that player does|that player doesn't|it does|you can't)\b/i.test(m[1]) || /\bx\b/i.test(m[1])) return false;
+  try {
+    const src = hit.src;
+    return evalCond(m[1], { me: hit.controller || src.controller, src, thatPlayer: hit.thatPlayer, it: hit.it || null, event: ev, kicked: src.kicked, did: [], unknown: [] }) === false;
+  } catch (e) {
+    return false;
+  }
+}
 import { venture, takeInitiative } from './dungeon.js';
 
 // Filled in by ui.js: choosers for both players, a yes/no prompt, render, and casting hooks.
@@ -244,7 +256,10 @@ export function triggersOf(c, defOverride) {
       {
       const km = line.match(/one or more (?:other )?(.+?) you control attack/i) || line.match(/with one or more (.+?)(?:,| with power)/i) || line.match(/attack with (?:two|three|four|five|\d+) or more (.+?)(?:,| with power)/i);
       const mn = line.match(/attack with (two|three|four|five|\d+) or more /i);
-      add('youAttack', m[1], { kind: km ? kindWords(km[1]) : '', minCount: mn ? ({ two: 2, three: 3, four: 4, five: 5 }[mn[1].toLowerCase()] || +mn[1]) : 0 });
+      // Love on the Battlefield: "Whenever you attack with exactly two creatures"
+      const ex = line.match(/attack with exactly (one|two|three|four|\d+) /i);
+      const W = { one: 1, two: 2, three: 3, four: 4, five: 5 };
+      add('youAttack', m[1], { kind: km ? kindWords(km[1]) : '', minCount: mn ? W[mn[1].toLowerCase()] || +mn[1] : 0, ...(ex ? { exactCount: W[ex[1].toLowerCase()] || +ex[1] } : {}) });
     }
     else if ((m = line.match(/^Whenever a creature you control attacks alone, (.+)$/i)))
       add('attacksAlone', m[1], { anyOfMine: true });
@@ -285,8 +300,9 @@ export function triggersOf(c, defOverride) {
     // cards and life
     else if ((m = line.match(/^Whenever (you|an opponent|a player) draws? (?:a|your second|their second) card[^,]*, (.+)$/i)))
       add('draw', m[2], { who: m[1].toLowerCase(), second: /second/i.test(line) });
-    else if ((m = line.match(/^Whenever (you|an opponent) discards? (?:a|one or more) (?:nonland )?cards?, (.+)$/i)))
-      add('discard', m[2], { who: m[1].toLowerCase() });
+    else if ((m = line.match(/^Whenever (you|an opponent|a player) discards? (?:a|an|one or more) ((?:[a-z]+ )*?)cards?, (.+)$/i)))
+      // Hashaton: "Whenever you discard a creature card"
+      add('discard', m[3], { who: m[1].toLowerCase(), kind: m[2].trim() });
     else if ((m = line.match(/^Whenever you cycle(?: or discard)? (?:a|another) card, (.+)$/i)) || (m = line.match(/^When you cycle ~, (.+)$/i)))
       add('cycle', m[1], { self: /When you cycle ~/i.test(line) });
     else if ((m = line.match(/^Whenever (you|an opponent) gains? life( for the first time each turn)?, (.+)$/i)))
@@ -974,6 +990,7 @@ function matches(ev) {
         const atk = ids.map(card).filter((a) => a && (!trig.kind || matchesFilter(a, trig.kind)));
         if (trig.kind && !atk.length) return;
         if (trig.minCount && atk.length < trig.minCount) return; // "attack with two or more Spiders"
+        if (trig.exactCount && atk.length !== trig.exactCount) return;
         out.push({ src: c, trig, thatPlayer: ev.defender, amount: atk.length, them: atk.map((a) => a.iid) });
       });
       break;
@@ -1101,7 +1118,7 @@ function matches(ev) {
       each((c, trig) => trig.event === 'draw' && whoOk(trig.who, c, ev.pid) && (!trig.second || ev.nth === 2) && out.push({ src: c, trig, thatPlayer: ev.pid }));
       break;
     case 'discard':
-      each((c, trig) => trig.event === 'discard' && whoOk(trig.who, c, ev.pid) && out.push({ src: c, trig, thatPlayer: ev.pid, it: { iid: ev.iid } }));
+      each((c, trig) => trig.event === 'discard' && whoOk(trig.who, c, ev.pid) && (!trig.kind || (card(ev.iid) && matchesFilter({ ...card(ev.iid), zone: 'battlefield' }, trig.kind.replace(/^non(\w)/, 'non$1')))) && out.push({ src: c, trig, thatPlayer: ev.pid, it: { iid: ev.iid } }));
       break;
     case 'cycle': {
       const sc = card(ev.iid);
@@ -1459,7 +1476,7 @@ export async function settle() {
         }
         hits = hits.concat(extra);
       }
-      for (const hit of hits) pending.push({ hit, ev });
+      for (const hit of hits) if (!interveningIfFails(hit, ev)) pending.push({ hit, ev });
       if (ev.type === 'chapter') after.push(ev);
       }
       if (G.s !== s0) break;
@@ -1581,7 +1598,7 @@ async function resolveTrigger(hit, controller, ev) {
     ctx.lastAmount = hit.amount;
     ctx.thatMuch = hit.amount;
   }
-  if (hit.them) ctx.them_ = hit.them;
+  if (hit.them) ctx.them_ = ctx.trigThem = hit.them;
   if (hit.counterKind) ctx.counterKind = hit.counterKind;
   if (trig.fn) {
     const did = await trig.fn(ctx, hit, ev);
