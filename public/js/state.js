@@ -944,6 +944,17 @@ export function sacrifice(iid) {
 // State-based actions
 export function stateBased() {
   const s = G.s;
+  // rule 704.5q: +1/+1 and -1/-1 counters on the same permanent cancel out, however they got there
+  // (wither/infect damage, counters added by hand, delayed returns…)
+  for (const c of Object.values(s.cards)) {
+    const cs = c.counters;
+    if (!cs || !(cs['+1/+1'] > 0) || !(cs['-1/-1'] > 0)) continue;
+    const k = Math.min(cs['+1/+1'], cs['-1/-1']);
+    cs['+1/+1'] -= k;
+    cs['-1/-1'] -= k;
+    if (!cs['+1/+1']) delete cs['+1/+1'];
+    if (!cs['-1/-1']) delete cs['-1/-1'];
+  }
   for (let pass = 0; pass < 4; pass++) {
     let changed = false;
     // "gain control of target creature for as long as ~ remains on the battlefield" (The Akroan War, Old Man of the Sea…)

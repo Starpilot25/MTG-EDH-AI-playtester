@@ -624,7 +624,7 @@ function turnHistoryCond(c, env) {
   if (/^(?:~|it) didn't enter the battlefield this turn$/.test(c)) return !(src && src.enteredTurn === s.turn);
   if (/^(?:a counter was put on ~|you put a counter on ~) this turn$/.test(c)) return !!(src && src.counterTurn === s.turn);
   // counters on this permanent
-  if ((m = c.match(/^there (?:are|is) (\w+) or more ([a-z+\/0-9-]+) counters? on ~$/))) return ((src && src.counters) || {})[m[2]] >= n(m[1]);
+  if ((m = c.match(/^there (?:are|is) (\w+) or more ([a-z+\/0-9-]+) counters? on (?:~|it)$/))) return ((src && src.counters) || {})[m[2]] >= n(m[1]);
   if ((m = c.match(/^there are one or more ([a-z+\/0-9-]+) counters on ~$/))) return ((src && src.counters) || {})[m[1]] > 0;
   if ((m = c.match(/^there are no ([a-z+\/0-9-]+) counters on ~$/)) || (m = c.match(/^~ has no ([a-z+\/0-9-]+) counters on it$/))) return !(((src && src.counters) || {})[m[1]] > 0);
   if ((m = c.match(/^~ has an? ([a-z+\/0-9-]+) counter on it$/))) return ((src && src.counters) || {})[m[1]] > 0;
@@ -1988,6 +1988,12 @@ on(/^for each opponent, gain control of up to one target nonlegendary creature t
 }, { first: true });
 // Duskana: "draw a card for each creature you control with base power and toughness 2/2"
 on(/^(?:you )?draw (a|one|two|three) cards? for each (.+)$/, async (m, env) => {
+  // Deadly Embrace: "draw a card for each creature that died this turn"
+  if (/^creatures? that died this turn$/.test(m[2])) {
+    const k = n(m[1]) * (G.s.ts.creaturesDiedN || 0);
+    if (k) draw(env.me, k, true);
+    return env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${k}`);
+  }
   if (/but don't own$|,| this way$| this turn$/.test(m[2])) return 'pass';
   let k = null;
   const wm = m[2].match(/^(other )?((?:[\w-]+ )*?)(creature|artifact|permanent|land|[a-z]+)s? you control( with .+)?$/);
@@ -3848,6 +3854,47 @@ on(/^(that token|those tokens|that creature|it|target creature(?: you control)?)
   }
   if (objs.length) env.did.push(`${objs.map(nameTag).join(', ')}${m[2] ? ' gains haste and' : ''} must attack this combat`);
 }, { first: true });
+// Edgar Markov's Coffin: "create a 1/1 … token with lifelink and put a bloodline counter on ~"
+on(/^(create .+?) and put an? ([a-z+\/0-9-]+) counter on ~$/, async (m, env) => {
+  await runSentence(m[1], env);
+  const me = env.src && card(env.src.iid);
+  if (me && me.zone === 'battlefield') {
+    addCounters(me, m[2], 1);
+    env.did.push(`puts a ${m[2]} counter on ${nameTag(me)}`);
+  }
+}, { first: true });
+// "… remove those counters and transform it"
+on(/^remove those counters and transform (?:it|~)$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const k = env.prevSent && (env.prevSent.match(/([a-z+\/0-9-]+) counters? on (?:it|~)/i) || [])[1];
+  const kind = (env.sentence.match(/there are \w+ or more ([a-z+\/0-9-]+) counters/i) || [])[1] || k;
+  if (!me || me.zone !== 'battlefield') return;
+  if (kind && me.counters) delete me.counters[kind.toLowerCase()];
+  if (DB[me.def].faces.length > 1) {
+    const before = nameTag(me);
+    me.face = me.face ? 0 : 1;
+    queueEvent({ type: 'transformed', iid: me.iid, controller: me.controller });
+    env.did.push(`removes the counters; ${before} transforms into ${nameTag(me)}`);
+  }
+}, { first: true });
+// Leyline Tyrant: "you may pay any amount of {R}. When you do, it deals that much damage to any target."
+on(/^(?:you may )?pay any amount of \{([wubrgc])\}$/, async (m, env) => {
+  const col = m[1].toUpperCase();
+  env.lastMay = false;
+  if (!castMod) return;
+  let max = 0;
+  while (max < 30 && payCost(`{${col}}`.repeat(max + 1), castMod.manaSources(env.me))) max++;
+  if (!max) return env.did.push(`has no {${col}} to pay`);
+  let k = max;
+  if (env.me === 'p') k = await env.choosers.p.chooseNumber({ prompt: `${cardName(env.src)}: pay how much {${col}}? (0–${max})`, min: 0, max, ai: max });
+  k = Math.max(0, Math.min(max, +k || 0));
+  if (!k) return env.did.push('pays nothing');
+  const paid = T && T.payMana ? await T.payMana(env.me, `{${col}}`.repeat(k), cardName(env.src)) : false;
+  if (!paid) return env.did.push('pays nothing');
+  env.lastMay = true;
+  env.lastAmount = env.thatMuch = k;
+  env.did.push(`pays {${col}}×${k}`);
+}, { first: true });
 // Hildibrand Manderville: "you may cast it from your graveyard as an Adventure until the end of your next turn"
 on(/^(?:you may )?cast (?:it|~) from your graveyard as an adventure until the end of your next turn$/, async (m, env) => {
   const c = env.src && card(env.src.iid);
@@ -4356,6 +4403,8 @@ on(/^put (\w+) cards? from your hand on (?:top|the bottom) of your library(?: in
 // --- flicker and delayed returns
 on(/^return (it|that card|the exiled card|them|those cards|the exiled cards|that creature|each card exiled this way) to the battlefield( transformed)?(?: under (its owner's|their owners'|their owner's|your|its controller's) control)?( tapped)?( at the beginning of the next end step)?(?: with an? ([a-z+\/0-9-]+) counter on (?:it|them|each of them))?$/, async (m, env) => {
   let ids = env.them_ && env.them_.length && /them|those|each/.test(m[1]) ? env.them_ : env.it && env.it.iid ? [env.it.iid] : env.them_ || [];
+  // Edgar, Charmed Groom: "When ~ dies, return it to the battlefield transformed" — "it" is the card that died
+  if (!ids.length && m[1] === 'it' && env.src && card(env.src.iid) && card(env.src.iid).zone !== 'battlefield') ids = [env.src.iid];
   // Oblivion Ring & co.: "the exiled card" is whatever this permanent exiled
   const src = env.src && env.src.iid;
   const linked = /exiled/.test(m[1]) && src ? Object.values(G.s.cards).filter((x) => x.zone === 'exile' && x.exiledLinked === src) : [];

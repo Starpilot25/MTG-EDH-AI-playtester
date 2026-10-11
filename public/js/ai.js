@@ -886,6 +886,17 @@ async function upgrades(h) {
       continue;
     }
     for (const ab of activatedAbilities(c)) {
+      // Gwen Stacy → Ghost-Spider: transform first thing in the main phase when the other side is clearly better
+      // (so a hasty back face can attack this turn)
+      if (ab.kind === 'ability' && /^Transform ~\./i.test(ab.text || '') && !c.face && DB[c.def].faces.length > 1 && !ab.sac && !/Discard|Pay \d+ life|Sacrifice|Exile/i.test(ab.costText)) {
+        if (ab.tap && (c.tapped || (isCreature(c) && c.sick && !hasKw(c, 'haste')))) continue;
+        if (!(G.s.active === AI && /main/.test(G.s.step) && !G.s.stack)) continue;
+        if (cardValue({ ...c, face: 1 }) < cardValue(c) + 2) continue;
+        if (ab.mana && !payCost(ab.mana, sources(AI).filter((m) => m.iid !== c.iid || !ab.tap))) continue;
+        await safely(h, () => activateAbility(AI, c, ab, aiEnv(h)));
+        h.render();
+        break;
+      }
       if (ab.kind !== 'classlevel' && ab.kind !== 'levelup') continue;
       if (!payCost(ab.mana, sources(AI))) continue;
       await safely(h, () => activateAbility(AI, c, ab, aiEnv(h)));

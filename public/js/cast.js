@@ -117,7 +117,12 @@ export function emptyPools(endOfTurn = false) {
     // Upwelling, Kruphix, Omnath, Horizon Stone…
     if (cardsIn('p', 'battlefield').concat(cardsIn('ai', 'battlefield')).some((x) => /Players don't lose unspent mana as steps and phases end/i.test(oracle(x)))) next[pid] = left;
     else if (field.some((o) => /If you would lose unspent (?:green )?mana, that mana becomes colorless instead/i.test(o))) next[pid] = left.map(() => 'C');
-    else {
+    else if (!endOfTurn && field.some((o) => /You don't lose unspent red mana as steps and phases end/i.test(o)) && left.some((x) => poolSym(x).col === 'R')) {
+      // Leyline Tyrant: red mana stays (until the turn ends)
+      next[pid] = left.filter((x) => poolSym(x).col === 'R');
+      const gone = left.length - next[pid].length;
+      if (pid === 'p' && gone) log('p', `Unused mana empties from your pool (${gone}); your red mana stays (Leyline Tyrant).`);
+    } else {
       // Photon: "Until end of turn, you don't lose this mana as steps and phases end"
       const k = G.s.keepMana && G.s.keepMana[pid];
       const kept = [];

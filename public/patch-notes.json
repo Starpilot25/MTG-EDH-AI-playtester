@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.26",
+    "title": "AI transforms Gwen Stacy; counters cancel; four card fixes",
+    "notes": [
+      "The AI now transforms creatures like Gwen Stacy (into Ghost-Spider) at the start of its main phase when the other side is clearly better, so a hasty back face can attack that turn.",
+      "+1/+1 and -1/-1 counters on the same permanent now always cancel out, including counters from wither or infect damage and counters you add by hand.",
+      "Herald of Secret Streams: your creatures with +1/+1 counters on them can't be blocked.",
+      "Leyline Tyrant: your red mana stays in your pool between steps, and when it dies you can pay any amount of {R} to deal that much damage to any target.",
+      "Deadly Embrace: draws a card for each creature that died this turn (before, it always drew one).",
+      "Edgar, Charmed Groom: comes back transformed as Edgar Markov's Coffin when it dies. The Coffin makes a Vampire and adds a bloodline counter each upkeep, and at three counters it transforms back into Edgar."
+    ]
+  },
+  {
     "version": "1.3.25",
     "title": "Orb of Dragonkind and Photon mana",
     "notes": [

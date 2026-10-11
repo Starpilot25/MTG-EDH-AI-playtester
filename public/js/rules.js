@@ -1182,7 +1182,14 @@ export function canBlock(blocker, attacker) {
   if (hasKw(attacker, 'fear') && !isType(blocker, 'Artifact') && !colorsOf(blocker).includes('B')) return false;
   if (hasKw(attacker, 'intimidate') && !isType(blocker, 'Artifact') && !colorsOf(blocker).some((c) => colorsOf(attacker).includes(c))) return false;
   if (hasKw(attacker, 'skulk') && power(blocker) > power(attacker)) return false;
-  if (ringLevel(attacker) >= 1 && power(blocker) > power(attacker)) return false; // the Ring: can't be blocked by creatures with greater power
+  if (ringLevel(attacker) >= 1 && power(blocker) > power(attacker)) return false;
+  // Herald of Secret Streams: "Creatures you control with +1/+1 counters on them can't be blocked."
+  if (G.s && attacker.controller && G.s.players[attacker.controller].zones.battlefield.some((i) => {
+    const x = G.s.cards[i];
+    if (!x || x.phasedOut || abilitiesGone(x)) return false;
+    const um = oracle(x).match(/(?:^|\n)(Other )?creatures you control with (?:a |one or more )?\+1\/\+1 counters? on (?:them|it) can't be blocked/i);
+    return !!um && !(um[1] && x.iid === attacker.iid) && ((attacker.counters || {})['+1/+1'] || 0) > 0;
+  })) return false; // the Ring: can't be blocked by creatures with greater power
   for (const [kw, land] of Object.entries(LANDWALK)) {
     if (hasKw(attacker, kw) && G.s && G.s.players[blocker.controller].zones.battlefield.some((i) => G.s.cards[i] && typeLine(G.s.cards[i]).includes(land))) return false;
   }
