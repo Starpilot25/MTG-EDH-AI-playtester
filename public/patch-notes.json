@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.30",
+    "title": "See what spells and abilities are targeting",
+    "notes": [
+      "When the AI's spell, ability or triggered ability waits for your response, everything it targets is outlined in red on the board. A targeted player's panel lights up too.",
+      "The response box and the stack panel both list the targets (\"🎯 your Grizzly Bears\", \"🎯 you\"), including cards in a graveyard or exile.",
+      "The AI's triggered abilities now pick their targets when they go on the stack, so what you see is what they'll hit.",
+      "Fixed: the AI's Blood Artist-style triggers (\"target player loses 1 life and you gain 1 life\") were sometimes predicted at the AI itself."
+    ]
+  },
+  {
     "version": "1.3.29",
     "title": "Six card fixes",
     "notes": [

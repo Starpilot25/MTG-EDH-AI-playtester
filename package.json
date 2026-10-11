@@ -1,7 +1,7 @@
 {
   "name": "edh-playtester",
   "productName": "EDH Playtester",
-  "version": "1.3.29",
+  "version": "1.3.30",
   "description": "Playtest your Commander decks against an AI opponent.",
   "main": "electron-main.js",
   "author": "EDH Playtester",

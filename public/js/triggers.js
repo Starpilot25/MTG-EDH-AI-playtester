@@ -1519,6 +1519,9 @@ export async function settle() {
           await resolveTrigger(hit, controller, ev);
         } catch (e) {
           if (!(e instanceof Cancelled)) console.error(e);
+        } finally {
+          // the targets announced for the AI's trigger are used up
+          if (controller === 'ai' && T.choosers && T.choosers.ai && T.choosers.ai.plan) T.choosers.ai.plan = null;
         }
         if (G.s !== s0) return;
       }

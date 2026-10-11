@@ -6151,7 +6151,9 @@ export async function predictTargets(pid, c, face, choosers, x = 0, textOverride
     for (const mm of sentence.matchAll(PH)) {
       const phrase = mm[0].trim();
       const blink = /exile [^.]*,? then return (?:it|that card|them|that permanent) to the battlefield/.test(sentence);
-      const harm = !blink && (!/(?:gets? \+|gains? (?!control)|untap|\+1\/\+1 counter|return [^.]* to the battlefield|hexproof|indestructible|protection)/.test(sentence) || /destroy|exile|damage|sacrifice|-\d/.test(sentence));
+      // judge good/bad from this target's own clause (Blood Artist: "target player loses 1 life and you gain 1 life")
+      const clause = sentence.slice(0, mm.index) + sentence.slice(mm.index).split(/ and you | and its controller | and that player |, then /)[0];
+      const harm = !blink && (!/(?:gets? \+|gains? (?!control)|untap|\+1\/\+1 counter|return [^.]* to the battlefield|hexproof|indestructible|protection)/.test(clause) || /destroy|exile|damage|sacrifice|loses? \d+ life|-\d/.test(clause));
       let picks = [];
       try {
         picks = await pickTargets(env, phrase, { harm, noWard: true });

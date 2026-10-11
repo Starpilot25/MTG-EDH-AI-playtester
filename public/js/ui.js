@@ -19,7 +19,7 @@ import {
 import { T, fire, settle, triggersOf } from './triggers.js';
 import { DUNGEONS, venture, takeInitiative } from './dungeon.js';
 import {
-  Cancelled, activatedAbilities, zoneAbilities,
+  Cancelled, activatedAbilities, zoneAbilities, predictTargets,
 } from './effects.js';
 import { payCost, totalMana, sculptors, SECTORS, SECTOR_SIGN, manaAbility } from './rules.js';
 
@@ -81,7 +81,7 @@ function cardHTML(c, opts = {}) {
   if (cb && cb.selected === c.iid) cls.push('selected');
   if ((G.s.stack && G.s.stack.iid === c.iid) || (G.s.pstack && G.s.pstack.iid === c.iid)) cls.push('on-stack');
   if (respondable(c)) cls.push('playable');
-  if (G.s && G.s.stack && (G.s.stack.targets || []).some((t) => t.iid === c.iid) && c.zone === 'battlefield') cls.push('stack-target');
+  if (G.s && ((G.s.stack && (G.s.stack.targets || []).some((t) => t.iid === c.iid)) || (G.s.pstack && (G.s.pstack.targets || []).some((t) => t.iid === c.iid)))) cls.push('stack-target');
   if (pendingTarget && pendingTarget.req.candidates.includes(c.iid)) cls.push('targetable');
   if (pendingTarget && pendingTarget.req.src && pendingTarget.req.src.iid === c.iid) cls.push('source');
   const style = opts.abs ? `style="left:${c.x}px;top:${c.y}px"` : '';
@@ -187,9 +187,29 @@ function cardHTML(c, opts = {}) {
 export function render() {
   if (!G.s) return;
   withReadCache(renderAll);
+  // a spell or ability on the stack targeting a player: light up that player's panel
+  {
+    const tg = (G.s.stack && G.s.stack.targets) || [];
+    for (const [pid, id] of [['p', 'my-panel'], ['ai', 'opp-panel']]) {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('stack-target-player', tg.some((t) => t.player === pid));
+    }
+  }
   drawBlockLines();
   showStealNotes();
   renderStackView();
+}
+
+// "your Grizzly Bears", "you", "a card in your graveyard" — what a spell or ability on the stack is aimed at
+const ZONE_WORD = { graveyard: 'in graveyard', exile: 'in exile', hand: 'in hand', library: 'in library' };
+function targetWords(targets) {
+  return (targets || []).map((t) => {
+    if (t.player) return t.player === 'p' ? 'you' : 'the AI';
+    const c = card(t.iid);
+    if (!c) return '';
+    const whose = (c.zone === 'battlefield' ? c.controller : c.owner) === 'p' ? 'your' : "the AI's";
+    return `${whose} ${cardName(c)}${c.zone !== 'battlefield' && ZONE_WORD[c.zone] ? ' (' + ZONE_WORD[c.zone] + ')' : ''}`;
+  }).filter(Boolean);
 }
 
 // The stack: spells and abilities waiting to resolve, top first (the next to resolve is at the top)
@@ -203,7 +223,8 @@ function renderStackView() {
     const c = card(st.iid);
     if (!c) return;
     const shown = st.copyFace ? { ...c, face: st.copyFace } : c;
-    items.push({ by: st.by, name: (st.copyFace ? 'Copy of ' : '') + cardName(shown), text: st.ability ? (st.trigger ? 'Triggered: ' : 'Ability: ') + st.ability : label, iid: st.iid, now: true });
+    const tw = targetWords(st.targets);
+    items.push({ by: st.by, name: (st.copyFace ? 'Copy of ' : '') + cardName(shown), text: st.ability ? (st.trigger ? 'Triggered: ' : 'Ability: ') + st.ability : label, iid: st.iid, now: true, targets: tw });
   };
   if (s.pstack) spellRow(s.pstack, 'Spell');
   if (s.stack) spellRow(s.stack, 'Spell');
@@ -216,7 +237,7 @@ function renderStackView() {
   }
   el.hidden = false;
   el.innerHTML = `<div class="sv-head">Stack <small>${items.length} waiting · top resolves next</small></div><ol class="sv-list">${items
-    .map((it) => `<li class="sv-item ${it.by === 'p' ? 'mine' : 'theirs'} ${it.now ? 'now' : ''}" ${it.iid && card(it.iid) ? `data-iid="${it.iid}"` : ''}><span class="sv-who">${who_(it.by)}</span><b>${esc(it.name)}</b><span class="sv-text">${esc(String(it.text || '').slice(0, 140))}</span></li>`)
+    .map((it) => `<li class="sv-item ${it.by === 'p' ? 'mine' : 'theirs'} ${it.now ? 'now' : ''}" ${it.iid && card(it.iid) ? `data-iid="${it.iid}"` : ''}><span class="sv-who">${who_(it.by)}</span><b>${esc(it.name)}</b><span class="sv-text">${esc(String(it.text || '').slice(0, 140))}</span>${(it.targets || []).length ? `<span class="sv-tgt">🎯 ${esc(it.targets.join(', '))}</span>` : ''}</li>`)
     .join('')}</ol>`;
 }
 
@@ -241,7 +262,16 @@ T.announceTrigger = async (hit, text) => {
   const s = G.s;
   if (!G.settings.pauseOnAiSpells || s.stack || s.pstack || aiSlaved() || !card(hit.src.iid)) return false;
   if (!canRespondNow()) return false;
-  s.stack = { iid: hit.src.iid, by: 'ai', face: card(hit.src.iid).face || 0, ability: text, trigger: true };
+  // work out what it will target now, show it, and hold the AI to that choice when it resolves
+  let tg = [];
+  try {
+    aiChooser.plan = null;
+    tg = await predictTargets('ai', card(hit.src.iid), card(hit.src.iid).face || 0, { ai: aiChooser, p: aiChooser }, hit.x || 0, hit.trig.text || text);
+  } catch (e) {
+    tg = [];
+  }
+  if (tg.length) aiChooser.plan = tg.slice();
+  s.stack = { iid: hit.src.iid, by: 'ai', face: card(hit.src.iid).face || 0, ability: text, trigger: true, targets: tg };
   render();
   let countered = false;
   try {
@@ -817,7 +847,7 @@ function renderBanner() {
       <div class="stack-card">${cardHTML(c)}</div>
       <div class="stack-copy"><span class="eyebrow">${s.stack.trigger ? "AI's ability triggers" : s.stack.ability ? 'AI is activating an ability' : s.stack.copyFace ? 'AI is casting a copy of' : 'AI is casting'}</span><h3>${esc(cardName(c))}</h3>
       <p>${esc(s.stack.ability || oracle(c)).replace(/~/g, esc(cardName(c))).replace(/\n/g, '<br>')}</p>
-      ${(s.stack.targets || []).length ? `<p class="stack-targets">Targeting: ${s.stack.targets.map((t) => t.player ? `<b>${t.player === 'p' ? 'you' : 'the AI'}</b>` : card(t.iid) ? `<b>${card(t.iid).controller === 'p' ? 'your' : 'its own'} ${esc(cardName(card(t.iid)))}</b>` : '').filter(Boolean).join(', ')}</p>` : ''}
+      ${(s.stack.targets || []).length ? `<p class="stack-targets">🎯 Targeting: ${targetWords(s.stack.targets).map((w) => `<b>${esc(w)}</b>`).join(', ')} <small>(highlighted in red)</small></p>` : ''}
       ${arena ? `<p class="hint">${responses ? `You have ${responses} instant-speed card${responses > 1 ? 's' : ''} you can afford (glowing in your hand) — double-click one to respond, or let it resolve.` : 'You have nothing you can cast in response.'}</p>` : ''}
       <div class="btns"><button class="primary" data-act="resolve">Let it resolve <kbd>Enter</kbd></button>
       ${arena ? '' : '<button data-act="counter" title="Tabletop mode: counter it by hand">Counter it</button>'}</div></div></div>`;

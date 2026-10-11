@@ -803,6 +803,8 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 /* what the AI's spell is aimed at, while you can respond */
 .stack-targets { color: #f2b8a8; margin: 6px 0; }
 .stack-targets b { color: #ffd2c4; }
+.sv-tgt { display: block; color: #f2b8a8; font-size: 11px; margin-top: 2px; }
+#my-panel.stack-target-player, #opp-panel.stack-target-player { outline: 3px solid #e2563c; outline-offset: -3px; box-shadow: inset 0 0 18px rgb(226 86 60 / 0.45); border-radius: 10px; }
 .card.stack-target { outline: 3px solid #e2563c; outline-offset: 2px; box-shadow: 0 0 16px rgb(226 86 60 / 0.75); animation: stackTgt 1.2s ease-in-out infinite alternate; }
 @keyframes stackTgt { from { outline-color: #e2563c; } to { outline-color: #ffb199; } }
 
