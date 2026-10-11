@@ -1529,10 +1529,20 @@ on(/^put a \+1\/\+1 counter on ~ and you draw a card$/, async (m, env) => {
 on(/^add that much mana of any one color$/, async (m, env) => {
   const k = env.thatMuch || env.lastAmount || 0;
   if (!k) return;
-  addMana(env.me, Array.from({ length: k }, () => 'ANY'));
-  env.lastManaAdded = { sym: 'ANY', n: k };
-  env.did.push(`adds ${k} mana of any one color`);
+  const col = await chooseManaColor(env, `${cardName(env.src)}: add ${k} mana of which color?`);
+  addMana(env.me, Array.from({ length: k }, () => col));
+  env.lastManaAdded = { sym: col, n: k };
+  env.did.push(`adds ${k} ${{ W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' }[col]} mana`);
 }, { first: true });
+// "any one color": you pick (the AI picks what its hand needs most)
+async function chooseManaColor(env, prompt) {
+  const cols = ['W', 'U', 'B', 'R', 'G'];
+  const names = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green' };
+  const need = (col) => cardsIn(env.me, 'hand').reduce((a, c) => a + ((DB[c.def].manaCost || '').match(new RegExp('\\{' + col + '\\}', 'g')) || []).length, 0);
+  const best = cols.slice().sort((a, b) => need(b) - need(a))[0];
+  const k = await env.choosers[env.me].choose({ prompt, options: cols.map((x) => ({ label: names[x] })), aiPick: () => cols.indexOf(best) });
+  return cols[k] || best;
+}
 // Photon: the mana it added stays in your pool until the end of the turn
 on(/^until end of turn, you don't lose this mana as steps and phases end$/, async (m, env) => {
   const a = env.lastManaAdded;

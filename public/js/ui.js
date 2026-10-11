@@ -13,7 +13,7 @@ import {
 } from './game.js';
 import { aiChooser, aiMaybeCounter, aiMaybeCounterTrigger, aiPay, aiEnv } from './ai.js';
 import {
-  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, landOptions, playLand, landsAllowed, applyPayment,
+  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, landOptions, playLand, landsAllowed, applyPayment, poolSym, tagPoolSym,
   activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft, instantLoyalty,
 } from './cast.js';
 import { T, fire, settle, triggersOf } from './triggers.js';
@@ -459,7 +459,11 @@ function statusLine(pid) {
   const names = { energy: 'Energy', experience: 'Experience', rad: 'Rad', ticket: 'Tickets' };
   for (const [k, v] of Object.entries(pl.counters || {})) if (v) bits.push(`<span class="st">${esc(names[k] || k)} ${v}</span>`);
   const pool = (s.pool && s.pool[pid]) || [];
-  if (pool.length) bits.push(`<span class="st pool" title="Floating mana (empties between steps)">Pool ${manaSymbols(pool.map((x) => `{${x === 'ANY' ? '*' : x}}`).join(''))}</span>`);
+  if (pool.length) {
+    const lim = pool.map(poolSym).filter((p) => p.onlyFor);
+    const tip = `Floating mana (empties between steps)${lim.length ? ` — ${lim.length} restricted: only for ${[...new Set(lim.map((p) => (p.onlyFor === 'abilities' ? 'abilities' : p.onlyFor === 'fromExile' ? 'spells from exile' : p.onlyFor + ' spells')))].join(', ')}` : ''}`;
+    bits.push(`<span class="st pool" title="${esc(tip)}">Pool ${manaSymbols(pool.map((x) => { const p = poolSym(x); return `{${p.col === 'ANY' ? '*' : p.col}}`; }).join(''))}${lim.length ? '<sup>*</sup>' : ''}</span>`);
+  }
   if (pid === 'p' && s.dayNight) bits.push(`<span class="st daynight ${s.dayNight}">${s.dayNight === 'day' ? '☀ Day' : '☾ Night'}</span>`);
   return bits.length ? `<div class="status-row">${bits.join('')}</div>` : '';
 }
@@ -1606,27 +1610,40 @@ async function floatMana(c) {
   let syms = [];
   // Signets: pay their {1} out of the mana pool first
   if (m.activation) {
-    const pool = (G.s.pool && G.s.pool.p) || [];
+    const pool = ((G.s.pool && G.s.pool.p) || []).filter((x) => !poolSym(x).onlyFor);
     if (pool.length < m.activation) return toast(`${cardName(c)} needs {${m.activation}} to activate — tap a land for mana first, then tap ${cardName(c)}.`);
   }
+  const names = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green', C: 'Colorless' };
   if (m.each) syms = [...m.each];
-  else {
+  else if (m.combo && (m.amount || 1) > 1) {
+    // "two mana in any combination of colors": pick each one
+    for (let j = 0; j < m.amount; j++) {
+      const k = await playerChooser.choose({ prompt: `${cardName(c)}: color of mana ${j + 1} of ${m.amount}?`, options: m.colors.map((x) => ({ label: names[x] || x })), aiPick: () => 0 });
+      if (k === null || k === undefined || k < 0) return;
+      syms.push(m.colors[k]);
+    }
+  } else {
     let col = m.colors[0];
     if (m.colors.length > 1) {
-      const names = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green', C: 'Colorless' };
       const k = await playerChooser.choose({ prompt: `Tap ${cardName(c)} for which color?`, options: m.colors.map((x) => ({ label: names[x] || x })), aiPick: () => 0 });
       if (k === null || k === undefined || k < 0) return;
       col = m.colors[k] || col;
     }
     syms = Array.from({ length: m.amount || 1 }, () => col);
   }
+  // restricted mana keeps its restriction in the pool (Orb of Dragonkind: Dragon spells only)
+  syms = syms.map((x) => tagPoolSym(x, m));
   act(() => {
     G.s.pool = G.s.pool || { p: [], ai: [] };
     if (m.activation) {
       // spend colorless first, then whatever is most plentiful
       for (let k = 0; k < m.activation; k++) {
         const pool = G.s.pool.p;
-        const i = pool.indexOf('C') >= 0 ? pool.indexOf('C') : 0;
+        // unrestricted mana only (colorless first)
+        const free = pool.map((x, j) => ({ x, j })).filter((o) => !poolSym(o.x).onlyFor);
+        const pick = free.find((o) => o.x === 'C') || free[0];
+        if (!pick) break;
+        const i = pick.j;
         pool.splice(i, 1);
       }
       log('p', `You pay {${m.activation}} to activate ${nameTag(c)}.`);
@@ -1634,7 +1651,7 @@ async function floatMana(c) {
     G.s.pool.p.push(...syms);
     c.tapped = true;
     c.floated = { syms, step: G.s.step, turn: G.s.turn };
-    log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${x}}`).join(''))}.`);
+    log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${poolSym(x).col}}`).join(''))}${m.onlyFor ? ` (only for ${m.onlyFor === 'abilities' ? 'abilities' : m.onlyFor === 'fromExile' ? 'spells cast from exile' : m.onlyFor + ' spells' + (m.abilitiesOf ? ' or abilities' : '')})` : ''}.`);
     if (m.sac && hasSubtype(c, 'Treasure')) G.s.treasurePool = { pid: 'p', turn: G.s.turn }; // Rain of Riches
     if (m.sac) sacrifice(c.iid);
     if (m.pain && syms.some((x) => m.pain.includes(x))) {

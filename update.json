@@ -1,22 +1,22 @@
 {
-  "version": "1.3.24",
+  "version": "1.3.25",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "e39c52fb6135e578eac3978f963960ce734fc7fc7690659c6626690490d86a57",
     "public/index.html": "1848de5425414eb96ec2a80cd3c35f0f2210022a6b4351974a1f79b59284ac55",
     "public/js/ai.js": "ff56043113efd7a8b531680a6eea4e60cb216edc97e96615892ec17e79bcf9fb",
     "public/js/aicombat.js": "9123049a30a90b1b7434fa520dbc9fb79c8458e41ee2049a3762735f0af87953",
-    "public/js/cast.js": "62681bd6ecbce7e95d220967bad2cd3eb96191b28e8915d3a2720374d0e26676",
+    "public/js/cast.js": "62db1022ea61f537540e113b851624e4d1b4f91b32f76d6262dcb11eb009c027",
     "public/js/data.js": "e10cdb639f49ca5547cf82614bb096063679073605131a4d2bcba144ac7bbf11",
     "public/js/dungeon.js": "0471bcc526f2edd1bbd2a8f8891c18df03b672b6fd22e23dfcdec5fe7e46289f",
-    "public/js/effects.js": "820c279769ad56e9872017d2c4d3cc4038f43b8d9dd8896b63ea10208024e10b",
+    "public/js/effects.js": "503fde90ea93b05b247bf48495d44713bac734f1c28478f26e9376dbca96f368",
     "public/js/game.js": "53ccbecae2de2348efb2632ab09e30a613eb25a4d8583c880dab77cb189a9557",
     "public/js/main.js": "4d80425f9d90cd91bab0b98acdf2a9c253d37aad6f9b3bd58de319b9e5e2228d",
-    "public/js/rules.js": "dc1d2f218e2f53a37890eebe4033902943b35fbf1cad9c93f4f77027d1d56362",
+    "public/js/rules.js": "da6dc9f11aeb72d295ded0de0b68f11eee5948660c4d16e7a4aaf61884e5896b",
     "public/js/state.js": "b16de14691c3d6241515fadd9d6d527952e3cbd29118929054284a884b1fd2a7",
     "public/js/statics.js": "183d37df628583bb0b85ee8a8462a54171b423e99ee0f0a10596c7cc6e0171d1",
     "public/js/triggers.js": "35ef92aaa5b086c0b066eb3e333841feaff126af92da17d77ac3a0bb63e09e96",
-    "public/js/ui.js": "4ee3960366def91130d9a53d0c2a98e930cd6633eb10f1fb2b88e73dcbdb58fb",
-    "public/patch-notes.json": "0847fb16af6e6dd03d80ca5b46bc368909ccf3a6d5b800cc6c7f6aaa867c59d3"
+    "public/js/ui.js": "b54593ff0ab7cdb0f99db3209ca03b75461bef3c0b5651cbb5da7cbec93d32f7",
+    "public/patch-notes.json": "884d0aa3cac09293e5c6da722e006bfcf4834b92368e77dd20d4b4847214e940"
   }
 }

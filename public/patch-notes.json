@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.25",
+    "title": "Orb of Dragonkind and Photon mana",
+    "notes": [
+      "Orb of Dragonkind: tapping it by hand now asks the color of each of its two mana, and that mana stays restricted in your pool. It can pay for Dragon spells and Dragons' abilities only. The pool shows a * and its tooltip says which mana is restricted.",
+      "This applies to all restricted mana you tap by hand, for example \"Spend this mana only to cast an Angel spell\" or \"only to activate abilities\".",
+      "Photon, Mighty Marvel: you now choose one color for all the mana it adds (the AI picks the color its hand needs most)."
+    ]
+  },
+  {
     "version": "1.3.24",
     "title": "Ward, \"if\" triggers, and five card fixes",
     "notes": [

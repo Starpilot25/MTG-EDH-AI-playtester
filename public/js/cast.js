@@ -27,31 +27,42 @@ const isLandFace = (f) => /\bLand\b/.test((f.typeLine || '').split('—')[0]);
 const instantFace = (f) => /\bInstant\b/.test((f.typeLine || '').split('—')[0]);
 
 // ------------------------------------------------------------ mana sources
+// Restricted mana ("Spend this mana only to cast an Angel spell", Orb of Dragonkind's "Dragon spells or abilities of Dragons"):
+// may it pay for this spell or ability?
+function restrictedOk(onlyFor, abilitiesOf, spell, opts) {
+  if (!onlyFor) return true;
+  if (onlyFor === 'abilities') return !!opts.ability; // The Enigma Jewel
+  if (onlyFor === 'fromExile') return !!spell && spell.zone === 'exile' && !opts.ability;
+  if (opts.ability) return !!(abilitiesOf && spell && spell.zone === 'battlefield' && hasSubtype(spell, abilitiesOf));
+  if (!spell || spell.zone === 'battlefield') return false;
+  const tl = DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine;
+  return /^[A-Z]/.test(onlyFor) ? hasSubtype({ ...spell, zone: 'hand' }, onlyFor) : onlyFor === 'noncreature' ? !/Creature/.test(tl) : new RegExp(onlyFor.split(' or ').join('|'), 'i').test(tl);
+}
+// Mana floating in the pool may carry its restriction: "R@Dragon+" = red, only for Dragon spells (+ = and Dragons' abilities)
+export function poolSym(sym) {
+  const [col, rest] = String(sym).split('@');
+  if (!rest) return { col, onlyFor: null, abilitiesOf: null };
+  const abil = rest.endsWith('+');
+  const onlyFor = abil ? rest.slice(0, -1) : rest;
+  return { col, onlyFor, abilitiesOf: abil ? onlyFor : null };
+}
+export function tagPoolSym(col, m) {
+  return m && m.onlyFor ? `${col}@${m.onlyFor}${m.abilitiesOf ? '+' : ''}` : col;
+}
+
 export function manaSources(pid, opts = {}) {
   const out = [];
   const pool = (G.s.pool && G.s.pool[pid]) || [];
-  pool.forEach((sym, k) => out.push({ iid: 'pool:' + k, colors: sym === 'ANY' ? ['W', 'U', 'B', 'R', 'G', 'C'] : [sym], amount: 1, kind: 'pool' }));
   const spell = opts.spell || (opts.self ? card(opts.self) : null);
+  pool.forEach((sym, k) => {
+    const p = poolSym(sym);
+    if (!restrictedOk(p.onlyFor, p.abilitiesOf, spell, opts)) return;
+    out.push({ iid: 'pool:' + k, colors: p.col === 'ANY' ? ['W', 'U', 'B', 'R', 'G', 'C'] : [p.col], amount: 1, kind: 'pool' });
+  });
   for (const c of cardsIn(pid, 'battlefield')) {
     const m = manaAbility(c);
     if (!m) continue;
-    // restricted mana ("spend this mana only to cast an Angel spell")
-    if (m.onlyFor === 'abilities') {
-      // The Enigma Jewel: "Spend this mana only to activate abilities."
-      if (!opts.ability) continue;
-    } else if (m.onlyFor === 'fromExile') {
-      if (!spell || spell.zone !== 'exile' || opts.ability) continue;
-    } else if (m.onlyFor) {
-      // Orb of Dragonkind: "… or activate abilities of Dragons"
-      if (opts.ability && m.abilitiesOf && spell && spell.zone === 'battlefield' && hasSubtype(spell, m.abilitiesOf)) {
-        out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, activation: m.activation || 0 });
-        continue;
-      }
-      if (!spell || spell.zone === 'battlefield' || opts.ability) continue;
-      const tl = DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine;
-      const ok = /^[A-Z]/.test(m.onlyFor) ? hasSubtype({ ...spell, zone: 'hand' }, m.onlyFor) : m.onlyFor === 'noncreature' ? !/Creature/.test(tl) : new RegExp(m.onlyFor.split(' or ').join('|'), 'i').test(tl);
-      if (!ok) continue;
-    }
+    if (!restrictedOk(m.onlyFor, m.abilitiesOf, spell, opts)) continue;
     out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, activation: m.activation || 0 });
   }
   // Waterbend: untapped artifacts and creatures can each pay {1} of the waterbend cost

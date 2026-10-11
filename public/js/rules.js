@@ -777,7 +777,7 @@ function manaAbilityRaw(inst) {
     const om = o.match(/(?:^|\n)\{(\d)\}, \{T\}: Add (two|three) mana in any combination of colors\. Spend this mana only to cast ([A-Z][\w-]+) spells( or activate abilities of \3s)?\./);
     if (om) {
       if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
-      return { colors: ['W', 'U', 'B', 'R', 'G'], amount: om[2] === 'three' ? 3 : 2, activation: +om[1], onlyFor: om[3], ...(om[4] ? { abilitiesOf: om[3] } : {}) };
+      return { colors: ['W', 'U', 'B', 'R', 'G'], amount: om[2] === 'three' ? 3 : 2, combo: true, activation: +om[1], onlyFor: om[3], ...(om[4] ? { abilitiesOf: om[3] } : {}) };
     }
   }
   // Interdimensional Web Watch: "{T}: Add two mana in any combination of colors. Spend this mana only to cast spells from exile."
@@ -785,7 +785,7 @@ function manaAbilityRaw(inst) {
     const am = o.match(/(?:^|\n)\{T\}: Add (two|three) mana in any combination of colors\.(?: Spend this mana only to cast spells from exile\.)?/);
     if (am && !/Spend this mana only to cast (?:creature|[A-Z])/.test(o)) {
       if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
-      return { colors: ['W', 'U', 'B', 'R', 'G'], amount: am[1] === 'three' ? 3 : 2, ...(/only to cast spells from exile/.test(am[0]) ? { onlyFor: 'fromExile' } : {}) };
+      return { colors: ['W', 'U', 'B', 'R', 'G'], amount: am[1] === 'three' ? 3 : 2, combo: true, ...(/only to cast spells from exile/.test(am[0]) ? { onlyFor: 'fromExile' } : {}) };
     }
   }
   // Thriving lands & co.: "{T}: Add {R} or one mana of the chosen color."
