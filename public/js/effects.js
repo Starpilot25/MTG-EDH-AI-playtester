@@ -649,6 +649,7 @@ function turnHistoryCond(c, env) {
   if ((m = c.match(/^~ has an? ([a-z+\/0-9-]+) counter on it$/))) return ((src && src.counters) || {})[m[1]] > 0;
   if ((m = c.match(/^~ doesn't have an? ([a-z+\/0-9-]+) counter on it$/))) return !(((src && src.counters) || {})[m[1]] > 0);
   if ((m = c.match(/^~ has (\w+) or fewer ([a-z+\/0-9-]+) counters on it$/))) return (((src && src.counters) || {})[m[2]] || 0) <= n(m[1]);
+  if ((m = c.match(/^(?:~|it) has (?:one or more )?([a-z+\/0-9-]+) counters on it$/))) return (((src && src.counters) || {})[m[1]] || 0) > 0;
   if ((m = c.match(/^(?:~|it|this [a-z]+) has fewer than (\w+) ([a-z+\/0-9-]+) counters on it$/))) return (((src && src.counters) || {})[m[2]] || 0) < n(m[1]);
   if (/^~ has counters on it$/.test(c)) return Object.values((src && src.counters) || {}).some((v) => v > 0);
   // this permanent's state
@@ -2924,6 +2925,20 @@ on(/^at the beginning of your next end step, ~ deals (\w+) damage to each oppone
   if (!ids.length || !env.src) return env.did.push('nothing exiled');
   G.s.delayed.push({ at: 'endStep', whoseEnd: env.me, kind: 'exiledDamage', ids, src: env.src.iid, per: n(m[1]), pid: env.me });
   env.did.push(`at ${env.me === 'p' ? 'your' : "the AI's"} next end step, ${n(m[1])} damage to ${env.me === 'p' ? 'the AI' : 'you'} for each of those cards still in exile`);
+}, { first: true });
+// Gatewatch Beacon: "you may move a loyalty counter from ~ onto that planeswalker"
+on(/^(you may )?move (a|an|one|two|three|\d+|all) ([a-z+\/0-9-]+) counters? from ~ onto (that planeswalker|that creature|it|target [a-z ]+)$/, async (m, env) => {
+  const src = env.src && card(env.src.iid);
+  const have = ((src && src.counters) || {})[m[3]] || 0;
+  if (!src || !have) return env.did.push(`no ${m[3]} counters to move`);
+  const [t] = /^target /.test(m[4]) ? await objects(env, m[4], { harm: false }) : [env.it && env.it.iid && card(env.it.iid)];
+  if (!t || t.zone !== 'battlefield') return env.did.push('nothing to move it onto');
+  if (m[1] && env.me === 'p' && !(await env.choosers.p.confirm(cardName(src), `Move ${m[2] === 'all' ? 'all' : m[2]} ${m[3]} counter${m[2] === 'a' || m[2] === 'one' ? '' : 's'} from ${cardName(src)} onto ${cardName(t)}?`, {}))) return;
+  const k = Math.min(have, m[2] === 'all' ? have : n(m[2]));
+  src.counters[m[3]] = have - k;
+  if (!src.counters[m[3]] && m[3] !== 'loyalty') delete src.counters[m[3]];
+  addCounters(t, m[3], k, { by: env.me });
+  env.did.push(`moves ${k} ${m[3]} counter${k === 1 ? '' : 's'} onto ${nameTag(t)}`);
 }, { first: true });
 // Garruk, Primal Hunter -3: "Draw cards equal to the greatest power among creatures you control."
 on(/^(?:you )?draw cards equal to (.+)$/, async (m, env) => {

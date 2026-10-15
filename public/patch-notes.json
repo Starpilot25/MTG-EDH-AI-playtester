@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.37",
+    "title": "Gatewatch Beacon",
+    "notes": [
+      "Gatewatch Beacon: when a planeswalker you control enters, you may move a loyalty counter from the Beacon onto it (while the Beacon still has counters). Other cards that \"move a counter from ~ onto\" something work the same way."
+    ]
+  },
+  {
     "version": "1.3.36",
     "title": "Six more card fixes",
     "notes": [
