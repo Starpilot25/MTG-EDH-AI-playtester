@@ -13,7 +13,7 @@ import {
 } from './game.js';
 import { aiChooser, aiMaybeCounter, aiMaybeCounterTrigger, aiPay, aiEnv } from './ai.js';
 import {
-  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, displayCost, landOptions, playLand, landsAllowed, applyPayment, poolSym, tagPoolSym,
+  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, displayCost, manaLifeGain, landOptions, playLand, landsAllowed, applyPayment, poolSym, tagPoolSym,
   activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft, instantLoyalty,
 } from './cast.js';
 import { T, fire, settle, triggersOf } from './triggers.js';
@@ -1735,6 +1735,11 @@ async function floatMana(c) {
     if (m.pain && syms.some((x) => m.pain.includes(x))) {
       changeLife('p', -1, false);
       log('p', `${nameTag(c)} costs you 1 life.`);
+    }
+    const gain = manaLifeGain(c);
+    if (gain) {
+      changeLife('p', gain, false);
+      log('p', `${nameTag(c)}: you gain ${gain} life.`);
     }
   });
 }

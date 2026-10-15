@@ -76,10 +76,22 @@ export function manaSources(pid, opts = {}) {
   return out;
 }
 
+// Pristine Talisman, Gold Myr-likes: "{T}: Add {C}. You gain 1 life." — the life comes with the mana
+export function manaLifeGain(c) {
+  const m = c && oracle(c).match(/\{T\}: Add [^.\n]+\. You gain (\d+) life/);
+  return m ? +m[1] : 0;
+}
 // Tap / sacrifice / exile what paid for a cost.
 export function applyPayment(pid, pay) {
   if (!pay) return;
   const usedPool = [];
+  for (const iid of new Set(pay.payers || [])) {
+    const g = !String(iid).startsWith('pool:') && card(iid) && !card(iid).tapped ? manaLifeGain(card(iid)) : 0;
+    if (g) {
+      changeLife(pid, g, false);
+      log(pid, `${nameTag(card(iid))}: ${pid === 'p' ? 'you gain' : 'the AI gains'} ${g} life.`);
+    }
+  }
   for (const iid of pay.payers || []) {
     if (String(iid).startsWith('pool:')) usedPool.push(+iid.slice(5));
     else if (card(iid)) {

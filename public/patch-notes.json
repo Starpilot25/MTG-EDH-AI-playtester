@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.38",
+    "title": "Pristine Talisman",
+    "notes": [
+      "Pristine Talisman (and other \"{T}: Add mana. You gain 1 life.\" cards) now gain you the life whenever they're tapped for mana — by auto-pay or by hand, for you and the AI."
+    ]
+  },
+  {
     "version": "1.3.37",
     "title": "Gatewatch Beacon",
     "notes": [
