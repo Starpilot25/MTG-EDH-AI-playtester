@@ -232,7 +232,13 @@ export function castOptions(pid, c) {
     const may = altCost(o0, 'Mayhem');
     if (may && ts.discarded.includes(c.iid)) add({ mode: 'mayhem', label: `Mayhem ${may}`, cost: may });
     // "You may cast ~ from your graveyard" (not flashback's reminder text "…from your graveyard for its flashback cost")
-    if (/You may cast ~ from your graveyard(?! for its)/i.test(o0.replace(/\([^)]*\)/g, ''))) add({ mode: 'fromGraveyard', label: 'Cast from graveyard', cost: f0.manaCost });
+    if (/You may cast ~ from your graveyard(?! for its)/i.test(o0.replace(/\([^)]*\)/g, ''))) {
+      // Quilled Greatwurm: "by removing six counters from among creatures you control in addition to paying its other costs"
+      const rm = o0.match(/from your graveyard by removing (\w+) counters from among creatures you control/i);
+      const need = rm ? { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8 }[rm[1].toLowerCase()] || +rm[1] || 0 : 0;
+      const have = cardsIn(pid, 'battlefield').filter(isCreature).reduce((a, x) => a + Object.entries(x.counters || {}).reduce((b, [k, v]) => b + (k === 'loyalty' ? 0 : Math.max(0, v)), 0), 0);
+      if (!need || have >= need) add({ mode: 'fromGraveyard', label: need ? `Cast from graveyard (remove ${need} counters)` : 'Cast from graveyard', cost: f0.manaCost, ...(need ? { removeCounters: need } : {}) });
+    }
     if (cardsIn(pid, 'battlefield').some((x) => /Spells you cast from your graveyard cost|each nonland card in your graveyard has mayhem/i.test(oracle(x))) && ts.discarded.includes(c.iid) && !isLandFace(f0) && !may)
       add({ mode: 'mayhem', label: `Mayhem ${f0.manaCost}`, cost: f0.manaCost });
   }
@@ -301,6 +307,39 @@ function genericAdjust(pid, c, opt) {
   return delta;
 }
 
+// "removing N counters from among creatures you control": take off the ones that hurt first (-1/-1, stun), then +1/+1 from the biggest piles
+function removeCountersAmong(pid, n, src) {
+  let left = n;
+  const order = (k) => (k === '-1/-1' ? 0 : k === 'stun' ? 1 : k === '+1/+1' ? 3 : 2);
+  const piles = [];
+  for (const x of cardsIn(pid, 'battlefield').filter(isCreature)) for (const [k, v] of Object.entries(x.counters || {})) if (k !== 'loyalty' && v > 0) piles.push({ x, k, v });
+  piles.sort((a, b) => order(a.k) - order(b.k) || b.v - a.v);
+  const took = [];
+  for (const pl of piles) {
+    if (!left) break;
+    const t = Math.min(left, pl.v);
+    pl.x.counters[pl.k] -= t;
+    if (!pl.x.counters[pl.k]) delete pl.x.counters[pl.k];
+    left -= t;
+    took.push(`${t} ${pl.k} from ${nameTag(pl.x)}`);
+  }
+  log(pid, `${nameTag(src)}: removes ${took.join(', ')}.`);
+}
+// The cost as it will actually be paid, for showing on buttons and menus (Goreclaw, Helm of Awakening, commander tax…)
+export function displayCost(pid, c, opt) {
+  const cost = String((opt && opt.cost) || '');
+  if (!opt || opt.free || !cost) return cost;
+  const delta = genericAdjust(pid, c, opt);
+  if (!delta) return cost;
+  const syms = cost.match(/\{[^}]+\}/g) || [];
+  const gen = syms.filter((x) => /^\{\d+\}$/.test(x)).reduce((a, x) => a + +x.slice(1, -1), 0);
+  const rest = syms.filter((x) => !/^\{\d+\}$/.test(x));
+  const g = Math.max(0, gen + delta);
+  const xs = rest.filter((x) => x === '{X}');
+  const others = rest.filter((x) => x !== '{X}');
+  const out = xs.join('') + (g ? `{${g}}` : '') + others.join('');
+  return out || '{0}';
+}
 export function effectiveCost(pid, c, opt) {
   return { cost: opt.free ? '' : opt.cost || '', generic: opt.free ? 0 : genericAdjust(pid, c, opt) };
 }
@@ -518,6 +557,22 @@ export async function castSpell(pid, iid, opt, env) {
   // --- X and paying
   let costStr = (env.costOverride !== undefined ? env.costOverride : opt.cost || '') + (info.extraMana || '');
   if (env.free || opt.free) costStr = (info.extraMana || '');
+  // Defiler of Vigor & co.: "As an additional cost to cast green permanent spells, you may pay 2 life. Those spells cost {G} less to cast
+  // if you paid life this way."
+  if (!env.free && !opt.free && isPermanentCard({ faces: [f] })) {
+    for (const df of cardsIn(pid, 'battlefield')) {
+      const dm = oracle(df).match(/As an additional cost to cast (white|blue|black|red|green) permanent spells, you may pay (\d+) life\. Those spells cost \{([WUBRG])\} less to cast if you paid life this way/i);
+      if (!dm || !(d.colors || []).includes(dm[3]) || !costStr.includes(`{${dm[3]}}`)) continue;
+      const life = +dm[2];
+      if (s.players[pid].life <= life) continue;
+      // the AI only pays life when it needs the discount to cast the spell
+      const yes = pid === 'ai' ? s.players[pid].life >= 12 && !payCost(costStr, manaSources(pid, { spell: c }), { self: c.iid, extraGeneric: genericAdjust(pid, c, opt) }) : await ch.confirm(cardName(df), `Pay ${life} life so ${label} costs {${dm[3]}} less?`, {});
+      if (!yes) continue;
+      changeLife(pid, -life, false);
+      costStr = costStr.replace(`{${dm[3]}}`, '');
+      log(pid, `${pid === 'p' ? 'You pay' : 'The AI pays'} ${life} life (${nameTag(df)}): ${label} costs {${dm[3]}} less.`);
+    }
+  }
   const eff = env.free || opt.free ? { generic: 0 } : effectiveCost(pid, c, opt);
   const extraGeneric = eff.generic + info.extraGeneric;
   const pay = await env.pay(pid, costStr, label, {
@@ -526,6 +581,7 @@ export async function castSpell(pid, iid, opt, env) {
   });
   if (!pay) throw new Cancelled();
   applyPayment(pid, pay);
+  if (opt.removeCounters) removeCountersAmong(pid, opt.removeCounters, c);
   c.convokedBy = (pay.special || []).filter((x) => x.kind === 'convoke').map((x) => x.iid); // Lethal Scheme: "each creature that convoked it"
   if (c.lockeGroup) for (const x of Object.values(s.cards)) if (x.lockeGroup === c.lockeGroup) delete x.mayCastFromGy;
   if (c.ianSrc && opt.mode === 'impulse') s.ianUsed = { ...(s.ianUsed || {}), [pid + ':' + c.ianSrc]: s.turn };

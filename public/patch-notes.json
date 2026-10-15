@@ -1,5 +1,21 @@
 [
   {
+    "version": "1.3.35",
+    "title": "Real costs on cards, plus ten card fixes",
+    "notes": [
+      "Cards in your hand show a green cost badge when they cost something different right now (Goreclaw, cost reducers, Defiler-style discounts aside). The cast menu and \"How do you want to play it?\" box show the reduced cost too.",
+      "Garruk's Uprising (and every \"creatures you control have…\" effect) no longer gives trample to your lands, artifacts and other noncreature permanents.",
+      "Up the Beanstalk: draws a card when it enters, not only when you cast a big spell.",
+      "Quilled Greatwurm: your creatures get +1/+1 counters equal to the combat damage they deal on your turn, and you can cast it from your graveyard by removing six counters from your creatures.",
+      "Garruk, Primal Hunter: −3 now draws cards equal to your biggest creature's power.",
+      "Return of the Wildspeaker: the draw mode works (greatest power among your non-Humans), and the AI picks it when it's the better mode.",
+      "Dirtcowl Wurm: gets a +1/+1 counter whenever your opponent plays a land.",
+      "Defiler of Vigor: you can pay 2 life to make your green permanent spells cost {G} less (you're asked each time; the AI only does it when it needs to).",
+      "Roiling Canopy: pumps a creature when a Forest enters and you have five other Forests.",
+      "Fanatic of Rhonas taps for {G}{G}{G}{G} with a power-4 creature out, and Monstrous Vortex discovers off big creature spells."
+    ]
+  },
+  {
     "version": "1.3.34",
     "title": "Twelve card fixes",
     "notes": [

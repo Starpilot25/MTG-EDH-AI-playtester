@@ -43,7 +43,7 @@ function filterFrom(words) {
     else if (w === 'multicolored') f.multicolored = true;
     else if (w === 'colorless') f.colorless = true;
     else if (COLOR_WORDS[w]) f.color = COLOR_WORDS[w];
-    else if (/^non/.test(w)) f.not = (f.not || []).concat(w.slice(3));
+    else if (/^non/.test(w)) f.not = (f.not || []).concat(w.slice(3).replace(/^-/, '')); // non-Human
     else if (!['creature', 'creatures', 'each', 'all', 'the', 'and', 'or'].includes(w)) f.subtypes = (f.subtypes || []).concat(w.replace(/s$/, ''));
   }
   return f;
@@ -53,8 +53,17 @@ function parseStatics(text, selfName) {
   const out = { anthems: [], costs: [], repl: {}, player: {}, self: [] };
   const me = String(selfName || '').split(' // ')[0].toLowerCase();
   const short = me.split(',')[0];
+  let cur = '';
+  // an anthem written about "creatures" only touches creatures (Garruk's Uprising: not your lands and artifacts too)
+  const pushAnthem = (...as) => {
+    for (const a of as) {
+      if (a && a.f && /\bcreatures?\b/.test(cur) && !/(?<!creature )\b(?:permanents|artifacts|lands|enchantments|planeswalkers|tokens)\b (?:you|your opponents) control/.test(cur)) a.f = { ...a.f, creature: true };
+      out.anthems.push(a);
+    }
+  };
   for (let l of lines(text)) {
     l = l.toLowerCase();
+    cur = l;
     if (/^(when|whenever|at the beginning|\{|[+−-]?\d+:|level|station)/.test(l)) continue;
     let m;
     // buffs to this creature itself: "~ gets +1/+1 for each …", "As long as …, ~ gets +2/+2 and has flying"
@@ -69,7 +78,7 @@ function parseStatics(text, selfName) {
       const sub = parseStatics(m[4], selfName);
       if (sub.anthems.length) {
         out.self.push({ cond: m[1], p: +m[2], t: +m[3], grants: [] });
-        for (const a of sub.anthems) out.anthems.push({ ...a, cond: m[1] });
+        for (const a of sub.anthems) pushAnthem({ ...a, cond: m[1] });
         continue;
       }
     }
@@ -114,33 +123,33 @@ function parseStatics(text, selfName) {
     if ((m = l.match(/^as long as (.+?), ((?:other |all |each )?[\w -]*?(?:creatures|tokens|[\w-]+s) (?:you control |your opponents control )?(?:get|have) .+)$/))) {
       const sub = parseStatics(m[2], selfName);
       if (sub.anthems.length) {
-        for (const a of sub.anthems) out.anthems.push({ ...a, cond: m[1] });
+        for (const a of sub.anthems) pushAnthem({ ...a, cond: m[1] });
         continue;
       }
     }
     // anthems: "Other Elf creatures you control get +1/+1 and have …"
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?(?: for each ([^.]+))?\.?$/))) {
       // Minthara: "Creatures you control get +1/+0 for each experience counter you have."
-      out.anthems.push({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: kwList(m[5]), ...(m[6] ? { each: m[6] } : {}) });
+      pushAnthem({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: kwList(m[5]), ...(m[6] ? { each: m[6] } : {}) });
       continue;
     }
     if ((m = l.match(/^(other )?([\w-]+?)s you control get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?\.?$/)) && m[2] !== 'creature') {
-      out.anthems.push({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: kwList(m[5]) });
+      pushAnthem({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: kwList(m[5]) });
       continue;
     }
     // Bone-Cairn Butcher: "Attacking tokens you control have deathtouch."
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,2}?)tokens you control (?:have|get ([+-]\d+)\/([+-]\d+)(?: and have)?) ?(.*?)\.?$/))) {
-      out.anthems.push({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), token: true }, p: m[3] ? +m[3] : 0, t: m[4] ? +m[4] : 0, grants: kwList(m[5] || '') });
+      pushAnthem({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), token: true }, p: m[3] ? +m[3] : 0, t: m[4] ? +m[4] : 0, grants: kwList(m[5] || '') });
       continue;
     }
     // Don Andres: "Each creature you control but don't own gets +2/+2, has menace and deathtouch, and is a Pirate…"
     if ((m = l.match(/^each creature you control but don't own gets ([+-]\d+)\/([+-]\d+)(?:, has (.+?))?(?:, and is an? .+)?\.?$/))) {
-      out.anthems.push({ who: 'mine', f: { notOwned: true }, p: +m[1], t: +m[2], grants: kwList((m[3] || '').replace(/,? and is an? .*$/, '')) });
+      pushAnthem({ who: 'mine', f: { notOwned: true }, p: +m[1], t: +m[2], grants: kwList((m[3] || '').replace(/,? and is an? .*$/, '')) });
       continue;
     }
     // Serra's Emissary: "You and creatures you control have protection from creatures."
     if ((m = l.match(/^you and ((?:other )?(?:[\w-]+ ){0,3}?)creatures you control have (.+?)\.?$/))) {
-      out.anthems.push({ who: 'mine', other: /other/.test(m[1]), f: filterFrom(m[1]), p: 0, t: 0, grants: kwList(m[2]) });
+      pushAnthem({ who: 'mine', other: /other/.test(m[1]), f: filterFrom(m[1]), p: 0, t: 0, grants: kwList(m[2]) });
       const pr = m[2].match(/^protection from (.+)$/);
       if (pr) out.player.protection = [...(out.player.protection || []), ...pr[1].split(/, and from | and from |, from | from /).map((x) => x.trim())];
       continue;
@@ -151,27 +160,27 @@ function parseStatics(text, selfName) {
     }
     // Sephara: "Other creatures you control with flying have indestructible."
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control with ([a-z ]+?) (?:have|get ([+-]\d+)\/([+-]\d+)(?: and have)?) ?(.*?)\.?$/))) {
-      out.anthems.push({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), withKw: m[3] }, p: m[4] ? +m[4] : 0, t: m[5] ? +m[5] : 0, grants: kwList(m[6] || '') });
+      pushAnthem({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), withKw: m[3] }, p: m[4] ? +m[4] : 0, t: m[5] ? +m[5] : 0, grants: kwList(m[6] || '') });
       continue;
     }
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control have (.+?)\.?$/))) {
-      out.anthems.push({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: 0, t: 0, grants: kwList(m[3]) });
+      pushAnthem({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: 0, t: 0, grants: kwList(m[3]) });
       continue;
     }
     if ((m = l.match(/^(other )?([\w-]+?)s you control have (.+?)\.?$/)) && !/^(spell|land|permanent)$/.test(m[2])) {
-      out.anthems.push({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: 0, t: 0, grants: kwList(m[3]) });
+      pushAnthem({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: 0, t: 0, grants: kwList(m[3]) });
       continue;
     }
     if ((m = l.match(/^creatures your opponents control get ([+-]\d+)\/([+-]\d+)/))) {
-      out.anthems.push({ who: 'theirs', f: {}, p: +m[1], t: +m[2], grants: [] });
+      pushAnthem({ who: 'theirs', f: {}, p: +m[1], t: +m[2], grants: [] });
       continue;
     }
     if ((m = l.match(/^(?:all|each) (other )?((?:[\w-]+ ){0,2}?)creatures get ([+-]\d+)\/([+-]\d+)/))) {
-      out.anthems.push({ who: 'all', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: [] });
+      pushAnthem({ who: 'all', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: [] });
       continue;
     }
     if ((m = l.match(/^all ([\w-]+?)s get ([+-]\d+)\/([+-]\d+)/))) {
-      out.anthems.push({ who: 'all', f: filterFrom(m[1]), p: +m[2], t: +m[3], grants: [] });
+      pushAnthem({ who: 'all', f: filterFrom(m[1]), p: +m[2], t: +m[3], grants: [] });
       continue;
     }
     // cost changes
@@ -310,6 +319,7 @@ function matchesFilter(c, f, helpers) {
   if (f.blocking && !c.blocking) return false;
   if (f.tapped && !c.tapped) return false;
   if (f.untapped && c.tapped) return false;
+  if (f.creature && !/\bCreature\b/.test(tl)) return false;
   if (f.artifact && !/Artifact/.test(tl)) return false;
   if (f.enchantment && !/Enchantment/.test(tl)) return false;
   if (f.color && !d.colors.includes(f.color)) return false;
@@ -508,6 +518,19 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
     .replace(/\bcard (in|from) /, 'cards $1 ');
   // Omnath, Locus of the Void: "for each unspent mana you have"
   if (/^(?:unspent mana you have|mana in your mana pool|unspent mana in your mana pool)$/.test(p)) return G.s && G.s.pool ? (G.s.pool[pid] || []).length : 0;
+  // Garruk, Primal Hunter / Return of the Wildspeaker: "the greatest power among (non-Human) creatures you control"
+  {
+    const gm = p.match(/^(?:the )?greatest (power|toughness|mana value) among ((?:other )?(?:[\w-]+ ){0,2}?)creatures (you control|your opponents control|on the battlefield)$/);
+    if (gm && G.s && helpers) {
+      const who = gm[3] === 'you control' ? [pid] : gm[3] === 'on the battlefield' ? ['p', 'ai'] : [pid === 'p' ? 'ai' : 'p'];
+      const words = gm[2].trim();
+      const f = filterFrom(words);
+      const vals = who.flatMap((w) => G.s.players[w].zones.battlefield.map((i) => G.s.cards[i]))
+        .filter((c) => c && !c.phasedOut && helpers.isCreature(c) && (!/other/.test(words) || c.iid !== srcIid) && matchesFilter(c, f, helpers))
+        .map((c) => (gm[1] === 'power' ? helpers.power(c) : gm[1] === 'toughness' ? helpers.toughness(c) : DB[c.def].cmc || 0));
+      return vals.length ? Math.max(0, ...vals) : 0;
+    }
+  }
   // Ghalta: "the total power of creatures you control"; also "greatest power among creatures you control"
   {
     const pm = p.match(/^(?:total |the total )?(power|toughness) of ((?:other )?(?:[\w-]+ ){0,2}?creatures) (you control|your opponents control|on the battlefield)$/);

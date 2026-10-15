@@ -673,6 +673,11 @@ function turnHistoryCond(c, env) {
   if (/^you control exactly one creature$/.test(c)) return cardsIn(me, 'battlefield').filter(isCreature).length === 1;
   if ((m = c.match(/^you control (\w+) or more ([a-z]+?)s$/))) return cardsIn(me, 'battlefield').filter((x) => matchesFilter(x, m[2])).length >= n(m[1]);
   if ((m = c.match(/^you don't control an? ([a-z ]+)$/))) return !cardsIn(me, 'battlefield').some((x) => matchesFilter(x, m[1]));
+  // Roiling Canopy: "if you control at least five other Forests" (other than the one that just entered)
+  if ((m = c.match(/^you control at least (\w+) other ([a-z]+?)s$/))) {
+    const skip = (env.it && env.it.iid) || (src && src.iid);
+    return cardsIn(me, 'battlefield').filter((x) => x.iid !== skip && matchesFilter(x, m[2])).length >= n(m[1]);
+  }
   // Pugnacious Hammerskull: "you don't control another Dinosaur"
   if ((m = c.match(/^you (don't )?control another ([a-z ]+)$/))) {
     const has = cardsIn(me, 'battlefield').some((x) => x.iid !== (src && src.iid) && matchesFilter(x, m[2]));
@@ -2873,6 +2878,12 @@ on(/^discard (?:all the cards in )?your hand$/, async (m, env) => {
   env.discarded = [...(env.discarded || []), ...hand];
   env.did.push(`${who(env.me)} ${s_(env.me, 'discard')} ${hand.length} card${hand.length === 1 ? '' : 's'}`);
 }, { first: true });
+// Garruk, Primal Hunter -3: "Draw cards equal to the greatest power among creatures you control."
+on(/^(?:you )?draw cards equal to (.+)$/, async (m, env) => {
+  const k = Math.max(0, xFrom(m[1], env) || 0);
+  if (k) draw(env.me, k, true);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${k}`);
+});
 on(/^draw that many cards(?: plus (one|two|three))?$/, async (m, env) => {
   const k = (env.lastAmount || 0) + (m[1] ? n(m[1]) : 0);
   if (k) draw(env.me, k);
@@ -6498,6 +6509,14 @@ export function modeValue(t, env) {
   if (a.wipe) v += 2 * (creatures(them) - creatures(me));
   if (a.draw) v += 2 * a.draw;
   let m;
+  // Return of the Wildspeaker: "Draw cards equal to the greatest power among non-Human creatures you control."
+  if ((m = low.match(/draw cards equal to ([^.]+)/))) {
+    try {
+      v += 2 * Math.max(0, xFrom(m[1], { ...env, me }) || 0);
+    } catch (e) {
+      /* unknown count */
+    }
+  }
   if ((m = low.match(/each creature deals (\d+) damage to its controller/))) v += (creatures(them) - creatures(me)) * +m[1] * 1.5;
   // Aetheric Amplifier, Deepglow Skate: doubling counters is worth what's there to double
   if (/double the number of each kind of counter on target permanent/.test(low)) {

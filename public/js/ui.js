@@ -13,7 +13,7 @@ import {
 } from './game.js';
 import { aiChooser, aiMaybeCounter, aiMaybeCounterTrigger, aiPay, aiEnv } from './ai.js';
 import {
-  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, landOptions, playLand, landsAllowed, applyPayment, poolSym, tagPoolSym,
+  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, displayCost, landOptions, playLand, landsAllowed, applyPayment, poolSym, tagPoolSym,
   activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft, instantLoyalty,
 } from './cast.js';
 import { T, fire, settle, triggersOf } from './triggers.js';
@@ -111,6 +111,16 @@ function cardHTML(c, opts = {}) {
   if (c.zone === 'battlefield') {
     const tx = attackTaxOf(c);
     if (tx) badges.push(`<span class="badge tax" title="Attacking ${c.controller === 'p' ? 'you' : 'the AI'}${tx.andPws ? ' or ' + (c.controller === 'p' ? 'your' : 'its') + ' planeswalkers' : ''} costs {${tx.per}} per creature">⚔ {${tx.per}} each</span>`);
+  }
+  // a spell in your hand or command zone whose cost is changed right now (Goreclaw, cost reducers, taxes): show what you'd pay
+  if (c.zone === 'hand' && c.owner === 'p' && G.s && !opts.small) {
+    try {
+      const o = castOptions('p', c).find((x) => x.cost && !x.free);
+      const shown = o && displayCost('p', c, o);
+      if (o && shown !== o.cost) badges.push(`<span class="badge cost" title="Costs ${esc(shown)} to cast right now (printed ${esc(o.cost)})">${manaSymbols(shown)}</span>`);
+    } catch (e) {
+      /* cost display is best-effort */
+    }
   }
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
   // keywords it gained (Auras, Equipment, anthems, counters, pump spells) or lost
@@ -1555,7 +1565,7 @@ function chooseOption(c, options) {
   return new Promise((resolve) => {
     const dlg = openDialog(`<span class="eyebrow">${esc(cardName(c))}</span><h3>How do you want to play it?</h3>
       <div class="choices">${options
-        .map((o, k) => `<button class="choice" data-k="${k}"><b>${esc(o.label)}</b>${o.cost ? `<span>${manaSymbols(o.cost)}</span>` : ''}${o.why ? `<span>${esc(o.why)}</span>` : ''}</button>`)
+        .map((o, k) => `<button class="choice" data-k="${k}"><b>${esc(o.label)}</b>${o.cost ? `<span>${manaSymbols(displayCost('p', c, o))}</span>` : ''}${o.why ? `<span>${esc(o.why)}</span>` : ''}</button>`)
         .join('')}</div>`, { onClose: () => resolve(null) });
     dlg.addEventListener('click', (e) => {
       const b = e.target.closest('.choice');
@@ -2107,7 +2117,7 @@ function menuForCard(c, x, y) {
   if ((mine || c.mayPlay === 'p' || c.mayPlayFree === 'p' || c.mayCastFromGy === 'p') && ['hand', 'command', 'graveyard', 'exile'].includes(c.zone) && G.settings.arenaMode) {
     const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) ? landOptions('p', c) : [];
     for (const l of lands) items.push({ label: esc(l.label), fn: () => castByPlayer(c.iid, { option: { ...l, land: true } }) });
-    for (const o of castOptions('p', c)) items.push({ label: `${esc(o.label)}${o.cost && !/\{/.test(o.label) ? ' ' + manaSymbols(o.cost) : ''}`, fn: () => castByPlayer(c.iid, { option: o }) });
+    for (const o of castOptions('p', c)) items.push({ label: `${esc(o.label)}${o.cost && !/\{/.test(o.label) ? ' ' + manaSymbols(displayCost('p', c, o)) : ''}`, fn: () => castByPlayer(c.iid, { option: o }) });
     for (const ab of zoneAbilities(c)) items.push({ label: `<span class="ab">${esc(ab.label)}</span>`, fn: () => zoneAbility(c, ab) });
     if (c.zone === 'command' && c.isCompanion) items.push({ label: 'Put companion into your hand ({3})', fn: () => specialAction((env) => companionToHand('p', c, env)) });
     if (items.length > 1) items.push('-');

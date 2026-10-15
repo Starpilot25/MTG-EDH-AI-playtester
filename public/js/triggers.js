@@ -305,6 +305,17 @@ export function triggersOf(c, defOverride) {
     // Puppet Master, String Puller
     else if ((m = line.match(/^Whenever one or more goaded creatures deal combat damage to (?:one of your opponents|an opponent), (.+)$/i)))
       add('goadedDamage', m[1]);
+    // Up the Beanstalk: "When ~ enters and whenever you cast a spell with mana value 5 or greater, draw a card."
+    else if ((m = line.match(/^When ~ enters and whenever you cast (?:a|an) ([^,]*?)spell(?: with [^,]+)?, (.+)$/i))) {
+      add('enters', m[2], { self: true });
+      add('cast', m[2], { spell: m[1].toLowerCase().trim(), mine: true, ...mvLimit(line) });
+    }
+    // Quilled Greatwurm: "Whenever a creature you control deals combat damage during your turn, put that many +1/+1 counters on it."
+    else if ((m = line.match(/^Whenever a creature you control deals combat damage during your turn, (.+)$/i)))
+      add('anyCombatDamage', m[1], { yourTurn: true });
+    // Dirtcowl Wurm
+    else if ((m = line.match(/^Whenever an opponent plays a land, (.+)$/i)))
+      add('landfall', m[1], { theirs: true, played: true });
     else if ((m = line.match(/^When(?:ever)? an opponent casts their second spell each turn, (.+)$/i)))
       add('cast', m[1], { spell: '', theirs: true, second: true });
     else if ((m = line.match(/^When(?:ever)? an opponent casts (?:a|an|their first) ([^,]*?)spell[^,]*, (.+)$/i)))
@@ -943,6 +954,12 @@ function matches(ev) {
       break;
     }
     case 'combatDamagePlayer': {
+      each((c, trig) => {
+        if (trig.event !== 'anyCombatDamage') return;
+        const dealer = card(ev.iid);
+        if (!dealer || dealer.controller !== c.controller || (trig.yourTurn && G.s.active !== c.controller) || !(ev.amount > 0)) return;
+        out.push({ src: c, trig, amount: ev.amount, it: { iid: ev.iid } });
+      });
       // Kang Dynasty: "Until your next turn, whenever any of those creatures deals combat damage to a player, draw a card."
       const hitter = card(ev.iid);
       for (const e of (hitter && hitter.dmgDraw) || []) {
@@ -1069,6 +1086,13 @@ function matches(ev) {
     case 'dealsDamage':
     case 'dealsDamagePlayer':
     case 'combatDamageCreature':
+      // Quilled Greatwurm: any combat damage a creature you control deals during your turn
+      if (ev.type === 'combatDamageCreature' || ev.type === 'combatDamagePlayer') each((c, trig) => {
+        if (trig.event !== 'anyCombatDamage') return;
+        const dealer = card(ev.iid);
+        if (!dealer || dealer.controller !== c.controller || (trig.yourTurn && G.s.active !== c.controller) || !(ev.amount > 0)) return;
+        out.push({ src: c, trig, amount: ev.amount, it: { iid: ev.iid } });
+      });
       each((c, trig) => {
         if (trig.event !== ev.type) return;
         if (trig.oppOnly && ev.player === c.controller) return;
@@ -1108,7 +1132,8 @@ function matches(ev) {
       });
       break;
     case 'landfall':
-      each((c, trig) => trig.event === 'landfall' && c.controller === ev.controller
+      each((c, trig) => trig.event === 'landfall' && trig.theirs && c.controller !== ev.controller && G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: ev.controller }));
+      each((c, trig) => trig.event === 'landfall' && !trig.theirs && c.controller === ev.controller
         && (!trig.playedFrom || (G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && (trig.playedFrom === 'notHand' ? G.s.lastLandPlay.from !== 'hand' : G.s.lastLandPlay.from === trig.playedFrom)))
         && (!trig.enteredFrom || (trig.enteredFrom === 'notHand' ? ev.from !== 'hand' : ev.from === trig.enteredFrom))
         && out.push({ src: c, trig, it: { iid: ev.iid } }));

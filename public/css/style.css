@@ -854,3 +854,6 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 #stackview .sv-item.now { outline: 1px solid var(--brass, #d9b25f); }
 #stackview .sv-who { grid-row: span 2; font-size: 10px; text-transform: uppercase; color: var(--muted); align-self: center; }
 #stackview .sv-text { color: var(--muted); }
+/* hand card whose cost is changed right now (Goreclaw, reducers, taxes) */
+.badge.cost { background: #1d5a3a; color: #fff; border: 1px solid #5fd08f; padding: 1px 4px; display: inline-flex; gap: 1px; align-items: center; }
+.badge.cost .ms, .badge.cost img { width: 12px; height: 12px; }
