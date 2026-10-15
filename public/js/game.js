@@ -341,6 +341,18 @@ async function endStepThings(pid) {
       revealCreaturesOnto(d.pid, d.n);
       continue;
     }
+    // Dragonhawk: "~ deals 2 damage to each opponent for each of those cards that are still exiled"
+    if (d.kind === 'exiledDamage') {
+      const k = (d.ids || []).filter((i) => card(i) && card(i).zone === 'exile').length;
+      const src = card(d.src);
+      if (k && src) {
+        const { resolveEffects } = await import('./effects.js');
+        const { T } = await import('./triggers.js');
+        const did = await resolveEffects(`~ deals ${k * d.per} damage to each opponent.`, src, { me: d.pid, choosers: T.choosers, forced: true });
+        log(d.pid, `${nameTag(src)}: ${did.join('; ') || `${k} card${k === 1 ? '' : 's'} still exiled`}.`);
+      }
+      continue;
+    }
     const c = card(d.iid);
     if (!c) continue;
     // Gift of Immortality: return attached to the creature it enchanted

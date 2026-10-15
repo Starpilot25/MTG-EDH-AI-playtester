@@ -21,7 +21,7 @@ import {
 } from './effects.js';
 import { costDelta, countPhrase } from './statics.js';
 import { helpers } from './rules.js';
-import { fire, settle } from './triggers.js';
+import { fire, settle, T } from './triggers.js';
 
 const isLandFace = (f) => /\bLand\b/.test((f.typeLine || '').split('—')[0]);
 const instantFace = (f) => /\bInstant\b/.test((f.typeLine || '').split('—')[0]);
@@ -705,7 +705,13 @@ export async function castSpell(pid, iid, opt, env) {
   // while it resolves, the spell isn't in its old zone as far as effects can see ("put two cards from your hand…")
   s.resolving = [...(s.resolving || []), iid];
   try {
-    await resolveSpell(pid, c, opt, info, env);
+    // once it resolves, the spell can't be taken back: card pickers offer "Choose none", not "Cancel spell"
+    T.inTrigger = (T.inTrigger || 0) + 1;
+    try {
+      await resolveSpell(pid, c, opt, info, env);
+    } finally {
+      T.inTrigger--;
+    }
   } finally {
     s.resolving = (s.resolving || []).filter((x) => x !== iid);
     if (env.choosers[pid] && env.choosers[pid].plan) env.choosers[pid].plan = null;

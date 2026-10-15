@@ -513,6 +513,8 @@ export function playerFlag(pid, flag) {
 export function countPhrase(pid, phrase, helpers, srcIid) {
   let p = String(phrase || '').toLowerCase().replace(/^the (?:total )?number of /, '').replace(/\.$/, '').trim()
     .replace(/\b(?:defending player|that player|the defending player) controls$/, 'an opponent controls'); // two players: the only one it can be
+  // Lifestream's Blessing: "creatures you controlled as you cast this spell" — near enough, the ones you control now
+  p = p.replace(/\byou controlled as you cast (?:this spell|~)$/, 'you control');
   // "for each tapped land your opponents control", "for each Goblin on the battlefield", "creature card in your graveyard"
   p = p.replace(/^((?:[\w-]+ ){0,3}?)([\w-]*[^s\s]) (you control|your opponents control|an opponent controls|on the battlefield)$/, '$1$2s $3')
     .replace(/\bcard (in|from) /, 'cards $1 ');
@@ -520,7 +522,9 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   if (/^(?:unspent mana you have|mana in your mana pool|unspent mana in your mana pool)$/.test(p)) return G.s && G.s.pool ? (G.s.pool[pid] || []).length : 0;
   // Garruk, Primal Hunter / Return of the Wildspeaker: "the greatest power among (non-Human) creatures you control"
   {
-    const gm = p.match(/^(?:the )?greatest (power|toughness|mana value) among ((?:other )?(?:[\w-]+ ){0,2}?)creatures (you control|your opponents control|on the battlefield)$/);
+    // ("where X is the greatest …" arrives here without "the greatest")
+    const gm0 = p.match(/^(?:the )?(?:greatest )?(power|toughness|mana value) among ((?:other )?(?:[\w-]+ ){0,2}?)(creatures|[\w-]+s) (you control|your opponents control|on the battlefield)$/);
+    const gm = gm0 && [gm0[0], gm0[1], gm0[2] + (gm0[3] === 'creatures' ? '' : gm0[3].replace(/s$/, '') + ' '), gm0[4]];
     if (gm && G.s && helpers) {
       const who = gm[3] === 'you control' ? [pid] : gm[3] === 'on the battlefield' ? ['p', 'ai'] : [pid === 'p' ? 'ai' : 'p'];
       const words = gm[2].trim();

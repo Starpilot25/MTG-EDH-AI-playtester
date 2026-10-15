@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.3.36",
+    "title": "Six more card fixes",
+    "notes": [
+      "While a spell or ability is resolving, card pickers no longer offer \"Cancel spell\" (it's too late to take it back). You get \"Choose none\" instead.",
+      "Cultivate (and Kodama's Reach-style spells): if you pick two of the same basic land, it no longer asks which one goes onto the battlefield. The AI also puts the color it needs most onto the battlefield.",
+      "The Elder Dragon War: chapter II lets you discard any number of cards and draw that many. With read ahead, the AI skips chapter I when the damage would hurt it more than you.",
+      "Dragonhawk, Fate's Tempest: at your next end step it deals 2 damage to your opponent for each exiled card you didn't play.",
+      "Lifestream's Blessing: draws cards equal to your biggest creature's power, and gains twice that much life when cast from exile (foretold).",
+      "Baru, Wurmspeaker: the Wurm-making ability costs {X} less, where X is your biggest Wurm's power.",
+      "Nyx Lotus: taps for mana equal to your devotion to your best color."
+    ]
+  },
+  {
     "version": "1.3.35",
     "title": "Real costs on cards, plus ten card fixes",
     "notes": [

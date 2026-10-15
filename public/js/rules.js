@@ -762,6 +762,23 @@ function manaAbilityRaw(inst) {
   if (inst.tapped || inst.faceDown || inst.phasedOut) return null;
   const d = DB[inst.def];
   const o = oracle(inst);
+  // Nyx Lotus, Karametra's Acolyte-likes: "{T}: Choose a color. Add an amount of mana of that color equal to your devotion to that color."
+  if (/\{T\}: Choose a color\. Add an amount of mana of that color equal to your devotion to that color/i.test(o)) {
+    if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
+    const dev = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' };
+    const vals = Object.entries(dev).map(([k, w]) => [k, (G.s && countPhrase(inst.controller, `your devotion to ${w}`, helpers, inst.iid)) || 0]);
+    const best = Math.max(...vals.map((v) => v[1]));
+    if (best <= 0) return null;
+    return { colors: vals.filter((v) => v[1] === best).map((v) => v[0]), amount: best, oneColor: true };
+  }
+  {
+    const km = o.match(/\{T\}: Add an amount of \{([WUBRG])\} equal to your devotion to (white|blue|black|red|green)/i);
+    if (km) {
+      if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
+      const k = (G.s && countPhrase(inst.controller, `your devotion to ${km[2].toLowerCase()}`, helpers, inst.iid)) || 0;
+      return k > 0 ? { colors: [km[1].toUpperCase()], amount: k } : null;
+    }
+  }
   // Signets and other filters: "{1}, {T}: Add {W}{U}." — pay {1} from another source, get both colors
   {
     const sg = o.match(/(?:^|\n)\{(\d)\}, \{T\}: Add ((?:\{[WUBRGC]\}){2,3})\./);

@@ -232,6 +232,19 @@ export function activatedAbilities(c) {
       once: /Activate only once each turn|Activate this ability only once each turn/i.test(m[2]) || /^\s*Exhaust\b/i.test(raw),
       exhaust: /^\s*Exhaust\b/i.test(raw),
     });
+    // Baru, Wurmspeaker: "This ability costs {X} less to activate, where X is the greatest power among Wurms you control."
+    const ab = out[out.length - 1];
+    const red = ab.text.match(/\s*This ability costs \{(X|\d+)\} less to activate(?:, where X is ([^.]+))?\.?/i);
+    if (red) {
+      ab.text = ab.text.replace(red[0], '').trim();
+      const k = red[1] === 'X' ? (G.s && c.controller ? countPhrase(c.controller, red[2] || '', helpers, c.iid) || 0 : 0) : +red[1];
+      const syms = ab.mana.match(/\{[^}]+\}/g) || [];
+      const gen = syms.filter((x) => /^\{\d+\}$/.test(x)).reduce((a, x) => a + +x.slice(1, -1), 0);
+      const rest = syms.filter((x) => !/^\{\d+\}$/.test(x)).join('');
+      const g = Math.max(0, gen - k);
+      ab.mana = (g ? `{${g}}` : '') + rest;
+      if (k) ab.costText = ab.costText.replace(/^(?:\{[^}]+\})+/, ab.mana || '{0}');
+    }
   }
   return out;
 }
@@ -2877,6 +2890,40 @@ on(/^discard (?:all the cards in )?your hand$/, async (m, env) => {
   env.lastAmount = hand.length;
   env.discarded = [...(env.discarded || []), ...hand];
   env.did.push(`${who(env.me)} ${s_(env.me, 'discard')} ${hand.length} card${hand.length === 1 ? '' : 's'}`);
+}, { first: true });
+// Lifestream's Blessing: "If this spell was cast from exile, you gain twice X life."
+on(/^if this spell was cast from (exile|your graveyard|your hand), you gain (twice x|x) life$/, async (m, env) => {
+  const from = env.castFrom || (env.src && (card(env.src.iid) || env.src).castFrom);
+  const want = m[1] === 'exile' ? 'exile' : m[1] === 'your graveyard' ? 'graveyard' : 'hand';
+  if (from !== want) return env.did.push(`wasn't cast from ${m[1]}`);
+  const k = (env.x || 0) * (/twice/.test(m[2]) ? 2 : 1);
+  changeLife(env.me, k, false);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'gain')} ${k} life`);
+}, { first: true });
+on(/^you gain twice x life$/, async (m, env) => {
+  const k = 2 * (env.x || 0);
+  changeLife(env.me, k, false);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'gain')} ${k} life`);
+});
+// The Elder Dragon War II: "Discard any number of cards, then draw that many cards."
+on(/^discard any number of cards, then draw that many cards$/, async (m, env) => {
+  const hand = cardsIn(env.me, 'hand');
+  const lands = cardsIn(env.me, 'battlefield').filter(isLand).length;
+  const picks = hand.length ? await env.choosers[env.me].pickCards({ prompt: 'Discard any number of cards (you draw that many)', cards: hand.map((c) => c.iid), min: 0, max: hand.length, purpose: 'discard', src: env.src,
+    aiScore: (c) => (isLand(c) ? (lands >= 5 ? 10 : -10) : (DB[c.def].cmc || 0) > lands + 2 ? 5 : -5) }) : [];
+  // the AI only throws away what it scores as dead weight
+  const keep = env.me === 'ai' ? picks.filter((i) => { const c = card(i); return isLand(c) ? lands >= 5 : (DB[c.def].cmc || 0) > lands + 2; }) : picks;
+  keep.forEach((i) => discardCard(i));
+  if (keep.length) draw(env.me, keep.length, true);
+  env.lastAmount = keep.length;
+  env.did.push(`${who(env.me)} ${s_(env.me, 'discard')} ${keep.length} and ${s_(env.me, 'draw')} ${keep.length}`);
+}, { first: true });
+// Dragonhawk, Fate's Tempest: "At the beginning of your next end step, ~ deals 2 damage to each opponent for each of those cards that are still exiled."
+on(/^at the beginning of your next end step, ~ deals (\w+) damage to each opponent for each of those cards that are still exiled$/, async (m, env) => {
+  const ids = (env.them_ || env.revealed || []).filter((i) => card(i) && card(i).zone === 'exile');
+  if (!ids.length || !env.src) return env.did.push('nothing exiled');
+  G.s.delayed.push({ at: 'endStep', whoseEnd: env.me, kind: 'exiledDamage', ids, src: env.src.iid, per: n(m[1]), pid: env.me });
+  env.did.push(`at ${env.me === 'p' ? 'your' : "the AI's"} next end step, ${n(m[1])} damage to ${env.me === 'p' ? 'the AI' : 'you'} for each of those cards still in exile`);
 }, { first: true });
 // Garruk, Primal Hunter -3: "Draw cards equal to the greatest power among creatures you control."
 on(/^(?:you )?draw cards equal to (.+)$/, async (m, env) => {
@@ -6275,10 +6322,11 @@ async function fetchLands(t, me, choose, src, did, env) {
   const toTop = /on top of your library|top of your library/.test(t) && !toField;
   const tapped = /battlefield tapped/.test(t);
   let fieldPicks = picks;
-  if (toField && onlyOneToField && picks.length > 1) {
+  if (toField && onlyOneToField && picks.length > 1 && picks.every((i) => card(i).def === card(picks[0]).def)) fieldPicks = [picks[0]]; // two Forests: nothing to choose
+  else if (toField && onlyOneToField && picks.length > 1) {
     fieldPicks = await choose.pickCards({
       prompt: 'Choose the land to put onto the battlefield (the other goes to your hand)',
-      cards: picks, min: 1, max: 1, purpose: 'land-field', src, aiScore: () => 0,
+      cards: picks, min: 1, max: 1, purpose: 'land-field', src, aiScore: (c) => (me === 'ai' ? aiHelpers.landScore(c) : 0),
     });
   } else if (!toField) fieldPicks = [];
   shuffle(me);

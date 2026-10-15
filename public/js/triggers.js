@@ -1471,7 +1471,7 @@ async function specialEvent(ev) {
       let start = 1;
       if (/Read ahead/i.test(oracle(c))) {
         const max = Math.max(...[...face(c).oracle.matchAll(/^([IVX]+)(?:, ([IVX]+))* — /gm)].flatMap((m) => m[0].replace(' — ', '').split(', ').map((r) => ROMAN[r] || 0)));
-        start = 1 + (await ch[c.controller].choose({ prompt: `Read ahead: start ${cardName(c)} on which chapter?`, options: Array.from({ length: max }, (_, k) => ({ label: `Chapter ${k + 1}` })), aiPick: () => 0 }));
+        start = 1 + (await ch[c.controller].choose({ prompt: `Read ahead: start ${cardName(c)} on which chapter?`, options: Array.from({ length: max }, (_, k) => ({ label: `Chapter ${k + 1}` })), aiPick: () => readAheadPick(c) }));
         c.counters.lore = start - 1;
       }
       loreUp(c);
@@ -1679,6 +1679,14 @@ async function resolveTrigger(hit, controller, ev) {
   } finally {
     T.inTrigger--;
   }
+}
+// The AI skips a first chapter that would hurt it more than the opponent (The Elder Dragon War: 2 damage to each creature)
+function readAheadPick(c) {
+  const m = (face(c).oracle || '').match(/^I — [^\n]*?deals (\d+) damage to each creature/m);
+  if (!m) return 0;
+  const k = +m[1];
+  const dies = (pid) => cardsIn(pid, 'battlefield').filter((x) => isCreature(x) && toughness(x) - (x.damage || 0) <= k && !hasKw(x, 'indestructible')).length;
+  return dies(c.controller) > dies(c.controller === 'p' ? 'ai' : 'p') ? 1 : 0;
 }
 async function resolveTriggerRaw(hit, controller, ev) {
   const { src, trig } = hit;
