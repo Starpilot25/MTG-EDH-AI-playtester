@@ -16,7 +16,7 @@ import {
 // when the condition is false (it's checked again when it resolves)
 function interveningIfFails(hit, ev) {
   const m = String(hit.trig.text || '').match(/^if ([^,]+?), /i);
-  if (!m || /^(?:you do|you don't|you did|they do|they don't|that player does|that player doesn't|it does|you can't)\b/i.test(m[1]) || /\bx\b/i.test(m[1])) return false;
+  if (!m || /^(?:you do|you don't|you did|they do|they don't|that player does|that player doesn't|it does|you can't)$/i.test(m[1]) || /\bx\b/i.test(m[1])) return false;
   try {
     const src = hit.src;
     return evalCond(m[1], { me: hit.controller || src.controller, src, thatPlayer: hit.thatPlayer, it: hit.it || null, event: ev, kicked: src.kicked, did: [], unknown: [] }) === false;
@@ -215,7 +215,7 @@ export function triggersOf(c, defOverride) {
       add('combatDamagePlayer', m[1], { self: true });
     else if ((m = line.match(/^Whenever (?:a|another) creature you control with (?:a|one or more) (\+1\/\+1 )?counters? on it deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)))
       add('combatDamagePlayer', m[2], { anyOfMine: true, withCounter: m[1] ? '+1/+1' : 'any' });
-    else if ((m = line.match(/^Whenever (?:a|another) ((?:[\w-]+ ){0,2}?)creature you control deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)))
+    else if ((m = line.match(/^Whenever (?:a|an|another) ((?:[\w-]+ ){0,2}?)creature you control deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)))
       add('combatDamagePlayer', m[2], { anyOfMine: true, kind: m[1].trim() });
     else if ((m = line.match(/^Whenever equipped creature deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)) || (m = line.match(/^Whenever enchanted creature deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)))
       add('combatDamagePlayer', m[1], { attachedTo: true });
@@ -230,7 +230,10 @@ export function triggersOf(c, defOverride) {
       add('becomesTarget', m[1], { self: true, spellOnly: !/or ability/i.test(line), oppOnly: /an opponent controls/i.test(line) });
     } else if ((m = line.match(/^Whenever ~ becomes the target of a spell(?: or ability)?(?: an opponent controls| you control)?(?: for the first time each turn)?, (.+)$/i))) {
       add('becomesTarget', m[1], { self: true, spellOnly: !/or ability/i.test(line), oppOnly: /an opponent controls/i.test(line), mineOnly: /you control,/i.test(line) });
-    } else if ((m = line.match(/^When(?:ever)? ~ attacks(?: and isn't blocked)?(?: alone)?[^,]*, (.+)$/i)))
+    } else if ((m = line.match(/^Whenever ~ attacks while (you (?:don't )?control [^,]+), (.+)$/i)))
+      // Pugnacious Hammerskull: "Whenever ~ attacks while you don't control another Dinosaur"
+      add('attacks', `If ${m[1]}, ${m[2]}`, { self: true });
+    else if ((m = line.match(/^When(?:ever)? ~ attacks(?: and isn't blocked)?(?: alone)?[^,]*, (.+)$/i)))
       add(/isn't blocked/i.test(line) ? 'unblocked' : /alone/i.test(line) ? 'attacksAlone' : 'attacks', m[1], { self: true });
     else if ((m = line.match(/^When(?:ever)? ~ blocks(?: or becomes blocked)?[^,]*, (.+)$/i))) {
       add('blocks', m[1], { self: true });
@@ -1643,7 +1646,16 @@ function markOnce(hit) {
   G.s.trigOnce = G.s.trigOnce || {};
   G.s.trigOnce[onceKey(hit)] = G.s.turn;
 }
+// While a triggered ability resolves there's nothing to cancel: the player's pickers offer "Choose none", not "Cancel spell"
 async function resolveTrigger(hit, controller, ev) {
+  T.inTrigger = (T.inTrigger || 0) + 1;
+  try {
+    return await resolveTriggerRaw(hit, controller, ev);
+  } finally {
+    T.inTrigger--;
+  }
+}
+async function resolveTriggerRaw(hit, controller, ev) {
   const { src, trig } = hit;
   // a graveyard ability whose card has left the graveyard since it triggered (Endless Ranks of HYDRA already returned)
   if (trig.fromGy && src.iid && card(src.iid) && card(src.iid).zone !== 'graveyard') return;

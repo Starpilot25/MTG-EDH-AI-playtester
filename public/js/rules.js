@@ -86,6 +86,9 @@ function typeFxOf(inst, base) {
     fx.push({ ts: inst.addTypesTs, ty: { legendary: sup, subAdd: rest } });
   }
   for (const e of inst.layerFx || []) if (e.types) fx.push({ ts: e.ts, ty: e.types });
+  // Metallic Mimic, Adaptive Automaton, Roaming Throne: "~ is the chosen type in addition to its other types."
+  if (inst.chosenType && /(?:^|\n)(?:[^\n]*?) is the chosen type in addition to its other types/i.test(DB[inst.def].faces[inst.face || 0].oracle || ''))
+    fx.push({ ts: 0, ty: { subAdd: inst.chosenType } });
   if (inst.zone === 'battlefield')
     for (const g of globalLayerFx()) {
       if (g.k === 'opal' && g.src.iid !== inst.iid) fx.push({ ts: g.ts, ty: { add: 'Creature' }, when: (t) => /\bEnchantment\b/.test(t.split('—')[0]) && !/\bAura\b/.test(t) });
@@ -884,6 +887,16 @@ function manaAbilityPlain(inst, o, produced) {
     const im = o.match(/If you control a creature with power (\d+) or greater, add (two|three) mana of any one color instead/i);
     if (im && G.s && G.s.players[inst.controller].zones.battlefield.some((i) => G.s.cards[i] && isCreature(G.s.cards[i]) && power(G.s.cards[i]) >= +im[1]))
       return { colors: produced.length ? produced : ['W', 'U', 'B', 'R', 'G'], amount: im[2] === 'three' ? 3 : 2 };
+  }
+  // Whisperer of the Wilds, Marwyn-likes: "Ferocious — {T}: Add {G}{G}. Activate only if you control a creature with power 4 or greater."
+  {
+    const fm = o.match(/(?:^|\n)(?:Ferocious — )?\{T\}: Add ((?:\{[WUBRGC]\}){2,})\. Activate only if you control a creature with power (\d+) or greater/);
+    if (fm && G.s && G.s.players[inst.controller].zones.battlefield.some((i) => G.s.cards[i] && isCreature(G.s.cards[i]) && power(G.s.cards[i]) >= +fm[2])) {
+      const syms = fm[1].match(/[WUBRGC]/g);
+      return { colors: [...new Set(syms)], amount: syms.length };
+    }
+    // otherwise use the plain "{T}: Add {G}." line, not the conditional one
+    if (fm) m = o.replace(fm[0], '').match(/\{T\}: Add ([^.]+)\./);
   }
   if (m) {
     let amount = 1;

@@ -1,5 +1,23 @@
 [
   {
+    "version": "1.3.34",
+    "title": "Twelve card fixes",
+    "notes": [
+      "Spawnbed Protector: when its end-step trigger asks you to pick an Eldrazi to return, the dialog now says \"Choose none\" instead of \"Cancel spell\", so declining no longer cancels the Scions too. This applies to every triggered ability that asks you to pick cards.",
+      "Sarkhan, Dragon Ascendant: you can behold a Dragon (one you control or one in your hand) for a Treasure, and it becomes a flying Dragon when a Dragon enters.",
+      "Pugnacious Hammerskull: only gets a stun counter when you don't control another Dinosaur.",
+      "Goreclaw, Terror of Qal Sisma: creature spells with power 4 or greater cost {2} less.",
+      "Whisperer of the Wilds: taps for {G}{G} when you control a creature with power 4 or greater.",
+      "Duplicant: takes on the power, toughness and creature types of the creature it exiles.",
+      "Research Thief: draws a card when an artifact creature you control deals combat damage to a player.",
+      "Metallic Mimic: now really is the creature type you chose.",
+      "Angelic Field Marshal: gets +2/+2 and gives your creatures vigilance while you control your commander.",
+      "Lae'zel, Vlaakith's Champion: one extra counter of any kind on your creatures and planeswalkers, and on you (energy, experience…).",
+      "Kozilek, the Broken Reality: its cast trigger makes up to two players manifest two cards from their hands, and you draw a card for each.",
+      "Leonin Warleader works as printed (two lifelink Cats, tapped and attacking)."
+    ]
+  },
+  {
     "version": "1.3.33",
     "title": "Kang Dynasty and Puppet Master",
     "notes": [

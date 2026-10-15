@@ -44,7 +44,7 @@ function zoneOf(pid, z) {
   const out = zoneOfRaw(pid, z);
   return z === 'hand' ? out.filter((i) => !onStackIid(i)) : out;
 }
-import { countPhrase, kwList } from './statics.js';
+import { countPhrase, kwList, repl } from './statics.js';
 import { helpers, damageMods, redirectTarget, playerProtectedFrom, abilitiesGone } from './rules.js';
 import { venture, takeInitiative } from './dungeon.js';
 
@@ -673,6 +673,11 @@ function turnHistoryCond(c, env) {
   if (/^you control exactly one creature$/.test(c)) return cardsIn(me, 'battlefield').filter(isCreature).length === 1;
   if ((m = c.match(/^you control (\w+) or more ([a-z]+?)s$/))) return cardsIn(me, 'battlefield').filter((x) => matchesFilter(x, m[2])).length >= n(m[1]);
   if ((m = c.match(/^you don't control an? ([a-z ]+)$/))) return !cardsIn(me, 'battlefield').some((x) => matchesFilter(x, m[1]));
+  // Pugnacious Hammerskull: "you don't control another Dinosaur"
+  if ((m = c.match(/^you (don't )?control another ([a-z ]+)$/))) {
+    const has = cardsIn(me, 'battlefield').some((x) => x.iid !== (src && src.iid) && matchesFilter(x, m[2]));
+    return m[1] ? !has : has;
+  }
   if ((m = c.match(/^you control one or more ([a-z]+?)s$/))) return cardsIn(me, 'battlefield').some((x) => matchesFilter(x, m[1]));
   if (/^your opponents control no creatures$/.test(c)) return !cardsIn(them, 'battlefield').some(isCreature);
   if (/^a player controls no creatures$/.test(c)) return !cardsIn('p', 'battlefield').some(isCreature) || !cardsIn('ai', 'battlefield').some(isCreature);
@@ -2554,6 +2559,16 @@ on(/^exile (.+?)(?: until ~ leaves the battlefield)?$/, async (m, env) => {
     if (objs.length <= 3) env.did.push(`exiles ${nm}`);
   }
   if (objs.length > 3) env.did.push(`exiles ${objs.length} permanents`);
+  // Duplicant: "As long as a card exiled with ~ is a creature card, ~ has the power, toughness, and creature types of the last
+  // creature card exiled with ~."
+  const dsrc = env.src && card(env.src.iid);
+  const lastCreature = objs.filter((c) => card(c.iid) && card(c.iid).zone === 'exile' && /Creature/.test(DB[c.def].faces[0].typeLine || '')).pop();
+  if (dsrc && dsrc.zone === 'battlefield' && lastCreature && /has the power, toughness, and creature types of the last creature card exiled with ~/i.test(stripName(oracle(dsrc), dsrc))) {
+    const f = DB[lastCreature.def].faces[0];
+    const subs = ((f.typeLine || '').split('—')[1] || '').trim();
+    dsrc.layerFx = [...(dsrc.layerFx || []).filter((e) => !e.imprint), { ts: nextStamp(), imprint: true, base: { p: parseInt(f.power, 10) || 0, t: parseInt(f.toughness, 10) || 0 }, ...(subs ? { types: { subAdd: subs } } : {}) }];
+    env.did.push(`${nameTag(dsrc)} becomes ${parseInt(f.power, 10) || 0}/${parseInt(f.toughness, 10) || 0}${subs ? ' ' + subs : ''}`);
+  }
 }, { skipIf: /top|graveyard|cards from|until you exile/ });
 on(/^return (.+?) to (?:its|their) owner'?s?'? hands?/, async (m, env) => {
   const objs = await objects(env, m[1], { harm: env.me !== 'self' });
@@ -3551,10 +3566,13 @@ on(/^(?:you|target player|each player|that player) (?:gets?|get) (a|an|one|two|t
   const pids = /^target player/.test(s) ? await playerTarget(env, 'target player') : /^each player/.test(s) ? ['p', 'ai'] : /^that player/.test(s) ? [env.thatPlayer || opp(env.me)] : [env.me];
   const k = /\{e\}/.test(m[1]) ? (m[1].match(/\{e\}/g) || []).length : n(m[1], env.x);
   const kind = /poison/.test(s) ? 'poison' : /rad/.test(s) ? 'rad' : /experience/.test(s) ? 'experience' : 'energy';
-  for (const pid of pids) {
-    if (kind === 'poison') G.s.players[pid].poison += k;
-    else G.s.players[pid].counters[kind] = (G.s.players[pid].counters[kind] || 0) + k;
-    env.did.push(`${who(pid)} ${s_(pid, 'get')} ${k} ${kind === 'energy' ? 'energy' : kind + ' counter' + (k === 1 ? '' : 's')}`);
+  for (const pid0 of pids) {
+    const pid = pid0;
+    // Lae'zel: "… or on yourself, put that many plus one"
+    const kk = k + (pid === env.me && k > 0 ? repl('playerCounterPlusOne', pid) || 0 : 0);
+    if (kind === 'poison') G.s.players[pid].poison += kk;
+    else G.s.players[pid].counters[kind] = (G.s.players[pid].counters[kind] || 0) + kk;
+    env.did.push(`${who(pid)} ${s_(pid, 'get')} ${kk} ${kind === 'energy' ? 'energy' : kind + ' counter' + (kk === 1 ? '' : 's')}`);
   }
 });
 on(/^(?:you )?pay (\d+) life/, async (m, env) => {
@@ -4294,7 +4312,7 @@ on(/^(?:you may )?cast (?:a|an|one|up to one) ?([a-z ]*?)(?:spell|card)(?: with 
   await (env.castFree || T.castFree)(env.me, pick, {});
 });
 // Loki's Scepter: "Until end of turn, it becomes a Villain in addition to its other types and gains haste."
-on(/^until end of turn, (it|that creature|target creature) becomes an? ([a-z][a-z ]*?) in addition to its other types(?: and gains ([a-z ]+))?$/, async (m, env) => {
+on(/^until end of turn, (it|~|that creature|target creature) becomes an? ([a-z][a-z ]*?) in addition to its other types(?: and gains ([a-z ]+))?$/, async (m, env) => {
   const [c] = await objects(env, m[1]);
   if (!c) return;
   const sub = m[2].split(/\s+/).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
@@ -5106,6 +5124,53 @@ on(/^manifest (dread|the top card of (?:your|their) library|the top (\w+) cards 
   card(pick).manifested = true;
   env.did.push(m[1] === 'dread' ? 'manifests dread' : 'manifests the top card');
 });
+// Behold (Tarkir: Dragonstorm): "you may behold a Dragon" — choose a Dragon you control or reveal a Dragon card from your hand
+on(/^(you may )?behold an? ([a-z]+)$/, async (m, env) => {
+  const kind = m[2];
+  const onField = cardsIn(env.me, 'battlefield').filter((c) => matchesFilter(c, kind));
+  const inHand = cardsIn(env.me, 'hand').filter((c) => matchesAny(c, kind));
+  if (!onField.length && !inHand.length) {
+    env.lastMay = false;
+    return env.did.push(`has no ${kind} to behold`);
+  }
+  const yes = !m[1] || env.me === 'ai' || (await env.choosers.p.confirm(cardName(env.src), `Behold a ${kind}?`, {}));
+  env.lastMay = !!yes;
+  if (!yes) return;
+  const shown = onField[0] || inHand[0];
+  env.beheld = shown.iid;
+  env.did.push(`beholds ${onField.length ? nameTag(shown) : `${nameTag(shown)} (revealed from hand)`}`);
+}, { first: true });
+// Kozilek, the Broken Reality: "up to two target players each manifest two cards from their hands.
+// For each card manifested this way, you draw a card."
+on(/^up to (one|two) target players each manifest (\w+) cards? from their hands?$/, async (m, env) => {
+  const k = n(m[2]);
+  const pids = [];
+  for (const pid of [env.me, opp(env.me)]) {
+    if (!cardsIn(pid, 'hand').length) continue;
+    const yes = env.me === 'ai'
+      ? pid === 'ai' || cardsIn(pid, 'hand').length >= 2 // itself (lands become 2/2s), and the opponent when it has cards to lose
+      : await env.choosers.p.confirm(cardName(env.src), `Target ${pid === 'p' ? 'yourself' : 'the AI'}? ${pid === 'p' ? 'You' : 'It'} manifest${pid === 'p' ? '' : 's'} ${k} cards from ${pid === 'p' ? 'your' : 'its'} hand and you draw that many.`, {});
+    if (yes) pids.push(pid);
+  }
+  let total = 0;
+  for (const pid of pids.slice(0, n(m[1]))) {
+    const hand = cardsIn(pid, 'hand');
+    const want = Math.min(k, hand.length);
+    const picks = await env.choosers[pid].pickCards({ forced: true, prompt: `Manifest ${want} card${want === 1 ? '' : 's'} from your hand (face down 2/2 creatures)`, cards: hand.map((c) => c.iid), min: want, max: want, purpose: 'manifest', src: env.src, aiScore: (c) => (isLand(c) ? 8 : isCreature(c) ? 4 - (DB[c.def].cmc || 0) / 2 : -(DB[c.def].cmc || 0)) });
+    for (const i of picks) {
+      toBattlefield(i, pid, { faceDown: true });
+      if (card(i)) card(i).manifested = true;
+    }
+    total += picks.length;
+    env.did.push(`${who(pid)} ${s_(pid, 'manifest')} ${picks.length} card${picks.length === 1 ? '' : 's'} from hand`);
+  }
+  env.manifestedN = total;
+}, { first: true });
+on(/^for each card manifested this way, you draw a card$/, async (m, env) => {
+  const k = env.manifestedN || 0;
+  if (k) draw(env.me, k, true);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${k}`);
+}, { first: true });
 on(/^cloak (the top card of your library|.+)$/, async (m, env) => {
   const [top] = libTop(env.me, 1);
   if (!top) return;
@@ -5855,7 +5920,7 @@ async function runSentence(sentence, env) {
   // conditions
   let m = low.match(/^if (.+?), (.+)$/);
   const condHandled = m && H.some((h) => !h.never && h.re.test(low) && /^\^(?:\(\?:)?if /.test(h.re.source));
-  if (m && !/^if you do\b|^if you don't\b|^if (?:they|that player|the player) (?:do|does|don't|doesn't)\b/.test(low) && !condHandled) {
+  if (m && !/^if you do(?:n't)?,|^if (?:they|that player|the player) (?:do|does|don't|doesn't),/.test(low) && !condHandled) {
     const instead = /instead$/.test(m[2]);
     const c = evalCond(m[1], env);
     if (c === null) {

@@ -1352,7 +1352,7 @@ function pickCardsDialog(req, resolve, reject) {
     <div class="zv-grid pick">${groups
       .map((g, k) => `<button class="zv-item" data-group="${k}">${cardHTML(card(g.ids[0]), { small: true, count: g.ids.length })}<span>${esc(cardName(card(g.ids[0])))}</span><b class="pk-sel" hidden></b></button>`)
       .join('')}</div>
-    <div class="btns"><button class="primary" id="pk-ok"></button>${req.forced ? '' : '<button id="pk-cancel">Cancel spell</button>'}<span class="hint" id="pk-n"></span></div>`,
+    <div class="btns"><button class="primary" id="pk-ok"></button>${req.forced || T.inTrigger > 0 ? '' : '<button id="pk-cancel">Cancel spell</button>'}<span class="hint" id="pk-n"></span></div>`,
     { wide: true, noClose: true });
   const sync = () => {
     $$('[data-group]', dlg).forEach((b) => {

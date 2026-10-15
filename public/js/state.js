@@ -557,6 +557,9 @@ export function addCounters(c, kind, n, opts = {}) {
   c.counters = c.counters || {};
   if (n > 0 && c.zone === 'battlefield' && kind !== 'loyalty-cost') {
     if (kind === '+1/+1') n += repl('counterPlusOne', c.controller);
+    // Lae'zel: "If you would put one or more counters on a creature or planeswalker you control …, put that many plus one"
+    const putter = opts.by || G.curActor || c.controller;
+    if (putter === c.controller && (isCreature(c) || /Planeswalker/.test(typeLine(c)))) n += repl('counterPlusOneAll', c.controller);
     const dbl = repl('counterDouble', c.controller);
     for (let k = 0; k < dbl; k++) n *= 2;
   }

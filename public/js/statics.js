@@ -64,7 +64,16 @@ function parseStatics(text, selfName) {
       out.self.push({ p: +m[1], t: +m[2], each: m[3], grants: [] });
       continue;
     }
-    if ((m = sl.match(/^as long as (.+?), (?:~|it) gets ([+-]\d+)\/([+-]\d+)(?: and (?:has|gains) (.+?))?\.?$/))) {
+    // Lieutenant (Angelic Field Marshal): "As long as you control your commander, ~ gets +2/+2 and creatures you control have vigilance."
+    if ((m = sl.replace(/^[a-z][a-z' -]{1,30} — (?=as long as )/, '').match(/^as long as (.+?), (?:~|it) gets ([+-]\d+)\/([+-]\d+) and ((?:other )?(?:[\w-]+ )?creatures you control (?:have|get) .+?)\.?$/))) {
+      const sub = parseStatics(m[4], selfName);
+      if (sub.anthems.length) {
+        out.self.push({ cond: m[1], p: +m[2], t: +m[3], grants: [] });
+        for (const a of sub.anthems) out.anthems.push({ ...a, cond: m[1] });
+        continue;
+      }
+    }
+    if ((m = sl.replace(/^[a-z][a-z' -]{1,30} — (?=as long as )/, '').match(/^as long as (.+?), (?:~|it) gets ([+-]\d+)\/([+-]\d+)(?: and (?:has|gains) (.+?))?\.?$/))) {
       out.self.push({ cond: m[1], p: +m[2], t: +m[3], grants: kwList(m[4]) });
       continue;
     }
@@ -166,8 +175,9 @@ function parseStatics(text, selfName) {
       continue;
     }
     // cost changes
-    if ((m = l.match(/^((?:[\w-]+ ){0,4}?)spells you cast(?: from (your graveyard|exile|anywhere other than your hand))? cost \{(\d+)\} less to cast/))) {
-      out.costs.push({ who: 'mine', filter: m[1].trim(), from: m[2] || '', delta: -m[3] });
+    if ((m = l.match(/^((?:[\w-]+ ){0,4}?)spells you cast(?: from (your graveyard|exile|anywhere other than your hand))?(?: with (power|toughness|mana value) (\d+) or (greater|less))? cost \{(\d+)\} less to cast/))) {
+      // Goreclaw: "Creature spells you cast with power 4 or greater cost {2} less to cast."
+      out.costs.push({ who: 'mine', filter: m[1].trim(), from: m[2] || '', delta: -m[6], ...(m[3] ? { stat: m[3], statN: +m[4], statDir: m[5] } : {}) });
       continue;
     }
     if ((m = l.match(/^((?:[\w-]+ ){0,4}?)spells your opponents cast cost \{(\d+)\} more to cast/))) {
@@ -183,6 +193,11 @@ function parseStatics(text, selfName) {
     if (/if a (?:card|nontoken card) would be put into an opponent's graveyard from anywhere, exile it instead/.test(l)) out.repl.gyExile = out.repl.gyExile || 'opponents';
     if (/if an effect would create one or more tokens under your control, it creates twice that many/.test(l)) out.repl.tokenDouble = (out.repl.tokenDouble || 0) + 1;
     if (/would be put on [^,.]+ you control, (?:that many plus one|it puts that many plus one)/.test(l)) out.repl.counterPlusOne = (out.repl.counterPlusOne || 0) + 1;
+    // Lae'zel, Vlaakith's Champion: any kind of counter, on your creatures/planeswalkers or on you
+    if (/^if you would put one or more counters on a creature or planeswalker you control(?: or on yourself)?, put that many plus one/.test(l)) {
+      out.repl.counterPlusOneAll = (out.repl.counterPlusOneAll || 0) + 1;
+      if (/or on yourself/.test(l)) out.repl.playerCounterPlusOne = (out.repl.playerCounterPlusOne || 0) + 1;
+    }
     if (/would be put on [^,.]+ you control, it puts twice that many|twice that many of each of those kinds of counters/.test(l)) out.repl.counterDouble = (out.repl.counterDouble || 0) + 1;
     if (/creatures your opponents control enter (?:the battlefield )?tapped|creatures entering the battlefield under your opponents' control enter tapped/.test(l)) out.repl.oppEnterTapped = true;
     if (/^permanents your opponents control enter (?:the battlefield )?tapped/.test(l)) out.repl.oppPermsTapped = true;
@@ -433,6 +448,11 @@ export function costDelta(pid, c, fromZone) {
       if (cm.from === 'anywhere other than your hand' && (!fromZone || fromZone === 'hand')) continue; // Advanced Reconstruction
       if (/commander/.test(cm.filter) && !c.isCommander) continue;
       if (!spellFits(cm.filter.replace(/commander/, '').trim(), d)) continue;
+      if (cm.stat) {
+        const f = d.faces[c.face || 0] || d.faces[0];
+        const v = cm.stat === 'mana value' ? d.cmc || 0 : parseInt(cm.stat === 'power' ? f.power : f.toughness, 10);
+        if (!Number.isFinite(v) || (cm.statDir === 'greater' ? v < cm.statN : v > cm.statN)) continue;
+      }
       delta += cm.delta;
     }
   }
