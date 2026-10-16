@@ -13,7 +13,7 @@ import {
 } from './game.js';
 import { aiChooser, aiMaybeCounter, aiMaybeCounterTrigger, aiPay, aiEnv } from './ai.js';
 import {
-  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, displayCost, manaLifeGain, landOptions, playLand, landsAllowed, applyPayment, poolSym, tagPoolSym,
+  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, displayCost, manaLifeGain, topAccess, isLibraryTop, landOptions, playLand, landsAllowed, applyPayment, poolSym, tagPoolSym,
   activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft, instantLoyalty,
 } from './cast.js';
 import { T, fire, settle, triggersOf } from './triggers.js';
@@ -581,6 +581,23 @@ function exileReady(pid) {
   </div>`;
 }
 
+// Mystic Forge, Future Sight, Courser of Kruphix…: the top card of the library, when its owner may look at it or plays with it revealed
+function libraryTop(pid) {
+  const a = topAccess(pid);
+  if (!(pid === 'p' ? a.look : a.reveal)) return '';
+  const top = libTop(pid, 1)[0];
+  const c = top && card(top);
+  if (!c) return '';
+  let tag = 'Top card';
+  if (pid === 'p') {
+    if (isLand(c) && a.lands) tag = 'Play';
+    else if (castOptions('p', c).length) tag = 'Cast';
+  }
+  return `<div class="exile-ready top-ready" title="${pid === 'p' ? 'The top card of your library' : "The top card of the AI's library (revealed)"}${tag === 'Top card' ? '' : ' — double-click to ' + tag.toLowerCase() + ' it'}">
+    <div class="er-title">Top of library</div>
+    <div class="er-cards"><div class="er-item ${tag === 'Top card' ? 'waiting' : 'ready'}">${cardHTML(c, { small: true })}<span class="er-tag">${tag}</span></div></div>
+  </div>`;
+}
 // Cards in the graveyard that can do something from there: flashback, escape, unearth, Renew, "return this card…",
 // and cards with abilities that trigger from the graveyard (Bloodghast, Darklight Phoenix)
 const GY_TAG = { flashback: 'Flashback', escape: 'Escape', jumpstart: 'Jump-start', retrace: 'Retrace', aftermath: 'Aftermath', disturb: 'Disturb', harmonize: 'Harmonize', mayhem: 'Mayhem', fromGraveyard: 'Cast', impulse: 'This turn', adventure: 'Adventure' };
@@ -652,6 +669,7 @@ function renderOpp() {
     ${lifeBlock('ai')}
     <div class="piles">${pile('ai', 'library', 'Library')}${pile('ai', 'graveyard', 'Grave')}${pile('ai', 'exile', 'Exile')}${commandZone('ai')}</div>
     ${exileReady('ai')}
+    ${libraryTop('ai')}
     ${graveyardReady('ai')}
     <div class="hand-row"><span class="lbl">Hand</span>${backs}</div>
     ${handControl('p', 'ai') ? '<p class="hint sl-hint">Sen Triplets: double-click the AI\'s cards to play or cast them with your mana.</p>' : ''}`;
@@ -817,6 +835,7 @@ function renderMine() {
     ${lifeBlock('p')}
     <div class="piles">${pile('p', 'library', 'Library')}${pile('p', 'graveyard', 'Grave')}${pile('p', 'exile', 'Exile')}${commandZone('p')}</div>
     ${commanderChoice()}
+    ${libraryTop('p')}
     ${exileReady('p')}
     ${graveyardReady('p')}`;
 }
@@ -1584,7 +1603,7 @@ async function castInner(iid, opts = {}) {
   if (G.s.pstack) return toast('Finish the spell you are casting first.');
   const name = cardName(c);
   // lands (and the land side of modal double-faced cards)
-  const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) ? landOptions('p', c) : [];
+  const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) ? landOptions('p', c) : [];
   const casts = castOptions('p', c);
   const options = [
     ...lands.map((l) => ({ ...l, land: true, label: l.label })),
@@ -1684,7 +1703,22 @@ function toggleTap(iid) {
 }
 
 async function floatMana(c) {
-  const m = manaAbility(c);
+  let m = manaAbility(c);
+  // Shrine of the Forsaken Gods: the plain ability or the bigger, restricted one
+  if (m.alts && m.alts.length) {
+    const all = [m, ...m.alts];
+    const k = await playerChooser.choose({ prompt: `Tap ${cardName(c)} for…`, options: all.map((x) => ({ label: `${'{' + (x.colors[0] || 'C') + '}'}`.repeat(x.amount || 1) + (x.onlyFor ? ` (only for ${x.onlyFor} spells)` : '') })), aiPick: () => 0 });
+    if (k === null || k === undefined || k < 0) return;
+    m = { ...m, ...all[k], alts: undefined };
+  }
+  // Nyx Lotus: any color, as much as your devotion to it
+  if (m.byColor) {
+    const cols = Object.keys(m.byColor);
+    const nm = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green' };
+    const k = cols.length > 1 ? await playerChooser.choose({ prompt: `${cardName(c)}: choose a color`, options: cols.map((x) => ({ label: `${nm[x]} (${m.byColor[x]})` })), aiPick: () => 0 }) : 0;
+    if (k === null || k === undefined || k < 0) return;
+    m = { ...m, colors: [cols[k]], amount: m.byColor[cols[k]], byColor: undefined };
+  }
   let syms = [];
   // Signets: pay their {1} out of the mana pool first
   if (m.activation) {
@@ -2120,7 +2154,7 @@ function menuForCard(c, x, y) {
     items.push('-');
   }
   if ((mine || c.mayPlay === 'p' || c.mayPlayFree === 'p' || c.mayCastFromGy === 'p') && ['hand', 'command', 'graveyard', 'exile'].includes(c.zone) && G.settings.arenaMode) {
-    const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) ? landOptions('p', c) : [];
+    const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) ? landOptions('p', c) : [];
     for (const l of lands) items.push({ label: esc(l.label), fn: () => castByPlayer(c.iid, { option: { ...l, land: true } }) });
     for (const o of castOptions('p', c)) items.push({ label: `${esc(o.label)}${o.cost && !/\{/.test(o.label) ? ' ' + manaSymbols(displayCost('p', c, o)) : ''}`, fn: () => castByPlayer(c.iid, { option: o }) });
     for (const ab of zoneAbilities(c)) items.push({ label: `<span class="ab">${esc(ab.label)}</span>`, fn: () => zoneAbility(c, ab) });
@@ -2460,6 +2494,7 @@ export function bindEvents() {
     const c = card(el.dataset.iid);
     if (c && isMine(c) && (c.zone === 'hand' || c.zone === 'command')) castByPlayer(c.iid);
     else if (c && c.owner === 'ai' && c.zone === 'hand' && handControl('p', 'ai')) castByPlayer(c.iid);
+    else if (c && c.zone === 'library' && el.closest('.top-ready') && c.owner === 'p' && isLibraryTop('p', c)) castByPlayer(c.iid);
     else if (c && c.zone === 'exile' && el.closest('.exile-ready') && (c.owner === 'p' || c.mayPlay === 'p' || c.mayPlayFree === 'p')) castByPlayer(c.iid);
     else if (c && c.zone === 'graveyard' && el.closest('.gy-ready') && c.owner === 'p') {
       // one way to use it: do that; several (flashback and an ability…): show the menu

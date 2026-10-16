@@ -316,6 +316,9 @@ export function triggersOf(c, defOverride) {
     // Dirtcowl Wurm
     else if ((m = line.match(/^Whenever an opponent plays a land, (.+)$/i)))
       add('landfall', m[1], { theirs: true, played: true });
+    // Dreamtide Whale: "Whenever a player casts their second spell each turn, proliferate."
+    else if ((m = line.match(/^Whenever a player casts their second spell each turn, (.+)$/i)))
+      add('cast', m[1], { spell: '', second: true });
     else if ((m = line.match(/^When(?:ever)? an opponent casts their second spell each turn, (.+)$/i)))
       add('cast', m[1], { spell: '', theirs: true, second: true });
     else if ((m = line.match(/^When(?:ever)? an opponent casts (?:a|an|their first) ([^,]*?)spell[^,]*, (.+)$/i)))
@@ -561,6 +564,24 @@ function keywordTriggers(c) {
       card(c.iid).chosenCardType = types[k] || 'Creature';
       return [`chooses ${card(c.iid).chosenCardType.toLowerCase()}`];
     }, 'Choose a card type', { self: true });
+  // Cloud Key: "As ~ enters, choose artifact, creature, enchantment, instant, or sorcery."
+  {
+    const lm = o.split(DB[c.def].name).join('~').match(/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose ((?:(?:artifact|creature|enchantment|instant|sorcery|planeswalker|land|battle), )+or (?:artifact|creature|enchantment|instant|sorcery|planeswalker|land|battle))\./i);
+    if (lm && !c.chosenCardType)
+      f('enters', async () => {
+        const types = lm[1].replace(/,? or /, ', ').split(/,\s*/).map((t) => t[0].toUpperCase() + t.slice(1).toLowerCase());
+        // the AI names what it casts most (Cloud Key's discount is for its own spells)
+        const aiPick = () => {
+          const mine = [...cardsIn(c.controller, 'library'), ...cardsIn(c.controller, 'hand')];
+          const n = types.map((t) => mine.filter((y) => new RegExp('\\b' + t + '\\b').test((DB[y.def].typeLine || '').split('—')[0])).length);
+          return n.indexOf(Math.max(...n));
+        };
+        const k = await (T.choosers[c.controller] || T.choosers.ai).choose({ prompt: `${cardName(c)}: choose ${types.join(', ')}`, options: types.map((x) => ({ label: x })), aiPick });
+        if (!card(c.iid)) return [];
+        card(c.iid).chosenCardType = types[k] || types[0];
+        return [`chooses ${card(c.iid).chosenCardType.toLowerCase()}`];
+      }, 'Choose a card type', { self: true });
+  }
   // "As ~ enters, choose a color" (Utopia Sprawl, Caged Sun, Gauntlet of Power…)
   if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a color/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenColor)
     f('enters', async () => {

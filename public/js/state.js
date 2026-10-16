@@ -555,6 +555,8 @@ function entering(c, opts) {
 export function addCounters(c, kind, n, opts = {}) {
   if (!c || n === 0) return 0;
   c.counters = c.counters || {};
+  // Darksteel Angel & co.: "Creatures you control can't have -1/-1 counters put on them."
+  if (n > 0 && kind === '-1/-1' && c.zone === 'battlefield' && isCreature(c) && cardsIn(c.controller, 'battlefield').some((x) => !x.phasedOut && /Creatures you control can't have -1\/-1 counters put on them/i.test(oracle(x)))) return 0;
   if (n > 0 && c.zone === 'battlefield' && kind !== 'loyalty-cost') {
     if (kind === '+1/+1') n += repl('counterPlusOne', c.controller);
     // Lae'zel: "If you would put one or more counters on a creature or planeswalker you control …, put that many plus one"
@@ -667,9 +669,12 @@ export function loseAllAbilities(c, until = true) {
 }
 
 export function draw(pid, n = 1, silent = false, opts = {}) {
-  const lib = zoneOf(pid, 'library');
+  // a spell being cast from the top of the library (Mystic Forge) is on the stack, not in the library
+  const onStack = new Set([G.s.stack && G.s.stack.iid, G.s.pstack && G.s.pstack.iid, ...(G.s.resolving || [])].filter(Boolean));
+  let lib = zoneOf(pid, 'library').filter((i) => !onStack.has(i));
   let drawn = 0;
   for (let k = 0; k < n; k++) {
+    lib = zoneOf(pid, 'library').filter((i) => !onStack.has(i));
     if (G.s.phase === 'play' && !opts.noRepl) {
       const r = drawReplacement(pid);
       if (r.deferred) {
@@ -856,6 +861,17 @@ export function winGame(pid, why) {
 
 // Untap step: stun counters and "doesn't untap" effects
 export function untapAll(pid) {
+  // Endbringer, Seedborn Muse-style: "Untap ~ during each other player's untap step."
+  for (const c of cardsIn(pid === 'p' ? 'ai' : 'p', 'battlefield')) {
+    if (!c.tapped || c.phasedOut) continue;
+    if (!/Untap (?:~|this [a-z]+|[^.\n]*?) during each other player's untap step/i.test(oracle(c).split(DB[c.def].name).join('~'))) continue;
+    if ((c.counters || {}).stun) {
+      c.counters.stun--;
+      if (!c.counters.stun) delete c.counters.stun;
+      continue;
+    }
+    c.tapped = false;
+  }
   for (const c of cardsIn(pid, 'battlefield')) {
     c.sick = false;
     if (!c.tapped) continue;

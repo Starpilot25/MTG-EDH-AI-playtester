@@ -719,6 +719,11 @@ export function manaAbility(inst) {
   }
   let r = manaAbilityRaw(inst);
   if (!r) return r;
+  // Forsaken Monument: "Whenever you tap a permanent for {C}, add an additional {C}."
+  if (G.s && inst.zone === 'battlefield' && (r.colors || []).length === 1 && r.colors[0] === 'C') {
+    const extra = G.s.players[inst.controller].zones.battlefield.filter((i) => { const x = G.s.cards[i]; return x && !x.phasedOut && !abilitiesGone(x) && /Whenever you tap a permanent for \{C\}, add an additional \{C\}/i.test(oracle(x)); }).length;
+    if (extra) r = { ...r, amount: (r.amount || 1) + extra, ...(r.each ? { each: [...r.each, ...Array(extra).fill('C')] } : {}), ...(r.alts ? { alts: r.alts.map((a) => ({ ...a, amount: a.amount + extra })) } : {}) };
+  }
   // Goldspan Dragon: "Treasures you control have "{T}, Sacrifice this artifact: Add two mana of any one color.""
   if (r.sac && G.s && inst.zone === 'battlefield' && hasSubtype(inst, 'Treasure') && G.s.players[inst.controller].zones.battlefield.some((i) => {
     const x = G.s.cards[i];
@@ -769,7 +774,40 @@ function manaAbilityRaw(inst) {
     const vals = Object.entries(dev).map(([k, w]) => [k, (G.s && countPhrase(inst.controller, `your devotion to ${w}`, helpers, inst.iid)) || 0]);
     const best = Math.max(...vals.map((v) => v[1]));
     if (best <= 0) return null;
-    return { colors: vals.filter((v) => v[1] === best).map((v) => v[0]), amount: best, oneColor: true };
+    return { colors: vals.filter((v) => v[1] === best).map((v) => v[0]), amount: best, oneColor: true, byColor: Object.fromEntries(vals.filter((v) => v[1] > 0)) };
+  }
+  // Sceptre of Eternal Glory: "{T}: Add three mana of any one color. Activate only if you control three or more lands with the same name."
+  {
+    const sm = o.match(/\{T\}: Add (two|three) mana of any one color\. Activate only if you control (two|three|four) or more lands with the same name/i);
+    if (sm && G.s) {
+      const need = { two: 2, three: 3, four: 4 }[sm[2].toLowerCase()];
+      const names = {};
+      for (const i of G.s.players[inst.controller].zones.battlefield) {
+        const x = G.s.cards[i];
+        if (x && isLand(x)) names[DB[x.def].name] = (names[DB[x.def].name] || 0) + 1;
+      }
+      if (Object.values(names).some((k) => k >= need)) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: sm[1].toLowerCase() === 'three' ? 3 : 2 };
+    }
+  }
+  // Urza's Tower / Mine / Power-Plant: "If you control an Urza's Mine and an Urza's Power-Plant, add {C}{C}{C} instead."
+  {
+    const um = o.match(/\{T\}: Add \{C\}\. If you control an (Urza's [\w-]+) and an (Urza's [\w-]+), add ((?:\{C\})+) instead/i);
+    if (um) {
+      const mine = G.s ? G.s.players[inst.controller].zones.battlefield.map((i) => G.s.cards[i]).filter((x) => x && !x.phasedOut) : [];
+      const has = (t) => mine.some((x) => typeLine(x).toLowerCase().includes(t.toLowerCase().replace('power plant', 'power-plant')));
+      const k = has(um[1]) && has(um[2]) ? (um[3].match(/\{C\}/g) || []).length : 1;
+      return { colors: ['C'], amount: k };
+    }
+  }
+  // Shrine of the Forsaken Gods: "{T}: Add {C}." plus "{T}: Add {C}{C}. Spend this mana only to cast colorless spells. Activate only if you control seven or more lands."
+  {
+    const rm = o.match(/\{T\}: Add ((?:\{C\})+)\. Spend this mana only to cast colorless spells\. Activate only if you control (\w+) or more lands/i);
+    if (rm && /(?:^|\n)\{T\}: Add \{C\}\.(?:\n|$)/.test(o)) {
+      const lands = G.s ? G.s.players[inst.controller].zones.battlefield.filter((i) => G.s.cards[i] && isLand(G.s.cards[i])).length : 0;
+      const need = { five: 5, six: 6, seven: 7, eight: 8 }[rm[2].toLowerCase()] || +rm[2] || 7;
+      const big = (rm[1].match(/\{C\}/g) || []).length;
+      return lands >= need ? { colors: ['C'], amount: 1, alts: [{ colors: ['C'], amount: big, onlyFor: 'colorless' }] } : { colors: ['C'], amount: 1 };
+    }
   }
   {
     const km = o.match(/\{T\}: Add an amount of \{([WUBRG])\} equal to your devotion to (white|blue|black|red|green)/i);

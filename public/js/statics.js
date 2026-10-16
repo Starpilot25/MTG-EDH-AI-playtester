@@ -3,7 +3,7 @@
 import { DB } from './data.js';
 import { G, readCache, cacheTwin } from './state.js';
 import { evalCond } from './effects.js';
-import { abilitiesGone } from './rules.js';
+import { abilitiesGone, helpers as rulesHelpersObj } from './rules.js';
 
 const COLOR_WORDS = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
 const parsedCache = new Map();
@@ -184,9 +184,11 @@ function parseStatics(text, selfName) {
       continue;
     }
     // cost changes
-    if ((m = l.match(/^((?:[\w-]+ ){0,4}?)spells you cast(?: from (your graveyard|exile|anywhere other than your hand))?(?: with (power|toughness|mana value) (\d+) or (greater|less))? cost \{(\d+)\} less to cast/))) {
+    if ((m = l.match(/^(during your turn, )?((?:[\w-]+ ){0,4}?)spells you cast(?: of the chosen type)?(?: from (your graveyard|exile|anywhere other than your hand))?(?: with (power|toughness|mana value) (\d+) or (greater|less))? cost \{(\d+)\} less to cast(?: for each ([^.]+?))?\.?$/))) {
       // Goreclaw: "Creature spells you cast with power 4 or greater cost {2} less to cast."
-      out.costs.push({ who: 'mine', filter: m[1].trim(), from: m[2] || '', delta: -m[6], ...(m[3] ? { stat: m[3], statN: +m[4], statDir: m[5] } : {}) });
+      // Temur Battlecrier: "During your turn, spells you cast cost {1} less to cast for each creature you control with power 4 or greater."
+      // Cloud Key: "Spells you cast of the chosen type cost {1} less to cast."
+      out.costs.push({ who: 'mine', filter: m[2].trim(), from: m[3] || '', delta: -m[7], ...(m[4] ? { stat: m[4], statN: +m[5], statDir: m[6] } : {}), ...(m[1] ? { yourTurn: true } : {}), ...(m[8] ? { each: m[8] } : {}), ...(/of the chosen type/.test(l) ? { chosen: true } : {}) });
       continue;
     }
     if ((m = l.match(/^((?:[\w-]+ ){0,4}?)spells your opponents cast cost \{(\d+)\} more to cast/))) {
@@ -458,6 +460,13 @@ export function costDelta(pid, c, fromZone) {
       if (cm.from === 'anywhere other than your hand' && (!fromZone || fromZone === 'hand')) continue; // Advanced Reconstruction
       if (/commander/.test(cm.filter) && !c.isCommander) continue;
       if (!spellFits(cm.filter.replace(/commander/, '').trim(), d)) continue;
+      if (cm.yourTurn && G.s.active !== pid) continue;
+      if (cm.chosen && !(src.chosenCardType && new RegExp('\\b' + src.chosenCardType + '\\b', 'i').test((d.faces[0].typeLine || '').split('—')[0]))) continue;
+      if (cm.each) {
+        const k = countPhrase(src.controller, cm.each, rulesHelpersObj, src.iid) || 0;
+        delta += cm.delta * k;
+        continue;
+      }
       if (cm.stat) {
         const f = d.faces[c.face || 0] || d.faces[0];
         const v = cm.stat === 'mana value' ? d.cmc || 0 : parseInt(cm.stat === 'power' ? f.power : f.toughness, 10);
@@ -520,6 +529,20 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
     .replace(/\bcard (in|from) /, 'cards $1 ');
   // Omnath, Locus of the Void: "for each unspent mana you have"
   if (/^(?:unspent mana you have|mana in your mana pool|unspent mana in your mana pool)$/.test(p)) return G.s && G.s.pool ? (G.s.pool[pid] || []).length : 0;
+  // Temur Battlecrier: "for each creature you control with power 4 or greater"
+  {
+    const wm = p.match(/^((?:other |nontoken |untapped |tapped )*(?:[\w-]+ )?)creatures? (you control|your opponents control|an opponent controls|on the battlefield) with (power|toughness|mana value) (\d+) or (greater|less)$/);
+    if (wm && G.s && helpers) {
+      const who = wm[2] === 'you control' ? [pid] : wm[2] === 'on the battlefield' ? ['p', 'ai'] : [pid === 'p' ? 'ai' : 'p'];
+      const f = filterFrom(wm[1]);
+      return who.flatMap((w) => G.s.players[w].zones.battlefield.map((i) => G.s.cards[i]))
+        .filter((c) => c && !c.phasedOut && helpers.isCreature(c) && (!/other/.test(wm[1]) || c.iid !== srcIid) && matchesFilter(c, f, helpers))
+        .filter((c) => {
+          const v = wm[3] === 'power' ? helpers.power(c) : wm[3] === 'toughness' ? helpers.toughness(c) : DB[c.def].cmc || 0;
+          return wm[5] === 'greater' ? v >= +wm[4] : v <= +wm[4];
+        }).length;
+    }
+  }
   // Garruk, Primal Hunter / Return of the Wildspeaker: "the greatest power among (non-Human) creatures you control"
   {
     // ("where X is the greatest …" arrives here without "the greatest")

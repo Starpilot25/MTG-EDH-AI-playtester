@@ -19,7 +19,7 @@ import {
   matchesFilter, analyze, stripName, spellFilterOk,
   predictTargets,
 } from './effects.js';
-import { costDelta, countPhrase } from './statics.js';
+import { costDelta, countPhrase, repl } from './statics.js';
 import { helpers } from './rules.js';
 import { fire, settle, T } from './triggers.js';
 
@@ -33,6 +33,7 @@ function restrictedOk(onlyFor, abilitiesOf, spell, opts) {
   if (!onlyFor) return true;
   if (onlyFor === 'abilities') return !!opts.ability; // The Enigma Jewel
   if (onlyFor === 'fromExile') return !!spell && spell.zone === 'exile' && !opts.ability;
+  if (onlyFor === 'colorless') return !!spell && !opts.ability && spell.zone !== 'battlefield' && !(DB[spell.def].colors || []).length;
   if (opts.ability) return !!(abilitiesOf && spell && spell.zone === 'battlefield' && (/^[a-z]/.test(abilitiesOf) ? new RegExp(`\\b${abilitiesOf}\\b`, 'i').test(DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine || '') : hasSubtype(spell, abilitiesOf)));
   if (!spell || spell.zone === 'battlefield') return false;
   const tl = DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine;
@@ -60,8 +61,11 @@ export function manaSources(pid, opts = {}) {
     out.push({ iid: 'pool:' + k, colors: p.col === 'ANY' ? ['W', 'U', 'B', 'R', 'G', 'C'] : [p.col], amount: 1, kind: 'pool' });
   });
   for (const c of cardsIn(pid, 'battlefield')) {
-    const m = manaAbility(c);
+    let m = manaAbility(c);
     if (!m) continue;
+    // a second, bigger ability that only some spells may use (Shrine of the Forsaken Gods)
+    const alt = (m.alts || []).filter((a) => restrictedOk(a.onlyFor, a.abilitiesOf, spell, opts)).sort((a, b) => b.amount - a.amount)[0];
+    if (alt && alt.amount > m.amount) m = { ...m, ...alt };
     if (!restrictedOk(m.onlyFor, m.abilitiesOf, spell, opts)) continue;
     out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, activation: m.activation || 0, restricted: !!m.onlyFor });
   }
@@ -167,6 +171,37 @@ function altCostAny(text, name) {
   return m ? { mana: m[1] || '', other: (m[2] || '').trim().replace(/\.$/, '') } : null;
 }
 
+// Playing from the top of your library: Mystic Forge, Future Sight, Courser of Kruphix, Bolas's Citadel, Vizier of the Menagerie…
+// Returns what pid may do with the top card of their library right now.
+export function topAccess(pid) {
+  const a = { look: false, reveal: false, lands: false, filters: [] };
+  if (!G.s) return a;
+  for (const c of cardsIn(pid, 'battlefield')) {
+    if (c.phasedOut) continue;
+    const o = stripName(oracle(c), c);
+    if (/You may look at the top card of your library (?:any time|at any time)/i.test(o)) a.look = true;
+    if (/Play with the top card of your library revealed/i.test(o)) a.reveal = a.look = true;
+    if (/You may play lands from the top of your library|You may play lands and cast spells from the top of your library|You may play the top card of your library/i.test(o)) a.lands = true;
+    if (/You may play lands and cast spells from the top of your library|You may play the top card of your library/i.test(o)) a.filters.push('');
+    for (const m of o.matchAll(/You may cast ((?:[\w-]+ )*?)spells(?: and ((?:[\w-]+ )*?)spells)? from the top of your library/gi)) {
+      a.filters.push((m[1] || '').trim().toLowerCase());
+      if (m[2] !== undefined) a.filters.push((m[2] || '').trim().toLowerCase());
+    }
+    if (/cast spells from the top of your library/i.test(o) && !a.filters.includes('')) a.filters.push('');
+  }
+  if (a.lands || a.filters.length) a.look = true; // you may look at a card you may play
+  return a;
+}
+function topFilterOk(f, d) {
+  if (!f) return true;
+  const full = (d.faces[0] || {}).typeLine || d.typeLine || '';
+  const tl = full.split('—')[0];
+  return f.split(/\s+/).every((w) => (w === 'colorless' ? !(d.colors || []).length : w === 'noncreature' ? !/Creature/.test(tl) : new RegExp('\\b' + w + 's?\\b', 'i').test(full)));
+}
+export function isLibraryTop(pid, c) {
+  const lib = zoneOf(pid, 'library');
+  return !!c && c.zone === 'library' && c.owner === pid && lib[lib.length - 1] === c.iid;
+}
 export function castOptions(pid, c) {
   const d = DB[c.def];
   const zone = c.zone;
@@ -176,10 +211,26 @@ export function castOptions(pid, c) {
   const add = (o) => opts.push({ face: 0, from: zone, ...o });
   const s = G.s;
   const ts = s.ts[pid];
+  // Mystic Forge & co.: the top card of your library
+  if (zone === 'library' && isLibraryTop(pid, c) && !isLandFace(f0)) {
+    const a = topAccess(pid);
+    if (a.filters.some((f) => topFilterOk(f, d))) add({ mode: 'normal', label: 'Cast from the top of your library', cost: f0.manaCost || d.manaCost || '' });
+    return opts;
+  }
   if (zone === 'hand' || (zone === 'command' && c.isCommander)) {
     // a card with no mana cost (Lotus Bloom, Ancestral Vision) can't be cast normally — only suspended
     const noCost = !(f0.manaCost || d.manaCost) && /(?:^|\n)Suspend\b/.test(o0);
     if (!isLandFace(f0) && !noCost) add({ mode: 'normal', label: zone === 'command' ? `Cast commander (tax +${commanderTax(pid, c.iid)})` : d.faces[1] && (d.layout === 'split' || d.layout === 'modal_dfc') ? `Cast ${f0.name}` : 'Cast', cost: f0.manaCost || d.manaCost || '' });
+    // Dracogenesis, Omniscience: "You may cast Dragon spells without paying their mana costs."
+    if (!isLandFace(f0)) {
+      for (const src of cardsIn(pid, 'battlefield')) {
+        const fm = stripName(oracle(src), src).match(/You may cast ((?:[\w-]+ )*?)spells(?: from your hand)? without paying their mana costs/i);
+        if (fm && topFilterOk((fm[1] || '').trim().toLowerCase(), d)) {
+          add({ mode: 'normal', label: `Cast without paying its mana cost (${DB[src.def].name})`, cost: '', free: true });
+          break;
+        }
+      }
+    }
     if (d.layout === 'split' && d.faces[1]) {
       add({ mode: 'normal', face: 1, label: `Cast ${d.faces[1].name}`, cost: d.faces[1].manaCost });
       if (/\bFuse\b/.test(d.faces[1].oracle || '') && zone === 'hand') add({ mode: 'fuse', label: 'Cast both halves (fuse)', cost: f0.manaCost + d.faces[1].manaCost });
@@ -1444,14 +1495,17 @@ export async function activateAbility(pid, c, ab, env) {
           if (have < need) return env.say(`Needs ${need} loyalty among your ${req[2]}s (you have ${have}).`);
         }
       }
-      c.counters.loyalty = (c.counters.loyalty || 0) + cost;
+      // a + ability puts loyalty counters on it: Lae'zel-style "put that many plus one" applies
+      const gained = cost > 0 ? cost + (repl('counterPlusOneAll', c.controller) || 0) : cost;
+      c.counters.loyalty = (c.counters.loyalty || 0) + gained;
+      if (gained !== cost) log(pid, `${nameTag(c)} gets ${gained} loyalty instead of ${cost}.`);
       c.loyaltyUses = { turn: s.turn, n: (c.loyaltyUses && c.loyaltyUses.turn === s.turn ? c.loyaltyUses.n : 0) + 1 };
       c.usedLoyaltyTurn = s.turn;
       if (s.ts[pid]) s.ts[pid].loyaltyActivated = (s.ts[pid].loyaltyActivated || 0) + 1;
       log(pid, `${nameTag(c)} uses ${ab.label}.`);
       // "whenever you activate a loyalty ability" (Way of the Paradox / Mind Sculptor) and "whenever you put loyalty counters on a planeswalker"
       queueEvent({ type: 'loyaltyActivated', iid: c.iid, controller: pid, cost });
-      if (cost > 0) queueEvent({ type: 'counterPut', iid: c.iid, kind: 'loyalty', n: cost, controller: c.controller });
+      if (cost > 0) queueEvent({ type: 'counterPut', iid: c.iid, kind: 'loyalty', n: gained, controller: c.controller });
       await settle();
       const copiers = abilityCopiers(pid);
       if (await announceAbility(pid, c, ab.text, env)) return true;

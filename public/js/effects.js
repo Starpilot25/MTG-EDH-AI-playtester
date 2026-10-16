@@ -687,6 +687,11 @@ function turnHistoryCond(c, env) {
   if (/^you control exactly one creature$/.test(c)) return cardsIn(me, 'battlefield').filter(isCreature).length === 1;
   if ((m = c.match(/^you control (\w+) or more ([a-z]+?)s$/))) return cardsIn(me, 'battlefield').filter((x) => matchesFilter(x, m[2])).length >= n(m[1]);
   if ((m = c.match(/^you don't control an? ([a-z ]+)$/))) return !cardsIn(me, 'battlefield').some((x) => matchesFilter(x, m[1]));
+  // Koth, the Geomancer: "If that land is a Mountain, add {R}."
+  if ((m = c.match(/^(?:that land|that card|that creature|that permanent|it) is an? ([a-z]+(?: [a-z]+)?)$/))) {
+    const t = env.it && env.it.iid ? card(env.it.iid) : null;
+    if (t) return matchesFilter(t, m[1]) || hasSubtype(t, m[1][0].toUpperCase() + m[1].slice(1));
+  }
   // Roiling Canopy: "if you control at least five other Forests" (other than the one that just entered)
   if ((m = c.match(/^you control at least (\w+) other ([a-z]+?)s$/))) {
     const skip = (env.it && env.it.iid) || (src && src.iid);
@@ -3811,6 +3816,12 @@ async function makeTokens(env, desc, attachPhrase) {
   if (!defId && (mm = d.match(/\b(gingerbrute)\b/))) defId = namedTokenDef('Gingerbrute');
   if (!defId) defId = genericTokenDef(1, 1, 'Token');
   const made = createToken(defId, me, count, { tapped });
+  // a made-up token gets the quoted ability the card gives it (Teferi, Temporal Pilgrim's Spirit:
+  // 'with vigilance and "Whenever you draw a card, put a +1/+1 counter on this token."')
+  {
+    const q = String(env.sentence || '').match(/"([^"]+)"/);
+    if (q && /^gen-/.test(defId) && !(DB[defId].faces[0].oracle || '').includes(q[1].slice(0, 20))) for (const i of made) if (card(i)) card(i).extraText = ((card(i).extraText || '') + '\n' + q[1].replace(/this (?:token|creature)/gi, '~')).trim();
+  }
   if (forcedPT) for (const i of made) if (card(i)) card(i).setPT = { ts: nextStamp(), ...forcedPT };
   if (attacking && G.s.combat) {
     for (const i of made) {

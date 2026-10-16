@@ -18,7 +18,7 @@ import { maxHandSize } from './statics.js';
 import { threat, planBlocks, planAttack, fight, pumpOf, evasive, lifeWeight } from './aicombat.js';
 import {
   manaSources, castOptions, castSpell as castThrough, effectiveCost, landOptions, playLand as playLandThrough, landsAllowed,
-  activateAbility, useZoneAbility, turnFaceUp, companionToHand, applyPayment, timingOk, loyaltyUsesLeft,
+  activateAbility, useZoneAbility, turnFaceUp, companionToHand, applyPayment, timingOk, loyaltyUsesLeft, topAccess,
 } from './cast.js';
 
 const AI = 'ai';
@@ -554,6 +554,8 @@ function options(filter = () => true) {
     ...cardsIn(AI, 'command').filter((c) => c.isCommander),
     ...cardsIn(AI, 'graveyard'),
     ...cardsIn(AI, 'exile'),
+    // Mystic Forge & co.: the top card of its library
+    ...libTop(AI, 1).map(card).filter((c) => c && !isLand(c) && topAccess(AI).filters.length),
     // King Narfi's Betrayal & co.: the player's exiled cards the AI may cast
     ...cardsIn(P, 'exile').filter((c) => c.mayPlay === AI || c.mayPlayFree === AI),
     ...cardsIn(P, 'graveyard').filter((c) => c.mayCastFromGy === AI),
@@ -691,6 +693,8 @@ function playLand(h) {
   const lands = cardsIn(AI, 'hand').filter((c) => landOptions(AI, c).length);
   // lands from the top of the library or exile the AI may play
   for (const c of [...cardsIn(AI, 'exile'), ...cardsIn(P, 'exile')]) if (c.mayPlay === AI && (c.mayPlayUntil || 0) >= s.turn && isLand(c) && !c.castOnly && (!c.myTurnOnly || s.active === AI)) lands.push(c);
+  // Courser of Kruphix & co.: a land on top of its library
+  { const t = libTop(AI, 1)[0]; if (t && isLand(card(t)) && topAccess(AI).lands) lands.push(card(t)); }
   // Sen Triplets: your lands too
   if (handControl(AI, P) && s.handControl.lands) for (const c of cardsIn(P, 'hand')) if (landOptions(AI, c).length) lands.push(c);
   if (!lands.length) return false;
