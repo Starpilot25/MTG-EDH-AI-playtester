@@ -139,7 +139,36 @@ export async function fetchCards(identifiers) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ identifiers }),
   });
+  await englishImages(cards.filter(Boolean)).catch(() => {});
   return cards.map((c) => (c ? normalize(c) : null));
+}
+
+// A deck link can point at a Japanese, German… printing, whose card images are in that language. The rules text
+// we use is always English; swap the pictures for the English printing's. (Newer app builds do this on the server
+// and send "lang"; older ones don't, so ask Scryfall which printings aren't English.)
+const enImg = new Map(); // scryfall id -> English card (or null when it is English already)
+async function englishImages(cards) {
+  const sf = (url, opts) => fetch(url, { headers: { Accept: 'application/json', ...(opts && opts.body ? { 'Content-Type': 'application/json' } : {}) }, ...opts }).then((r) => (r.ok ? r.json() : null));
+  const unknown = [...new Set(cards.filter((c) => c.lang === undefined && !enImg.has(c.id)).map((c) => c.id))];
+  for (let i = 0; i < unknown.length; i += 75) {
+    const body = await sf('https://api.scryfall.com/cards/collection', { method: 'POST', body: JSON.stringify({ identifiers: unknown.slice(i, i + 75).map((id) => ({ id })) }) });
+    for (const x of (body && body.data) || []) if (x.lang === 'en') enImg.set(x.id, null); else for (const c of cards) if (c.id === x.id) c.lang = x.lang;
+  }
+  for (const c of cards) {
+    if (!c.lang || c.lang === 'en') continue;
+    let en = enImg.get(c.id);
+    if (en === undefined) {
+      en = (c.set && c.collector_number && (await sf(`https://api.scryfall.com/cards/${encodeURIComponent(c.set)}/${encodeURIComponent(c.collector_number)}/en`))) || null;
+      if (!en || en.lang !== 'en') en = await sf('https://api.scryfall.com/cards/named?exact=' + encodeURIComponent(c.name.split(' // ')[0]));
+      if (en && en.lang !== 'en') en = null;
+      enImg.set(c.id, en);
+    }
+    if (!en) continue;
+    const pick = (u) => (u ? { normal: u.normal, large: u.large } : undefined);
+    if (en.image_uris) c.image_uris = pick(en.image_uris);
+    if (c.card_faces && en.card_faces) c.card_faces.forEach((f, k) => { if (en.card_faces[k] && en.card_faces[k].image_uris) f.image_uris = pick(en.card_faces[k].image_uris); });
+    c.lang = 'en';
+  }
 }
 
 // Saved decks live on the local server (saved-decks.json).

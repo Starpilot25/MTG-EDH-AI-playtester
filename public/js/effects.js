@@ -9,7 +9,7 @@ import {
 import {
   G, card, cardsIn as cardsInZone, zoneOf as zoneOfRaw, move, draw, log, nameTag, changeLife, toBattlefield, createToken, genericTokenDef, namedTokenDef,
   stateBased, shuffle, cardName, opp, addCounters, loseAllAbilities, nextStamp, destroy, sacrifice, discard as discardCard, mill as millCards,
-  libTop, queueEvent, winGame, loseGame, esc, makeCard, ringLevel, aiSlaved,
+  libTop, queueEvent, winGame, loseGame, esc, makeCard, ringLevel, RING_TEXT, aiSlaved,
 } from './state.js';
 // A spell being cast stays in its zone until it resolves; effects must not see it in the hand
 // (Brainsurge can't put itself back, Windfall doesn't shuffle itself away, "cards in hand" counts exclude it).
@@ -736,6 +736,14 @@ export function evalCond(cond, env) {
   const s = G.s;
   const ts = s.ts || { p: {}, ai: {} };
   let m;
+  // voting: "if sickness gets more votes", "if psychosis gets more votes or the vote is tied"
+  if ((m = c.match(/^(.+?) gets more votes( or the vote is tied)?$/))) {
+    if (!env.votes) return false; // no vote happened
+    const mine = env.votes.tally.get(m[1].trim()) || 0;
+    const others = [...env.votes.tally.entries()].filter(([k]) => k !== m[1].trim()).map(([, v]) => v);
+    const best = Math.max(0, ...others);
+    return mine > best || (!!m[2] && mine === best);
+  }
   if (/(?:this spell|~|it) was kicked|kicker was paid/.test(c)) return !!env.kicked;
   if (/was kicked twice|kicked \w+ times/.test(c)) return (env.kicked || 0) >= 2;
   if (/(?:this spell|~|it) was bargained/.test(c)) return !!env.bargained;
@@ -1175,7 +1183,13 @@ function playerHexproof(pid, caster, src) {
 
 // Objects named by a phrase: "~", "it", "each creature you control", "target creature", "enchanted creature"…
 async function objects(env, phrase, opts = {}) {
-  const p = phrase.toLowerCase().trim().replace(/\.$/, '');
+  let p = phrase.toLowerCase().trim().replace(/\.$/, '');
+  // "destroy all creatures other than Magister of Worth" = "all other creatures"
+  {
+    const nm = env.src && DB[env.src.def] ? DB[env.src.def].name.split(' // ')[0].split(',')[0].toLowerCase() : '\u0000';
+    const om = p.match(/^(each|all|every) (.+?) other than (.+)$/);
+    if (om && (om[3] === '~' || om[3].startsWith(nm) || /^this (?:creature|permanent)$/.test(om[3]))) p = `${om[1]} other ${om[2]}`;
+  }
   const me = env.me;
   if (/^(~|it|him|her|this creature|this permanent)$/.test(p)) {
     if (p === 'it' || p === 'him' || p === 'her') {
@@ -5116,9 +5130,10 @@ function moveReturned(env, c, dest, tapped) {
   env.did.push(`returns ${nm} to ${/battlefield/.test(dest) ? 'the battlefield' : /library/.test(dest) ? 'the top of the library' : 'hand'}`);
   if (typeof attachNote === 'string') env.did.push(attachNote);
 }
-on(/^put (?:an?|up to (\w+)) ((?:[a-z]+ )?(?:land|creature|permanent|[a-z]+)) cards? from your hand onto the battlefield( tapped)?/, async (m, env) => {
+on(/^put (?:an?|up to (\w+)) ((?:[a-z]+ )?(?:land|creature|permanent|[a-z]+)|[a-z]+(?:, [a-z]+)*,? or [a-z]+) cards? from your hand onto the battlefield( tapped)?/, async (m, env) => {
   const k = m[1] ? n(m[1]) : 1;
-  const pool = cardsIn(env.me, 'hand').filter((c) => matchesFilter(c, m[2]) && (m[2] !== 'permanent' || isPermanentCard(DB[c.def])));
+  // Dr. Eggman: "a Construct, Robot, or Vehicle card"
+  const pool = cardsIn(env.me, 'hand').filter((c) => (/ or /.test(m[2]) ? matchesAny(c, m[2]) : matchesFilter(c, m[2])) && (m[2] !== 'permanent' || isPermanentCard(DB[c.def])));
   if (!pool.length) return;
   const picks = await env.choosers[env.me].pickCards({ prompt: `Put ${k > 1 ? 'up to ' + k : 'a'} ${m[2]} card${k > 1 ? 's' : ''} from your hand onto the battlefield`, cards: pool.map((c) => c.iid), min: 0, max: k, purpose: 'cheat', src: env.src, aiScore: (c) => DB[c.def].cmc });
   for (const i of picks) {
@@ -5423,12 +5438,15 @@ on(/^the ring tempts you/, async (m, env) => {
   pl.ringTimes = (pl.ringTimes || 0) + 1;
   const cs = cardsIn(env.me, 'battlefield').filter(isCreature);
   if (cs.length) {
-    const [pick] = await env.choosers[env.me].pickCards({ forced: true, prompt: 'The Ring tempts you: choose your Ring-bearer', cards: cs.map((c) => c.iid), min: 1, max: 1, purpose: 'ringbearer', src: env.src, aiScore: (c) => (hasKw(c, 'flying') ? 3 : 0) + power(c) });
+    const [pick] = await env.choosers[env.me].pickCards({ forced: true, prompt: 'The Ring tempts you: choose your Ring-bearer',
+      detail: `The Ring is now at level ${pl.ring} of 4. Your Ring-bearer gets:\n` + RING_TEXT.slice(0, pl.ring).map((t, k) => `${k + 1}. ${t}`).join('\n') + (pl.ring < 4 ? `\n(Next time: ${RING_TEXT[pl.ring]})` : ''), cards: cs.map((c) => c.iid), min: 1, max: 1, purpose: 'ringbearer', src: env.src, aiScore: (c) => (hasKw(c, 'flying') ? 3 : 0) + power(c) });
     for (const c of cs) c.ringBearer = false;
     card(pick).ringBearer = true;
     pl.ringBearer = pick;
     env.did.push(`the Ring tempts ${who(env.me)} (level ${pl.ring}); ${nameTag(card(pick))} is the Ring-bearer`);
   } else env.did.push(`the Ring tempts ${who(env.me)} (level ${pl.ring})`);
+  // the table shows what the Ring now does (you already saw it if you just picked your Ring-bearer)
+  if (env.me !== 'p' || !cs.length) (G.s.ringNotes = G.s.ringNotes || []).push(env.me);
   queueEvent({ type: 'ringTempts', pid: env.me });
 });
 on(/^(?:you )?win the game/, async (m, env) => {
@@ -5616,33 +5634,162 @@ on(/^put (it|that card) onto the battlefield( tapped)?( under your control)?$/, 
   toBattlefield(c.iid, m[3] ? env.me : c.owner, { tapped: !!m[2] });
   env.did.push(`puts ${nameTag(c)} onto the battlefield`);
 }, { first: true });
-// Davros: "each opponent who lost 3 or more life this turn faces a villainous choice — A, or B"
-on(/^(?:each opponent|that player|target opponent|defending player) (?:who lost (\w+) or more life this turn )?faces a villainous choice — (.+?), or (.+)$/, async (m, env) => {
-  const them = opp(env.me);
-  if (m[1] && ((G.s.ts[them] || {}).lifeLost || 0) < n(m[1])) return;
-  const raw = env.sentence.split(' — ')[1] || '';
-  const opts = [m[2], m[3]];
-  const k = await env.choosers[them].choose({
-    prompt: `${cardName(env.src)}: villainous choice`,
-    options: opts.map((o) => ({ label: o[0].toUpperCase() + o.slice(1) })),
-    aiPick: () => {
-      // Damocles Base: sacrifice a nontoken creature, or lose life and the opponent draws — give up a creature that matters little
-      if (/sacrifices? a (nontoken )?creature/.test(opts[0])) {
-        const mine = cardsIn(them, 'battlefield').filter((c) => isCreature(c) && !(/nontoken/.test(opts[0]) && c.token));
-        if (!mine.length) return 0;
-        const cheapest = Math.min(...mine.map((c) => (DB[c.def].cmc || 0) + power(c)));
-        return cheapest <= 4 || G.s.players[them].life <= 6 ? 0 : 1;
-      }
-      return /discards?/.test(opts[1]) && cardsIn(them, 'hand').length > 2 ? 1 : 0;
-    },
-  });
-  env.thatPlayer = them;
-  env.it = { player: them };
-  env.did.push(`${who(them)} ${s_(them, 'choose')}: ${opts[k]}`);
-  void raw;
-  // "they sacrifice …" / "they lose 2 life and you draw two cards"
-  const pick = opts[k].replace(/^they (\w+?)(e?s)? /, (x, v) => `that player ${v}${/(?:s|sh|ch|x)$/.test(v) ? 'es' : 's'} `).replace(/^that player /, 'target opponent ');
-  await runSentence(pick, env);
+// Villainous choice (Doctor Who, Marvel): the opponent picks one of two outcomes.
+// "each opponent faces…", "that player faces…", "…, then faces…" (This Is How It Ends), Davros's "who lost 3 or more life this turn".
+// The Valeyard: the opponent faces each villainous choice one more time.
+function villainCost(text, them, me) {
+  // how bad an outcome is for the player choosing (them): the AI takes the cheaper one
+  const t = text.toLowerCase();
+  let v = 0;
+  const creatures = cardsIn(them, 'battlefield').filter(isCreature);
+  const lose = t.match(/lose (\w+) life/);
+  if (lose) v += G.s.players[them].life <= n(lose[1]) ? 100 : n(lose[1]) * 0.6;
+  if (/sacrifices? (?:a|one) (nontoken )?creature/.test(t)) {
+    const pool = creatures.filter((c) => !(/nontoken/.test(t) && c.token));
+    v += pool.length ? Math.min(...pool.map(cardValue)) + 0.5 : 0;
+  }
+  const disc = t.match(/discards? (a|one|two|three|\w+) cards?/);
+  if (disc) v += Math.min(n(disc[1]), cardsIn(them, 'hand').length) * 1.2;
+  if (/discards? all the cards in (?:their|your) hand/.test(t)) v += 0.5;
+  const dr = t.match(/you draw (a|one|two|three|\w+) cards?/);
+  if (dr) v += n(dr[1]) * 1.3;
+  if (/chaos ensues/.test(t)) v += 0.5;
+  if (/you create [^,]*token/.test(t)) v += /copy/.test(t) ? 4 : 3;
+  if (/you gain control/.test(t)) v += creatures.length ? Math.max(...creatures.map(cardValue)) : 0;
+  if (/you may cast a spell from your hand without paying/.test(t)) v += 4;
+  if (/you may put [^,]* card from your hand onto the battlefield/.test(t)) v += 3;
+  if (/shuffles? another creature they own into their library/.test(t)) v += creatures.length ? Math.min(...creatures.map(cardValue)) : 0;
+  if (/deals damage to that player equal to the number of cards in their hand/.test(t)) v += cardsIn(them, 'hand').length * 0.6;
+  if (/each artifact creature you control deals (\w+) damage/.test(t)) v += cardsIn(me, 'battlefield').filter((c) => isCreature(c) && isType(c, 'Artifact')).length * n(t.match(/deals (\w+) damage/)[1]) * 0.6;
+  if (/exiles? the top (\w+) cards of their library and .* deals damage equal to the total mana value/.test(t)) v += 6;
+  if (/exile cards from the top of their library until they exile a nonland card, then you may cast/.test(t)) v += 3.5;
+  if (/becomes a 1\/1/.test(t)) v += 3;
+  if (/destroy all dalek/.test(t)) v += 2;
+  return v;
+}
+async function villainousChoice(env, them, opts, label) {
+  const times = 1 + cardsIn(env.me, 'battlefield').filter((c) => /If an opponent would face a villainous choice, they face that choice an additional time/i.test(oracle(c))).length;
+  for (let i = 0; i < times; i++) {
+    const k = await env.choosers[them].choose({
+      prompt: `${label || cardName(env.src)}: villainous choice${times > 1 ? ` (${i + 1} of ${times})` : ''} — ${them === 'p' ? 'you choose' : 'the AI chooses'}`,
+      // the choices as you read them: "they lose 5 life" is you, "you draw two cards" is the AI
+      options: opts.map((o) => {
+        let t = o;
+        t = origCase(env, t);
+        if (them === 'p' && env.me !== 'p') t = t.replace(/\byour\b/g, '\u0001').replace(/\byou\b/g, 'the AI').replace(/\u0001/g, "the AI's").replace(/\b(?:they|that player|that opponent) (\w+?)s?\b(?= )/gi, (x, v) => `you ${v.replace(/e$/, (e) => (/(?:los|sacrific|shuffl|exil|discard)$/.test(v) ? e : e))}`).replace(/\btheir\b/g, 'your').replace(/\bthey\b/g, 'you').replace(/\bthe AI (\w+)/g, (x, v) => (/s$/.test(v) || /^(?:can|may|will)$/.test(v) ? x : `the AI ${/(?:sh|ch|x)$/.test(v) ? v + 'es' : v + 's'}`));
+        return { label: t[0].toUpperCase() + t.slice(1) };
+      }),
+      aiPick: () => {
+        // Damocles Base: sacrifice a nontoken creature, or lose life and the opponent draws — give up a creature that matters little
+        if (/sacrifices? a (nontoken )?creature/.test(opts[0]) && /lose \w+ life and you draw/.test(opts[1])) {
+          const mine = cardsIn(them, 'battlefield').filter((c) => isCreature(c) && !(/nontoken/.test(opts[0]) && c.token));
+          if (!mine.length) return 0;
+          const cheapest = Math.min(...mine.map((c) => (DB[c.def].cmc || 0) + power(c)));
+          return cheapest <= 4 || G.s.players[them].life <= 6 ? 0 : 1;
+        }
+        const a = villainCost(opts[0], them, env.me);
+        const b = villainCost(opts[1], them, env.me);
+        return b < a ? 1 : 0;
+      },
+    });
+    env.thatPlayer = them;
+    env.it = { player: them };
+    env.did.push(`${who(them)} ${s_(them, 'choose')}: ${opts[k]}`);
+    // "they sacrifice …" / "they lose 2 life and you draw two cards" / "that player discards a card"
+    const third = (v) => (/(?:s|sh|ch|x|z)$/.test(v) ? v + 'es' : v + 's');
+    const pick = opts[k]
+      .replace(/^they (\w+)/, (x, v) => `target opponent ${third(v)}`)
+      .replace(/^(?:that player|that opponent) /, 'target opponent ')
+      .replace(/ (?:they|that player) controls?\b/, '');
+    for (const part of pick.split(/(?<=\S) and (?=you |~ |that player |they )/)) await runSentence(part.replace(/^they /, 'target opponent '), env);
+  }
+}
+const origCase = (env, t) => {
+  const at = (env.fullText || '').toLowerCase().indexOf(t.toLowerCase());
+  return at >= 0 ? env.fullText.slice(at, at + t.length) : t;
+};
+on(/^(.*?)\b(?:faces|face) a villainous choice — (.+?), or (.+)$/, async (m, env) => {
+  let subj = m[1].trim();
+  // "Target creature's owner shuffles it into their library, then faces a villainous choice — …"
+  const then = subj.match(/^(.+?),? then$/);
+  let them = opp(env.me);
+  if (then) {
+    if (env.it && env.it.iid && card(env.it.iid)) them = card(env.it.iid).owner;
+    await runSentence(then[1], env);
+    if (env.it && env.it.iid && card(env.it.iid)) them = card(env.it.iid).owner;
+    subj = 'that player';
+  }
+  const lost = subj.match(/who lost (\w+) or more life this turn$/);
+  if (lost && ((G.s.ts[them] || {}).lifeLost || 0) < n(lost[1])) return;
+  if (them === env.me) them = opp(env.me);
+  await villainousChoice(env, them, [m[2], m[3]]);
+}, { first: true });
+// Hunted by The Family: "Choose up to four target creatures you don't control. For each of them, that creature's controller faces a villainous choice — That creature becomes a 1/1 white Human creature and loses all abilities, or you create a token that's a copy of it."
+on(/^choose up to (\w+) target creatures? you don't control$/, async (m, env) => {
+  const ts = await objects(env, `up to ${m[1]} target creatures you don't control`);
+  env.them_ = ts.map((c) => c.iid);
+}, { first: true });
+on(/^for each of them, that creature's controller faces a villainous choice — (.+?), or (.+)$/, async (m, env) => {
+  m = [m[0], '', m[1], m[2]];
+  const ts = (env.them_ || []).map(card).filter((c) => c && c.zone === 'battlefield');
+  for (const t of ts) {
+    env.it = { iid: t.iid };
+    const opts = [m[2], m[3]];
+    const k = await env.choosers[t.controller].choose({
+      prompt: `${cardName(env.src)}: villainous choice for ${cardName(t)}`,
+      options: opts.map((o) => ({ label: o[0].toUpperCase() + o.slice(1) })),
+      aiPick: () => (cardValue(t) >= 5 ? 1 : 0),
+    });
+    env.did.push(`${who(t.controller)} ${s_(t.controller, 'choose')}: ${opts[k]}`);
+    if (k === 0) {
+      loseAllAbilities(t);
+      t.setPT = { ts: nextStamp(), p: 1, t: 1 };
+      t.layerFx = [...(t.layerFx || []), { ts: nextStamp(), types: { set: 'Creature', sub: 'Human' }, colors: { set: ['W'] } }];
+      env.did.push(`${nameTag(t)} becomes a 1/1 white Human with no abilities`);
+    } else {
+      const made = createToken(t.def, env.me, 1);
+      for (const i of made) card(i).face = t.face || 0;
+      env.did.push(`creates a token copy of ${nameTag(t)}`);
+    }
+  }
+}, { first: true });
+// Sycorax Commander: "That opponent discards all the cards in their hand, then draws that many cards minus one"
+on(/^target opponent discards all the cards in their hand, then draws that many cards minus one$/, async (m, env) => {
+  const them = env.thatPlayer || opp(env.me);
+  const hand = cardsIn(them, 'hand');
+  for (const c of hand) discardCard(c.iid);
+  const k = Math.max(0, hand.length - 1);
+  if (k) draw(them, k);
+  env.did.push(`${who(them)} ${s_(them, 'discard')} ${hand.length} and ${s_(them, 'draw')} ${k}`);
+}, { first: true });
+// Missy: "Each artifact creature you control deals 1 damage to that opponent"
+on(/^each (artifact creature|creature|[a-z]+) you control deals (\w+) damage to (that opponent|that player|target opponent|each opponent)$/, async (m, env) => {
+  const them = env.thatPlayer || opp(env.me);
+  const srcs = cardsIn(env.me, 'battlefield').filter((c) => matchesFilter(c, m[1]));
+  for (const c of srcs) damagePlayer(env, c, them, n(m[2]));
+  if (!srcs.length) env.did.push(`no ${m[1]}s to deal damage`);
+}, { first: true });
+// Ensnared by the Mara: "that player exiles the top four cards of their library and ~ deals damage equal to the total mana value of those exiled cards to that player"
+on(/^target opponent exiles the top (\w+) cards of their library and ~ deals damage equal to the total mana value of those exiled cards to that player$/, async (m, env) => {
+  const them = env.thatPlayer || opp(env.me);
+  const ids = libTop(them, n(m[1]));
+  let tot = 0;
+  for (const i of ids) {
+    tot += DB[card(i).def].cmc || 0;
+    move(i, 'exile');
+  }
+  env.did.push(`exiles ${ids.length} cards from ${who(them)}'s library`);
+  if (tot) damagePlayer(env, env.src, them, tot);
+}, { first: true });
+// This Is How It Ends: "they shuffle another creature they own into their library"
+on(/^target opponent shuffles another creature they own into their library$/, async (m, env) => {
+  const them = env.thatPlayer || opp(env.me);
+  const cs = cardsIn(them, 'battlefield').filter((c) => isCreature(c) && c.owner === them);
+  if (!cs.length) return env.did.push('has no other creature');
+  const [pick] = await env.choosers[them].pickCards({ forced: true, prompt: 'Shuffle a creature you own into your library', cards: cs.map((c) => c.iid), min: 1, max: 1, purpose: 'shuffle', src: env.src, aiScore: (c) => -cardValue(c) });
+  move(pick, 'library');
+  shuffle(them);
+  env.did.push(`${who(them)} ${s_(them, 'shuffle')} ${nameTag(card(pick))} into ${them === 'p' ? 'your' : 'its'} library`);
 }, { first: true });
 // Hazel of the Rootbloom: "If that token is a Squirrel, instead create two tokens that are copies of it."
 on(/^if that token is an? ([a-z]+), instead create (\w+) tokens that are copies of it/, async (m, env) => {
@@ -5665,13 +5812,302 @@ function partySize(pid) {
   go(0, new Set(), 0);
   return best;
 }
-// --- vote / villainous choice: the AI answers for itself, you choose for yourself
-on(/^(?:will of the council|council's dilemma)? ?(?:—|-)? ?starting with you, each player votes for (.+?)(?:\.|$)/, async (m, env) => {
-  const options = m[1].split(/ or /).map((x) => x.trim());
-  const k = await env.choosers[env.me].choose({ prompt: 'Vote', options: options.map((o) => ({ label: o })), aiPick: () => 0 });
-  env.vote = options[k];
-  env.did.push(`votes for ${options[k]}`);
-});
+// --- voting (Will of the council, Council's dilemma, Secret council)
+// Each player votes, starting with the caster. Brago's Representative / Ballot Broker / Tivit give extra votes.
+// The tally lives on env.votes, and the sentences after it read it: "If X gets more votes (or the vote is tied), …",
+// "For each X vote, …", "… for each X vote", "a number of … equal to the number of X votes", "each permanent with the most votes".
+function extraVotes(pid) {
+  let k = 0;
+  for (const c of cardsIn(pid, 'battlefield')) {
+    const o = oracle(c);
+    if (/While voting, you (?:get an additional vote|may vote an additional time)/i.test(o)) k++;
+  }
+  return k;
+}
+// How good an outcome sentence is for the caster (rough: the AI only needs to rank two or three choices)
+function voteOutcomeValue(text, me) {
+  const t = String(text || '').toLowerCase();
+  const them = opp(me);
+  const creatures = (pid) => cardsIn(pid, 'battlefield').filter(isCreature);
+  const worth = (cs) => cs.reduce((a, c) => a + cardValue(c), 0);
+  let v = 0;
+  if (/take an extra turn/.test(t)) v += 7;
+  const dr = t.match(/draws? (a|one|two|three|four|\w+) cards?/);
+  if (dr && !/each opponent draws|each player draws/.test(t)) v += 1.4 * n(dr[1]);
+  if (/destroy all (?:other )?creatures|destroy all creatures other than/.test(t)) v += worth(creatures(them)) - worth(creatures(me).filter((c) => !env_src_is(c)));
+  if (/destroy all nonland permanents/.test(t)) v += worth(cardsIn(them, 'battlefield').filter((c) => !isLand(c))) - worth(cardsIn(me, 'battlefield').filter((c) => !isLand(c)));
+  if (/each player returns each creature card from their graveyard to the battlefield/.test(t)) v += worth(cardsIn(me, 'graveyard').filter((c) => isType(c, 'Creature'))) - worth(cardsIn(them, 'graveyard').filter((c) => isType(c, 'Creature')));
+  const lose = t.match(/each opponent loses (\w+) life/);
+  if (lose) v += n(lose[1]) * (G.s.players[them].life <= n(lose[1]) ? 10 : 0.7);
+  if (/each opponent sacrifices a creature/.test(t)) v += creatures(them).length ? Math.min(...creatures(them).map(cardValue)) + 1 : 0;
+  const shrink = t.match(/creatures your opponents control get -(\d+)\/-(\d+)/);
+  if (shrink) v += worth(creatures(them).filter((c) => toughness(c) - (c.damage || 0) <= +shrink[2])) + 0.5;
+  const disc = t.match(/each opponent discards (\w+) cards?/);
+  if (disc) v += Math.min(n(disc[1]), cardsIn(them, 'hand').length) * 1.1;
+  if (/\+1\/\+1 counters? on/.test(t)) v += 1.6;
+  if (/create (?:a|one|two|\w+) [^.]*treasure|treasure tokens?/.test(t)) v += 1.4;
+  if (/create (?:a|an|one|two|\w+) 1\/1 [^.]*creature token/.test(t)) v += 1.3;
+  if (/\binvestigate\b/.test(t)) v += 1.2;
+  if (/you gain (\w+) life/.test(t)) v += 0.4 * n(t.match(/you gain (\w+) life/)[1]);
+  if (/search your library for a basic land/.test(t)) v += 1.3;
+  if (/return a card from your graveyard to your hand/.test(t)) v += cardsIn(me, 'graveyard').length ? 1.5 : 0;
+  if (/gain control of/.test(t)) v += 3;
+  if (/counter the spell/.test(t)) v += 2;
+  if (/copy the spell/.test(t)) v += 2;
+  return v;
+  function env_src_is(c) { return /other than/.test(t) && voteOutcomeValue.src && c.iid === voteOutcomeValue.src; }
+}
+async function holdVote(env, spec) {
+  const caster = env.me;
+  const order = [caster, opp(caster)];
+  const tally = new Map();
+  const byVoter = { p: [], ai: [] };
+  const words = spec.kind === 'words';
+  const text = String(env.text || '').toLowerCase();
+  // what each word choice does, for the prompt and for the AI
+  const outcome = (o) => {
+    const ol = o.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const sents = text.split(/(?<=\.)\s+|\n/).filter((x) => new RegExp(`\\b${ol}\\b (?:gets more votes|votes?\\b)`).test(x) && !/votes for /.test(x));
+    return sents.map((x) => x.replace(new RegExp(`^if ${ol} gets more votes(?: or the vote is tied)?, `), '').replace(/\.$/, '')).join(' / ');
+  };
+  const tieOpt = words ? spec.options.find((o) => new RegExp(`if ${o.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} gets more votes or the vote is tied`).test(text)) : null;
+  voteOutcomeValue.src = env.src && env.src.iid;
+  const ctl = G.s.voteControl && G.s.voteControl.turn === G.s.turn ? G.s.voteControl.pid : null; // Messenger Jays: "For each card drawn this way, discard a card."
+on(/^for each card drawn this way, discard a card$/, async (m, env) => {
+  const k = Math.min(env.voteDrawn || 0, cardsIn(env.me, 'hand').length);
+  if (!k) return;
+  const picks = await env.choosers[env.me].pickCards({ forced: true, prompt: `Discard ${k} card${k > 1 ? 's' : ''}`, cards: cardsIn(env.me, 'hand').map((c) => c.iid), min: k, max: k, purpose: 'discard', src: env.src, aiScore: (c) => (isLand(c) ? 3 : -(DB[c.def].cmc || 0)) });
+  for (const i of picks) discardCard(i);
+  env.did.push(`discards ${picks.length}`);
+}, { first: true });
+// Truth or Consequences: "Then choose an opponent at random." (there is only one)
+on(/^choose an opponent at random$/, async (m, env) => {
+  env.thatPlayer = opp(env.me);
+  env.it = { player: opp(env.me) };
+}, { first: true });
+// "Whenever players finish voting": who agreed with you (the votes ride on the event)
+function agreeing(env) {
+  const bv = (env.event && env.event.byVoter) || { p: [], ai: [] };
+  const mine = new Set(bv[env.me] || []);
+  const them = opp(env.me);
+  const theirs = bv[them] || [];
+  return { same: theirs.some((v) => mine.has(v)), different: theirs.some((v) => !mine.has(v)), them };
+}
+// Grudge Keeper
+on(/^each opponent who voted for a choice you didn't vote for loses (\w+) life$/, async (m, env) => {
+  const a = agreeing(env);
+  if (a.different) changeLife(a.them, -n(m[1]));
+  env.did.push(a.different ? `${who(a.them)} ${s_(a.them, 'lose')} ${n(m[1])} life` : 'no one voted differently');
+}, { first: true });
+// Model of Unity
+on(/^you and each opponent who voted for a choice you voted for may scry (\w+)$/, async (m, env) => {
+  const a = agreeing(env);
+  for (const pid of [env.me, ...(a.same ? [a.them] : [])]) await runSentence(`scry ${m[1]}`, { ...env, me: pid });
+}, { first: true });
+// Erestor of the Council
+on(/^each opponent who voted for a choice you voted for creates a treasure token$/, async (m, env) => {
+  const a = agreeing(env);
+  if (a.same) {
+    createToken(genericTokenDef(0, 0, 'Treasure'), a.them, 1);
+    env.did.push(`${who(a.them)} ${s_(a.them, 'create')} a Treasure`);
+  }
+}, { first: true });
+on(/^you scry x, where x is the number of opponents who voted for a choice you didn't vote for$/, async (m, env) => {
+  if (agreeing(env).different) await runSentence('scry 1', env);
+}, { first: true });
+// Illusion of Choice
+  for (const voter of order) {
+    const times = 1 + extraVotes(voter);
+    const decider = ctl || voter;
+    for (let k = 0; k < times; k++) {
+      const nth = times > 1 ? ` (vote ${k + 1} of ${times})` : '';
+      const whose = decider === voter ? (voter === 'p' ? 'Your vote' : "The AI's vote") : `${voter === 'p' ? 'Your' : "The AI's"} vote (you choose it)`;
+      let pick = null;
+      if (words) {
+        const vals = spec.options.map((o) => voteOutcomeValue(outcome(o), caster));
+        // the outcome text as the player reading it sees it: on the AI's card, "each opponent" is you
+        const persp = (t) => (decider === 'p' && caster !== 'p'
+          ? t.replace(/\byour\b/g, '\u0001').replace(/\byou\b/g, 'the AI').replace(/\u0001/g, "the AI's").replace(/\b(?:each|target) opponent (\w+?)s\b/g, 'you $1').replace(/\beach opponent\b|\btarget opponent\b/g, 'you')
+          : t);
+        const sofar = order.flatMap((v) => byVoter[v].map((x) => `${v === 'p' ? 'You' : 'The AI'} voted ${x}`)).join('. ');
+        const k2 = await env.choosers[decider].choose({
+          prompt: `${env.src ? cardName(env.src) + ' — ' : ''}${whose}${nth}${sofar ? ` (${sofar})` : ''}`,
+          options: spec.options.map((o) => ({ label: o[0].toUpperCase() + o.slice(1), detail: persp(outcome(o)) + (o === tieOpt ? ' (also wins a tie)' : '') })),
+          aiPick: () => {
+            // voting for yourself (or the caster's side): the best outcome for the caster; against: the worst
+            const forCaster = decider === caster;
+            let best = 0;
+            for (let i = 1; i < vals.length; i++) if (forCaster ? vals[i] > vals[best] : vals[i] < vals[best]) best = i;
+            return best;
+          },
+        });
+        pick = spec.options[k2];
+      } else if (spec.kind === 'players') {
+        const cands = spec.another ? [opp(voter)] : [voter, opp(voter)];
+        if (cands.length === 1) pick = cands[0];
+        else {
+          const k2 = await env.choosers[decider].choose({ prompt: `${env.src ? cardName(env.src) + ' — ' : ''}${whose}${nth}: vote for a player`, options: cands.map((x) => ({ label: x === 'p' ? 'You' : 'The AI' })), aiPick: () => 0 });
+          pick = cands[k2];
+        }
+      } else {
+        const cands = spec.cands();
+        if (!cands.length) continue;
+        const res = await env.choosers[decider].pickCards({
+          prompt: `${env.src ? cardName(env.src) + ' — ' : ''}${whose}${nth}: vote for ${spec.phrase}`,
+          cards: cands.map((c) => c.iid), min: spec.upTo ? 0 : 1, max: 1, forced: !spec.upTo, purpose: 'vote', src: env.src,
+          // the AI votes for what hurts the other side most: their best permanent, or its own least valuable one
+          aiScore: (c) => (c.controller === voter || (c.zone !== 'battlefield' && c.owner === voter) ? (spec.good ? cardValue(c) : -cardValue(c)) : spec.good ? -cardValue(c) : cardValue(c)),
+        });
+        pick = res && res[0];
+        if (!pick) continue;
+      }
+      tally.set(pick, (tally.get(pick) || 0) + 1);
+      byVoter[voter].push(pick);
+    }
+  }
+  const label = (x) => (words ? x : x === 'p' ? 'you' : x === 'ai' ? 'the AI' : card(x) ? nameTag(card(x)) : x);
+  env.votes = { tally, byVoter, kind: spec.kind, options: spec.options || [] };
+  env.did.push(`vote: ${order.map((v) => `${v === 'p' ? 'you' : 'the AI'} — ${byVoter[v].map(label).join(', ') || 'nothing'}`).join('; ')}`);
+  queueEvent({ type: 'votingDone', controller: caster, byVoter });
+}
+const mostVoted = (env) => {
+  const t = env.votes ? env.votes.tally : new Map();
+  const top = Math.max(0, ...t.values());
+  return top ? [...t.entries()].filter(([, v]) => v === top).map(([k]) => k) : [];
+};
+const votesFor = (env, word) => (env.votes ? env.votes.tally.get(word.toLowerCase()) || 0 : 0);
+export const _votesFor = votesFor;
+on(/^(?:will of the council|council's dilemma|secret council)? ?(?:—|-)? ?(?:starting with you, )?each player (secretly )?votes for (.+?)(?:, then those votes are revealed)?$/, async (m, env) => {
+  const what = m[2].trim();
+  let spec;
+  let pm;
+  if ((pm = what.match(/^(another player|a player)$/))) spec = { kind: 'players', another: pm[1] === 'another player' };
+  else if ((pm = what.match(/^(up to one |an? )(.+)$/)) && !/ or /.test(what.replace(/^(?:an?|up to one) [^,]*,.* or /, 'x'))) {
+    // "a nonland permanent you don't control", "a creature you don't control", "an artifact, creature, or enchantment card in your graveyard"
+    const ph = pm[2];
+    const gy = ph.match(/^(.+?) cards? in your graveyard$/);
+    spec = {
+      kind: 'objects', phrase: (pm[1].trim() === 'up to one' ? 'up to one ' : 'a ') + ph, upTo: /up to/.test(pm[1]), good: !!gy,
+      cands: () => gy
+        ? cardsIn(env.me, 'graveyard').filter((c) => matchesAny(c, gy[1]))
+        : [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((c) => matchesAny(c, ph.replace(/ you don't control$| an opponent controls$/, '')) && (!/you don't control|an opponent controls/.test(ph) || c.controller !== env.me) && (!/ you control$/.test(ph) || c.controller === env.me)),
+    };
+  } else {
+    // "sickness or psychosis", "blue, black, red, or green"
+    const options = what.split(/,? or |, /).map((x) => x.trim().toLowerCase()).filter(Boolean);
+    spec = { kind: 'words', options };
+  }
+  await holdVote(env, spec);
+}, { first: true });
+// Illusion of Choice
+on(/^you choose how each player votes this turn$/, async (m, env) => {
+  G.s.voteControl = { pid: env.me, turn: G.s.turn };
+  env.did.push(`${who(env.me)} ${s_(env.me, 'choose')} how each player votes this turn`);
+}, { first: true });
+// "Exile each permanent with the most votes or tied for most votes." (Council's Judgment), Custodi Squire, Vault 11, Prime Minister's Cabinet Room
+on(/^(exile|destroy|return) each (?:nonland )?(permanent|creature|card) with the most votes or tied for most votes(?: to your hand)?$/, async (m, env) => {
+  const win = mostVoted(env).map(card).filter(Boolean);
+  for (const c of win) {
+    if (m[1] === 'return') { if (c.zone === 'graveyard') move(c.iid, 'hand'); }
+    else if (c.zone !== 'battlefield') continue;
+    else if (m[1] === 'exile') move(c.iid, 'exile');
+    else destroy(c.iid);
+  }
+  env.did.push(win.length ? `${m[1] === 'return' ? 'returns' : m[1] === 'exile' ? 'exiles' : 'destroys'} ${win.map(nameTag).join(', ')}` : 'nothing got votes');
+}, { first: true });
+on(/^if no creature got votes, (.+)$/, async (m, env) => {
+  env.lastCond = !mostVoted(env).length;
+  if (env.lastCond) await runSentence(m[1], env);
+}, { first: true });
+// Council Guardian: "~ gains protection from each color with the most votes or tied for most votes"
+on(/^~ gains protection from each color with the most votes or tied for most votes$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  if (!c) return;
+  const cols = mostVoted(env);
+  c.grants = [...(c.grants || []), ...cols.map((x) => 'protection from ' + x)];
+  env.did.push(`gains protection from ${cols.join(' and ') || 'nothing'}`);
+}, { first: true });
+// Trap the Trespassers
+on(/^for each creature with one or more votes, put that many stun counters on it, then tap it$/, async (m, env) => {
+  const t = env.votes ? env.votes.tally : new Map();
+  for (const [iid, k] of t) {
+    const c = card(iid);
+    if (!c || c.zone !== 'battlefield') continue;
+    addCounters(c, 'stun', k);
+    c.tapped = true;
+    env.did.push(`puts ${k} stun counter${k > 1 ? 's' : ''} on ${nameTag(c)} and taps it`);
+  }
+}, { first: true });
+// Expropriate: "For each money vote, choose a permanent owned by the voter and gain control of it."
+on(/^for each (\w+) vote, choose a permanent owned by the voter and gain control of it$/, async (m, env) => {
+  for (const voter of ['p', 'ai']) {
+    for (const v of (env.votes ? env.votes.byVoter[voter] : []).filter((x) => x === m[1])) {
+      void v;
+      if (voter === env.me) continue; // your own permanents are yours already
+      const cs = cardsIn(voter, 'battlefield').filter((c) => c.owner === voter);
+      if (!cs.length) continue;
+      const [pick] = await env.choosers[env.me].pickCards({ forced: true, prompt: `Gain control of a permanent ${voter === 'p' ? 'you own' : 'the AI owns'}`, cards: cs.map((c) => c.iid), min: 1, max: 1, purpose: 'steal', src: env.src, aiScore: (c) => cardValue(c) });
+      if (!pick) continue;
+      move(pick, 'battlefield', { controller: env.me });
+      env.did.push(`gains control of ${nameTag(card(pick))}`);
+    }
+  }
+}, { first: true });
+// Mob Verdict: "For each vote an opponent received, ~ deals 2 damage to that player and each creature that player controls. For each vote you received, draw a card."
+on(/^for each vote an opponent received, ~ deals (\w+) damage to that player and each creature that player controls$/, async (m, env) => {
+  const them = opp(env.me);
+  const k = env.votes ? env.votes.tally.get(them) || 0 : 0;
+  const amt = n(m[1]) * k;
+  if (!amt) return env.did.push('the opponent got no votes');
+  damagePlayer(env, env.src, them, amt);
+  const cs = cardsIn(them, 'battlefield').filter(isCreature);
+  for (const c of cs) damagePermanent(env, env.src, c, amt);
+  env.did.push(`and to each creature ${them === 'p' ? 'you control' : 'the AI controls'}`);
+}, { first: true });
+on(/^for each vote you received, draw a card$/, async (m, env) => {
+  const k = env.votes ? env.votes.tally.get(env.me) || 0 : 0;
+  if (k) draw(env.me, k);
+  env.did.push(k ? `draws ${k}` : 'got no votes');
+}, { first: true });
+// Círdan: "Each player draws a card for each vote they received. Each player who received no votes may put a permanent card from their hand onto the battlefield."
+on(/^each player draws a card for each vote they received$/, async (m, env) => {
+  for (const pid of ['p', 'ai']) {
+    const k = env.votes ? env.votes.tally.get(pid) || 0 : 0;
+    if (k) draw(pid, k);
+  }
+  env.did.push('each player draws for their votes');
+}, { first: true });
+on(/^each player who received no votes may put a permanent card from their hand onto the battlefield$/, async (m, env) => {
+  for (const pid of ['p', 'ai']) {
+    if (env.votes && env.votes.tally.get(pid)) continue;
+    const hand = cardsIn(pid, 'hand').filter(isPermanentCard);
+    if (!hand.length) continue;
+    const [pick] = await env.choosers[pid].pickCards({ prompt: 'You may put a permanent card from your hand onto the battlefield', cards: hand.map((c) => c.iid), min: 0, max: 1, purpose: 'put', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
+    if (pick) {
+      toBattlefield(pick, pid);
+      env.did.push(`${who(pid)} ${s_(pid, 'put')} ${nameTag(card(pick))} onto the battlefield`);
+    }
+  }
+}, { first: true });
+// Elrond: "For each fellowship vote, the voter chooses a creature they control. You gain control of each creature chosen this way, …"
+on(/^for each (\w+) vote, the voter chooses a creature they control$/, async (m, env) => {
+  env.chosenThisWay = [];
+  for (const voter of ['p', 'ai']) {
+    for (const v of (env.votes ? env.votes.byVoter[voter] : []).filter((x) => x === m[1])) {
+      void v;
+      const cs = cardsIn(voter, 'battlefield').filter(isCreature);
+      if (!cs.length) continue;
+      const [pick] = await env.choosers[voter].pickCards({ forced: true, prompt: 'Choose a creature you control', cards: cs.map((c) => c.iid), min: 1, max: 1, purpose: 'give', src: env.src, aiScore: (c) => (voter === env.me ? cardValue(c) : -cardValue(c)) });
+      if (pick) env.chosenThisWay.push(pick);
+    }
+  }
+}, { first: true });
+on(/^you gain control of each creature chosen this way(?:, and they gain "[^"]*")?$/, async (m, env) => {
+  for (const iid of env.chosenThisWay || []) if (card(iid) && card(iid).controller !== env.me) {
+    move(iid, 'battlefield', { controller: env.me });
+    env.did.push(`gains control of ${nameTag(card(iid))}`);
+  }
+}, { first: true });
 
 // --- learn: no sideboard here, so learn is a rummage
 on(/^learn/, async (m, env) => {
@@ -6067,6 +6503,45 @@ async function runSentence(sentence, env) {
   s = s.replace(/^(?:he|she) (?=gets|gains|has|can't|connives|fights|explores|becomes|loses|attacks|blocks|isn't)/i, 'it ');
   // Brass's Bounty: "For each land you control, create a Treasure token." → "create a Treasure token for each land you control"
   s = s.replace(/^for each ([^,]+), create (a|an|one|two|three) (.+? tokens?)$/i, 'create $2 $3 for each $1');
+  // voting results: "For each evidence vote, investigate.", "… for each feather vote and draw a card for each quill vote",
+  // "create a number of Treasure tokens equal to twice the number of profit votes", "draw cards equal to the number of truth votes"
+  if (env.votes && env.votes.kind === 'words' && /\bvotes?\b/i.test(s) && !/gets more votes|each player (?:secretly )?votes for/i.test(s)) {
+    const cnt = (w) => env.votes.tally.get(w.trim().toLowerCase()) || 0;
+    let vm = s.match(/^(.*?)\ba number of (.+?) equal to (twice )?the number of ([\w' ]+?) votes(.*)$/i);
+    if (vm) {
+      const k = cnt(vm[4]) * (vm[3] ? 2 : 1);
+      if (!k) return;
+      return runSentence(`${vm[1]}${k} ${vm[2]}${vm[5]}`.replace(/\s+/g, ' '), env);
+    }
+    vm = s.match(/^(.*?)\bcards equal to the number of ([\w' ]+?) votes(.*)$/i);
+    if (vm) {
+      const k = cnt(vm[2]);
+      if (!k) return;
+      return runSentence(`${vm[1]}${k} cards${vm[3]}`, env);
+    }
+    vm = s.match(/^for each ([\w' ]+?) vote, (.+)$/i);
+    if (vm && env.votes.options.includes(vm[1].toLowerCase()) && !/\bthe voter\b/i.test(vm[2])) {
+      for (let i = 0; i < cnt(vm[1]); i++) await runSentence(vm[2], env);
+      return;
+    }
+    if (/ for each [\w' ]+? vote\b/i.test(s)) {
+      const parts = s.split(/(?<=for each [\w' ]+? vote) and (?:then )?/i);
+      const subj = (parts[0].match(/^(each opponent|each player|target opponent|you) /i) || [])[1];
+      for (let part of parts) {
+        const pm = part.match(/^(.*?) for each ([\w' ]+?) vote(.*)$/i);
+        if (!pm) {
+          await runSentence(part, env);
+          continue;
+        }
+        let body = (pm[1] + pm[3]).trim();
+        if (subj && !new RegExp('^(?:' + subj + '|each|you|target|put|create|draw|return|search|exile|investigate|mill|scry|gain)\\b', 'i').test(body)) body = `${subj} ${body}`;
+        for (let i = 0; i < cnt(pm[2]); i++) await runSentence(body, env);
+        const dm = body.match(/^draw (a|one|two|\w+) cards?$/i);
+        if (dm) env.voteDrawn = (env.voteDrawn || 0) + n(dm[1]) * cnt(pm[2]);
+      }
+      return;
+    }
+  }
   // "gets +1/+0 until end of turn for each artifact defending player controls" → "gets +1/+0 for each … until end of turn"
   s = s.replace(/^(.+? gets? [+-][\dx]+\/[+-][\dx]+) (until end of turn) (for each .+)$/i, '$1 $3 $2');
   // X that depends on something done earlier in this same effect (Spellbound Dragon: "where X is the discarded card's mana value")
@@ -6198,7 +6673,7 @@ async function runSentence(sentence, env) {
   }
   // "Draw a card, then discard a card." / "Scry 1, then draw a card."
   const parts = s.split(/,? then (?=[a-z])/i);
-  if (parts.length > 1 && !/^search/i.test(s) && !BLINK_RE.test(s.toLowerCase()) && !H.some((h) => h.first && !h.never && h.re.test(s.toLowerCase()) && /then/.test(h.re.source))) {
+  if (parts.length > 1 && !/^search/i.test(s) && !/faces a villainous choice/i.test(s) && !BLINK_RE.test(s.toLowerCase()) && !H.some((h) => h.first && !h.never && h.re.test(s.toLowerCase()) && /then/.test(h.re.source))) {
     for (const p of parts) await runSentence(p, env);
     return;
   }
@@ -6560,13 +7035,18 @@ export function auraGrants(o) {
 }
 
 export function attachTo(src, t) {
-  const o = oracle(src).replace(/\b(?:Enchanted|Equipped) creature/g, (x) => x);
+  let o = oracle(src).replace(/\b(?:Enchanted|Equipped) creature/g, (x) => x);
   if (src.attachedTo && card(src.attachedTo)) {
     const old = card(src.attachedTo);
     if (old.auraBuffs) delete old.auraBuffs[src.iid];
     if (old.pacifiedBy === src.iid) old.pacifiedBy = null;
   }
   src.attachedTo = t.iid;
+  // bestow creatures: "Nighthowler and enchanted creature each get +X/+X, where X is …"
+  {
+    const nm = DB[src.def].name.split(' // ')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    o = o.replace(new RegExp(`(^|\\n)(?:${nm}|~|This creature) and enchanted creature each get `, 'g'), '$1Enchanted creature gets ');
+  }
   const buff = o.match(/(?:^|\n)(?:Enchanted|Equipped) (?:creature|permanent) gets ([+-]\d+)\/([+-]\d+)/i);
   let fe = o.match(/(?:^|\n)(?:Enchanted|Equipped) creature gets ([+-]\d+)\/([+-]\d+) for each ([^.]+)/i);
   // Tangleweave Armor: "Equipped creature gets +X/+X, where X is the greatest mana value among your commanders."
@@ -6577,14 +7057,21 @@ export function attachTo(src, t) {
   if (buff || fe || kwm || g.base || g.texts.length || g.conds.length) {
     let p = buff ? +buff[1] : 0;
     let tt = buff ? +buff[2] : 0;
+    // Eidolon of Countless Battles: "+1/+1 for each creature you control and +1/+1 for each Aura you control"
+    let each2 = null;
     if (fe) {
+      const two = fe[3].match(/^(.+?) and ([+-]\d+)\/([+-]\d+) for each (.+)$/);
+      if (two) {
+        fe = [fe[0], fe[1], fe[2], two[1]];
+        each2 = { each: two[4], perP: +two[2], perT: +two[3] };
+      }
       const k = countPhrase(src.controller, fe[3], helpers, src.iid) || 0;
       p = +fe[1] * k;
       tt = +fe[2] * k;
     }
     t.auraBuffs = t.auraBuffs || {};
     t.auraBuffs[src.iid] = {
-      ts: nextStamp(), p, t: tt, grants: g.kws, ...(fe ? { each: fe[3], perP: +fe[1], perT: +fe[2] } : {}),
+      ts: nextStamp(), p, t: tt, grants: g.kws, ...(fe ? { each: fe[3], perP: +fe[1], perT: +fe[2] } : {}), ...(each2 ? { each2 } : {}),
       ...(g.base ? { base: g.base } : {}),
       ...(g.conds.length ? { conds: g.conds } : {}),
       // granted abilities in quotes (Teferi's Talent's "[-12]: …", Rancor-style "Whenever this creature…")

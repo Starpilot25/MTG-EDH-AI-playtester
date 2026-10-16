@@ -861,3 +861,18 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 /* hand card whose cost is changed right now (Goreclaw, reducers, taxes) */
 .badge.cost { background: #1d5a3a; color: #fff; border: 1px solid #5fd08f; padding: 1px 4px; display: inline-flex; gap: 1px; align-items: center; }
 .badge.cost .ms, .badge.cost img { width: 12px; height: 12px; }
+
+/* The Ring */
+.st.ring[data-ring] { cursor: pointer; }
+.pre-line { white-space: pre-line; }
+.ring-bearer { display: flex; gap: 12px; align-items: center; margin: 6px 0 10px; }
+.ring-bearer .card { flex: none; }
+.ring-stages { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
+.ring-stages li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / 0.08); color: var(--muted); font-size: 13px; line-height: 1.35; }
+.ring-stages li span { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font: 700 11px var(--f-display); border: 1px solid rgb(255 211 107 / 0.35); color: #ffd36b; }
+.ring-stages li.on { color: var(--ink); border-color: rgb(201 162 39 / 0.55); background: rgb(201 162 39 / 0.08); }
+.ring-stages li.on span { background: #c9a227; color: #1b1508; border-color: #c9a227; }
+/* what an Aura / Equipment is attached to */
+.badge.attached { background: #1d2230; color: #b9c8ec; border-color: #4d5c80; font-size: 9px; padding: 2px 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.badge.att-list { background: #1d2230; color: #b9c8ec; border-color: #4d5c80; font-weight: 700; }
+.card.att-hl { box-shadow: 0 0 0 3px #7f9be0, 0 0 16px rgb(127 155 224 / 0.6); }

@@ -82,6 +82,7 @@ function trimCard(c) {
     set: c.set,
     collector_number: c.collector_number,
     digital: !!c.digital,
+    lang: c.lang || 'en',
   };
 }
 
@@ -157,6 +158,25 @@ async function resolveCards(identifiers) {
     if (paper) {
       cardCache.set(k, paper);
       out[k] = paper;
+    }
+  }
+  // A deck link can point at a Japanese, German… printing: use the English printing of the same card instead.
+  for (const ident of identifiers) {
+    const k = idKey(ident);
+    const c = out[k];
+    if (!c || !c.lang || c.lang === 'en') continue;
+    let en = null;
+    if (c.set && c.collector_number) {
+      const r = await scryfall(`https://api.scryfall.com/cards/${encodeURIComponent(c.set)}/${encodeURIComponent(c.collector_number)}/en`);
+      if (r.status === 200) en = trimCard(r.body);
+    }
+    if (!en) {
+      const r = await scryfall('https://api.scryfall.com/cards/named?exact=' + encodeURIComponent(c.name.split(' // ')[0]));
+      if (r.status === 200) en = trimCard(r.body);
+    }
+    if (en && en.lang === 'en') {
+      cardCache.set(k, en);
+      out[k] = en;
     }
   }
   return identifiers.map((ident) => out[idKey(ident)] || null);

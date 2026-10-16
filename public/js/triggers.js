@@ -115,10 +115,11 @@ export function triggersOf(c, defOverride) {
     } else if ((m = line.match(/^Whenever (?:a player|an opponent|you) cycles? (?:a|another) card, (.+)$/i))) {
       add('cycle', m[1], { anyPlayer: /a player/i.test(line), oppOnly: /an opponent/i.test(line) });
     }
-    else if ((m = line.match(/^When(?:ever)? ~ (?:enters?|enters? the battlefield)(?: or attacks| or dies)?(?: under your control)?(?: from your graveyard| from exile)?, (.+)$/i))) {
+    else if ((m = line.match(/^When(?:ever)? ~ (?:enters?|enters? the battlefield)(?: or attacks| or dies| or deals combat damage to a player)?(?: under your control)?(?: from your graveyard| from exile)?, (.+)$/i))) {
       add('enters', m[1], { self: true });
       if (/or attacks/i.test(line)) add('attacks', m[1], { self: true });
       if (/or dies/i.test(line)) add('dies', m[1], { self: true });
+      if (/or deals combat damage to a player/i.test(line)) add('combatDamagePlayer', m[1], { self: true }); // Tivit
     } else if ((m = line.match(/^When(?:ever)? ~ or another (nontoken )?(creature|artifact|enchantment|permanent|[A-Z]\w+) (?:you control )?enters(?: the battlefield)?(?: under your control)?, (.+)$/i))) {
       add('enters', m[3], { self: true });
       add('enters', m[3], { other: true, kind: m[2].toLowerCase(), mine: true, nontoken: !!m[1] });
@@ -415,6 +416,8 @@ export function triggersOf(c, defOverride) {
       add('classLevel', m[2], { self: true, level: +m[1] });
     else if ((m = line.match(/^Whenever the Ring tempts you, (.+)$/i)))
       add('ringTempts', m[1]);
+    else if ((m = line.match(/^Whenever players finish voting, (.+)$/i)))
+      add('votingDone', m[1]); // Grudge Keeper, Model of Unity, Erestor of the Council
     else if ((m = line.match(/^Whenever you complete a dungeon, (.+)$/i)))
       add('dungeonDone', m[1]);
     else if ((m = line.match(/^Whenever ~ becomes tapped, (.+)$/i)))
@@ -1303,6 +1306,9 @@ function matches(ev) {
     case 'ringTempts':
       // Elvish Mariner: "where X is the number of cards looked at while scrying this way"
       each((c, trig) => trig.event === ev.type && c.controller === ev.pid && out.push({ src: c, trig, ...(ev.n !== undefined ? { x: ev.n, amount: ev.n } : {}) }));
+      break;
+    case 'votingDone':
+      each((c, trig) => trig.event === 'votingDone' && out.push({ src: c, trig }));
       break;
     case 'leftGraveyard':
       each((c, trig) => trig.event === 'leftGraveyard' && c.controller === ev.owner && out.push({ src: c, trig, amount: ev.n }));

@@ -69,6 +69,23 @@ function parseStatics(text, selfName) {
     // buffs to this creature itself: "~ gets +1/+1 for each …", "As long as …, ~ gets +2/+2 and has flying"
     const wd = (x) => new RegExp('(?<![a-z])' + x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![a-z])', 'g');
     const sl = (me ? l.replace(wd(me), '~') : l).replace(short && short.length > 3 ? wd(short) : /\u0000/g, '~').replace(/\bthis (?:creature|permanent|vehicle|artifact|enchantment)\b/g, '~');
+    // bestow creatures: "~ and enchanted creature each get +1/+1 for each creature you control and +1/+1 for each Aura you control."
+    if (/^~ and enchanted creature each get /.test(sl)) {
+      const rest = sl.replace(/^~ and enchanted creature each get /, '');
+      if ((m = rest.match(/^\+x\/\+(x|0), where x is (.+?)\.?$/))) {
+        out.self.push({ p: 1, t: m[1] === 'x' ? 1 : 0, each: m[2].replace(/^the /, ''), grants: [] });
+        continue;
+      }
+      let any = false;
+      for (const part of rest.replace(/\.$/, '').split(/ and (?=[+-]\d+\/[+-]\d+)/)) {
+        const pm = part.match(/^([+-]\d+)\/([+-]\d+)(?: for each (.+))?$/);
+        if (pm) {
+          out.self.push({ p: +pm[1], t: +pm[2], ...(pm[3] ? { each: pm[3] } : {}), grants: [] });
+          any = true;
+        }
+      }
+      if (any) continue;
+    }
     // Coram, the Undertaker: "~ gets +X/+0, where X is the greatest power among creature cards in all graveyards."
     if ((m = sl.match(/^~ gets \+x\/\+(x|0), where x is (.+?)\.?$/))) {
       out.self.push({ p: 1, t: m[1] === 'x' ? 1 : 0, each: m[2].replace(/^the /, ''), grants: [] });
@@ -525,7 +542,7 @@ export function playerFlag(pid, flag) {
 // ------------------------------------------------------------ counting phrases
 // "the number of creatures you control", "cards in your hand", "your devotion to black"…
 export function countPhrase(pid, phrase, helpers, srcIid) {
-  let p = String(phrase || '').toLowerCase().replace(/^the (?:total )?number of /, '').replace(/\.$/, '').trim()
+  let p = String(phrase || '').toLowerCase().replace(/^(?:the )?(?:total )?number of /, '').replace(/\.$/, '').trim()
     .replace(/\b(?:defending player|that player|the defending player) controls$/, 'an opponent controls'); // two players: the only one it can be
   // Lifestream's Blessing: "creatures you controlled as you cast this spell" — near enough, the ones you control now
   p = p.replace(/\byou controlled as you cast (?:this spell|~)$/, 'you control');

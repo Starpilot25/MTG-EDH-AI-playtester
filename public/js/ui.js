@@ -123,6 +123,16 @@ function cardHTML(c, opts = {}) {
     }
   }
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
+  // Auras and Equipment: what they're attached to; a creature: what's attached to it
+  if (c.zone === 'battlefield' && G.s) {
+    const host = c.attachedTo && card(c.attachedTo);
+    if (host && host.zone === 'battlefield') {
+      const hn = cardName(host);
+      badges.push(`<span class="badge attached" title="${isType(c, 'Equipment') ? 'Equipping' : 'Enchanting'} ${esc(hn)}${host.controller !== c.controller ? (host.controller === 'p' ? ' (yours)' : " (the AI's)") : ''}">↳ ${esc(hn.split(/[ ,]/)[0].slice(0, 12))}</span>`);
+    }
+    const on = attachmentsOf(c.iid);
+    if (on.length) badges.push(`<span class="badge att-list" title="Attached: ${esc(on.map((a) => cardName(a)).join(', '))}">🔗${on.length > 1 ? on.length : ''}</span>`);
+  }
   // keywords it gained (Auras, Equipment, anthems, counters, pump spells) or lost
   if (c.zone === 'battlefield' && !c.faceDown) {
     const KW_SHORT = { flying: 'Fly', 'first strike': '1st', 'double strike': '2x', deathtouch: 'DT', lifelink: 'Link', trample: 'Trmp', vigilance: 'Vig', haste: 'Hst', reach: 'Rch', menace: 'Men', hexproof: 'Hex', indestructible: 'Ind', shroud: 'Shroud', defender: 'Def', infect: 'Infect', wither: 'Wither' };
@@ -207,6 +217,7 @@ export function render() {
   }
   drawBlockLines();
   showStealNotes();
+  showRingNotes();
   renderStackView();
 }
 
@@ -359,6 +370,31 @@ function showStealNotes() {
     <div class="btns"><button class="primary" id="steal-ok">OK</button></div>`, { small: notes.length === 1 });
   $('#steal-ok', dlg).addEventListener('click', () => closeDialog());
 }
+// The Ring tempts someone: what each of its four abilities does, which ones are active, and who carries it
+function ringStatusHTML(pid) {
+  const pl = G.s.players[pid];
+  const rb = pl.ringBearer && card(pl.ringBearer);
+  const bearer = rb && rb.zone === 'battlefield' && rb.controller === pid ? rb : null;
+  const lvl = pl.ring || 0;
+  return `<span class="eyebrow">The Ring tempts ${pid === 'p' ? 'you' : 'the AI'}</span>
+    <h3>💍 Level ${lvl} of 4${pl.ringTimes > lvl ? ` <small>(tempted ${pl.ringTimes} times)</small>` : ''}</h3>
+    ${bearer ? `<div class="ring-bearer">${cardHTML({ ...bearer, tapped: false }, { small: true })}<p><b>${esc(cardName(bearer))}</b> is ${pid === 'p' ? 'your' : "the AI's"} Ring-bearer: ${power(bearer)}/${toughness(bearer)}${bearer.tapped ? ', tapped' : ''}${bearer.attacking ? ', attacking' : ''}. It's legendary${lvl >= 1 ? " and can't be blocked by creatures with greater power" : ''}.</p></div>` : `<p class="hint">No Ring-bearer right now${pid === 'p' ? ' — you choose one the next time the Ring tempts you while you control a creature' : ''}.</p>`}
+    <ol class="ring-stages">${RING_TEXT.map((t, k) => `<li class="${k < lvl ? 'on' : ''}"><span>${k < lvl ? '✓' : k + 1}</span>${esc(t)}</li>`).join('')}</ol>
+    <div class="btns"><button class="primary" id="ring-ok">OK</button></div>`;
+}
+function openRingDialog(pid) {
+  const dlg = openDialog(ringStatusHTML(pid), { small: true });
+  $('#ring-ok', dlg).addEventListener('click', () => closeDialog());
+}
+function showRingNotes() {
+  const s = G.s;
+  if (!s.ringNotes || !s.ringNotes.length) return;
+  const wrap = $('#dialog');
+  if (!wrap || !wrap.hidden) return; // after the current choice
+  const pid = s.ringNotes.splice(0).pop();
+  openRingDialog(pid);
+}
+
 function renderAll() {
   const s = G.s;
   if (!s) return;
@@ -494,7 +530,7 @@ function statusLine(pid) {
   if (pl.ring) {
     const rb = pl.ringBearer && card(pl.ringBearer);
     const tip = `The Ring has tempted ${pid === 'p' ? 'you' : 'the AI'} ${pl.ringTimes || pl.ring} time(s). Ring-bearer: ${rb && rb.zone === 'battlefield' && rb.controller === pid ? cardName(rb) : 'none'}\n` + RING_TEXT.map((t, k) => `${k < pl.ring ? '✓' : '·'} ${k + 1}. ${t}`).join('\n');
-    bits.push(`<span class="st ring" title="${esc(tip)}">💍 Ring ${pl.ring}/4${rb && rb.zone === 'battlefield' && rb.controller === pid ? ' · ' + esc(cardName(rb).split(',')[0]) : ''}</span>`);
+    bits.push(`<span class="st ring" data-ring="${pid}" role="button" title="${esc(tip)}\n(Click for details)">💍 Ring ${pl.ring}/4${rb && rb.zone === 'battlefield' && rb.controller === pid ? ' · ' + esc(cardName(rb).split(',')[0]) : ''}</span>`);
   }
   const names = { energy: 'Energy', experience: 'Experience', rad: 'Rad', ticket: 'Tickets' };
   for (const [k, v] of Object.entries(pl.counters || {})) if (v) bits.push(`<span class="st">${esc(names[k] || k)} ${v}</span>`);
@@ -689,7 +725,7 @@ function stackKey(c) {
   if (cb && (cb.attackers.includes(c.iid) || Object.values(cb.blocks || {}).some((b) => b.includes(c.iid)) || cb.selected === c.iid)) return null;
   if (pendingTarget && pendingTarget.req.candidates.includes(c.iid)) return null;
   if (G.s.stack && G.s.stack.iid === c.iid) return null;
-  if (isType(c, 'Planeswalker') || c.isCommander || c.faceDown) return null;
+  if (isType(c, 'Planeswalker') || c.isCommander || c.faceDown || c.attachedTo) return null;
   const sick = isCreature(c) && c.sick && !hasKw(c, 'haste') && c.controller === G.s.active;
   return [c.def, c.face || 0, c.tapped ? 1 : 0, c.token ? 1 : 0, sick ? 1 : 0, c.damage || 0, JSON.stringify(c.counters || {}), JSON.stringify(c.grants || []), JSON.stringify(c.eot || null),
     JSON.stringify(c.eotGrants || []), JSON.stringify(c.auraBuffs || {}), c.chosenType || '', c.chosenMode || '', c.chosenColor || '', c.chosenCardType || '', JSON.stringify(c.unlocked || null), c.prepared ? 1 : 0, c.pacifiedBy || '', c.notLegendary ? 1 : 0, c.sector || '', c.floated ? 1 : 0].join('|');
@@ -1402,6 +1438,7 @@ function pickCardsDialog(req, resolve, reject) {
   const dlg = openDialog(`
     <span class="eyebrow">${esc(req.src ? cardName(req.src) : '')}</span>
     <h3>${esc(req.prompt)}</h3>
+    ${req.detail ? `<p class="hint pre-line">${esc(req.detail)}</p>` : ''}
     ${groups.length > 10 ? '<input class="filter" id="pk-filter" placeholder="Filter by name or type…" autocomplete="off">' : ''}
     <div class="zv-grid pick">${groups
       .map((g, k) => `<button class="zv-item" data-group="${k}">${cardHTML(card(g.ids[0]), { small: true, count: g.ids.length })}<span>${esc(cardName(card(g.ids[0])))}</span><b class="pk-sel" hidden></b>${max > 1 && g.ids.length > 1 ? `<span class="pk-step"><i data-step="-1" title="One fewer">−</i><i data-step="1" title="One more">+</i></span>` : ''}</button>`)
@@ -2586,6 +2623,8 @@ export function bindEvents() {
       e.stopPropagation();
       return;
     }
+    const ringEl = t.closest('[data-ring]');
+    if (ringEl && G.s) return openRingDialog(ringEl.dataset.ring);
     const pileEl = t.closest('[data-pile]');
     if (pileEl && !t.closest('.cz-slot .card')) {
       const [pid, zone] = pileEl.dataset.pile.split(':');
@@ -2707,12 +2746,26 @@ export function bindEvents() {
   window.addEventListener('resize', () => G.s && render());
 }
 
+// cards attached to a permanent (Auras, Equipment, Fortifications) — found each render, cached per render pass
+function attachmentsOf(iid) {
+  if (!G.s) return [];
+  return Object.values(G.s.cards).filter((a) => a.attachedTo === iid && a.zone === 'battlefield');
+}
+// hovering an Aura / Equipment lights up what it's attached to (and the other way round)
+function attachHighlight(c, doc) {
+  for (const d of [document, ...popDocs()]) d.querySelectorAll('.card.att-hl').forEach((x) => x.classList.remove('att-hl'));
+  if (!c || c.zone !== 'battlefield') return;
+  const ids = [...(c.attachedTo ? [c.attachedTo] : []), ...attachmentsOf(c.iid).map((a) => a.iid)];
+  for (const d of [document, ...popDocs()]) for (const id of ids) d.querySelectorAll(`.field .card[data-iid="${id}"]`).forEach((x) => x.classList.add('att-hl'));
+  void doc;
+}
 function onHover(e) {
     const el = e.target.closest('.card[data-iid], .cn[data-def]');
     if (!el) return;
     if (el.dataset.iid) {
       const c = card(el.dataset.iid);
       if (!c) return;
+      if (hoverIid !== c.iid) attachHighlight(c);
       hoverIid = c.iid;
       if (c.owner === 'ai' && c.zone === 'hand' && !revealAiHand) return;
       if (c.zone === 'library' && !el.closest('#dialog')) return;
@@ -2722,7 +2775,10 @@ function onHover(e) {
 }
 function onHoverOut(e) {
     const el = e.target.closest('.card[data-iid]');
-    if (el && hoverIid === el.dataset.iid && !el.contains(e.relatedTarget)) hoverIid = null;
+    if (el && hoverIid === el.dataset.iid && !el.contains(e.relatedTarget)) {
+      hoverIid = null;
+      attachHighlight(null);
+    }
   }
 
 // ------------------------------------------------------------ pop-out boards (second screen)

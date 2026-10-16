@@ -1016,6 +1016,13 @@ export function stateBased() {
       if (a.zone === 'battlefield' && a.attachedTo && (!s.cards[a.attachedTo] || s.cards[a.attachedTo].zone !== 'battlefield' || s.cards[a.attachedTo].phasedOut)) {
         if (s.cards[a.attachedTo] && s.cards[a.attachedTo].phasedOut) continue;
         a.attachedTo = null;
+        if (a.bestowed) {
+          // bestow: when what it enchants leaves, it stops being an Aura and stays as a creature
+          delete a.bestowed;
+          log(a.controller, `${nameTag(a)} is no longer attached and becomes a creature.`);
+          changed = true;
+          continue;
+        }
         if (/\bAura\b/.test(typeLine(a))) {
           log(a.controller, `${nameTag(a)} goes to the graveyard (nothing to enchant).`);
           move(a.iid, 'graveyard');

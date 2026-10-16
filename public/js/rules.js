@@ -102,6 +102,7 @@ function typeFxOf(inst, base) {
 export function typeLine(inst) {
   if (inst.faceDown) return 'Creature';
   if (inst.becameTreasure) return 'Artifact — Treasure'; // Vraska, Betrayal's Sting
+  if (inst.bestowed && inst.zone === 'battlefield') return 'Enchantment — Aura'; // bestowed: an Aura, not a creature (702.103)
   let t = printedTypes(inst);
   if (inst.notLegendary) t = t.replace(/^Legendary /, '');
   // Layer 4, in timestamp order (each one sees the result of the ones before it: Opalescence after March of the Machines…)
@@ -173,6 +174,7 @@ export const isLand = (i) => isType(i, 'Land');
 export function isCreature(i) {
   if (!i) return false;
   if (i.faceDown) return true; // morph / manifest / disguise / cloak: a 2/2 creature
+  if (i.bestowed && i.zone === 'battlefield') return false; // bestowed: an Aura until what it enchants leaves
   if (i.impending && (i.counters || {}).time > 0) return false;
   // layer 4: Opalescence, March of the Machines, Song of the Dryads, Darksteel Mutation… can make it a creature or stop it being one
   const layered = (i.layerFx && i.layerFx.some((e) => e.types)) || (i.zone === 'battlefield' && globalLayerFx().some((g) => g.k === 'opal' || g.k === 'march'));
@@ -643,7 +645,8 @@ const auraSum = (inst, k) =>
     if (!b.each) return a + b[k];
     const sc = G.s && G.s.cards[src];
     const v = sc ? countPhrase(sc.controller, b.each, helpers, sc.iid) || 0 : 0;
-    return a + (k === 'p' ? b.perP : b.perT) * v;
+    const v2 = sc && b.each2 ? countPhrase(sc.controller, b.each2.each, helpers, sc.iid) || 0 : 0;
+    return a + (k === 'p' ? b.perP : b.perT) * v + (b.each2 ? (k === 'p' ? b.each2.perP : b.each2.perT) * v2 : 0);
   }, 0) + (inst.eot ? inst.eot[k] : 0);
 
 // Layer 7: base (7a CDAs, 7b setting effects) + adjustments (7c: counters, pumps, Auras, anthems), then 7d switching

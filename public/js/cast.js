@@ -924,11 +924,10 @@ async function resolveSpell(pid, c, opt, info, env) {
     if (opt.mode === 'bestow') {
       const pool = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter(isCreature);
       if (pool.length) {
+        c.bestowed = true; // enters as an Aura: no creature "enters" triggers, no 0/0 death
         toBattlefield(c.iid, pid, env.pos || {});
-        c.bestowed = true;
-        c.addTypes = '— Aura';
         await attachAura(c, pid, ch, { bestow: true });
-        if (!c.attachedTo) delete c.bestowed;
+        if (!c.attachedTo) delete c.bestowed; // no legal creature to enchant: it's a creature after all
         return;
       }
     }

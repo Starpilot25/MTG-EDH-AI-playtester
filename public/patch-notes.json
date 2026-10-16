@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.45",
+    "title": "Voting, villainous choices, the Ring, attachments, bestow",
+    "notes": [
+      "Voting works properly now (Will of the council, Council's dilemma, Secret council). Both players vote, starting with the caster, and the votes are counted: \"If X gets more votes (or the vote is tied)\", \"for each X vote\", \"equal to the number of X votes\", and \"each permanent with the most votes\" all use the real count. Your vote prompt shows what each choice does (from your side of the table), how the AI already voted, and which choice wins a tie. Extra votes (Brago's Representative, Ballot Broker, Tivit, The Valeyard), Illusion of Choice, and \"whenever players finish voting\" (Grudge Keeper, Model of Unity, Erestor) work too. Fixed cards include Council's Judgment, Expropriate, Tyrant's Choice, Capital Punishment, Plea for Power, Messenger Jays, Magister of Worth (no longer destroys itself), Mob Verdict, Trap the Trespassers, Custodi Squire, Council Guardian, Coercive Portal, Emissary Green, Elrond and Círdan.",
+      "Villainous choice: more wordings work (\"…, then faces a villainous choice\", \"that player faces\", Hunted by The Family's \"for each of them\"), the outcome you pick actually happens, and the choice reads from your point of view (\"You sacrifice a creature\" / \"The AI creates a Dalek\"). The Valeyard makes the opponent choose twice. The AI picks the cheaper outcome for itself. Fixed: This Is How It Ends, Sycorax Commander, Missy, Ensnared by the Mara, Dr. Eggman, Great Intelligence's Plan.",
+      "The Ring: when the Ring tempts someone, a panel shows all four Ring abilities (which ones are active now), who the Ring-bearer is and what it's doing. The ring-bearer picker also lists what you'll get. Click the 💍 Ring chip in a player panel to see it again any time.",
+      "Auras and Equipment show what they're attached to (a ↳ tag with the creature's name), and a creature with something attached shows a 🔗 tag. Hovering either one highlights the other.",
+      "Bestow works: a bestowed creature is an Aura (not a creature) while attached, gives its bonus (Boon Satyr, Nighthowler and Eidolon of Countless Battles' \"~ and enchanted creature each get…\" both apply), and when the creature it's on leaves, it stays on the battlefield as a creature instead of going to the graveyard. 0/0 bestow creatures no longer die the moment they're cast.",
+      "Cards from non-English printings (for example a deck link that points at Japanese or German cards) now show the English card image."
+    ]
+  },
+  {
     "version": "1.3.44",
     "title": "Dungeon Delver, quitting mid-game, land searches, AI removal",
     "notes": [
