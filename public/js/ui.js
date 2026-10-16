@@ -600,7 +600,7 @@ function libraryTop(pid) {
 }
 // Cards in the graveyard that can do something from there: flashback, escape, unearth, Renew, "return this card…",
 // and cards with abilities that trigger from the graveyard (Bloodghast, Darklight Phoenix)
-const GY_TAG = { flashback: 'Flashback', escape: 'Escape', jumpstart: 'Jump-start', retrace: 'Retrace', aftermath: 'Aftermath', disturb: 'Disturb', harmonize: 'Harmonize', mayhem: 'Mayhem', fromGraveyard: 'Cast', impulse: 'This turn', adventure: 'Adventure' };
+const GY_TAG = { coram: 'Milled', flashback: 'Flashback', escape: 'Escape', jumpstart: 'Jump-start', retrace: 'Retrace', aftermath: 'Aftermath', disturb: 'Disturb', harmonize: 'Harmonize', mayhem: 'Mayhem', fromGraveyard: 'Cast', impulse: 'This turn', adventure: 'Adventure' };
 function graveyardReady(pid) {
   const items = [];
   for (const c of cardsIn(pid, 'graveyard')) {

@@ -854,7 +854,23 @@ function manaAbilityRaw(inst) {
       return { colors: [...new Set([tc[1], ...(inst.chosenColor ? [inst.chosenColor] : [])])], amount: 1 };
     }
   }
-  const produced = d.produced.length ? d.produced : [];
+  // what it can make: from the card data, or read off its own "Add …" text when the data has none
+  const produced = d.produced.length ? d.produced : (() => {
+    const adds = (o.match(/Add [^.\n]*/g) || []).join(' ');
+    const set = new Set((adds.match(/\{[WUBRGC]\}/g) || []).map((x) => x[1]));
+    if (/mana of any (?:one )?color|any combination of colors/i.test(adds)) ['W', 'U', 'B', 'R', 'G'].forEach((x) => set.add(x));
+    return [...set];
+  })();
+  // Selvala, Heart of the Wilds: "{G}, {T}: Add X mana in any combination of colors, where X is the greatest power among creatures you control."
+  {
+    const xm = o.match(/(?:^|\n)((?:\{[^}]+\})*),? ?\{T\}: Add X mana in any combination of colors, where X is ([^.]+)\./);
+    if (xm && G.s) {
+      if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
+      const k = countPhrase(inst.controller, xm[2].replace(/^the /, ''), helpers, inst.iid) || 0;
+      const act = (xm[1].match(/\{\d+\}/g) || []).reduce((a, x) => a + +x.slice(1, -1), 0) + (xm[1].match(/\{[WUBRGC]\}/g) || []).length;
+      return k > act ? { colors: ['W', 'U', 'B', 'R', 'G'], amount: k, combo: true, ...(act ? { activation: act } : {}) } : null;
+    }
+  }
   if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste') && /\{T\}/.test(o)) {
     if (!isLand(inst)) return null;
   }

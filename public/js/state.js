@@ -217,7 +217,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['chosenCardType', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'castMode', 'xPaid', 'impending',
@@ -477,10 +477,12 @@ function entering(c, opts) {
   if (isType(c, 'Battle') && c.counters.defense === undefined) c.counters.defense = parseInt(f.defense, 10) || 0;
   let m;
   // "enters with N +1/+1 counters", "enters with X …", modular, graft, fading, vanishing, sunburst-ish
-  for (const mm of o.matchAll(/enters(?: the battlefield)? with (a|an|one|two|three|four|five|six|seven|eight|nine|ten|x|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on it/gi)) {
+  for (const mm of o.matchAll(/enters(?: the battlefield)? with (a|an|one|two|three|four|five|six|seven|eight|nine|ten|x|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|him|her|them)( for each time (?:it|he|she|~|this [a-z]+) was kicked)?/gi)) {
     const words = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
     const nW = mm[1].toLowerCase();
-    const k = nW === 'x' ? c.xPaid || 0 : words[nW] || parseInt(nW, 10) || 0;
+    let k = nW === 'x' ? c.xPaid || 0 : words[nW] || parseInt(nW, 10) || 0;
+    // Everflowing Chalice, Batroc: "… for each time it was kicked" (multikicker)
+    if (mm[3]) k *= typeof c.kicked === 'number' ? c.kicked : c.kicked ? 1 : 0;
     if (k) addCounters(c, mm[2].toLowerCase(), k, { silent: true });
   }
   // Oath of Gideon: "Each planeswalker you control enters with an additional loyalty counter on it."
@@ -739,6 +741,7 @@ export function shuffle(pid) {
 export function mill(pid, n) {
   const ids = libTop(pid, n);
   ids.forEach((i) => move(i, 'graveyard'));
+  for (const i of ids) if (G.s.cards[i]) G.s.cards[i].fromLibTurn = G.s.turn; // Coram: "put there from libraries this turn"
   if (ids.length) log(pid, `${pid === 'p' ? 'You mill' : 'AI mills'} ${ids.map((i) => nameTag(card(i))).join(', ')}.`);
   if (ids.length) queueEvent({ type: 'mill', pid, ids });
   return ids;
@@ -834,6 +837,11 @@ export function handControl(by, of) {
 }
 
 export function changeLife(pid, delta, reason) {
+  // Bilbo, Birthday Celebrant & co.: "If you would gain life, you gain that much life plus 1 instead."
+  if (delta > 0 && G.s && G.s.phase === 'play') {
+    const plus = cardsIn(pid, 'battlefield').filter((c) => !c.phasedOut && /If you would gain life, you gain that much life plus 1 instead/i.test(oracle(c))).length;
+    delta += plus;
+  }
   setLife(pid, G.s.players[pid].life + delta, reason);
 }
 
@@ -959,8 +967,8 @@ export function destroy(iid, opts = {}) {
 export function sacrifice(iid) {
   const c = card(iid);
   if (!c || c.zone !== 'battlefield') return false;
-  // Stilt-Man: 'It gains "This permanent can't be sacrificed" until the end of your next turn.'
-  if (c.cantSacUntil && G.s.turn <= c.cantSacUntil) {
+  // Stilt-Man: 'It gains "This permanent can't be sacrificed" until the end of your next turn.'; Hithlain Rope: "~ can't be sacrificed."
+  if ((c.cantSacUntil && G.s.turn <= c.cantSacUntil) || new RegExp(`(?:^|\\n)(?:${(DB[c.def].name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|This (?:permanent|artifact|creature)) can't be sacrificed`, 'i').test(oracle(c))) {
     log(c.controller, `${cardName(c)} can't be sacrificed.`);
     return false;
   }
@@ -1226,6 +1234,17 @@ function tokenAdditions(defId, pid, n) {
 
 export function createToken(defId, pid, n = 1, opts = {}) {
   defId = canonicalToken(defId);
+  // Divine Visitation: "If one or more creature tokens would be created under your control, that many 4/4 white Angel creature
+  // tokens with flying and vigilance are created instead."
+  if (G.s && DB[defId] && /\bCreature\b/.test((DB[defId].faces[0].typeLine || DB[defId].typeLine || '').split('—')[0])) {
+    const dv = cardsIn(pid, 'battlefield').find((c) => !c.phasedOut && /If one or more creature tokens would be created under your control, that many (\d+)\/(\d+) (white|blue|black|red|green) ([A-Z][a-z]+) creature tokens(?: with ([a-z ,]+?))? are created instead/i.test(oracle(c)));
+    if (dv) {
+      const m = oracle(dv).match(/that many (\d+)\/(\d+) (white|blue|black|red|green) ([A-Z][a-z]+) creature tokens(?: with ([a-z ,]+?))? are created instead/i);
+      const col = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }[m[3].toLowerCase()];
+      const kws = (m[5] || '').split(/,? and |, /).map((x) => x.trim()).filter(Boolean);
+      defId = genericTokenDef(+m[1], +m[2], m[4], [col], { keywords: kws });
+    }
+  }
   const made = [];
   let count = n;
   // "…plus an additional …" replacements first, then doublers (the order that gives you the most)

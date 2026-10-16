@@ -1,5 +1,28 @@
 [
   {
+    "version": "1.3.41",
+    "title": "Twenty card fixes",
+    "notes": [
+      "Tangleweave Armor: the Germ gets +X/+X equal to your commander's mana value (it no longer dies on entry).",
+      "Lita, Little Orphan Amphibian: each mode can be chosen once per turn, and the list resets every turn.",
+      "Coram, the Undertaker: gets +X/+0 from the biggest creature card in any graveyard, and on your turn you can cast one spell that was milled this turn from your graveyard.",
+      "Selvala, Heart of the Wilds: its mana ability makes X mana in any combination of colors.",
+      "Skyshroud Claim fetches two Forests, not one.",
+      "Plumb the Forbidden: you choose creatures to sacrifice as you cast it, and it copies itself once for each.",
+      "Blink (Saga): its chapters trigger, and the owner of the shuffled creature gets the Clue.",
+      "Everflowing Chalice (and Batroc the Leaper): enters with one counter for each time it was kicked.",
+      "Hithlain Rope: can't be sacrificed, and your opponent gains control of it after you use it.",
+      "Bilbo, Birthday Celebrant: you gain 1 extra life each time you gain life.",
+      "Well of Lost Dreams: you choose how much to pay (up to the life you gained) and draw that many.",
+      "Raise the Palisade: creatures of the chosen type stay on the battlefield.",
+      "Divine Visitation: your creature tokens are created as 4/4 flying, vigilance Angels.",
+      "Where Ancients Tread: deals 5 damage when a big creature of yours enters.",
+      "Gilded Lotus and other \"any one color\" mana rocks work even when the card data doesn't list their colors.",
+      "Sozin's Comet: your creatures gain firebending 5 and make {R}{R}{R}{R}{R} when they attack.",
+      "Updates are downloaded when the app starts, so restart it to pick up a new version."
+    ]
+  },
+  {
     "version": "1.3.40",
     "title": "Breaching Dragonstorm",
     "notes": [

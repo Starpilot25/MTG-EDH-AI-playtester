@@ -3308,7 +3308,7 @@ on(/^create (a|an|one|two|three) (.+?) tokens?( with [^.]+?)? for each (.+)$/, a
   env.x = saved;
 }, { first: true });
 // Chaos Warp, Blink, This Is How It Ends: "the owner of target permanent shuffles it into their library"
-on(/^(?:the owner of (target [^.]+?)|(target [^.]+?)'s owner|its owner) shuffles it into (?:their|his or her) library(?:, then reveals the top card of (?:their|his or her) library)?$/, async (m, env) => {
+on(/^(?:the owner of (target [^.]+?)|(target [^.]+?)'s owner|its owner) shuffles it into (?:their|his or her) library(?:, then reveals the top card of (?:their|his or her) library|, then investigates)?$/, async (m, env) => {
   const phrase = m[1] || m[2];
   const objs = phrase ? await objects(env, phrase, { harm: true }) : env.it && card(env.it.iid) ? [card(env.it.iid)] : [];
   for (const c of objs) {
@@ -3320,6 +3320,11 @@ on(/^(?:the owner of (target [^.]+?)|(target [^.]+?)'s owner|its owner) shuffles
     env.did.push(`shuffles ${nm} into its owner's library`);
     env.thatPlayer = owner;
     env.it = null;
+    // Blink: "Its owner shuffles it into their library, then investigates." — the owner gets the Clue
+    if (/then investigates/.test(env.sentence)) {
+      createToken(genericTokenDef(0, 0, 'Clue'), owner, 1);
+      env.did.push(`${who(owner)} ${s_(owner, 'investigate')}`);
+    }
     if (/reveals the top card/.test(env.sentence)) {
       const top = libTop(owner, 1)[0];
       env.it = top ? { iid: top } : null;
@@ -4277,6 +4282,15 @@ on(/^gain control of (.+?)(?: until end of turn| until your next turn)?(?:\. unt
     env.did.push(`gains control of ${nameTag(c)}${temp ? ' until end of turn' : ''}`);
   }
 });
+// Hithlain Rope: "The player to your right gains control of ~." (two players: your opponent)
+on(/^the player to your (?:right|left) gains control of (~|it|this [a-z]+)$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  if (!c || c.zone !== 'battlefield') return;
+  const to = opp(c.controller);
+  move(c.iid, 'battlefield', { controller: to });
+  c.zone = 'battlefield';
+  env.did.push(`${who(to)} ${s_(to, 'gain')} control of ${nameTag(c)}`);
+}, { first: true });
 on(/^exchange control of (.+)$/, async (m, env) => {
   const objs = await objects(env, m[1].replace(/^(?:target|two target)/, 'two target').replace(/ and /, ' and '));
   if (objs.length === 2) {
@@ -4821,6 +4835,46 @@ on(/^choose (?:a|one) (color|creature type|card type|basic land type|nonland car
   if (env.src) env.src.chosen = pick;
   env.did.push(`chooses ${pick}`);
 });
+// Sozin's Comet: "Each creature you control gains firebending 5 until end of turn."
+on(/^(each creature you control|creatures you control|target creature(?: you control)?|it|~) gains? firebending (\d+|x) until end of turn$/, async (m, env) => {
+  const objs = /^each creature you control|^creatures you control/.test(m[1]) ? cardsIn(env.me, 'battlefield').filter(isCreature) : await objects(env, m[1], { harm: false });
+  const k = n(m[2], env.x);
+  for (const c of objs) c.eotGrants = [...(c.eotGrants || []), `firebending ${k}`];
+  env.did.push(`${objs.length} creature${objs.length === 1 ? '' : 's'} gain firebending ${k} until end of turn`);
+}, { first: true });
+// Raise the Palisade: "Return all creatures that aren't of the chosen type to their owners' hands."
+on(/^return all creatures that aren't of the chosen type to their owners' hands$/, async (m, env) => {
+  const t = env.chosen || (env.src && env.src.chosen);
+  const objs = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((c) => isCreature(c) && !(t && hasSubtype(c, t)));
+  for (const c of objs) move(c.iid, 'hand');
+  env.did.push(`returns ${objs.length} creature${objs.length === 1 ? '' : 's'} that aren't ${t || 'the chosen type'} to their owners' hands`);
+}, { first: true });
+// Where Ancients Tread: "you may have ~ deal 5 damage to any target"
+on(/^have ~ deal (\d+|x) damage to (.+)$/, async (m, env) => runSentence(`~ deals ${m[1]} damage to ${m[2]}`, env), { first: true });
+// Well of Lost Dreams: "you may pay {X}, where X is less than or equal to the amount of life you gained. If you do, draw X cards."
+on(/^(?:you may )?pay \{x\}(?:, where x is less than or equal to the amount of life you gained)?$/, async (m, env) => {
+  if (!/where x is less than or equal to the amount of life you gained/.test(env.text || '')) return 'pass';
+  const most = env.thatMuch || env.lastAmount || 0;
+  const { manaSources: ms } = await import('./cast.js');
+  const avail = ms(env.me, { ability: true }).reduce((a, s_) => a + (s_.amount || 1), 0);
+  const cap = Math.min(most, avail);
+  env.lastMay = false;
+  if (cap <= 0) return env.did.push("can't pay any mana");
+  let k = 0;
+  try {
+    k = await env.choosers[env.me].chooseNumber({ prompt: `${cardName(env.src)}: pay {X} to draw X cards (up to ${cap})`, min: 0, max: cap, ai: cap });
+  } catch (e) {
+    k = 0;
+  }
+  if (!k) return;
+  const { applyPayment: ap } = await import('./cast.js');
+  const pay = payCost(`{${k}}`, ms(env.me, { ability: true }));
+  if (!pay) return env.did.push(`can't pay {${k}}`);
+  ap(env.me, pay);
+  env.x = k;
+  env.lastMay = true;
+  env.did.push(`pays {${k}}`);
+}, { first: true });
 // --- flashback for cards in the graveyard (Snapcaster Mage, Past in Flames)
 on(/^(target instant or sorcery card in your graveyard|each instant and sorcery card in your graveyard|target instant card in your graveyard|target sorcery card in your graveyard) gains flashback until end of turn/, async (m, env) => {
   let ids;
@@ -5626,7 +5680,7 @@ function prep(text, src) {
 
 async function runText(text, env) {
   // modal spells: "Choose one —" with bullet modes
-  const mm = text.match(/^([\s\S]*?)Choose (one|two|three|four|one or both|one or more|any number|up to (?:one|two|three|four|five)|one that hasn't been chosen)(?: or more)?(?:\. You may choose the same mode more than once)?(?: at random(?:\. If you discarded a card this turn, you choose one instead)?)?(?: ?(?:—|-)|\.)\s*\n?((?:\s*•[^\n]*\n?)+)([\s\S]*)$/i);
+  const mm = text.match(/^([\s\S]*?)Choose (one|two|three|four|one or both|one or more|any number|up to (?:one|two|three|four|five)|one that hasn't been chosen(?: this turn)?)(?: or more)?(?:\. You may choose the same mode more than once)?(?: at random(?:\. If you discarded a card this turn, you choose one instead)?)?(?: ?(?:—|-)|\.)\s*\n?((?:\s*•[^\n]*\n?)+)([\s\S]*)$/i);
   if (mm) {
     // "Whenever a player casts a spell, if it isn't that player's turn, choose one —" (an intervening if before the modes)
     const ifm = mm[1].match(/(^|[.\n]\s*)if ([^,.]+),\s*$/i);
@@ -5641,6 +5695,11 @@ async function runText(text, env) {
     let fresh = null;
     if (/hasn't been chosen/.test(want)) {
       const holder = (env.src && card(env.src.iid)) || env.src;
+      // Lita: "choose one that hasn't been chosen this turn" — the list starts over each turn
+      if (/this turn/.test(want) && holder && holder.modesUsedTurn !== G.s.turn) {
+        holder.modesUsed = [];
+        holder.modesUsedTurn = G.s.turn;
+      }
       const used = (holder && holder.modesUsed) || [];
       fresh = { holder, idx: modes.map((t, k) => k).filter((k) => !used.includes(modes[k])) };
       if (!fresh.idx.length) {
@@ -5651,7 +5710,7 @@ async function runText(text, env) {
     }
     const allModes = modes;
     if (fresh) modes = fresh.idx.map((k) => allModes[k]);
-    let max = /^one(?: that hasn't been chosen)?$/.test(want) ? 1 : /^two$/.test(want) ? 2 : /^three$/.test(want) ? 3 : modes.length;
+    let max = /^one(?: that hasn't been chosen(?: this turn)?)?$/.test(want) ? 1 : /^two$/.test(want) ? 2 : /^three$/.test(want) ? 3 : modes.length;
     if (/up to one/.test(want)) max = 1;
     if (/up to two/.test(want)) max = 2;
     if (/up to three/.test(want)) max = 3;
@@ -6315,8 +6374,8 @@ async function fetchLands(t, me, choose, src, did, env) {
   const lib = zoneOf(me, 'library');
   const basic = /basic/.test(t);
   const types = (t.match(/search your library for [^.]*?card/) || [''])[0].match(/forest|island|swamp|mountain|plains/g) || [];
-  const m = t.match(/up to (\w+) (?:basic )?land cards?|up to (\w+) basic|up to (\w+) cards?/);
-  const count = m ? n(m[1] || m[2] || m[3]) : /two basic land|two land/.test(t) ? 2 : 1;
+  const m = t.match(/up to (\w+) (?:basic )?land cards?|up to (\w+) basic|up to (\w+) cards?|up to (\w+) (?:forest|island|swamp|mountain|plains)(?:,? (?:and\/)?or (?:forest|island|swamp|mountain|plains))* cards?/);
+  const count = m ? n(m[1] || m[2] || m[3] || m[4]) : /two basic land|two land/.test(t) ? 2 : 1;
   const cands = lib.map(card).filter((c) => {
     if (!isLand(c)) return false;
     if (basic && !/Basic/.test(DB[c.def].typeLine)) return false;
@@ -6477,10 +6536,13 @@ export function attachTo(src, t) {
   }
   src.attachedTo = t.iid;
   const buff = o.match(/(?:^|\n)(?:Enchanted|Equipped) (?:creature|permanent) gets ([+-]\d+)\/([+-]\d+)/i);
-  const fe = o.match(/(?:^|\n)(?:Enchanted|Equipped) creature gets ([+-]\d+)\/([+-]\d+) for each ([^.]+)/i);
+  let fe = o.match(/(?:^|\n)(?:Enchanted|Equipped) creature gets ([+-]\d+)\/([+-]\d+) for each ([^.]+)/i);
+  // Tangleweave Armor: "Equipped creature gets +X/+X, where X is the greatest mana value among your commanders."
+  const xb = !fe && o.match(/(?:^|\n)(?:Enchanted|Equipped) creature gets \+X\/\+(X|0), where X is (?:the )?([^.]+)/i);
+  if (xb) fe = [xb[0], '+1', xb[1] === 'X' ? '+1' : '+0', xb[2]];
   const g = auraGrants(o);
   const kwm = g.kws.length ? [null, g.kws.join(', ')] : null;
-  if (buff || kwm || g.base || g.texts.length || g.conds.length) {
+  if (buff || fe || kwm || g.base || g.texts.length || g.conds.length) {
     let p = buff ? +buff[1] : 0;
     let tt = buff ? +buff[2] : 0;
     if (fe) {

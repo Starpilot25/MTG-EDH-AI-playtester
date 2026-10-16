@@ -69,6 +69,11 @@ function parseStatics(text, selfName) {
     // buffs to this creature itself: "~ gets +1/+1 for each …", "As long as …, ~ gets +2/+2 and has flying"
     const wd = (x) => new RegExp('(?<![a-z])' + x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![a-z])', 'g');
     const sl = (me ? l.replace(wd(me), '~') : l).replace(short && short.length > 3 ? wd(short) : /\u0000/g, '~').replace(/\bthis (?:creature|permanent|vehicle|artifact|enchantment)\b/g, '~');
+    // Coram, the Undertaker: "~ gets +X/+0, where X is the greatest power among creature cards in all graveyards."
+    if ((m = sl.match(/^~ gets \+x\/\+(x|0), where x is (.+?)\.?$/))) {
+      out.self.push({ p: 1, t: m[1] === 'x' ? 1 : 0, each: m[2].replace(/^the /, ''), grants: [] });
+      continue;
+    }
     if ((m = sl.match(/^~ gets ([+-]\d+)\/([+-]\d+) for each (.+?)\.?$/))) {
       out.self.push({ p: +m[1], t: +m[2], each: m[3], grants: [] });
       continue;
@@ -529,6 +534,20 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
     .replace(/\bcard (in|from) /, 'cards $1 ');
   // Omnath, Locus of the Void: "for each unspent mana you have"
   if (/^(?:unspent mana you have|mana in your mana pool|unspent mana in your mana pool)$/.test(p)) return G.s && G.s.pool ? (G.s.pool[pid] || []).length : 0;
+  // Coram: "greatest power among creature cards in all graveyards"; Tangleweave Armor: "greatest mana value among your commanders"
+  {
+    const gg = p.match(/^(?:the )?greatest (power|toughness|mana value) among (creature )?cards in (all graveyards|your graveyard|graveyards)$/);
+    if (gg && G.s) {
+      const pids = /your/.test(gg[3]) ? [pid] : ['p', 'ai'];
+      const vals = pids.flatMap((w) => G.s.players[w].zones.graveyard.map((i) => G.s.cards[i])).filter((c) => c && (!gg[2] || /Creature/.test(DB[c.def].faces[0].typeLine || '')))
+        .map((c) => (gg[1] === 'mana value' ? DB[c.def].cmc || 0 : parseInt(gg[1] === 'power' ? DB[c.def].faces[0].power : DB[c.def].faces[0].toughness, 10) || 0));
+      return vals.length ? Math.max(0, ...vals) : 0;
+    }
+    if (/^(?:the )?greatest mana value among (?:your commanders|commanders you own)$/.test(p) && G.s) {
+      const vals = Object.values(G.s.cards).filter((c) => c.isCommander && c.owner === pid).map((c) => DB[c.def].cmc || 0);
+      return vals.length ? Math.max(...vals) : 0;
+    }
+  }
   // Temur Battlecrier: "for each creature you control with power 4 or greater"
   {
     const wm = p.match(/^((?:other |nontoken |untapped |tapped )*(?:[\w-]+ )?)creatures? (you control|your opponents control|an opponent controls|on the battlefield) with (power|toughness|mana value) (\d+) or (greater|less)$/);

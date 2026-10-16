@@ -543,7 +543,7 @@ function targetsAvailable(text, c) {
 
 // Modes the AI knows how to use well.
 const AI_MODES = new Set(['normal', 'back', 'adventure', 'fuse', 'flashback', 'escape', 'foretold', 'plotted', 'impulse', 'hideaway', 'fromGraveyard',
-  'mayhem', 'disturb', 'aftermath', 'prototype', 'surge', 'spectacle', 'prowl', 'freerunning', 'overload', 'awaken', 'bestow', 'harmonize', 'omen']);
+  'mayhem', 'disturb', 'aftermath', 'prototype', 'surge', 'spectacle', 'prowl', 'freerunning', 'overload', 'awaken', 'bestow', 'harmonize', 'omen', 'coram']);
 
 // Every way the AI could cast something right now, best option per card.
 function options(filter = () => true) {

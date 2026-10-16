@@ -278,6 +278,11 @@ export function castOptions(pid, c) {
   }
   if (zone === 'graveyard') {
     let a;
+    // Coram, the Undertaker: "During each of your turns, you may play a land and cast a spell from among cards in graveyards that were
+    // put there from libraries this turn."
+    if (c.fromLibTurn === s.turn && s.active === pid && !isLandFace(f0) && !(s.coramSpell && s.coramSpell[pid] === s.turn)
+      && cardsIn(pid, 'battlefield').some((x) => /cast a spell from among cards in graveyards that were put there from libraries this turn/i.test(oracle(x))))
+      add({ mode: 'coram', label: 'Cast (milled this turn)', cost: f0.manaCost || d.manaCost || '' });
     // Locke, Treasure Hunter: "Until end of turn, you may cast a spell from among those cards."
     if (c.mayCastFromGy === pid && c.mayCastFromGyTurn === s.turn && !isLandFace(f0)) add({ mode: 'impulse', label: 'Cast from graveyard (this turn)', cost: f0.manaCost || d.manaCost });
     // Hildibrand Manderville: "you may cast it from your graveyard as an Adventure until the end of your next turn"
@@ -555,8 +560,20 @@ export async function castSpell(pid, iid, opt, env) {
       }
     }
   }
+  // Plumb the Forbidden: "As an additional cost to cast this spell, you may sacrifice one or more creatures. When you do, copy this spell
+  // for each creature sacrificed this way."
+  if (/As an additional cost to cast (?:this spell|~), you may sacrifice one or more creatures\. When you do, copy (?:this spell|~) for each creature sacrificed this way/i.test(o) && !env.free) {
+    info.plumb = true;
+    const pool = cardsIn(pid, 'battlefield').filter(isCreature);
+    // the AI feeds it tokens only
+    const picks = pool.length ? await ch.pickCards({ prompt: `${label}: sacrifice any number of creatures (each one copies the spell)`, cards: pool.map((x) => x.iid), min: 0, max: pool.length, purpose: 'sacrifice', src: c, aiScore: (x) => (x.token ? 5 : -10) }) : [];
+    const sacs = pid === 'ai' ? picks.filter((i) => card(i) && card(i).token) : picks;
+    for (const i of sacs) sacrifice(i);
+    info.replicate += sacs.length;
+    if (sacs.length) log(pid, `${pid === 'p' ? 'You sacrifice' : 'The AI sacrifices'} ${sacs.length} creature${sacs.length === 1 ? '' : 's'} to copy ${label} ${sacs.length} time${sacs.length === 1 ? '' : 's'}.`);
+  }
   // --- additional costs printed as "As an additional cost to cast this spell, …"
-  const addl = o.match(/As an additional cost to cast (?:this spell|~), ([^.]+)\./i);
+  const addl = info.plumb ? null : o.match(/As an additional cost to cast (?:this spell|~), ([^.]+)\./i);
   const wbm = addl && addl[1].match(/^(you may )?waterbend \{(\d+|X)\}$/i);
   if (wbm) {
     // waterbend: extra generic mana that your untapped artifacts and creatures can help pay
@@ -659,6 +676,7 @@ export async function castSpell(pid, iid, opt, env) {
   else if (!opt.copy) ts.spellsNotHand = (ts.spellsNotHand || 0) + 1; // The Twelfth Doctor: "the first spell you cast from anywhere other than your hand"
   if (!/Creature/.test(f.typeLine)) ts.noncreatureSpells++;
   if (opt.mode === 'warp') s.ts.warped = true;
+  if (opt.mode === 'coram') s.coramSpell = { ...(s.coramSpell || {}), [pid]: s.turn };
   Object.assign(c, { castMode: opt.mode === 'normal' ? null : opt.mode, kicked: info.kicked, xPaid: info.x, castFrom: fromZone, castFace: fIdx });
   c.colorsSpent = new Set((f.manaCost || '').match(/[WUBRG]/g) || []).size;
   const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;

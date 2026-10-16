@@ -717,8 +717,12 @@ function keywordTriggers(c) {
     return yes ? ['unleashed'] : [];
   }, 'Unleash', { self: true });
   // Firebending N: "Whenever this creature attacks, add {R} N times. This mana lasts until end of combat."
-  if (/(?:^|\n)Firebending (\d+)/i.test(o)) f('attacks', async () => {
-    const k = +(o.match(/(?:^|\n)Firebending (\d+)/i) || [])[1] || 0;
+  // also when it's been given firebending (Sozin's Comet: "Each creature you control gains firebending 5 until end of turn.")
+  const fbGranted = [...(c.eotGrants || []), ...(c.grants || [])].map((g) => String(g).match(/^firebending (\d+)$/i)).filter(Boolean).map((m) => +m[1]);
+  if (/(?:^|\n)Firebending (\d+)/i.test(o) || fbGranted.length) f('attacks', async () => {
+    const live = card(c.iid) || c;
+    const more = [...(live.eotGrants || []), ...(live.grants || [])].map((g) => String(g).match(/^firebending (\d+)$/i)).filter(Boolean).reduce((a, m) => a + +m[1], 0);
+    const k = (+(o.match(/(?:^|\n)Firebending (\d+)/i) || [])[1] || 0) + more;
     if (!k) return [];
     addMana(c.controller, Array(k).fill('R'));
     return [`adds ${'{R}'.repeat(k)} (until end of combat)`];
@@ -1470,7 +1474,7 @@ async function specialEvent(ev) {
   }
   if (ev.type === 'mainPhase') {
     // sagas get a lore counter; rad counters mill
-    for (const c of cardsIn(ev.active, 'battlefield')) if (hasSubtype(c, 'Saga') || (c.counters && c.counters.lore !== undefined && /^[IVX]+ — /m.test(face(c).oracle || ''))) loreUp(c);
+    for (const c of cardsIn(ev.active, 'battlefield')) if (hasSubtype(c, 'Saga') || (c.counters && c.counters.lore !== undefined && /^[IVX]+(?:, [IVX]+)* — /m.test(face(c).oracle || ''))) loreUp(c);
     const pl = G.s.players[ev.active];
     if (pl.counters.rad > 0) {
       const ids = libTop(ev.active, pl.counters.rad);
@@ -1487,7 +1491,7 @@ async function specialEvent(ev) {
   }
   if (ev.type === 'enters') {
     const c = card(ev.iid);
-    if (c && c.counters && c.counters.lore === 0 && /^[IVX]+ — /m.test(face(c).oracle || '')) {
+    if (c && c.counters && c.counters.lore === 0 && /^[IVX]+(?:, [IVX]+)* — /m.test(face(c).oracle || '')) {
       // read ahead: choose a starting chapter
       let start = 1;
       if (/Read ahead/i.test(oracle(c))) {
