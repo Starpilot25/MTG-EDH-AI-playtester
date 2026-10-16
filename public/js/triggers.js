@@ -1466,7 +1466,12 @@ async function specialEvent(ev) {
   }
   if (ev.type === 'draw' && ev.nth === 1 && card(ev.iid) && T.castFree) {
     const c = card(ev.iid);
-    const mc = (oracle(c).match(/Miracle ((?:\{[^}]+\})+)/) || [])[1];
+    let mc = (oracle(c).match(/Miracle ((?:\{[^}]+\})+)/) || [])[1];
+    // Molecule Man: "Nonland cards in your hand have miracle {0}."
+    if (!mc && !isLand(c)) {
+      const giver = cardsIn(ev.pid, 'battlefield').find((x) => !x.phasedOut && /Nonland cards in your hand have miracle ((?:\{[^}]+\})+)/i.test(oracle(x)));
+      if (giver) mc = oracle(giver).match(/Nonland cards in your hand have miracle ((?:\{[^}]+\})+)/i)[1];
+    }
     if (mc && c.zone === 'hand') {
       const yes = ev.pid === 'ai' ? true : await T.confirm(cardName(c), `Miracle: cast ${cardName(c)} for ${mc}?`);
       if (yes) await T.castFree(ev.pid, ev.iid, { cost: mc, mode: 'miracle' });

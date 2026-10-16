@@ -6035,6 +6035,8 @@ async function runSentence(sentence, env) {
   let s = sentence.trim().replace(/\.$/, '').replace(/^then,? /i, '');
   // Marvel/Spider-Man cards name their creature "he"/"she": "He gets +1/+0 until end of turn"
   s = s.replace(/^(?:he|she) (?=gets|gains|has|can't|connives|fights|explores|becomes|loses|attacks|blocks|isn't)/i, 'it ');
+  // Brass's Bounty: "For each land you control, create a Treasure token." → "create a Treasure token for each land you control"
+  s = s.replace(/^for each ([^,]+), create (a|an|one|two|three) (.+? tokens?)$/i, 'create $2 $3 for each $1');
   // "gets +1/+0 until end of turn for each artifact defending player controls" → "gets +1/+0 for each … until end of turn"
   s = s.replace(/^(.+? gets? [+-][\dx]+\/[+-][\dx]+) (until end of turn) (for each .+)$/i, '$1 $3 $2');
   // X that depends on something done earlier in this same effect (Spellbound Dragon: "where X is the discarded card's mana value")

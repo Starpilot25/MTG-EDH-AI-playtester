@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.42",
+    "title": "Misty Mountains, Brass's Bounty, Molecule Man",
+    "notes": [
+      "The Misty Mountains Cold (and other Sagas whose chapters are written \"I, II, III, IV —\"): every chapter triggers now, so you get a Treasure each turn and the 6/6 Dragon once you have four Treasures.",
+      "Brass's Bounty: creates a Treasure for each land you control.",
+      "Molecule Man: the first card you draw each turn can be cast for its miracle cost of {0} (you're asked; the AI always does it)."
+    ]
+  },
+  {
     "version": "1.3.41",
     "title": "Twenty card fixes",
     "notes": [
