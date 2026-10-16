@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.44",
+    "title": "Dungeon Delver, quitting mid-game, land searches, AI removal",
+    "notes": [
+      "Dungeon Delver: room abilities no longer trigger three times. A commander that gets Delver's ability was being counted twice; now each room triggers just once more (twice in total).",
+      "Quitting to the deck menu in the middle of a game (during combat, while picking a target, while the AI was taking its turn) now cleans up completely: no leftover block lines, banners, highlights or messages, and the old game stops in the background.",
+      "Searching for lands (Cultivate, Skyshroud Claim, Kodama's Reach…): identical cards are shown as one stack. The number of copies on the stack was invisible once you picked one; it now stays readable, and the stack has − and + buttons so it's clear you can take two Forests (clicking the stack again still works too).",
+      "The AI no longer spends its removal on your commander the moment it comes down. Early in the game it holds removal for other threats (it will still kill your commander if it's attacking for a lot of damage or about to kill with commander damage). Later in the game, or after you've recast your commander a few times, it's fair game again."
+    ]
+  },
+  {
     "version": "1.3.43",
     "title": "Clones, Backup",
     "notes": [

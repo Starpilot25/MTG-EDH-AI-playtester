@@ -168,7 +168,8 @@ export function roomExtraTriggers(pid) {
   const bf = cardsIn(pid, 'battlefield');
   const cmdCreatures = bf.filter((c) => c.isCommander && c.owner === pid && isCreature(c)).length;
   for (const c of bf) {
-    const o = oracle(c);
+    // the card's own printed text: a commander that *gained* the ability from Dungeon Delver is already counted through the Delver
+    const o = (DB[c.def].faces[c.face || 0] || DB[c.def].faces[0]).oracle || '';
     if (/Commander creatures you own have "Room abilities of dungeons you own trigger an additional time/i.test(o)) n += cmdCreatures;
     else if (/(?:^|\n)Room abilities of dungeons you own trigger an additional time/i.test(o)) n += 1;
   }

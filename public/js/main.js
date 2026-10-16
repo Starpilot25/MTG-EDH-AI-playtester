@@ -6,7 +6,7 @@ import {
 import { G, newGame, cardsIn, move, log, esc, emit } from './state.js';
 import { loadDungeons } from './dungeon.js';
 import { run, aiMulligans, mulligan, bottomCount, startPlay } from './game.js';
-import { render, bindEvents, openDialog, closeDialog, cancelPending, toast } from './ui.js';
+import { render, bindEvents, openDialog, closeDialog, cancelPending, toast, teardownTable } from './ui.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -388,8 +388,11 @@ function showTable() {
   $('#table').hidden = false;
 }
 function showSetup() {
-  cancelPending();
+  teardownTable();
   closeDialog(true);
+  // abandon the game: any AI turn or resolution still running sees G.s change and stops
+  G.s = null;
+  run.aiBusy = false;
   $('#table').hidden = true;
   $('#setup').hidden = false;
 }

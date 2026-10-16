@@ -1117,6 +1117,31 @@ export function cancelPending() {
   pendingBlocks = null;
 }
 
+// Leaving the table (quit to the deck menu): drop every half-finished prompt without answering it, so the
+// paused game code never continues, and clear the overlays that live outside the table (block lines, menu, toasts…).
+export function teardownTable() {
+  pendingRespond = null;
+  pendingBlocks = null;
+  pendingCombat = null;
+  pendingTarget = null;
+  casting = false;
+  hoverIid = null;
+  drag = null;
+  closeMenu();
+  for (const pid of [...popouts.keys()]) try { popIn(pid); } catch (e) { void e; }
+  for (const id of ['block-lines']) { const el = document.getElementById(id); if (el) el.remove(); }
+  document.querySelectorAll('.card.ghost').forEach((g) => g.remove());
+  const b = $('#banner');
+  if (b) { b.innerHTML = ''; b.hidden = true; }
+  const sv = document.getElementById('stackview');
+  if (sv) { sv.innerHTML = ''; sv.hidden = true; }
+  document.body.classList.remove('banner-on', 'ai-turn', 'target-mode', 'block-mode', 'attack-mode', 'opp-popped', 'is-dragging');
+  $('#flash').classList.remove('show');
+  $('#toast').classList.remove('show');
+  $('#preview').innerHTML = '';
+  for (const id of ['my-panel', 'opp-panel']) { const el = document.getElementById(id); if (el) el.classList.remove('stack-target-player'); }
+}
+
 function flash(text, sub = '') {
   const el = $('#flash');
   el.innerHTML = `<div class="big">${esc(text)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}`;
@@ -1379,7 +1404,7 @@ function pickCardsDialog(req, resolve, reject) {
     <h3>${esc(req.prompt)}</h3>
     ${groups.length > 10 ? '<input class="filter" id="pk-filter" placeholder="Filter by name or type…" autocomplete="off">' : ''}
     <div class="zv-grid pick">${groups
-      .map((g, k) => `<button class="zv-item" data-group="${k}">${cardHTML(card(g.ids[0]), { small: true, count: g.ids.length })}<span>${esc(cardName(card(g.ids[0])))}</span><b class="pk-sel" hidden></b></button>`)
+      .map((g, k) => `<button class="zv-item" data-group="${k}">${cardHTML(card(g.ids[0]), { small: true, count: g.ids.length })}<span>${esc(cardName(card(g.ids[0])))}</span><b class="pk-sel" hidden></b>${max > 1 && g.ids.length > 1 ? `<span class="pk-step"><i data-step="-1" title="One fewer">−</i><i data-step="1" title="One more">+</i></span>` : ''}</button>`)
       .join('')}</div>
     <div class="btns"><button class="primary" id="pk-ok"></button>${req.forced || T.inTrigger > 0 ? '' : '<button id="pk-cancel">Cancel spell</button>'}<span class="hint" id="pk-n"></span></div>`,
     { wide: true, noClose: true });
@@ -1391,11 +1416,16 @@ function pickCardsDialog(req, resolve, reject) {
       const tag = $('.pk-sel', b);
       tag.hidden = !k || g.ids.length === 1;
       tag.textContent = `${k} chosen`;
+      const st = $('.pk-step', b);
+      if (st) {
+        $('[data-step="-1"]', st).classList.toggle('off', !k);
+        $('[data-step="1"]', st).classList.toggle('off', k >= g.ids.length || chosen.length >= max);
+      }
     });
     const ok = $('#pk-ok', dlg);
     ok.disabled = chosen.length < min || chosen.length > max;
     ok.textContent = chosen.length ? `Choose ${chosen.length}` : min === 0 ? 'Choose none' : 'Choose';
-    $('#pk-n', dlg).textContent = max > 1 ? `Pick ${min === max ? max : `up to ${max}`}. Click a stack again to take another copy.` : '';
+    $('#pk-n', dlg).textContent = max > 1 ? `Pick ${min === max ? max : `up to ${max}`}. Identical cards are stacked: click a stack again (or use +) to take another copy.` : '';
   };
   dlg.addEventListener('click', (e) => {
     const b = e.target.closest('[data-group]');
@@ -1404,6 +1434,15 @@ function pickCardsDialog(req, resolve, reject) {
     const g = groups[+b.dataset.group];
     const mine = g.ids.filter((i) => chosen.includes(i));
     const next = g.ids.find((i) => !chosen.includes(i));
+    const step = e.target.closest('[data-step]');
+    if (step) {
+      // the −/+ buttons on a stack of identical cards: take one more copy, or put one back
+      if (+step.dataset.step < 0) { if (mine.length) chosen.splice(chosen.indexOf(mine[mine.length - 1]), 1); }
+      else if (next && chosen.length < max) chosen.push(next);
+      else if (next) toast(`You can choose at most ${max}.`);
+      sync();
+      return;
+    }
     if (max === 1) {
       const had = mine.length;
       chosen.length = 0;

@@ -86,8 +86,24 @@ export function wardAffordable(t, spare = curWardSpare, who = AI) {
 }
 function bestTarget(pid, phrase, pred = () => true) {
   const list = legalTargets(phrase, AI).filter((c) => c.controller === pid && pred(c) && wardAffordable(c));
-  list.sort((a, b) => threat(b) - threat(a));
+  list.sort((a, b) => removalWorth(b) - removalWorth(a));
   return list[0] || null;
+}
+
+// What spending a removal spell on it is worth. Your commander goes back to the command zone and is recast for
+// just {2} more, so killing it right after it comes down mostly trades a card for two mana. The AI saves its
+// removal for the commander until it is a real problem: close to lethal commander damage, a big engine, or late
+// in the game when the tax has piled up.
+function removalWorth(t) {
+  let w = threat(t);
+  if (!t || !t.isCommander || t.controller === AI) return w;
+  const dmg = G.s.players[AI].cmdDmg[t.iid] || 0;
+  if (isCreature(t) && dmg + Math.max(0, power(t)) * 2 >= 21) return w + 2; // two more hits kill: deal with it now
+  const tax = (G.s.players[t.owner].tax || {})[t.iid] || 0; // times it was already cast from the command zone
+  const round = Math.ceil((G.s.turn || 1) / 2) + tax * 2 + (dmg >= 8 ? 3 : 0); // each recast and real damage make it "later"
+  if (round <= 4) return Math.min(w * 0.35, 3); // early game: hold the removal (blocks and attack responses still use it)
+  if (round <= 7) return w * 0.6 - 2;
+  return w - 3; // it comes back, but by now recasting it costs them a turn
 }
 
 function threatLevel(pid) {
@@ -153,7 +169,7 @@ export const aiChooser = {
         if (killable.length) pool = killable;
         else if (req.players && req.players.includes(P)) return { player: P };
       }
-      pool.sort(byThreat);
+      pool.sort((a, b) => removalWorth(b) - removalWorth(a));
       if (pool[0] && (req.amount === undefined || threat(pool[0]) >= 2 || !(req.players || []).includes(P))) return { iid: pool[0].iid };
       if (req.players && req.players.includes(P)) return { player: P };
       if (pool[0]) return { iid: pool[0].iid };
@@ -425,7 +441,7 @@ function scoreSpellRaw(c, pay, opt = {}) {
     const tgt = bestTarget(P, a.removal.phrase, (t) => !(a.removal.verb === 'destroy' && hasKw(t, 'indestructible')));
     if (!tgt) return perm ? s - 2 : -1;
     // save removal for things that matter: a real threat, or when the AI is under pressure
-    const worth = threat(tgt);
+    const worth = removalWorth(tgt);
     if (!perm && worth < removalBar(c, f)) return -1;
     s += perm ? Math.min(worth, cardValue(tgt)) : worth;
   }
@@ -455,13 +471,13 @@ function scoreSpellRaw(c, pay, opt = {}) {
   if (a.edict && !cardsIn(P, 'battlefield').some(isCreature) && !perm) return -1;
   if (a.burn && /creature/.test(a.burn.to) && !/any target|player/.test(a.burn.to)) {
     const t = bestTarget(P, 'creature', (x) => toughness(x) - x.damage <= a.burn.amount && !hasKw(x, 'indestructible'));
-    if (!perm && (!t || threat(t) < removalBar(c, f) - 1)) return -1;
+    if (!perm && (!t || removalWorth(t) < removalBar(c, f) - 1)) return -1;
   }
   if (a.burn && /any target/.test(a.burn.to) && !perm) {
     // burn to the face only when it finishes the game or there's nothing worth killing
     const t = bestTarget(P, 'creature', (x) => toughness(x) - x.damage <= a.burn.amount && !hasKw(x, 'indestructible'));
     const lethal = a.burn.amount >= G.s.players[P].life;
-    if (!lethal && (!t || threat(t) < removalBar(c, f) - 1) && a.burn.amount < 4) return -1;
+    if (!lethal && (!t || removalWorth(t) < removalBar(c, f) - 1) && a.burn.amount < 4) return -1;
   }
   if (a.reanimate) {
     const best = cardsIn(AI, 'graveyard').filter((g) => isType(g, 'Creature')).sort((x, y) => cardValue(y) - cardValue(x))[0];
@@ -631,7 +647,7 @@ function planMain(post) {
       curWardSpare = o.spare;
       const t = o.a.removal ? bestTarget(P, o.a.removal.phrase) : o.a.bounce ? bestTarget(P, o.a.bounce.phrase) : null;
       curWardSpare = Infinity;
-      return (t && threat(t) >= 7) || (post && G.s.turn > 8 && o.score > 6);
+      return (t && removalWorth(t) >= 7) || (post && G.s.turn > 8 && o.score > 6);
     }
     if (o.role === 'flash' || o.role === 'value') return false; // cast at the end of the opponent's turn instead
     return true;
@@ -815,7 +831,7 @@ async function planeswalkersOnce(h) {
       let v = 0;
       if (a.removal) {
         const t = bestTarget(P, a.removal.phrase);
-        v += t ? threat(t) : -6;
+        v += t ? removalWorth(t) : -6;
       }
       if (a.bounce) {
         const t = bestTarget(P, a.bounce.phrase);
@@ -1074,7 +1090,7 @@ function chooseInstant(kind) {
       if (o.role === 'removal') {
         for (const t of removalTargets(o).filter((c) => cb.attackers.includes(c.iid))) {
           const r = fight(t, (blocks[t.iid] || []).map(card));
-          const gain = threat(t) + r.through * lifeWeight(myLife) + (dying && r.through ? 50 : 0) - (casualAI() ? 7 : 4);
+          const gain = removalWorth(t) + r.through * lifeWeight(myLife) + (dying && r.through ? 50 : 0) - (casualAI() ? 7 : 4);
           consider(o, gain, { iid: t.iid });
         }
       }
@@ -1135,8 +1151,8 @@ function chooseInstant(kind) {
     for (const o of opts) {
       if (o.role === 'fog' || o.role === 'trick') continue;
       if (o.role === 'removal') {
-        const t = removalTargets(o).sort((x, y) => threat(y) - threat(x))[0];
-        if (t && threat(t) >= 4) consider(o, threat(t), { iid: t.iid });
+        const t = removalTargets(o).sort((x, y) => removalWorth(y) - removalWorth(x))[0];
+        if (t && removalWorth(t) >= 4) consider(o, removalWorth(t), { iid: t.iid });
         else if (o.a.burn && /any target|player/.test(o.a.burn.to) && o.a.burn.amount >= theirLife) consider(o, 100, { player: P });
         continue;
       }

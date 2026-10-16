@@ -664,9 +664,13 @@ body.target-mode .life { cursor: crosshair; }
 .combat-bar.targeting { border-color: var(--brass); }
 .zv-grid.pick .zv-item { background: none; border: 0; padding: 4px; border-radius: 8px; }
 .zv-grid.pick .zv-item.on { background: rgb(211 170 82 / 0.16); outline: 2px solid var(--brass); }
-.zv-grid.pick .zv-item.on span { color: var(--brass); }
+.zv-grid.pick .zv-item.on > span:not(.pk-step) { color: var(--brass); }
 #menu .ab { white-space: normal; text-align: left; max-width: 300px; color: var(--brass); }
 .pk-sel { font: 700 11px var(--f-display); color: var(--brass-ink); background: var(--brass); border-radius: 4px; padding: 1px 6px; justify-self: center; }
+.pk-step { display: flex; gap: 6px; justify-content: center; }
+.pk-step i { font-style: normal; font: 700 15px/1 var(--f-display); width: 26px; height: 22px; display: grid; place-items: center; border-radius: 5px; background: rgb(211 170 82 / 0.18); color: var(--brass); border: 1px solid rgb(211 170 82 / 0.5); cursor: pointer; }
+.pk-step i:hover { background: rgb(211 170 82 / 0.32); }
+.pk-step i.off { opacity: 0.3; pointer-events: none; }
 
 .card.playable { box-shadow: 0 0 0 3px var(--ok), 0 0 18px rgb(120 196 135 / 0.6); }
 .dungeon-row { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; }

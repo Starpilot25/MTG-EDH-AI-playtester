@@ -1004,6 +1004,9 @@ export async function runAiTurn() {
     cleanupStep();
     hooks.render();
     await wait(Math.min(400, G.settings.aiSpeed));
+  } catch (e) {
+    if (G.s === s) throw e; // the player quit to the deck menu mid-turn: the abandoned game just stops
+    return;
   } finally {
     if (G.s === s) {
       run.aiBusy = false;
