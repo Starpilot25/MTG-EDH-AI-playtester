@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.43",
+    "title": "Clones, Backup",
+    "notes": [
+      "\"Enter as a copy\" now works: Clone, Phantasmal Image (an Illusion that dies when targeted), Spark Double (+1 counter, not legendary), Vesuva and similar cards let you choose what to copy as they enter (or choose none). Before, Clone came in as a 0/0 and died.",
+      "Backup: the prompt explains the choice, and backing up another creature now gives it all of the backup creature's abilities until end of turn, including triggered ones like Guardian Scalelord's attack trigger. The AI backs up a creature that can still attack this turn."
+    ]
+  },
+  {
     "version": "1.3.42",
     "title": "Misty Mountains, Brass's Bounty, Molecule Man",
     "notes": [

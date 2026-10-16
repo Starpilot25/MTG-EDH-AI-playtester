@@ -4999,6 +4999,36 @@ on(/^(?:have )?(~|target creature you control) becomes? a copy of (it|that creat
   if (/it has haste/i.test(m[4] || '')) self.eotGrants = [...(self.eotGrants || []), 'haste'];
   env.did.push(`${keepName || wasName} becomes a copy of ${nameTag(model)}${m[3] ? ' until end of turn' : ''}`);
 });
+// Clone, Phantasmal Image, Spark Double, Vesuva: "You may have ~ enter (tapped) as a copy of any creature on the battlefield[, except …]."
+// Called just before the permanent enters, so a 0/0 Clone becomes the copy instead of dying.
+export async function enterAsCopy(pid, c, choosers) {
+  const o = stripName(DB[c.def].faces[c.face || 0].oracle || DB[c.def].faces[0].oracle || '', c);
+  const m = o.match(/You may have ~ enter(?: the battlefield)?( tapped)? as a copy of (?:any|a|an) ([a-z ]+?) (on the battlefield|you control)(?:, except ([^\n]+?))?\.?(?:\n|$)/i);
+  if (!m) return null;
+  const kinds = m[2].toLowerCase().split(/ or /).map((k) => k.trim());
+  const pool = [...(/you control/i.test(m[3]) ? [] : cardsIn(opp(pid), 'battlefield')), ...cardsIn(pid, 'battlefield')]
+    .filter((x) => x.iid !== c.iid && !x.phasedOut && !x.faceDown && kinds.some((k) => (k === 'creature' ? isCreature(x) : isType(x, k[0].toUpperCase() + k.slice(1)))));
+  if (!pool.length) return null;
+  const [pick] = await choosers[pid].pickCards({ prompt: `${cardName(c)}: enter as a copy of… (or choose none)`, cards: pool.map((x) => x.iid), min: 0, max: 1, purpose: 'copy', src: c, aiScore: (x) => cardValue(x) + (x.controller === pid ? 0.5 : 0) });
+  if (!pick || !card(pick)) return null;
+  const model = card(pick);
+  const except = (m[4] || '').toLowerCase();
+  c.origDef = c.origDef || c.def;
+  c.origFace = c.origFace || c.face || 0;
+  c.def = model.def;
+  c.face = model.face || 0;
+  if (m[1]) c.tapped = true;
+  if (/isn't legendary|not legendary/.test(except)) c.notLegendary = true;
+  if (/it's an? ([a-z]+) in addition to its other types/.test(except)) c.addTypes = ((c.addTypes || '') + ' ' + except.match(/it's an? ([a-z]+) in addition/)[1].replace(/^\w/, (x) => x.toUpperCase())).trim();
+  const quoted = (m[4] || '').match(/"([^"]+)"/);
+  if (quoted) c.extraText = ((c.extraText || '') + '\n' + quoted[1].replace(/this creature/gi, '~')).trim();
+  // Spark Double: "it enters with an additional +1/+1 counter on it if it's a creature, it enters with an additional loyalty counter on it if it's a planeswalker"
+  c.enterExtra = {
+    plus: /additional \+1\/\+1 counter/.test(except) && /Creature/.test(DB[model.def].faces[model.face || 0].typeLine || '') ? 1 : 0,
+    loyalty: /additional loyalty counter/.test(except) && /Planeswalker/.test(DB[model.def].faces[model.face || 0].typeLine || '') ? 1 : 0,
+  };
+  return model;
+}
 // "Put a permanent card with mana value less than or equal to that damage from your hand (or graveyard) onto the battlefield"
 on(/^put (?:a|an|up to one) ([a-z ]*?)cards? with mana value (\d+|x|less than or equal to [^,]+?|[a-z ]+? or less) from your (hand|graveyard|hand or graveyard) onto the battlefield( tapped)?(?: under your control)?$/, async (m, env) => {
   const mvText = m[2];

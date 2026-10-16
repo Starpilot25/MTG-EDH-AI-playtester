@@ -17,7 +17,7 @@ import {
 import {
   resolveEffects, spellText, etbText, costOf, attachAura, attachTo, activatedAbilities, zoneAbilities, Cancelled,
   matchesFilter, analyze, stripName, spellFilterOk,
-  predictTargets,
+  predictTargets, enterAsCopy,
 } from './effects.js';
 import { costDelta, countPhrase, repl } from './statics.js';
 import { helpers } from './rules.js';
@@ -950,7 +950,16 @@ async function resolveSpell(pid, c, opt, info, env) {
     }
     if (opt.mode === 'prototype') c.proto = opt.proto;
     if (opt.mode === 'impending') c.impending = true;
+    // Clone & co.: choose what it copies before it enters
+    const copied = await enterAsCopy(pid, c, env.choosers);
     toBattlefield(c.iid, pid, env.pos || {});
+    if (copied && card(c.iid)) {
+      const x = card(c.iid);
+      if (x.enterExtra && x.enterExtra.plus) addCounters(x, '+1/+1', x.enterExtra.plus, { silent: true });
+      if (x.enterExtra && x.enterExtra.loyalty) x.counters.loyalty = (x.counters.loyalty || 0) + x.enterExtra.loyalty;
+      delete x.enterExtra;
+      log(pid, `${nameTag(x)} enters as a copy of ${nameTag(copied)}.`);
+    }
     // Curses and other "Enchant player" Auras sit on the battlefield and remember whom they enchant
     const ep = hasSubtype(c, 'Aura') && oracle(c).match(/^Enchant (player|opponent)/m);
     if (ep) {
@@ -1228,6 +1237,14 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
   G.s.ts[pid].landsPlayed++;
   G.s.lastLandPlay = { iid, from: c.zone, pid }; // Ghost-Spider: "whenever you play a land from exile"
   toBattlefield(iid, pid, pos);
+  // Vesuva: "You may have ~ enter tapped as a copy of any land on the battlefield."
+  if (/You may have [^.\n]+ enter(?: tapped)? as a copy of/i.test(DB[c.def].faces[0].oracle || '') && T.choosers)
+    enterAsCopy(pid, card(iid), T.choosers).then((model) => {
+      if (model && card(iid)) {
+        log(pid, `${nameTag(card(iid))} becomes a copy of ${nameTag(model)}.`);
+        if (T.render) T.render();
+      }
+    });
   log(pid, `${pid === 'p' ? 'You play' : 'AI plays'} ${nameTag(c)}${c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : ''}${c.tapped ? ' (tapped)' : ''}.`);
   return true;
 }

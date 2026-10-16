@@ -12,6 +12,7 @@ import {
 import {
   resolveEffects, stripName, knownEffect, bindTriggerHooks, addMana, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords, evalCond,
 } from './effects.js';
+import { kwList } from './statics.js';
 // Intervening "if" (rule 603.4): "At the beginning of your end step, if you gained life this turn, …" doesn't trigger at all
 // when the condition is false (it's checked again when it resolves)
 function interveningIfFails(hit, ev) {
@@ -677,13 +678,26 @@ function keywordTriggers(c) {
   if (kwNum(c, 'Backup')) f('enters', async (ctx) => {
     const k = kwNum(c, 'Backup');
     const cands = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter(isCreature);
-    const pick = await ctx.choosers[c.controller].target({ forced: true, prompt: `Backup ${k}: put +1/+1 counters on a creature`, candidates: cands.map((x) => x.iid), harm: false, src: c });
+    // the AI backs up a creature that can still attack this turn (it gets the abilities too), else itself
+    const me = c.controller;
+    const aiScore = (x) => (x.controller !== me ? -100 : x.iid === c.iid ? 3 : !x.sick || hasKw(x, 'haste') ? 6 + power(x) : 1);
+    const pick = await ctx.choosers[me].target({ forced: true, prompt: `Backup ${k}: put ${k} +1/+1 counter${k === 1 ? '' : 's'} on target creature (another creature also gets ${cardName(c)}'s abilities until end of turn)`, candidates: cands.map((x) => x.iid), harm: false, src: c, aiScore });
     if (!pick || !pick.iid) return [];
     const tgt = card(pick.iid);
     addCounters(tgt, '+1/+1', k);
     if (tgt.iid !== c.iid) {
-      const kws = DB[c.def].keywords.filter((kk) => kk !== 'backup');
+      // "it gains the following abilities until end of turn": everything printed below the Backup line
+      const lines = (face(c).oracle || DB[c.def].faces[0].oracle || '').replace(/\([^)]*\)/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
+      const after = lines.slice(lines.findIndex((l) => /^Backup \d+/i.test(l)) + 1);
+      const kws = [];
+      const texts = [];
+      for (const l of after) {
+        const kl = kwList(l.toLowerCase());
+        if (kl.length && l.split(/,\s*/).length === kl.length) kws.push(...kl);
+        else texts.push(l.split(DB[c.def].name).join('this creature'));
+      }
       tgt.eotGrants = [...(tgt.eotGrants || []), ...kws];
+      if (texts.length) tgt.eotText = ((tgt.eotText ? tgt.eotText + '\n' : '') + texts.join('\n')).trim();
     }
     return [`backs up ${nameTag(tgt)}`];
   }, 'Backup', { self: true });

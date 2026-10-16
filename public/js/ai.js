@@ -101,6 +101,11 @@ export const aiChooser = {
   plan: null, // targets announced when the AI cast its spell (shown to you before you respond)
   async target(req) {
     const cands = req.candidates.map(card).filter(Boolean);
+    // a request that says how to score its candidates knows best (Backup: a creature of its own that can attack)
+    if (req.aiScore && cands.length && !req.predict) {
+      if (aiChooser.plan) aiChooser.plan = aiChooser.plan.filter((w) => !(w.iid && req.candidates.includes(w.iid)));
+      return { iid: cands.slice().sort((a, b) => req.aiScore(b) - req.aiScore(a))[0].iid };
+    }
     if (aiChooser.plan && aiChooser.plan.length && !req.predict) {
       const k = aiChooser.plan.findIndex((w) => (w.player && (req.players || []).includes(w.player)) || (w.iid && req.candidates.includes(w.iid)));
       if (k >= 0) {
