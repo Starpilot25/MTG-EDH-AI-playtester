@@ -4705,8 +4705,10 @@ on(/^(look at|reveal) the top card of your library$/, async (m, env) => {
   env.it = { iid: top };
   env.did.push(m[1] === 'reveal' ? `reveals ${nameTag(card(top))}` : env.me === 'p' ? `looks at the top card of your library: ${nameTag(card(top))}` : 'looks at the top card of its library');
 });
-on(/^put (?:that card|it|them|those cards) into your hand$/, async (m, env) => {
-  const ids = env.them_ && env.them_.length ? env.them_ : env.it && env.it.iid ? [env.it.iid] : [];
+on(/^put (that card|it|them|those cards) into your hand$/, async (m, env) => {
+  // "that card" / "it" is the one card (Breaching Dragonstorm: the nonland card, not every card exiled on the way)
+  const one = /^(?:that card|it)$/.test(m[1]);
+  const ids = one && env.it && env.it.iid ? [env.it.iid] : env.them_ && env.them_.length ? env.them_ : env.it && env.it.iid ? [env.it.iid] : [];
   for (const i of ids) if (card(i) && card(i).zone !== 'hand') move(i, 'hand');
   if (ids.length) env.did.push(`puts ${ids.map((i) => nameTag(card(i))).join(', ')} into hand`);
 });

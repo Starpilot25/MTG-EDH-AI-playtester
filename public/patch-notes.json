@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.40",
+    "title": "Breaching Dragonstorm",
+    "notes": [
+      "Breaching Dragonstorm: if you don't cast the card (or it costs more than 8), only that card goes to your hand. The lands exiled on the way stay in exile. The same fix applies to other \"put that card into your hand\" effects that exile several cards first."
+    ]
+  },
+  {
     "version": "1.3.39",
     "title": "Play from the top of your library, and 15 card fixes",
     "notes": [
