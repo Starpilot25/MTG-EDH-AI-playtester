@@ -3,7 +3,7 @@
     "version": "1.3.39",
     "title": "Play from the top of your library, and 15 card fixes",
     "notes": [
-      "Mystic Forge, Future Sight, Courser of Kruphix, Bolas's Citadel and similar cards: a \"Top of library\" box in your panel shows your top card. Double-click it to cast it (or play it, if it's a land you're allowed to play). The AI uses these too, and you can see the AI's top card when it plays with it revealed.",
+      "Mystic Forge, Future Sight, Courser of Kruphix and similar cards: a \"Top of library\" box in your panel shows your top card. Double-click it to cast it (or play it, if it's a land you're allowed to play). The AI uses these too, and you can see the AI's top card when it plays with it revealed. (Bolas's Citadel lets you cast from the top too, but you pay mana, not life.)",
       "Lae'zel, Vlaakith's Champion: + loyalty abilities give one extra loyalty.",
       "Urza's Tower, Mine and Power-Plant make 3/2/2 mana when you have all three.",
       "Sceptre of Eternal Glory: taps for three mana of one color when you control three lands with the same name.",
