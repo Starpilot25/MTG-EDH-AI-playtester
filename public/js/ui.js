@@ -1,5 +1,5 @@
 // The tabletop: rendering, drag and drop, menus, dialogs and shortcuts.
-import { DB, searchTokens } from './data.js';
+import { DB, searchTokens, imageHooks } from './data.js';
 import {
   hasSubtype, isLand, isCreature, isType, power, toughness, basePT, oracle, isPermanentCard, canBlock, canAttack, hasKw, face, payCostKeep, keywordChanges, abilitiesGone,
 } from './rules.js';
@@ -2507,6 +2507,9 @@ function confirmBlocks() {
 }
 
 // ------------------------------------------------------------ events
+// English card pictures arrive in the background after a deck loads: redraw when they do
+imageHooks.changed = () => G.s && render();
+
 export function bindEvents() {
   bindDoc = (document) => {
   // While choosing a target, clicks pick targets and nothing else.

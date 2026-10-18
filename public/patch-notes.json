@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.46",
+    "title": "Faster deck loading",
+    "notes": [
+      "Decks load quickly again. The English-image check added in 1.3.45 was holding up loading while it asked Scryfall about every card (and about tokens). It now runs in the background after the deck has loaded, gives up quickly if Scryfall is slow, and remembers which cards are already English so it doesn't ask again. Foreign-language pictures switch to English a moment after the game appears."
+    ]
+  },
+  {
     "version": "1.3.45",
     "title": "Voting, villainous choices, the Ring, attachments, bestow",
     "notes": [

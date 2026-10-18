@@ -139,36 +139,67 @@ export async function fetchCards(identifiers) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ identifiers }),
   });
-  await englishImages(cards.filter(Boolean)).catch(() => {});
-  return cards.map((c) => (c ? normalize(c) : null));
+  const out = cards.map((c) => (c ? normalize(c) : null));
+  // never hold up loading: swap foreign-language pictures in the background
+  englishImages(cards.filter(Boolean)).catch(() => {});
+  return out;
 }
 
 // A deck link can point at a Japanese, German… printing, whose card images are in that language. The rules text
-// we use is always English; swap the pictures for the English printing's. (Newer app builds do this on the server
-// and send "lang"; older ones don't, so ask Scryfall which printings aren't English.)
-const enImg = new Map(); // scryfall id -> English card (or null when it is English already)
+// we use is always English; swap the pictures for the English printing's. This runs in the background after the
+// deck has loaded, with short timeouts, and remembers which cards are English so it only ever asks Scryfall once.
+export const imageHooks = { changed: () => {} };
+const EN_KEY = 'edh-en-ids';
+let enKnown = null;
+const enSet = () => {
+  if (enKnown) return enKnown;
+  try { enKnown = new Set(JSON.parse(localStorage.getItem(EN_KEY) || '[]')); } catch (e) { enKnown = new Set(); }
+  return enKnown;
+};
+const enSave = () => {
+  try { localStorage.setItem(EN_KEY, JSON.stringify([...enSet()].slice(-20000))); } catch (e) { /* storage full or blocked: just ask again next time */ }
+};
 async function englishImages(cards) {
-  const sf = (url, opts) => fetch(url, { headers: { Accept: 'application/json', ...(opts && opts.body ? { 'Content-Type': 'application/json' } : {}) }, ...opts }).then((r) => (r.ok ? r.json() : null));
-  const unknown = [...new Set(cards.filter((c) => c.lang === undefined && !enImg.has(c.id)).map((c) => c.id))];
+  const sf = async (url, opts) => {
+    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctl && setTimeout(() => ctl.abort(), 6000);
+    try {
+      const r = await fetch(url, { headers: { Accept: 'application/json', ...(opts && opts.body ? { 'Content-Type': 'application/json' } : {}) }, ...(ctl ? { signal: ctl.signal } : {}), ...opts });
+      return r.ok ? await r.json() : null;
+    } catch (e) {
+      return null;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+  const known = enSet();
+  // newer servers say which language each card is; older ones don't, so ask Scryfall about the ones we haven't seen
+  for (const c of cards) if (c.lang === 'en') known.add(c.id);
+  const unknown = [...new Set(cards.filter((c) => c.lang === undefined && !known.has(c.id) && !c.id.startsWith('gen-')).map((c) => c.id))];
   for (let i = 0; i < unknown.length; i += 75) {
     const body = await sf('https://api.scryfall.com/cards/collection', { method: 'POST', body: JSON.stringify({ identifiers: unknown.slice(i, i + 75).map((id) => ({ id })) }) });
-    for (const x of (body && body.data) || []) if (x.lang === 'en') enImg.set(x.id, null); else for (const c of cards) if (c.id === x.id) c.lang = x.lang;
+    if (!body) return; // offline / Scryfall slow: try again next time
+    for (const x of body.data || []) if (x.lang === 'en') known.add(x.id); else for (const c of cards) if (c.id === x.id) c.lang = x.lang;
   }
+  enSave();
+  let swapped = 0;
   for (const c of cards) {
-    if (!c.lang || c.lang === 'en') continue;
-    let en = enImg.get(c.id);
-    if (en === undefined) {
-      en = (c.set && c.collector_number && (await sf(`https://api.scryfall.com/cards/${encodeURIComponent(c.set)}/${encodeURIComponent(c.collector_number)}/en`))) || null;
-      if (!en || en.lang !== 'en') en = await sf('https://api.scryfall.com/cards/named?exact=' + encodeURIComponent(c.name.split(' // ')[0]));
-      if (en && en.lang !== 'en') en = null;
-      enImg.set(c.id, en);
-    }
-    if (!en) continue;
-    const pick = (u) => (u ? { normal: u.normal, large: u.large } : undefined);
-    if (en.image_uris) c.image_uris = pick(en.image_uris);
-    if (c.card_faces && en.card_faces) c.card_faces.forEach((f, k) => { if (en.card_faces[k] && en.card_faces[k].image_uris) f.image_uris = pick(en.card_faces[k].image_uris); });
+    if (!c.lang || c.lang === 'en' || !DB[c.id]) continue;
+    let en = (c.set && c.collector_number && (await sf(`https://api.scryfall.com/cards/${encodeURIComponent(c.set)}/${encodeURIComponent(c.collector_number)}/en`))) || null;
+    if (!en || en.lang !== 'en') en = await sf('https://api.scryfall.com/cards/named?exact=' + encodeURIComponent(c.name.split(' // ')[0]));
+    if (!en || en.lang !== 'en') continue;
+    const srcFaces = en.card_faces && en.card_faces.length && en.card_faces[0].image_uris ? en.card_faces : [en];
+    DB[c.id].faces.forEach((f, k) => {
+      const u = (srcFaces[k] || srcFaces[0]).image_uris || en.image_uris;
+      if (u) {
+        f.img = u.normal;
+        f.imgLarge = u.large || u.normal;
+      }
+    });
     c.lang = 'en';
+    swapped++;
   }
+  if (swapped) imageHooks.changed();
 }
 
 // Saved decks live on the local server (saved-decks.json).
