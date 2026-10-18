@@ -1798,6 +1798,13 @@ async function activationCopies(pid, src, ab, text, lifePaid) {
       if (!T.payMana || !(await T.payMana(pid, m[2], cardName(x)))) continue;
       log(pid, `${nameTag(x)} copies ${nameTag(src)}'s ability.`);
       n++;
+    } else if ((m = o.match(/Whenever an ability of equipped creature is activated, if it isn't a mana ability, you may pay ((?:\{[^}]+\})+)\. If you do, copy that ability/i))) {
+      // Battlemage's Bracers
+      if (x.attachedTo !== src.iid) continue;
+      if (!(await ask(x, `${cardName(x)}: pay ${m[1]} to copy ${cardName(src)}'s ability?\n${text}`))) continue;
+      if (!T.payMana || !(await T.payMana(pid, m[1], cardName(x)))) continue;
+      log(pid, `${nameTag(x)} copies ${nameTag(src)}'s ability.`);
+      n++;
     } else if (/Whenever you activate an ability that isn't a mana ability, if life was paid to activate it, you may pay that much life again\. If you do, copy that ability/i.test(o)) {
       if (!lifePaid || G.s.players[pid].life <= lifePaid || (ai && G.s.players.ai.life - lifePaid < 15)) continue;
       if (!(await ask(x, `${cardName(x)}: pay ${lifePaid} life again to copy ${cardName(src)}'s ability?`))) continue;

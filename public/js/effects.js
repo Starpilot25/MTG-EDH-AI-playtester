@@ -1011,7 +1011,7 @@ async function pickTargets(env, phrase, opts = {}) {
     const pick = await env.choosers[me].target({
       ...(env.forced ? { forced: true } : {}),
       // damage: say how much (Scourge of Valkas, Warstorm Surge: "deals damage equal to its power")
-      prompt: opts.prompt || `${opts.amount !== undefined ? `Deal ${opts.amount} damage — choose ` : 'Choose '}${count > 1 && count < 99 ? `target ${k + 1} of ${count}` : 'a target'}: ${kind}`,
+      prompt: opts.prompt || `${opts.amount !== undefined ? `Deal ${opts.amount} damage — choose ` : 'Choose '}${count > 1 && count < 99 ? `target ${k + 1} of ${count}` : 'a target'}: ${String(kind).replace(/^(?:up to|any number of) \w+ /, '')}`,
       candidates: left.map((c) => c.iid), players: pl, harm: opts.harm !== undefined ? opts.harm : true, amount: opts.amount, src: env.src, purpose: opts.purpose,
       optional: optional || k > 0 || (!left.length && !pl.length),
     });
@@ -2721,6 +2721,8 @@ on(/^(~|it|he|she|that creature|enchanted creature|equipped creature|target crea
   let to = m[3].replace(/\.$/, '').replace(/, where x is .+$/, '');
   // Batroc the Leaper: "to each of up to X targets"
   to = to.replace(/^each of (up to (?:x|\w+)) targets$/, '$1 any target');
+  if (/^up to x\b/.test(to) && !env.x) return env.did.push('X is 0, so no targets');
+  if (/^up to x\b/.test(to)) to = to.replace(/^up to x\b/, `up to ${env.x}`);
   const divided = /divided as you choose/.test(env.sentence);
   to = to.replace(/ divided as you choose among (.+)$/, ' $1').replace(/^(?:one|any number of) /, '');
   await dealDamage(env, source, amount, to, divided);

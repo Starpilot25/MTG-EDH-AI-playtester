@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.65",
+    "title": "Batroc the Leaper",
+    "notes": [
+      "Batroc the Leaper checked: multikicker asks how many times, he enters with a +1/+1 counter per kick, and his damage goes to up to that many targets (the prompt shows the damage and which target you're on). Cast unkicked, he now quietly does nothing instead of asking you to apply it by hand.",
+      "Battlemage's Bracers: copying an ability of the equipped creature (pay {1}) works."
+    ]
+  },
+  {
     "version": "1.3.64",
     "title": "Stolen-card popup closes",
     "notes": [
