@@ -125,6 +125,12 @@ export function triggersOf(c, defOverride) {
       add('enters', m[3], { other: true, kind: m[2].toLowerCase(), mine: true, nontoken: !!m[1] });
     } else if ((m = line.match(/^When(?:ever)? (another|a|an|one or more|one or more other) (nontoken )?([A-Z][\w-]+s?, (?:[A-Z][\w-]+s?, )*(?:or|and\/or) )([A-Z][\w-]+)s? you control enters?(?: the battlefield)?, (.+)$/))) {
       add('enters', m[5], { other: /another|other/.test(m[1]), kind: kindWords(m[3] + m[4]), mine: true, nontoken: !!m[2], once: /one or more/.test(m[1]) });
+    } else if ((m = line.match(/^Whenever (another|a|an) (nontoken )?((?:[\w-]+ ){0,2}?)(creature|[A-Z][\w-]+) you control enters or dies, (.+)$/i))) {
+      // Daxos, Blessed by the Sun: "Whenever another creature you control enters or dies, you gain 1 life."
+      const other = m[1].toLowerCase() === 'another';
+      const sub = m[4].toLowerCase() === 'creature' ? '' : m[4].toLowerCase();
+      add('enters', m[5], { other, kind: (m[3] + m[4]).toLowerCase().trim(), mine: true, nontoken: !!m[2] });
+      add('dies', m[5], { other, mine: true, nontoken: !!m[2], kind: m[3].trim().toLowerCase() + sub });
     } else if ((m = line.match(/^When(?:ever)? (another|a|an|one or more|one or more other) (nontoken )?((?:[\w-]+ ){0,3}?)(creature|artifact|enchantment|land|permanent|planeswalker|token|[A-Z][\w-]+)s? (?:you control )?(with [^,]+? )?enters?(?: the battlefield)?( under your control| under an opponent's control)?, (.+)$/i))) {
       const theirs = /opponent/.test(m[6] || '');
       const mine = /under your control/.test(m[6] || '') || /you control/i.test(line.split(',')[0]);

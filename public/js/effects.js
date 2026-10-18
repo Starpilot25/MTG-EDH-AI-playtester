@@ -736,6 +736,15 @@ export function evalCond(cond, env) {
   const s = G.s;
   const ts = s.ts || { p: {}, ai: {} };
   let m;
+  // Pelt Collector: "if that creature's power is greater than ~'s" (the creature that entered or died)
+  if ((m = c.match(/^that creature's power is greater than ~'s$/))) {
+    const ev = env.event || {};
+    const t = ev.iid && card(ev.iid);
+    const p = ev.power !== undefined ? ev.power : t ? power(t) : null;
+    const me_ = env.src && card(env.src.iid);
+    if (p === null || !me_) return null;
+    return p > power(me_);
+  }
   // voting: "if sickness gets more votes", "if psychosis gets more votes or the vote is tied"
   if ((m = c.match(/^(.+?) gets more votes( or the vote is tied)?$/))) {
     if (!env.votes) return false; // no vote happened
