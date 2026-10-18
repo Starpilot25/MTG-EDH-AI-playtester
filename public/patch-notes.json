@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.59",
+    "title": "Connive prompt",
+    "notes": [
+      "Connive: the discard prompt now reminds you that each nonland card you discard puts a +1/+1 counter on the conniving creature (a land doesn't)."
+    ]
+  },
+  {
     "version": "1.3.58",
     "title": "Station with several creatures",
     "notes": [

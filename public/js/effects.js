@@ -5267,7 +5267,7 @@ async function connive(c, k, env) {
   const hand = cardsIn(me, 'hand');
   const lands = cardsIn(me, 'battlefield').filter(isLand).length;
   const picks = hand.length ? await env.choosers[me].pickCards({
-    forced: true, prompt: `Connive: discard ${k === 1 ? 'a card' : k + ' cards'}`, cards: hand.map((x) => x.iid), min: Math.min(k, hand.length), max: Math.min(k, hand.length),
+    forced: true, prompt: `Connive: discard ${k === 1 ? 'a card' : k + ' cards'}${c && c.zone === 'battlefield' ? ` — each nonland card discarded puts a +1/+1 counter on ${cardName(c)}` : ''}`, cards: hand.map((x) => x.iid), min: Math.min(k, hand.length), max: Math.min(k, hand.length),
     purpose: 'discard', src: env.src, aiScore: (x) => (isLand(x) ? (lands >= 6 ? 10 : -10) : DB[x.def].cmc - lands),
   }) : [];
   const nonland = picks.filter((i) => !isLand(card(i))).length;
