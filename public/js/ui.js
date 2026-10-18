@@ -1460,9 +1460,10 @@ function pickCardsDialog(req, resolve, reject) {
       }
     });
     const ok = $('#pk-ok', dlg);
-    ok.disabled = chosen.length < min || chosen.length > max;
+    const bad = req.validate ? req.validate([...chosen]) : '';
+    ok.disabled = chosen.length < min || chosen.length > max || !!bad;
     ok.textContent = chosen.length ? `Choose ${chosen.length}` : min === 0 ? 'Choose none' : 'Choose';
-    $('#pk-n', dlg).textContent = max > 1 ? `Pick ${min === max ? max : `up to ${max}`}. Identical cards are stacked: click a stack again (or use +) to take another copy.` : '';
+    $('#pk-n', dlg).textContent = bad || (max > 1 ? `Pick ${min === max ? max : `up to ${max}`}. Identical cards are stacked: click a stack again (or use +) to take another copy.` : '');
   };
   dlg.addEventListener('click', (e) => {
     const b = e.target.closest('[data-group]');

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.53",
+    "title": "Myriad Landscape",
+    "notes": [
+      "Myriad Landscape: you pick both lands in one screen. The choice must share a land type: picking a Forest and an Island greys out the button and says why; two Forests (or two of any one type) is fine."
+    ]
+  },
+  {
     "version": "1.3.52",
     "title": "Memory Guardian, Mazemind Tome, Rhox Faithmender, Duplicant",
     "notes": [

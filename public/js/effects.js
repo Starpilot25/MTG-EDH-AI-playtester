@@ -6912,19 +6912,23 @@ async function fetchLands(t, me, choose, src, did, env) {
   const share = /that share a land type/.test(t) && count > 1;
   const BASICS = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'];
   const ltypes = (c) => BASICS.filter((b) => new RegExp('\\b' + b + '\\b').test(DB[c.def].typeLine || ''));
+  const sharesType = (ids) => {
+    if (ids.length < 2) return true;
+    const common = ltypes(card(ids[0])).filter((y) => ids.every((i) => ltypes(card(i)).includes(y)));
+    return common.length > 0;
+  };
   let picks = await choose.pickCards({
-    prompt: share ? `Search your library for a ${basic ? 'basic ' : ''}land card (the others must share a land type with it)` : `Search your library for ${count > 1 ? 'up to ' + count : 'a'} ${basic ? 'basic ' : ''}${types.length ? types.join(' or ') : 'land'} card${count > 1 ? 's' : ''}`,
-    cards: cands.map((c) => c.iid), min: 0, max: share ? 1 : Math.min(count, cands.length), purpose: 'land', src,
+    prompt: `Search your library for ${count > 1 ? 'up to ' + count : 'a'} ${basic ? 'basic ' : ''}${types.length ? types.join(' or ') : 'land'} card${count > 1 ? 's' : ''}${share ? ' that share a land type' : ''}`,
+    cards: cands.map((c) => c.iid), min: 0, max: Math.min(count, cands.length), purpose: 'land', src,
+    // Myriad Landscape: pick both at once; the choice has to share a land type
+    ...(share ? { validate: (ids) => (sharesType(ids) ? '' : 'These must share a land type (for example two Forests).') } : {}),
     aiScore: (c) => (me === 'ai' ? aiHelpers.landScore(c) + (share ? cands.filter((x) => ltypes(x).some((y) => ltypes(c).includes(y))).length / 10 : 0) : 0),
   });
-  // Myriad Landscape: "up to two basic land cards that share a land type"
-  if (share && picks.length) {
+  if (share && picks.length > 1 && !sharesType(picks)) {
+    // the AI's pick (or an old dialog) didn't share a type: keep the first and the ones that match it
     const ty = ltypes(card(picks[0]));
-    const more = cands.filter((c) => c.iid !== picks[0] && ltypes(c).some((y) => ty.includes(y)));
-    if (more.length) {
-      const extra = await choose.pickCards({ prompt: `Search for up to ${count - 1} more ${ty.join('/')} card${count > 2 ? 's' : ''}`, cards: more.map((c) => c.iid), min: 0, max: Math.min(count - 1, more.length), purpose: 'land', src, aiScore: () => 1 });
-      picks = [...picks, ...extra];
-    }
+    const rest = cands.filter((c) => c.iid !== picks[0] && ltypes(c).some((y) => ty.includes(y))).map((c) => c.iid);
+    picks = [picks[0], ...rest.slice(0, count - 1)];
   }
   const onlyOneToField = /the other into your hand|put one onto the battlefield/.test(t);
   const toField = /onto the battlefield/.test(t);
