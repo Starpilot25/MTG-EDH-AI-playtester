@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.69",
+    "title": "Proliferate players, Select all, energy",
+    "notes": [
+      "Proliferate: the menu now shows players who have counters (poison, energy, experience, rad, tickets) so you can pick them too, and it works even when no permanent has counters.",
+      "Multi-pick menus have a \"Select all\" button (and \"Clear all\" once everything is picked).",
+      "Energy {E}: \"draw a card and you get {E}{E}\" (Rogue Refiner) no longer loses the energy; \"you get six {E}\", \"that many {E}\", \"{E} for each creature you control\" and \"an amount of {E} equal to …\" all work.",
+      "Paying energy inside effects works: \"you may pay {E}{E}{E}\" (Sentry Bot) really spends it, and \"pay any amount / one or more {E}\" (Harnessed Lightning, Territorial Aetherkite, Wrath of the Skies, Aether Spike) asks how much.",
+      "\"Whenever you get one or more {E}\" triggers work (Territorial Gorger, Aether Revolt, Fabrication Module).",
+      "Aether Hub and Servant of the Conduit only make colored mana when you have energy, and spend it when they do. \"Pay six {E}\" costs six, not one."
+    ]
+  },
+  {
     "version": "1.3.68",
     "title": "Tesak, Judith's Hellhound",
     "notes": [

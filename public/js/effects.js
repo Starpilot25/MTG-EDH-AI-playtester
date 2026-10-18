@@ -229,7 +229,7 @@ export function activatedAbilities(c) {
       removeCounters: cost.match(/Remove (a|an|one|two|three|\d+|X) (?:([+-]\d+\/[+-]\d+|\w+) )?counters? from ~/i), // no kind: any counters (Ghost-Spider)
       putCounters: cost.match(/Put (a|an|one|two|three|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on ~/i), // Mazemind Tome: "Put a page counter on ~"
       payLife: (cost.match(/Pay (\d+) life/i) || [])[1] || (/Pay life equal to the number of colors in your commanders?'? color identity/i.test(cost) ? 'identity' : undefined),
-      payEnergy: (cost.match(/\{E\}/g) || []).length,
+      payEnergy: (cost.match(/Pay (\w+) \{E\}/i) && WORDNUM[cost.match(/Pay (\w+) \{E\}/i)[1].toLowerCase()]) || (cost.match(/Pay (\d+) \{E\}/i) || [])[1] * 1 || (cost.match(/\{E\}/g) || []).length, // "Pay six {E}"
       exileFromGy: cost.match(/Exile (a|two|three|\d+|X) (?:other )?(?:([a-z]+) )?cards? from your graveyard/i),
       collectEvidence: (cost.match(/Collect evidence (\d+)/i) || [])[1],
       forage: /Forage/i.test(cost),
@@ -3815,6 +3815,7 @@ on(/^(?:you|target player|each player|that player) (?:gets?|get) (a|an|one|two|t
     const pid = pid0;
     // Lae'zel: "… or on yourself, put that many plus one"
     const kk = k + (pid === env.me && k > 0 ? repl('playerCounterPlusOne', pid) || 0 : 0);
+    if (kind === 'energy') { gainEnergy(pid, k, env); continue; }
     if (kind === 'poison') G.s.players[pid].poison += kk;
     else G.s.players[pid].counters[kind] = (G.s.players[pid].counters[kind] || 0) + kk;
     env.did.push(`${who(pid)} ${s_(pid, 'get')} ${kk} ${kind === 'energy' ? 'energy' : kind + ' counter' + (kk === 1 ? '' : 's')}`);
@@ -4063,28 +4064,111 @@ on(/^double the number of ([+-]\d+\/[+-]\d+|[a-z]+|each kind of) counters on (.+
 });
 on(/^proliferate(?: (twice|thrice|\w+ times))?/, async (m, env) => {
   const times = !m[1] ? 1 : m[1] === 'twice' ? 2 : m[1] === 'thrice' ? 3 : n(m[1].replace(/ times$/, '')) || 1;
+  const PNAME = { poison: 'poison', energy: 'energy', experience: 'experience', rad: 'rad', ticket: 'ticket' };
+  // a player's counters: poison lives on the player, the rest in .counters
+  const pCounters = (pid) => {
+    const P = G.s.players[pid];
+    const out = {};
+    if (P.poison > 0) out.poison = P.poison;
+    for (const [k, v] of Object.entries(P.counters || {})) if (v > 0 && PNAME[k]) out[k] = v;
+    return out;
+  };
   for (let t = 0; t < times; t++) {
-    const perms = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((c) => Object.keys(c.counters || {}).length);
-    const picks = perms.length ? await env.choosers[env.me].pickCards({
-      prompt: 'Proliferate: choose permanents to get one more of each counter they have', cards: perms.map((c) => c.iid), min: 0, max: perms.length,
+    const perms = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((c) => Object.values(c.counters || {}).some((v) => v > 0));
+    const players = ['p', 'ai'].filter((pid) => Object.keys(pCounters(pid)).length).map((pid) => ({
+      key: 'player:' + pid,
+      label: pid === 'p' ? 'You' : 'The AI',
+      sub: Object.entries(pCounters(pid)).map(([k, v]) => `${v} ${PNAME[k]}`).join('\n'),
+    }));
+    const total = perms.length + players.length;
+    const picks = total ? await env.choosers[env.me].pickCards({
+      prompt: 'Proliferate: choose permanents and/or players to get one more of each kind of counter they already have', cards: perms.map((c) => c.iid), players, min: 0, max: total,
       purpose: 'proliferate', src: env.src, forced: env.forced,
       aiScore: (c) => {
         const good = (c.counters['+1/+1'] || 0) + (c.counters.loyalty || 0) + (c.counters.lore || 0) * 0.1;
         const bad = (c.counters['-1/-1'] || 0) + (c.counters.stun || 0);
         return c.controller === env.me ? good - bad : bad - good;
       },
+      aiPlayerScore: (key) => {
+        const pid = key.slice(7);
+        const cs = pCounters(pid);
+        // poison and rad hurt whoever has them; energy, experience and tickets help
+        const good = (cs.energy ? 1 : 0) + (cs.experience ? 1 : 0) + (cs.ticket ? 1 : 0);
+        const bad = (cs.poison ? 2 : 0) + (cs.rad ? 1 : 0);
+        return pid === env.me ? good - bad : bad - good;
+      },
     }) : [];
+    const gotP = [];
     for (const i of picks) {
+      if (typeof i === 'string' && i.startsWith('player:')) {
+        const pid = i.slice(7);
+        const P = G.s.players[pid];
+        if (P.poison > 0) P.poison++;
+        for (const k of Object.keys(P.counters || {})) if (P.counters[k] > 0 && PNAME[k]) P.counters[k]++;
+        gotP.push(who(pid));
+        continue;
+      }
       const c = card(i);
+      if (!c) continue;
       if (env.me === 'ai' && ((c.controller === 'ai' && !c.counters['+1/+1'] && !c.counters.loyalty) || (c.controller === 'p' && !c.counters['-1/-1'] && !c.counters.stun))) continue;
-      for (const k of Object.keys(c.counters)) addCounters(c, k, 1);
+      for (const k of Object.keys(c.counters)) if (c.counters[k] > 0) addCounters(c, k, 1);
     }
-    const o = opp(env.me);
-    if (G.s.players[o].poison > 0) G.s.players[o].poison++;
-    for (const k of ['energy', 'experience']) if (G.s.players[env.me].counters[k] > 0) G.s.players[env.me].counters[k]++;
-    env.did.push(`proliferates (${picks.length} permanent${picks.length === 1 ? '' : 's'}${G.s.players[o].poison ? ', poison' : ''})`);
+    const nP = picks.length - gotP.length;
+    env.did.push(`proliferates (${nP} permanent${nP === 1 ? '' : 's'}${gotP.length ? ', and ' + gotP.join(' and ') : ''})`);
   }
 });
+// ---- energy {E}
+// one place that hands out energy, so "Whenever you get one or more {E}" triggers fire
+export function gainEnergy(pid, k, env) {
+  if (!(k > 0)) return 0;
+  const kk = k + (repl('playerCounterPlusOne', pid) || 0);
+  G.s.players[pid].counters.energy = (G.s.players[pid].counters.energy || 0) + kk;
+  queueEvent({ type: 'energyGained', pid, amount: kk, yourTurn: G.s.active === pid });
+  if (env) env.did.push(`${who(pid)} ${s_(pid, 'get')} ${kk} energy`);
+  return kk;
+}
+// "you get {E}{E}", "you get six {E}", "you get that many {E}", "you get an amount of {E} equal to …", "you get {E} for each …"
+on(/^(?:then )?(?:you )?get (that many \{e\}|an amount of \{e\} equal to (.+)|((?:\{e\})+) for each (.+)|(\w+) \{e\}|(?:\{e\})+)$/, async (m, env) => {
+  const w = m[1];
+  let k;
+  if (/^that many/.test(w)) k = env.lastAmount || env.thatMuch || 0;
+  else if (m[2]) k = amountOf('equal to ' + m[2].replace(/^~'s/, "~'s"), env);
+  else if (m[4]) k = (m[3].match(/\{e\}/g) || []).length * Math.max(0, countPhrase(env.me, m[4], helpers, env.src && env.src.iid) || 0);
+  else if (m[5]) k = n(m[5], env.x);
+  else k = (w.match(/\{e\}/g) || []).length;
+  if (!k) return env.did.push(`${who(env.me)} ${s_(env.me, 'get')} no energy`);
+  gainEnergy(env.me, k, env);
+}, { first: true });
+// "you may pay {E}{E}{E}", "pay eight {E}", "pay one or more {E}", "pay any amount of {E}", "pay an amount of {E} equal to that permanent's mana value"
+on(/^(?:then )?(?:you may )?pay (any amount of \{e\}|one or more \{e\}|an amount of \{e\} equal to (.+)|(\w+) \{e\}|(?:\{e\})+)$/, async (m, env) => {
+  const have = G.s.players[env.me].counters.energy || 0;
+  const may = /\bmay\b/.test(env.sentence || m[0]);
+  const w = m[1];
+  env.lastMay = false;
+  env.energyPaid = 0;
+  let k;
+  if (/^any amount|^one or more/.test(w)) {
+    const min = /^one or more/.test(w) ? 1 : 0;
+    if (have < Math.max(min, 1)) return env.did.push('has no energy to pay');
+    // AI: enough to kill "that creature" when that's the point, otherwise all of it
+    const it = env.it && env.it.iid && card(env.it.iid);
+    const rest = (env.text || '').slice((env.text || '').indexOf(w));
+    let aiK = have;
+    if (it && it.zone === 'battlefield' && isCreature(it) && /damage to that creature/.test(rest)) aiK = Math.min(have, Math.max(1, toughness(it) - (it.damage || 0)));
+    k = await env.choosers[env.me].chooseNumber({ prompt: `${cardName(env.src)}: pay how much energy? (you have ${have})`, min, max: have, ai: aiK });
+    k = Math.max(0, Math.min(have, +k || 0));
+    if (k < min || !k) return env.did.push('pays no energy');
+  } else {
+    k = m[2] ? amountOf('equal to ' + m[2], env) : m[3] ? n(m[3], env.x) : (w.match(/\{e\}/g) || []).length;
+    if (have < k) return env.did.push(`can't pay ${k} energy (has ${have})`);
+    if (may && !(await env.choosers[env.me].confirm(cardName(env.src), `Pay ${k} energy? (you have ${have})`, env))) return env.did.push('pays no energy');
+  }
+  G.s.players[env.me].counters.energy -= k;
+  if (G.s.ts && G.s.ts[env.me]) G.s.ts[env.me].energyPaid = (G.s.ts[env.me].energyPaid || 0) + k;
+  env.lastMay = true;
+  env.lastAmount = env.thatMuch = env.energyPaid = k;
+  env.did.push(`pays ${k} energy`);
+}, { first: true });
 on(/^bolster (\w+)/, async (m, env) => {
   const cs = cardsIn(env.me, 'battlefield').filter(isCreature).sort((a, b) => toughness(a) - toughness(b));
   if (!cs.length) return;
@@ -4767,7 +4851,7 @@ on(/^sacrifice ((?:an? [a-z]+, )+and an? [a-z]+)$/, async (m, env) => {
 
 on.first = true; // the handlers below are specific and take priority over the general ones
 // --- mana payments inside effects: "You may pay {2}. If you do, …"
-on(/^pay ((?:\{[^}]+\})+)$/, async (m, env) => {
+on(/^pay (?!\{e\})((?:\{[^}]+\})+)$/, async (m, env) => {
   const { T } = await import('./triggers.js');
   const paid = T.payMana ? await T.payMana(env.me, m[1], cardName(env.src)) : false;
   env.lastMay = !!paid;
@@ -6650,8 +6734,13 @@ on(/^put the exiled card into its owner's hand$/, async (m, env) => {
 }, { first: true });
 
 async function runSentence(sentence, env) {
-  let s = sentence.trim().replace(/\.$/, '').replace(/^then,? /i, '');
+  let s = sentence.trim().replace(/\s{2,}/g, ' ').replace(/ ([.,])/g, '$1').replace(/\.$/, '').replace(/^then,? /i, '');
   // Marvel/Spider-Man cards name their creature "he"/"she": "He gets +1/+0 until end of turn"
+  // energy paid earlier in this ability: "the amount of {E} paid this way", "{1} for each {E} paid this way"
+  if (env.energyPaid != null && /\{e\} paid this way/i.test(s)) {
+    const k = env.energyPaid;
+    s = s.replace(/\{1\} for each \{e\} paid this way/i, `{${k}}`).replace(/(?:to )?the amount of \{e\} paid this way/gi, (x) => (/^to /i.test(x) ? 'to ' : '') + k);
+  }
   s = s.replace(/^(?:he|she) (?=gets|gains|has|can't|connives|fights|explores|becomes|loses|attacks|blocks|isn't)/i, 'it ');
   // Brass's Bounty: "For each land you control, create a Treasure token." → "create a Treasure token for each land you control"
   s = s.replace(/^for each ([^,]+), create (a|an|one|two|three) (.+? tokens?)$/i, 'create $2 $3 for each $1');
@@ -6837,7 +6926,7 @@ async function runSentence(sentence, env) {
   }
   // "Discard a card and sacrifice a creature": two actions joined by "and"
   if (!coveredByOne(low)) {
-    const am = s.match(/^(.+?),? and (sacrifice|discard|draw|mill|scry|surveil|create|exile|destroy|return|put|tap|untap|shuffle|you gain|you lose|lose \d+ life|gain \d+ life|investigate|proliferate|it can't|~ can't|it gains|~ gains|it gets|~ gets|it deals|~ deals|it becomes|~ becomes)\b(.*)$/i);
+    const am = s.match(/^(.+?),? and (sacrifice|discard|draw|mill|scry|surveil|create|exile|destroy|return|put|tap|untap|shuffle|you gain|you lose|lose \d+ life|gain \d+ life|investigate|proliferate|you get|it can't|~ can't|it gains|~ gains|it gets|~ gets|it deals|~ deals|it becomes|~ becomes)\b(.*)$/i);
     if (am && handled(am[1].toLowerCase()) && handled((am[2] + am[3]).toLowerCase())) {
       await runSentence(am[1], env);
       await runSentence(am[2] + am[3], env);

@@ -1443,9 +1443,16 @@ function pickCardsDialog(req, resolve, reject) {
     ${groups.length > 10 ? '<input class="filter" id="pk-filter" placeholder="Filter by name or type…" autocomplete="off">' : ''}
     <div class="zv-grid pick">${groups
       .map((g, k) => `<button class="zv-item" data-group="${k}">${cardHTML(card(g.ids[0]), { small: true, count: g.ids.length })}<span>${esc(cardName(card(g.ids[0])))}</span><b class="pk-sel" hidden></b>${max > 1 && g.ids.length > 1 ? `<span class="pk-step"><i data-step="-1" title="One fewer">−</i><i data-step="1" title="One more">+</i></span>` : ''}</button>`)
+      .join('')}${(req.players || [])
+      .map((pl) => `<button class="zv-item pk-player" data-player="${esc(pl.key)}"><span class="pk-ptile"><b>👤</b>${pl.sub ? `<small>${esc(pl.sub)}</small>` : ''}</span><span>${esc(pl.label)}</span></button>`)
       .join('')}</div>
-    <div class="btns"><button class="primary" id="pk-ok"></button>${req.forced || T.inTrigger > 0 ? '' : '<button id="pk-cancel">Cancel spell</button>'}<span class="hint" id="pk-n"></span></div>`,
+    <div class="btns"><button class="primary" id="pk-ok"></button>${max > 1 && req.cards.length + (req.players || []).length > 1 ? '<button id="pk-all">Select all</button>' : ''}${req.forced || T.inTrigger > 0 ? '' : '<button id="pk-cancel">Cancel spell</button>'}<span class="hint" id="pk-n"></span></div>`,
     { wide: true, noClose: true });
+  // every pickable id that's currently visible (filter applied), cards first then players
+  const allIds = () => [
+    ...groups.filter((g, k) => !$(`[data-group="${k}"]`, dlg)?.hidden).flatMap((g) => g.ids),
+    ...(req.players || []).map((p) => p.key),
+  ];
   const sync = () => {
     $$('[data-group]', dlg).forEach((b) => {
       const g = groups[+b.dataset.group];
@@ -1460,6 +1467,9 @@ function pickCardsDialog(req, resolve, reject) {
         $('[data-step="1"]', st).classList.toggle('off', k >= g.ids.length || chosen.length >= max);
       }
     });
+    $$('[data-player]', dlg).forEach((b) => b.classList.toggle('on', chosen.includes(b.dataset.player)));
+    const all = $('#pk-all', dlg);
+    if (all) all.textContent = allIds().every((i) => chosen.includes(i)) || chosen.length >= max ? 'Clear all' : 'Select all';
     const ok = $('#pk-ok', dlg);
     const bad = req.validate ? req.validate([...chosen]) : '';
     ok.disabled = chosen.length < min || chosen.length > max || !!bad;
@@ -1467,6 +1477,26 @@ function pickCardsDialog(req, resolve, reject) {
     $('#pk-n', dlg).textContent = bad || (req.summary ? req.summary([...chosen]) : '') || (max > 1 ? `Pick ${min === max ? max : `up to ${max}`}. Identical cards are stacked: click a stack again (or use +) to take another copy.` : '');
   };
   dlg.addEventListener('click', (e) => {
+    if (e.target.closest('#pk-all')) {
+      // Select all (up to the maximum), or clear everything if it's already full
+      e.stopPropagation();
+      const ids = allIds();
+      if (ids.every((i) => chosen.includes(i)) || chosen.length >= max) chosen.length = 0;
+      else for (const i of ids) if (chosen.length < max && !chosen.includes(i)) chosen.push(i);
+      sync();
+      return;
+    }
+    const pb = e.target.closest('[data-player]');
+    if (pb) {
+      e.stopPropagation();
+      const key = pb.dataset.player;
+      if (chosen.includes(key)) chosen.splice(chosen.indexOf(key), 1);
+      else if (max === 1) { chosen.length = 0; chosen.push(key); }
+      else if (chosen.length < max) chosen.push(key);
+      else toast(`You can choose at most ${max}.`);
+      sync();
+      return;
+    }
     const b = e.target.closest('[data-group]');
     if (!b) return;
     e.stopPropagation();
@@ -1845,6 +1875,11 @@ async function floatMana(c) {
     log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${poolSym(x).col}}`).join(''))}${m.onlyFor ? ` (only for ${m.onlyFor === 'abilities' ? 'abilities' : m.onlyFor === 'artifactOrAbility' ? 'artifact spells and abilities' : m.onlyFor === 'fromExile' ? 'spells cast from exile' : m.onlyFor + ' spells' + (m.abilitiesOf ? ' or abilities' : '')})` : ''}.`);
     if (m.sac && hasSubtype(c, 'Treasure')) G.s.treasurePool = { pid: 'p', turn: G.s.turn }; // Rain of Riches
     if (m.sac) sacrifice(c.iid);
+    if (m.energy && m.energy.length && syms.some((x) => m.energy.includes(poolSym(x).col) || poolSym(x).col === 'ANY')) {
+      G.s.players.p.counters.energy = Math.max(0, (G.s.players.p.counters.energy || 0) - (m.energyNeed || 1));
+      if (G.s.ts && G.s.ts.p) G.s.ts.p.energyPaid = (G.s.ts.p.energyPaid || 0) + (m.energyNeed || 1);
+      log('p', `${nameTag(c)}: you pay ${m.energyNeed || 1} energy.`);
+    }
     if (m.pain && syms.some((x) => m.pain.includes(x))) {
       changeLife('p', -1, false);
       log('p', `${nameTag(c)} costs you 1 life.`);

@@ -721,6 +721,28 @@ export function manaAbility(inst) {
     if (abilitiesGone(inst)) return null;
   }
   let r = manaAbilityRaw(inst);
+  // Aether Hub, Servant of the Conduit: "{T}, Pay {E}: Add one mana of any color." — only with energy to spend
+  {
+    const o0 = oracle(inst);
+    const em = o0.match(/\{T\}, Pay ((?:\{E\})+): Add ([^.\n]+)\./);
+    if (em && !inst.tapped && !inst.phasedOut && !(isCreature(inst) && inst.sick && !hasKw(inst, 'haste'))) {
+      const need = em[1].match(/\{E\}/g).length;
+      const have = G.s && G.s.players[inst.controller] ? G.s.players[inst.controller].counters.energy || 0 : 0;
+      const symsOf = (t) => (/mana of any color/i.test(t) ? ['W', 'U', 'B', 'R', 'G'] : (t.match(/\{[WUBRGC]\}/g) || []).map((x) => x[1]));
+      const free = new Set();
+      for (const fm of o0.matchAll(/(?:^|\n)\{T\}: Add ([^.\n]+)\./g)) symsOf(fm[1]).forEach((x) => free.add(x));
+      const eCols = symsOf(em[2]);
+      if (have < need) {
+        // no energy: only what its free ability makes
+        if (!free.size) return null;
+        r = r ? { ...r, colors: (r.colors || []).filter((x) => free.has(x)) } : { colors: [...free], amount: 1 };
+        if (!r.colors.length) r = { ...r, colors: [...free] };
+      } else {
+        const all = [...new Set([...free, ...eCols])];
+        r = { ...(r || { amount: 1 }), colors: all, amount: 1, energy: eCols.filter((x) => !free.has(x)), energyNeed: need };
+      }
+    }
+  }
   if (!r) return r;
   // Forsaken Monument: "Whenever you tap a permanent for {C}, add an additional {C}."
   if (G.s && inst.zone === 'battlefield' && (r.colors || []).length === 1 && r.colors[0] === 'C') {
@@ -1119,7 +1141,7 @@ function payCostRaw(cost, sources, opts = {}) {
   const units = [];
   for (const s of sources) {
     if (s.each) for (const col of s.each) units.push({ iid: s.iid, colors: [col], sac: !!s.sac, kind: s.kind || '', act: !!s.activation, multi: true });
-    else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '', pain: s.pain || null, multi: s.amount > 1, restricted: !!s.restricted });
+    else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '', pain: s.pain || null, energy: s.energy || null, energyNeed: s.energyNeed || 0, multi: s.amount > 1, restricted: !!s.restricted });
   }
   // quick no: not enough mana at all, or a color nobody makes
   if (units.length < c.pips.length + c.generic + extra + (opts.minX || 0) * c.x) return null;
@@ -1127,6 +1149,9 @@ function payCostRaw(cost, sources, opts = {}) {
   const pains = [];
   const ALL = ['C', 'W', 'U', 'B', 'R', 'G'];
   const hurts = (u, want) => !!(u.pain && u.pain.length && !u.colors.some((col) => want.includes(col) && !u.pain.includes(col)));
+  // energy-powered mana (Aether Hub's colored mana, Servant of the Conduit): which units have to spend {E}
+  const energies = [];
+  const needsE = (u, want) => !!(u.energy && u.energy.length && !u.colors.some((col) => want.includes(col) && !u.energy.includes(col)));
   const cardOf = (iid) => (G.s && !String(iid).startsWith('pool:') ? G.s.cards[iid] : null);
   // colors the controller still needs for other cards in hand (keep those sources for later)
   const owner = (units.map((u) => cardOf(u.iid)).find(Boolean) || {}).controller;
@@ -1174,6 +1199,7 @@ function payCostRaw(cost, sources, opts = {}) {
     if (tapped.has(u.iid) && u.multi) return -50; // the source already made this mana
     let v = baseCost(u);
     if (want && hurts(u, want)) v += 12;
+    if (want && needsE(u, want)) v += 8;
     return v;
   };
   // --- colored pips: search for the cheapest assignment
@@ -1223,13 +1249,14 @@ function payCostRaw(cost, sources, opts = {}) {
     tappedSet.add(units[k].iid);
     paidAs.set(units[k].iid, units[k].colors.find((col) => pips[pi].includes(col)));
     if (hurts(units[k], pips[pi].filter((p) => p !== '2GEN'))) pains.push(units[k].iid);
+    if (needsE(units[k], pips[pi].filter((p) => p !== '2GEN'))) energies.push({ iid: units[k].iid, n: units[k].energyNeed || 1 });
   });
   // --- generic (and snow/any pips), then X
   const remaining = new Set(units.map((u, k) => k).filter((k) => !finalUsed[k]));
   const genericCost = (k) => {
     const u = units[k];
     if (tappedSet.has(u.iid) && u.multi) return -50;
-    let v = baseCost(u) + (hurts(u, ALL) ? 12 : 0);
+    let v = baseCost(u) + (hurts(u, ALL) ? 12 : 0) + (needsE(u, ALL) ? 8 : 0);
     // keep colors that the rest of the hand needs and are in short supply
     for (const col of u.colors) if (col !== 'C' && need[col]) v += Math.min(3, need[col] / Math.max(1, supply[col])) / u.colors.length;
     return v;
@@ -1252,6 +1279,7 @@ function payCostRaw(cost, sources, opts = {}) {
     finalUsed[bk] = true;
     tappedSet.add(units[bk].iid);
     if (hurts(units[bk], ALL)) pains.push(units[bk].iid);
+    if (needsE(units[bk], ALL)) energies.push({ iid: units[bk].iid, n: units[bk].energyNeed || 1 });
     for (const col of units[bk].colors) supply[col] = Math.max(0, (supply[col] || 0) - 1);
     return bk;
   };
@@ -1290,7 +1318,7 @@ function payCostRaw(cost, sources, opts = {}) {
     const spent = units.find((v, j) => finalUsed[j] && v.iid === u.iid);
     leftover.push(paidAs.get(u.iid) || (spent && spent.colors.length === 1 ? spent.colors[0] : 'ANY'));
   });
-  return { payers, x, sacs: [...new Set(sacs)], special, pains: [...new Set(pains)], unitsUsed, genericUnits, leftover };
+  return { payers, x, sacs: [...new Set(sacs)], special, pains: [...new Set(pains)], energies, unitsUsed, genericUnits, leftover };
 }
 
 export function totalMana(sources) {

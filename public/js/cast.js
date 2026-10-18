@@ -69,7 +69,7 @@ export function manaSources(pid, opts = {}) {
     const alt = (m.alts || []).filter((a) => restrictedOk(a.onlyFor, a.abilitiesOf, spell, opts)).sort((a, b) => b.amount - a.amount)[0];
     if (alt && alt.amount > m.amount) m = { ...m, ...alt };
     if (!restrictedOk(m.onlyFor, m.abilitiesOf, spell, opts)) continue;
-    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, activation: m.activation || 0, restricted: !!m.onlyFor });
+    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, energy: m.energy, energyNeed: m.energyNeed, activation: m.activation || 0, restricted: !!m.onlyFor });
   }
   // Waterbend: untapped artifacts and creatures can each pay {1} of the waterbend cost
   if (opts.waterbend)
@@ -122,6 +122,16 @@ export function applyPayment(pid, pay) {
   if (usedPool.length && tp && tp.pid === pid && tp.turn === G.s.turn) G.s.treasureSpent = { pid, turn: G.s.turn };
   if ((pay.sacs || []).some((iid) => card(iid) && hasSubtype(card(iid), 'Treasure'))) G.s.treasureSpent = { pid, turn: G.s.turn };
   for (const iid of pay.sacs || []) if (card(iid) && card(iid).zone === 'battlefield') sacrifice(iid);
+  // Aether Hub / Servant of the Conduit: the energy their colored mana cost
+  const eUsed = new Map();
+  for (const e of pay.energies || []) if (card(e.iid) && !eUsed.has(e.iid)) eUsed.set(e.iid, e.n);
+  if (eUsed.size) {
+    const P = G.s.players[pid];
+    const tot = Math.min(P.counters.energy || 0, [...eUsed.values()].reduce((a, b) => a + b, 0));
+    P.counters.energy -= tot;
+    if (G.s.ts && G.s.ts[pid]) G.s.ts[pid].energyPaid = (G.s.ts[pid].energyPaid || 0) + tot;
+    log(pid, `${[...eUsed.keys()].map((i) => nameTag(card(i))).join(', ')} ${pid === 'p' ? 'use' : 'uses'} ${tot} energy.`);
+  }
   // pain lands and friends: 1 damage (or life) for each colored mana they made
   const hurt = (pay.pains || []).filter((i) => card(i));
   if (hurt.length) {
@@ -1176,9 +1186,10 @@ export async function payOtherCost(pid, text, src, env) {
       continue;
     }
     if ((m = p.match(/^pay (\{e\}(?:\{e\})*|(\w+) \{e\})$/))) {
-      const k = (p.match(/\{e\}/g) || []).length;
+      const k = m[2] ? ({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[m[2]] || +m[2] || 1) : (p.match(/\{e\}/g) || []).length;
       if (G.s.players[pid].counters.energy < k) return false;
       G.s.players[pid].counters.energy -= k;
+      if (G.s.ts && G.s.ts[pid]) G.s.ts[pid].energyPaid = (G.s.ts[pid].energyPaid || 0) + k;
       continue;
     }
     if ((m = p.match(/^exile (a|an|one|two|three|four|five|six|seven|eight|\d+|x) (?:other )?(?:([a-z]+) )?cards? from your graveyard$/))) {
@@ -1776,7 +1787,7 @@ export async function activateAbility(pid, c, ab, env) {
   }
   if (ab.untap) c.tapped = false;
   if (ab.payLife && lifeCost) changeLife(pid, -lifeCost);
-  if (ab.payEnergy) s.players[pid].counters.energy -= ab.payEnergy;
+  if (ab.payEnergy) { s.players[pid].counters.energy -= ab.payEnergy; if (s.ts && s.ts[pid]) s.ts[pid].energyPaid = (s.ts[pid].energyPaid || 0) + ab.payEnergy; }
   if (ab.removeCounters) {
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
     if (ab.removeCounters[2]) c.counters[ab.removeCounters[2].toLowerCase()] -= k;

@@ -194,6 +194,8 @@ export const aiChooser = {
       picks.push(c.iid);
     }
     while (picks.length < (req.min || 0) && list.length > picks.length) picks.push(list.find((c) => !picks.includes(c.iid)).iid);
+    // player options (proliferate onto a player's poison/energy): take the ones worth it
+    for (const pl of req.players || []) if (picks.length < req.max && (req.aiPlayerScore ? req.aiPlayerScore(pl.key) : 0) > 0) picks.push(pl.key);
     return picks;
   },
   // scry / surveil: keep what it can use soon on top, bottom (or bin) the rest

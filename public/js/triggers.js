@@ -344,6 +344,9 @@ export function triggersOf(c, defOverride) {
       add('discard', m[3], { who: m[1].toLowerCase(), kind: m[2].trim() });
     else if ((m = line.match(/^Whenever you cycle(?: or discard)? (?:a|another) card, (.+)$/i)) || (m = line.match(/^When you cycle ~, (.+)$/i)))
       add('cycle', m[1], { self: /When you cycle ~/i.test(line) });
+    else if ((m = line.match(/^Whenever you get (one|two|three|four|five|\d+) or more \{E\}\s*(?:\([^)]*\))?\s*( during your turn)?\s*, (.+)$/i)) || (m = line.match(/^Whenever you get (\{E\})\s*(?:\([^)]*\))?\s*( during your turn)?\s*, (.+)$/i)))
+      // Territorial Gorger, Aether Revolt, Brotherhood Scribe: "Whenever you get one or more {E}"
+      add('energyGained', m[3], { min: { one: 1, two: 2, three: 3, four: 4, five: 5 }[m[1].toLowerCase()] || +m[1] || 1, yourTurn: !!m[2] });
     else if ((m = line.match(/^Whenever (you|an opponent) gains? life( for the first time each turn)?, (.+)$/i)))
       add('lifeGained', m[3], { who: m[1].toLowerCase(), ...(m[2] ? { oncePerTurn: true } : {}) });
     else if ((m = line.match(/^Whenever (you|an opponent|a player) loses? life(?: during your turn)?, (.+)$/i)))
@@ -1242,6 +1245,9 @@ function matches(ev) {
       each((c, trig) => trig.event === 'cycle' && !trig.self && (trig.anyPlayer || (trig.oppOnly ? c.controller !== ev.pid : c.controller === ev.pid)) && out.push({ src: c, trig, thatPlayer: ev.pid }));
       break;
     }
+    case 'energyGained':
+      each((c, trig) => trig.event === 'energyGained' && c.controller === ev.pid && ev.amount >= (trig.min || 1) && (!trig.yourTurn || ev.yourTurn) && out.push({ src: c, trig, amount: ev.amount }));
+      break;
     case 'lifeGained':
     case 'lifeLost':
       each((c, trig) => trig.event === ev.type && whoOk(trig.who, c, ev.pid) && out.push({ src: c, trig, thatPlayer: ev.pid, amount: ev.amount }));
