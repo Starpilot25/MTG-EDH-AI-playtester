@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.58",
+    "title": "Station with several creatures",
+    "notes": [
+      "Station: you can now tap any number of creatures in one go (each one counts as its own station activation). The picker shows how many charge counters you'll add and where the Spacecraft ends up (\"+9 charge (0 → 9)\"). Crew and Saddle show the running total power too.",
+      "The AI stations with all of its creatures that can't attack this turn anyway."
+    ]
+  },
+  {
     "version": "1.3.57",
     "title": "Strionic Resonator, goad",
     "notes": [

@@ -1464,7 +1464,7 @@ function pickCardsDialog(req, resolve, reject) {
     const bad = req.validate ? req.validate([...chosen]) : '';
     ok.disabled = chosen.length < min || chosen.length > max || !!bad;
     ok.textContent = chosen.length ? `Choose ${chosen.length}` : min === 0 ? 'Choose none' : 'Choose';
-    $('#pk-n', dlg).textContent = bad || (max > 1 ? `Pick ${min === max ? max : `up to ${max}`}. Identical cards are stacked: click a stack again (or use +) to take another copy.` : '');
+    $('#pk-n', dlg).textContent = bad || (req.summary ? req.summary([...chosen]) : '') || (max > 1 ? `Pick ${min === max ? max : `up to ${max}`}. Identical cards are stacked: click a stack again (or use +) to take another copy.` : '');
   };
   dlg.addEventListener('click', (e) => {
     const b = e.target.closest('[data-group]');
@@ -2180,7 +2180,7 @@ function menuForCard(c, x, y) {
         const short = cardName(c).split(',')[0];
         const label = (ab.kind === 'loyalty' ? `${ab.label}: ${ab.text}`
           : ab.kind === 'equip' ? `Equip ${ab.mana}` : ab.kind === 'reconfigure' ? `Reconfigure ${ab.mana}`
-          : ab.kind === 'crew' ? `Crew ${ab.n}` : ab.kind === 'saddle' ? `Saddle ${ab.n}` : ab.kind === 'station' ? 'Station (tap a creature)'
+          : ab.kind === 'crew' ? `Crew ${ab.n}` : ab.kind === 'saddle' ? `Saddle ${ab.n}` : ab.kind === 'station' ? 'Station (tap creatures)'
           : ab.kind === 'craft' ? `Craft ${ab.mana} (exile ${ab.more ? ab.min + '+' : ab.min} ${ab.filter}s)` : ab.kind === 'levelup' ? `Level up ${ab.mana}` : ab.kind === 'classlevel' ? `${ab.mana}: Level ${ab.level}`
           : `${ab.costText}: ${ab.text}`).replace(/~/g, short);
         items.push({ label: `<span class="ab">${esc(label.length > 70 ? label.slice(0, 68) + '…' : label)}</span>`, fn: () => activate(c, ab) });

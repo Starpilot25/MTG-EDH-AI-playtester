@@ -1594,7 +1594,11 @@ export async function activateAbility(pid, c, ab, env) {
         });
         const out = [];
         let sum = 0;
-        if (ab.kind === 'station') return order.length ? [order.sort((x, y) => power(y) - power(x)).find((z) => z.sick) ? order.find((z) => z.sick).iid : order[0].iid] : [];
+        // station: every creature that can't attack this turn anyway (each one is its own station activation); else the best one
+        if (ab.kind === 'station') {
+          const idle = order.filter((z) => z.sick && !hasKw(z, 'haste') && power(z) > 0);
+          return idle.length ? idle.map((z) => z.iid) : order.length ? [order.sort((x, y) => power(y) - power(x))[0].iid] : [];
+        }
         for (const z of order) {
           if (sum >= need) break;
           out.push(z.iid);
@@ -1611,8 +1615,15 @@ export async function activateAbility(pid, c, ab, env) {
         return out;
       };
       const picks = pid === 'ai' ? aiPicks() : await ch.pickCards({
-        prompt: ab.kind === 'station' ? `Station: tap a creature to put charge counters equal to its power on ${name}` : `${ab.kind === 'crew' ? 'Crew' : 'Saddle'} ${need}: tap creatures with total power ${need} or more`,
-        cards: pool.map((x) => x.iid), min: 1, max: ab.kind === 'station' ? 1 : pool.length, purpose: 'crew', src: c, aiScore: (x) => power(x) - cardValue(x) / 2,
+        // station any number of creatures at once: each one is a separate station activation (charge counters equal to its power)
+        prompt: ab.kind === 'station' ? `Station: tap any number of creatures — ${name} gets charge counters equal to their total power` : `${ab.kind === 'crew' ? 'Crew' : 'Saddle'} ${need}: tap creatures with total power ${need} or more`,
+        cards: pool.map((x) => x.iid), min: 1, max: pool.length, purpose: 'crew', src: c, aiScore: (x) => power(x) - cardValue(x) / 2,
+        summary: (ids) => {
+          const sum = ids.reduce((a, i) => a + Math.max(0, power(card(i))), 0);
+          if (ab.kind !== 'station') return `Total power: ${sum} of ${need}.`;
+          const now = (c.counters || {}).charge || 0;
+          return ids.length ? `+${sum} charge (${now} → ${now + sum}).` : `${name} has ${now} charge counters.`;
+        },
       });
       const total = picks.reduce((a, i) => a + Math.max(0, power(card(i))), 0);
       if (ab.kind !== 'station' && total < need) return env.say(`Not enough power (${total}/${need}).`);
