@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.66",
+    "title": "Drakuseth",
+    "notes": [
+      "Drakuseth, Maw of Flames: its attack trigger was dealing the 3 damage to every creature on the battlefield. Now it deals 4 damage to a target you choose, then 3 damage to each of up to two other targets (each prompt shows the damage and can't pick the first target again)."
+    ]
+  },
+  {
     "version": "1.3.65",
     "title": "Batroc the Leaper",
     "notes": [

@@ -993,6 +993,9 @@ async function pickTargets(env, phrase, opts = {}) {
   // "Tap target permanent, then untap another target permanent": not one already chosen by this ability
   if (/\banother target\b/.test(p) && env.pickedSoFar) cands = cands.filter((c) => !env.pickedSoFar.includes(c.iid));
   if (opts.filter) cands = cands.filter(opts.filter);
+  // "each of up to two other targets" (Drakuseth): not the ones already chosen
+  const ex = opts.exclude || [];
+  if (ex.length) cands = cands.filter((c) => !ex.some((e) => e.iid === c.iid));
   // the AI steers clear of opponents' permanents whose ward it can't pay, when there's another choice
   if (me === 'ai' && !aiSlaved()) {
     const ok = cands.filter((c) => ctl(c) === me || wardPayableNow(me, c));
@@ -1002,7 +1005,7 @@ async function pickTargets(env, phrase, opts = {}) {
   let players = [];
   if (playerTarget) {
     players = /opponent/.test(kind) ? [opp(me)] : [opp(me), me];
-    players = players.filter((pid) => !playerHexproof(pid, me, env.src));
+    players = players.filter((pid) => !playerHexproof(pid, me, env.src) && !ex.some((e) => e.player === pid));
   }
   for (let k = 0; k < count; k++) {
     const left = cands.filter((c) => !results.some((r) => r.iid === c.iid));
@@ -2266,6 +2269,22 @@ on(/^exile cards equal to its mana value from the top of target player's library
   grantPlay(ids, env.me, { anyMana: true, until: G.s.turn + (G.s.active === env.me ? 0 : 1) });
   env.did.push(`exiles the top ${ids.length} of ${whoseLib(o)} library to play`);
 }, { first: true, multi: true });
+// Drakuseth: "it deals 4 damage to any target and 3 damage to each of up to two other targets"
+on(/^(?:~|it|he|she) deals (\w+) damage to (any target|target [a-z ]+?) and (\w+) damage to each of up to (\w+) other targets$/, async (m, env) => {
+  const src = env.src;
+  const first = await pickTargetsForDamage(env, m[2], n(m[1], env.x));
+  for (const t of first) await damageTargetPick(env, src, t, n(m[1], env.x));
+  const more = await pickTargets(env, `up to ${m[4]} any target`, { harm: true, amount: n(m[3], env.x), exclude: first });
+  for (const t of more) await damageTargetPick(env, src, t, n(m[3], env.x));
+}, { first: true });
+async function damageTargetPick(env, src, t, amount) {
+  if (t.player) damagePlayer(env, src, t.player, amount);
+  else if (t.iid && card(t.iid) && card(t.iid).zone === 'battlefield') {
+    const c = card(t.iid);
+    env.did.push(`deals ${amount} damage to ${whose(c)} ${nameTag(c)}`);
+    damagePermanent(env, src, c, amount);
+  }
+}
 // "~ deals 4 damage to each other opponent" — with two players, nobody else is there
 on(/^(?:~|this creature|it) deals (\w+) damage to each other opponent$/, async (m, env) => {
   env.did.push('there are no other opponents');
@@ -2772,9 +2791,9 @@ async function dealDamage(env, source, amount, toPhrase, divided) {
     for (const c of objs) damagePermanent(env, source, c, amount, true);
   }
 }
-async function pickTargetsForDamage(env, part, amount) {
+async function pickTargetsForDamage(env, part, amount, exclude) {
   const p = part.replace(/^(?:one |)/, '');
-  return pickTargets(env, /target/.test(p) ? p : 'any target', { harm: true, amount });
+  return pickTargets(env, /target/.test(p) ? p : 'any target', { harm: true, amount, exclude });
 }
 function damageMult(source, toPlayer) {
   let m = 1;
@@ -3320,7 +3339,7 @@ on(/^when you next cast an? (instant or sorcery|instant|sorcery|creature|noncrea
   env.did.push(`will copy ${who(env.me) === 'you' ? 'your' : 'its'} next ${m[1]} spell this turn`);
 }, { first: true });
 // Way of the Warlord: "~ deals 2 damage to up to one target creature or planeswalker and 2 damage to target player"
-on(/^(~|it|this planeswalker) deals (\d+|x) damage to ([^.]+?) and (\d+|x) damage to ([^.]+)$/, async (m, env) => {
+on(/^(?!.*\bother targets$)(~|it|this planeswalker) deals (\d+|x) damage to ([^.]+?) and (\d+|x) damage to ([^.]+)$/, async (m, env) => {
   await runSentence(`${m[1]} deals ${m[2]} damage to ${m[3]}`, env);
   await runSentence(`${m[1]} deals ${m[4]} damage to ${m[5]}`, env);
 }, { first: true });
