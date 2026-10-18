@@ -191,6 +191,11 @@ export function topAccess(pid) {
     if (/Play with the top card of your library revealed/i.test(o)) a.reveal = a.look = true;
     if (/You may play lands from the top of your library|You may play lands and cast spells from the top of your library|You may play the top card of your library/i.test(o)) a.lands = true;
     if (/You may play lands and cast spells from the top of your library|You may play the top card of your library/i.test(o)) a.filters.push('');
+    // Thundermane Dragon: "You may cast creature spells with power 4 or greater from the top of your library."
+    for (const m of o.matchAll(/You may cast ((?:[\w-]+ )*?)spells with (power|mana value) (\d+) or (greater|less) from the top of your library/gi)) {
+      a.filters.push(`${(m[1] || '').trim().toLowerCase()} @${m[2].toLowerCase() === 'power' ? 'power' : 'mv'}${m[4].toLowerCase() === 'greater' ? '>=' : '<='}${m[3]}`.trim());
+      if (/If you cast a creature spell this way, it gains haste/i.test(o)) a.haste = true;
+    }
     for (const m of o.matchAll(/You may cast ((?:[\w-]+ )*?)spells(?: and ((?:[\w-]+ )*?)spells)? from the top of your library/gi)) {
       a.filters.push((m[1] || '').trim().toLowerCase());
       if (m[2] !== undefined) a.filters.push((m[2] || '').trim().toLowerCase());
@@ -202,6 +207,15 @@ export function topAccess(pid) {
 }
 function topFilterOk(f, d) {
   if (!f) return true;
+  // "creature @power>=4": a stat condition after the types
+  const st = f.match(/@(power|mv)(>=|<=)(\d+)$/);
+  if (st) {
+    const f0 = d.faces[0] || {};
+    const v = st[1] === 'power' ? parseInt(f0.power, 10) : d.cmc || 0;
+    if (Number.isNaN(v) || (st[2] === '>=' ? v < +st[3] : v > +st[3])) return false;
+    f = f.replace(/\s*@.*$/, '');
+    if (!f) return true;
+  }
   const full = (d.faces[0] || {}).typeLine || d.typeLine || '';
   const tl = full.split('—')[0];
   return f.split(/\s+/).every((w) => (w === 'colorless' ? !(d.colors || []).length : w === 'noncreature' ? !/Creature/.test(tl) : new RegExp('\\b' + w + 's?\\b', 'i').test(full)));
@@ -308,6 +322,16 @@ export function castOptions(pid, c) {
     const may = altCost(o0, 'Mayhem');
     if (may && ts.discarded.includes(c.iid)) add({ mode: 'mayhem', label: `Mayhem ${may}`, cost: may });
     // "You may cast ~ from your graveyard" (not flashback's reminder text "…from your graveyard for its flashback cost")
+    // Rivaz of the Claw, Karador: "Once during each of your turns, you may cast a Dragon creature spell from your graveyard."
+    if (s.active === pid && !isLandFace(f0)) {
+      for (const src of cardsIn(pid, 'battlefield')) {
+        const gm = stripName(oracle(src), src).match(/Once during each of your turns, you may cast an? ((?:[\w-]+ )*?)spell from your graveyard/i);
+        if (!gm || (s.gyPermit || {})[src.iid] === s.turn) continue;
+        if (!topFilterOk(gm[1].trim().toLowerCase(), d)) continue;
+        add({ mode: 'gyPermit', permitSrc: src.iid, label: `Cast from graveyard (${cardName(src)})`, cost: f0.manaCost || d.manaCost || '' });
+        break;
+      }
+    }
     if (/You may cast ~ from your graveyard(?! for its)/i.test(o0.replace(/\([^)]*\)/g, ''))) {
       // Quilled Greatwurm: "by removing six counters from among creatures you control in addition to paying its other costs"
       const rm = o0.match(/from your graveyard by removing (\w+) counters from among creatures you control/i);
@@ -669,6 +693,22 @@ export async function castSpell(pid, iid, opt, env) {
     xFixed: env.x,
   });
   if (!pay) throw new Cancelled();
+  // Carnelian Orb of Dragonkind: "If that mana is spent on a Dragon creature spell, it gains haste until end of turn."
+  // Path of Ancestry: "When that mana is spent to cast a creature spell that shares a creature type with your commander, scry 1."
+  {
+    const payers = (pay && pay.payers || []).map((i) => card(i)).filter(Boolean);
+    for (const m of payers) {
+      const hm = oracle(m).match(/If that mana is spent on an? ([A-Z][\w-]+) creature spell, it gains haste until end of turn/);
+      if (hm && /Creature/.test(DB[c.def].faces[fIdx].typeLine || '') && hasSubtype({ ...c, zone: 'stack' }, hm[1])) c.hasteOnEnter = true;
+      if (/When that mana is spent to cast a creature spell that shares a creature type with your commander, scry 1/i.test(oracle(m)) && /Creature/.test(DB[c.def].faces[fIdx].typeLine || '')) {
+        const cmdTypes = Object.values(G.s.cards).filter((x) => x.isCommander && x.owner === pid).flatMap((x) => ((DB[x.def].faces[0].typeLine || '').split('—')[1] || '').trim().split(/\s+/)).filter(Boolean);
+        if (cmdTypes.some((t) => hasSubtype({ ...c, zone: 'stack' }, t))) {
+          const did = await resolveEffects('Scry 1.', m, ctxFor(pid, env));
+          log(pid, `${nameTag(m)}: ${did.join('; ') || 'scry 1'}.`);
+        }
+      }
+    }
+  }
   applyPayment(pid, pay);
   if (opt.removeCounters) removeCountersAmong(pid, opt.removeCounters, c);
   c.convokedBy = (pay.special || []).filter((x) => x.kind === 'convoke').map((x) => x.iid); // Lethal Scheme: "each creature that convoked it"
@@ -686,9 +726,10 @@ export async function castSpell(pid, iid, opt, env) {
   if (!/Creature/.test(f.typeLine)) ts.noncreatureSpells++;
   if (opt.mode === 'warp') s.ts.warped = true;
   if (opt.mode === 'coram') s.coramSpell = { ...(s.coramSpell || {}), [pid]: s.turn };
-  Object.assign(c, { castMode: opt.mode === 'normal' ? null : opt.mode, kicked: info.kicked, xPaid: info.x, castFrom: fromZone, castFace: fIdx });
+  if (opt.mode === 'gyPermit') s.gyPermit = { ...(s.gyPermit || {}), [opt.permitSrc]: s.turn };
+  Object.assign(c, { castMode: opt.mode === 'normal' ? null : opt.mode, kicked: info.kicked, xPaid: info.x, castFrom: fromZone, castFace: fIdx, bargained: !!info.bargained });
   c.colorsSpent = new Set((f.manaCost || '').match(/[WUBRG]/g) || []).size;
-  const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
+  const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse|gyPermit|coram)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
   log(pid, tag);
   const stackSlot = pid === 'p' && s.stack ? 'pstack' : pid === 'p' ? 'pstack' : 'stack';
   s[stackSlot] = { iid, by: pid, face: fIdx };
@@ -961,6 +1002,9 @@ async function resolveSpell(pid, c, opt, info, env) {
     // Clone & co.: choose what it copies before it enters
     const copied = await enterAsCopy(pid, c, env.choosers);
     toBattlefield(c.iid, pid, env.pos || {});
+    // haste from how it was cast: Thundermane Dragon (from the top of the library), Carnelian Orb's mana
+    if (card(c.iid) && isCreature(c) && (c.hasteOnEnter || (c.castFrom === 'library' && topAccess(pid).haste))) c.eotGrants = [...(c.eotGrants || []), 'haste'];
+    delete c.hasteOnEnter;
     if (copied && card(c.iid)) {
       const x = card(c.iid);
       if (x.enterExtra && x.enterExtra.plus) addCounters(x, '+1/+1', x.enterExtra.plus, { silent: true });

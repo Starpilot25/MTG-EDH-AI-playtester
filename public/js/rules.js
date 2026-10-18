@@ -1018,6 +1018,9 @@ function manaAbilityPlain(inst, o, produced) {
     // "{T}: Add two mana of any one color." (Vedalken Engineer, Gilded Lotus-style)
     const am = m[1].match(/^(two|three|four|five) mana of any one color$/i);
     if (am) return { colors: produced.length ? produced : ['W', 'U', 'B', 'R', 'G'], amount: { two: 2, three: 3, four: 4, five: 5 }[am[1].toLowerCase()] };
+    // Rivaz of the Claw: "{T}: Add two mana in any combination of colors."
+    const cm = m[1].match(/^(two|three|four|five) mana in any combination of colors$/i);
+    if (cm) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: { two: 2, three: 3, four: 4, five: 5 }[cm[1].toLowerCase()] };
     const syms = m[1].match(/\{[WUBRGC]\}/g);
     if (syms && !/\bor\b/.test(m[1]) && /^(\{[WUBRGC]\})+$/.test(m[1].replace(/\s/g, ''))) amount = syms.length;
     return { colors: produced, amount };

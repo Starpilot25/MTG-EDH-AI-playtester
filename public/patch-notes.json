@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.3.67",
+    "title": "Dragon deck fixes",
+    "notes": [
+      "Thundermane Dragon: you can cast creatures with power 4 or more from the top of your library (smaller ones stay put), and they get haste.",
+      "Carnelian Orb of Dragonkind: a Dragon cast with its mana gets haste.",
+      "Rivaz of the Claw: taps for two mana (it gave one) for Dragon creature spells, and once during each of your turns you can cast a Dragon creature spell from your graveyard (\"Cast from graveyard (Rivaz of the Claw)\"); that Dragon is exiled when it dies. Karador and other \"once during each of your turns, cast a … spell from your graveyard\" cards work too.",
+      "Realm-Scorcher Hellkite: when it's bargained, it now adds the four mana (the game forgot it had been bargained).",
+      "Descendants' Fury: after combat damage you may sacrifice one of the creatures that hit; you then reveal until a creature that shares a type with it and put it onto the battlefield.",
+      "Gathering Stone: the creature type is chosen before its enter trigger, and the trigger (also each upkeep) lets you take the top card if it's that type, or bin it. \"As this enters, choose…\" now always happens before that permanent's other enter triggers.",
+      "Path of Ancestry: spending its mana on a creature that shares a type with your commander now scries 1."
+    ]
+  },
+  {
     "version": "1.3.66",
     "title": "Drakuseth",
     "notes": [

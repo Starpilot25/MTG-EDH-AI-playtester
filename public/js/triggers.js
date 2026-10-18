@@ -20,7 +20,7 @@ function interveningIfFails(hit, ev) {
   if (!m || /^(?:you do|you don't|you did|they do|they don't|that player does|that player doesn't|it does|you can't)$/i.test(m[1]) || /\bx\b/i.test(m[1])) return false;
   try {
     const src = hit.src;
-    return evalCond(m[1], { me: hit.controller || src.controller, src, thatPlayer: hit.thatPlayer, it: hit.it || null, event: ev, kicked: src.kicked, did: [], unknown: [] }) === false;
+    return evalCond(m[1], { me: hit.controller || src.controller, src, thatPlayer: hit.thatPlayer, it: hit.it || null, event: ev, kicked: src.kicked, bargained: src.bargained, did: [], unknown: [] }) === false;
   } catch (e) {
     return false;
   }
@@ -552,7 +552,7 @@ function keywordTriggers(c) {
         if (!card(c.iid)) return [];
         card(c.iid).chosenMode = opts[k === 1 ? 1 : 0];
         return [`chooses ${card(c.iid).chosenMode}`];
-      }, 'Choose a mode', { self: true });
+      }, 'Choose a mode', { self: true, asEnters: true });
   }
   if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a creature type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenType)
     f('enters', async () => {
@@ -560,7 +560,7 @@ function keywordTriggers(c) {
       if (!t || !card(c.iid)) return [];
       card(c.iid).chosenType = t;
       return [`chooses ${t}`];
-    }, 'Choose a creature type', { self: true });
+    }, 'Choose a creature type', { self: true, asEnters: true });
   // Serra's Emissary: "As ~ enters, choose a card type."
   if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a card type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenCardType)
     f('enters', async () => {
@@ -576,7 +576,7 @@ function keywordTriggers(c) {
       if (!card(c.iid)) return [];
       card(c.iid).chosenCardType = types[k] || 'Creature';
       return [`chooses ${card(c.iid).chosenCardType.toLowerCase()}`];
-    }, 'Choose a card type', { self: true });
+    }, 'Choose a card type', { self: true, asEnters: true });
   // Cloud Key: "As ~ enters, choose artifact, creature, enchantment, instant, or sorcery."
   {
     const lm = o.split(DB[c.def].name).join('~').match(/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose ((?:(?:artifact|creature|enchantment|instant|sorcery|planeswalker|land|battle), )+or (?:artifact|creature|enchantment|instant|sorcery|planeswalker|land|battle))\./i);
@@ -593,7 +593,7 @@ function keywordTriggers(c) {
         if (!card(c.iid)) return [];
         card(c.iid).chosenCardType = types[k] || types[0];
         return [`chooses ${card(c.iid).chosenCardType.toLowerCase()}`];
-      }, 'Choose a card type', { self: true });
+      }, 'Choose a card type', { self: true, asEnters: true });
   }
   // "As ~ enters, choose a color" (Utopia Sprawl, Caged Sun, Gauntlet of Power…)
   if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a color/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenColor)
@@ -612,7 +612,7 @@ function keywordTriggers(c) {
       if (!card(c.iid)) return [];
       card(c.iid).chosenColor = cols[k] || 'G';
       return [`chooses ${names[k] || 'green'}`];
-    }, 'Choose a color', { self: true });
+    }, 'Choose a color', { self: true, asEnters: true });
   if (/\bExtort\b/.test(o)) f('cast', async () => {
     if (!T.payMana) return [];
     const paid = await T.payMana(c.controller, '{W/B}', `Extort (${cardName(c)})`);
@@ -1646,10 +1646,13 @@ export async function settle() {
       if (G.s !== s0) break;
       // the order they resolve in
       const act = G.s.active;
-      const mine = pending.filter((x) => (x.hit.controller || x.hit.src.controller) === 'p');
-      const theirs = pending.filter((x) => (x.hit.controller || x.hit.src.controller) !== 'p');
+      // "As ~ enters, choose …" isn't really a trigger: it happens first (Gathering Stone's type before its ETB look)
+      const asEnters = pending.filter((x) => x.hit.trig && x.hit.trig.asEnters);
+      const rest = pending.filter((x) => !(x.hit.trig && x.hit.trig.asEnters));
+      const mine = rest.filter((x) => (x.hit.controller || x.hit.src.controller) === 'p');
+      const theirs = rest.filter((x) => (x.hit.controller || x.hit.src.controller) !== 'p');
       const ordered = mine.length > 1 ? await orderTriggers(mine) : mine;
-      const queue = act === 'p' ? [...theirs, ...ordered] : [...ordered, ...theirs];
+      const queue = [...asEnters, ...(act === 'p' ? [...theirs, ...ordered] : [...ordered, ...theirs])];
       // the stack panel shows what's waiting (last to resolve at the bottom)
       const tText = (h) => String(h.trig.text || h.trig.raw || '').replace(/~/g, cardName(h.src).split(',')[0]);
       G.s.trigQueue = queue.map(({ hit }) => ({ iid: hit.src.iid, def: hit.src.def, face: hit.src.face || 0, name: cardName(hit.src), text: tText(hit), by: hit.controller || hit.src.controller }));
@@ -1871,7 +1874,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
   }
   const ctx = {
     me: controller, choosers: T.choosers, forced: true, thatPlayer: hit.thatPlayer, it: hit.it || null, wasAttacking: hit.wasAttacking, castFree: T.castFree, deadCounters: ev && ev.counters,
-    kicked: src.kicked, x: hit.x !== undefined ? hit.x : src.xPaid || 0, castMode: src.castMode, castFrom: src.castFrom, event: ev,
+    kicked: src.kicked, bargained: src.bargained, x: hit.x !== undefined ? hit.x : src.xPaid || 0, castMode: src.castMode, castFrom: src.castFrom, event: ev,
     // a spell waiting on the other side of the stack (Transcendent Dragon: "counter target spell")
     stackTarget: controller === 'p' && G.s.stack && !G.s.stack.ability ? G.s.stack.iid : controller === 'ai' && G.s.pstack ? G.s.pstack.iid : null,
   };
@@ -1892,7 +1895,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
   if (trig.optional) {
     text = text.replace(/^you may /i, '');
     // the AI takes optional triggers unless they cost it something
-    const yes = controller === 'ai' ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
+    const yes = controller === 'ai' ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
     if (!yes) return;
     ctx.lastMay = true; // "you may discard a card. If you do, draw two cards."
   }

@@ -2269,6 +2269,75 @@ on(/^exile cards equal to its mana value from the top of target player's library
   grantPlay(ids, env.me, { anyMana: true, until: G.s.turn + (G.s.active === env.me ? 0 : 1) });
   env.did.push(`exiles the top ${ids.length} of ${whoseLib(o)} library to play`);
 }, { first: true, multi: true });
+// Gathering Stone: "look at the top card of your library. If it's a card of the chosen type, you may reveal it and put it into
+// your hand. If you don't put the card into your hand, you may put it into your graveyard."
+on(/^if it's a card of the chosen type, you may reveal it and put it into your hand$/, async (m, env) => {
+  const lib = zoneOf(env.me, 'library');
+  const top = lib.length ? card(lib[lib.length - 1]) : null;
+  env.tookIt = false;
+  env.it = top ? { iid: top.iid } : null;
+  const type = env.src && card(env.src.iid) && card(env.src.iid).chosenType;
+  if (!top || !type || !hasSubtype({ ...top, zone: 'hand' }, type) && !/changeling/i.test(DB[top.def].faces[0].oracle || '')) return;
+  const yes = env.me === 'ai' ? true : await env.choosers.p.confirm(cardName(env.src), `The top card is ${cardName(top)} (a ${type}). Reveal it and put it into your hand?`, { yes: 'Put into hand', no: 'Leave it' });
+  if (!yes) return;
+  move(top.iid, 'hand');
+  env.tookIt = true;
+  env.did.push(`reveals ${nameTag(top)} and puts it into ${who(env.me) === 'you' ? 'your' : 'its'} hand`);
+}, { first: true });
+on(/^if you don't put the card into your hand, you may put it into your graveyard$/, async (m, env) => {
+  if (env.tookIt) return;
+  const top = env.it && env.it.iid && card(env.it.iid);
+  if (!top || top.zone !== 'library') return;
+  // the AI mills lands it has plenty of and cards it can't use soon
+  const lands = cardsIn(env.me, 'battlefield').filter(isLand).length;
+  const yes = env.me === 'ai' ? (isLand(top) ? lands >= 6 : (DB[top.def].cmc || 0) > lands + 2) : await env.choosers.p.confirm(cardName(env.src), `Put ${cardName(top)} (the top card of your library) into your graveyard?`, { yes: 'Into the graveyard', no: 'Keep it on top' });
+  if (!yes) return;
+  move(top.iid, 'graveyard');
+  env.did.push(`puts ${env.me === 'p' ? nameTag(top) : 'the top card'} into the graveyard`);
+}, { first: true });
+// Descendants' Fury: "you may sacrifice one of them. If you do, reveal cards from the top of your library until you reveal a
+// creature card that shares a creature type with the sacrificed creature. Put that card onto the battlefield and the rest on
+// the bottom of your library in a random order."
+on(/^(?:you may )?sacrifice one of them$/, async (m, env) => {
+  const pool = (env.them_ || []).map(card).filter((c) => c && c.zone === 'battlefield' && c.controller === env.me);
+  env.lastMay = false;
+  if (!pool.length) return;
+  const [pick] = await env.choosers[env.me].pickCards({ prompt: 'You may sacrifice one of them', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'sacrifice', src: env.src,
+    aiScore: (c) => (c.token ? 3 : 0) - cardValue(c) / 2 });
+  if (!pick) return;
+  const c = card(pick);
+  env.sacTypes = (typeLine(c).split('—')[1] || '').trim().split(/\s+/).filter(Boolean);
+  env.sacChangeling = hasKw(c, 'changeling');
+  sacrifice(pick);
+  env.lastMay = true;
+  env.did.push(`sacrifices ${nameTag(c)}`);
+}, { first: true });
+on(/^reveal cards from the top of your library until you reveal a creature card that shares a creature type with the sacrificed creature$/, async (m, env) => {
+  const types = env.sacTypes || [];
+  const lib = zoneOf(env.me, 'library');
+  const revealed = [];
+  let hit = null;
+  for (let k = lib.length - 1; k >= 0; k--) {
+    const c = card(lib[k]);
+    revealed.push(c.iid);
+    if (/Creature/.test(DB[c.def].faces[0].typeLine || '') && (env.sacChangeling || /changeling/i.test(DB[c.def].faces[0].oracle || '') || types.some((t) => hasSubtype({ ...c, zone: 'hand' }, t)))) {
+      hit = c;
+      break;
+    }
+  }
+  env.revealedRest = revealed.filter((i) => !hit || i !== hit.iid);
+  env.it = hit ? { iid: hit.iid } : null;
+  env.did.push(hit ? `reveals ${revealed.length} card${revealed.length === 1 ? '' : 's'}, finds ${nameTag(hit)}` : 'reveals the whole library: no match');
+}, { first: true });
+on(/^put that card onto the battlefield and the rest on the bottom of your library in a random order$/, async (m, env) => {
+  const hit = env.it && env.it.iid && card(env.it.iid);
+  if (hit && hit.zone === 'library') {
+    toBattlefield(hit.iid, env.me);
+    env.did.push(`puts ${nameTag(hit)} onto the battlefield`);
+  }
+  const rest = (env.revealedRest || []).filter((i) => card(i) && card(i).zone === 'library');
+  for (const i of rest.sort(() => Math.random() - 0.5)) move(i, 'library', { to: 'bottom' });
+}, { first: true });
 // Drakuseth: "it deals 4 damage to any target and 3 damage to each of up to two other targets"
 on(/^(?:~|it|he|she) deals (\w+) damage to (any target|target [a-z ]+?) and (\w+) damage to each of up to (\w+) other targets$/, async (m, env) => {
   const src = env.src;
