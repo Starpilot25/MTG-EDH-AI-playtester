@@ -150,6 +150,11 @@ function parseStatics(text, selfName) {
       }
     }
     // anthems: "Other Elf creatures you control get +1/+1 and have …"
+    // Caged Sun, Gauntlet of Dominion-style: "Creatures you control of the chosen color get +1/+1."
+    if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control of the chosen color get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?\.?$/))) {
+      pushAnthem({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), chosenColorOf: true }, p: +m[3], t: +m[4], grants: kwList(m[5]) });
+      continue;
+    }
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?(?: for each ([^.]+))?\.?$/))) {
       // Minthara: "Creatures you control get +1/+0 for each experience counter you have."
       pushAnthem({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: kwList(m[5]), ...(m[6] ? { each: m[6] } : {}) });
@@ -400,6 +405,7 @@ function staticModsRaw(c, helpers) {
       if (a.who === 'mine' && src.controller !== c.controller) continue;
       if (a.who === 'theirs' && src.controller === c.controller) continue;
       if (!matchesFilter(c, a.f, helpers)) continue;
+      if (a.f && a.f.chosenColorOf && !(src.chosenColor && (DB[c.def].colors || []).includes(src.chosenColor))) continue;
       if (a.cond) {
         let ok = false;
         try {

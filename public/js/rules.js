@@ -771,7 +771,7 @@ export function manaAbility(inst) {
       const x = G.s.cards[i];
       if (!x || x.phasedOut) continue;
       const xr = DB[x.def].faces[x.face || 0].oracle || DB[x.def].faces[0].oracle || '';
-      if (!/(?:taps?|tapped) an? [^.]*?for mana|tap a permanent for mana/i.test(xr) || abilitiesGone(x)) continue; // cheap check on the printed text first
+      if (!/(?:taps?|tapped) an? [^.]*?for mana|tap a permanent for mana|is tapped for mana|ability causes you to add/i.test(xr) || abilitiesGone(x)) continue; // cheap check on the printed text first
       const xo = oracle(x);
       const mine = x.controller === inst.controller;
       if (land && isBasic && /Whenever a player taps a basic land for mana, that player adds one mana of any type that land produced/i.test(xo)) r = same(r);

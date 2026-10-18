@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.62",
+    "title": "Shared Animosity, Caged Sun, Parapet Thrasher",
+    "notes": [
+      "Shared Animosity: each attacker now gets +1/+0 for every other attacking creature that shares a creature type with it (changelings share every type). It gave +0 before.",
+      "Caged Sun: creatures you control of the chosen color get +1/+1, and lands that tap for that color make one extra. Both were missing. Gauntlet of Power's extra mana works too now.",
+      "Parapet Thrasher: \"deals 4 damage to each other opponent\" was hitting every creature on the battlefield. With two players there is no other opponent, so that mode now does nothing, and the AI won't pick it.",
+      "Reaver Cleaver checked: +3/+3, trample, and a tapped Treasure for each point of combat damage to a player all work."
+    ]
+  },
+  {
     "version": "1.3.61",
     "title": "Damage targeting shows the amount",
     "notes": [

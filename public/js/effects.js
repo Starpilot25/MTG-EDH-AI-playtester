@@ -2256,6 +2256,22 @@ on(/^exile cards equal to its mana value from the top of target player's library
   grantPlay(ids, env.me, { anyMana: true, until: G.s.turn + (G.s.active === env.me ? 0 : 1) });
   env.did.push(`exiles the top ${ids.length} of ${whoseLib(o)} library to play`);
 }, { first: true, multi: true });
+// "~ deals 4 damage to each other opponent" — with two players, nobody else is there
+on(/^(?:~|this creature|it) deals (\w+) damage to each other opponent$/, async (m, env) => {
+  env.did.push('there are no other opponents');
+}, { first: true });
+// Shared Animosity: "it gets +1/+0 until end of turn for each other attacking creature that shares a creature type with it"
+on(/^it gets \+(\d+)\/\+(\d+) (?:until end of turn )?for each other attacking creature that shares a creature type with it(?: until end of turn)?$/, async (m, env) => {
+  const t = env.it && env.it.iid && card(env.it.iid);
+  if (!t) return;
+  const subs = (typeLine(t).split('—')[1] || '').trim().split(/\s+/).filter(Boolean);
+  const changeling = (x) => hasKw(x, 'changeling');
+  const k = Object.values(G.s.cards).filter((x) => x.iid !== t.iid && x.zone === 'battlefield' && x.attacking && isCreature(x)
+    && (changeling(t) || changeling(x) || subs.some((st) => hasSubtype(x, st)))).length;
+  if (!k) return env.did.push(`${nameTag(t)} shares a type with no other attacker`);
+  pumpEOT(t, { p: +m[1] * k, t: +m[2] * k });
+  env.did.push(`${nameTag(t)} gets +${+m[1] * k}/+${+m[2] * k} until end of turn`);
+}, { first: true });
 // Molten Tide (Pyre Rhymer), High Tide: "Until end of turn, whenever you tap a Mountain for mana, add an additional {R}."
 on(/^until end of turn, whenever (you|a player) taps? an? (plains|island|swamp|mountain|forest) for mana, (?:add|that player adds) an additi?onal \{([wubrg])\}$/, async (m, env) => {
   G.s.eotLandBonus = (G.s.eotLandBonus || []).filter((b) => b.turn === G.s.turn);
@@ -7185,6 +7201,8 @@ export async function predictTargets(pid, c, face, choosers, x = 0, textOverride
 
 // How much one mode of a modal spell is worth to `env.me` right now (the AI picks modes with this).
 export function modeValue(t, env) {
+  // two players: there is no "other opponent" (Parapet Thrasher)
+  if (/\beach other opponent\b/i.test(t)) return -10;
   const me = env.me;
   const them = opp(me);
   const low = t.toLowerCase();
