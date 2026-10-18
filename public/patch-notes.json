@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.68",
+    "title": "Tesak, Judith's Hellhound",
+    "notes": [
+      "Tesak, Judith's Hellhound: \"Creatures you control with counters on them have haste\" now works (so an unleashed creature can attack right away), and its attack trigger adds {R} for each attacking creature (it added nothing). Other Dogs getting unleash already worked.",
+      "\"For each attacking creature\" counts correctly everywhere now."
+    ]
+  },
+  {
     "version": "1.3.67",
     "title": "Dragon deck fixes",
     "notes": [

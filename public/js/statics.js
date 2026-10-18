@@ -186,6 +186,11 @@ function parseStatics(text, selfName) {
       continue;
     }
     // Sephara: "Other creatures you control with flying have indestructible."
+    // Tesak, Judith's Hellhound: "Creatures you control with counters on them have haste." (+1/+1 counters: Rishkar-style)
+    if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control with (a \+1\/\+1 counter|one or more \+1\/\+1 counters|counters) on (?:it|them) (?:have|get ([+-]\d+)\/([+-]\d+)(?: and have)?) ?(.*?)\.?$/))) {
+      pushAnthem({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), withCounters: /\+1/.test(m[3]) ? '+1/+1' : 'any' }, p: m[4] ? +m[4] : 0, t: m[5] ? +m[5] : 0, grants: kwList(m[6] || '') });
+      continue;
+    }
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control with ([a-z ]+?) (?:have|get ([+-]\d+)\/([+-]\d+)(?: and have)?) ?(.*?)\.?$/))) {
       pushAnthem({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), withKw: m[3] }, p: m[4] ? +m[4] : 0, t: m[5] ? +m[5] : 0, grants: kwList(m[6] || '') });
       continue;
@@ -363,6 +368,7 @@ function matchesFilter(c, f, helpers) {
   if (f.subtypes && !f.subtypes.some((st) => helpers.hasSubtype(c, st))) return false;
   if (f.withKw && !printedKw(c, f.withKw)) return false;
   if (f.notOwned && c.owner === c.controller) return false;
+  if (f.withCounters && !Object.entries(c.counters || {}).some(([k, v]) => v > 0 && (f.withCounters === 'any' || k === f.withCounters))) return false;
   return true;
 }
 // keyword check that doesn't consult anthems (avoids recursion): printed text, aura/equipment grants, until-end-of-turn grants
@@ -555,6 +561,13 @@ export function playerFlag(pid, flag) {
 export function countPhrase(pid, phrase, helpers, srcIid) {
   let p = String(phrase || '').toLowerCase().replace(/^(?:the )?(?:total )?number of /, '').replace(/\.$/, '').trim()
     .replace(/\b(?:defending player|that player|the defending player) controls$/, 'an opponent controls'); // two players: the only one it can be
+  // Tesak: "add {R} for each attacking creature"; "for each other attacking creature"
+  {
+    const am = p.match(/^(other )?attacking (creature|[a-z-]+)s?( you control)?$/);
+    if (am && G.s) {
+      return Object.values(G.s.cards).filter((c) => c.zone === 'battlefield' && c.attacking && (am[2] === 'creature' ? true : helpers.hasSubtype(c, am[2][0].toUpperCase() + am[2].slice(1))) && (!am[3] || c.controller === pid) && (!am[1] || c.iid !== srcIid)).length;
+    }
+  }
   // Lifestream's Blessing: "creatures you controlled as you cast this spell" — near enough, the ones you control now
   p = p.replace(/\byou controlled as you cast (?:this spell|~)$/, 'you control');
   // "for each tapped land your opponents control", "for each Goblin on the battlefield", "creature card in your graveyard"
