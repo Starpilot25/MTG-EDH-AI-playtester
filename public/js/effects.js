@@ -1000,7 +1000,8 @@ async function pickTargets(env, phrase, opts = {}) {
     if (!left.length && !pl.length) break;
     const pick = await env.choosers[me].target({
       ...(env.forced ? { forced: true } : {}),
-      prompt: opts.prompt || `Choose ${count > 1 && count < 99 ? `target ${k + 1} of ${count}` : 'a target'}: ${kind}`,
+      // damage: say how much (Scourge of Valkas, Warstorm Surge: "deals damage equal to its power")
+      prompt: opts.prompt || `${opts.amount !== undefined ? `Deal ${opts.amount} damage — choose ` : 'Choose '}${count > 1 && count < 99 ? `target ${k + 1} of ${count}` : 'a target'}: ${kind}`,
       candidates: left.map((c) => c.iid), players: pl, harm: opts.harm !== undefined ? opts.harm : true, amount: opts.amount, src: env.src, purpose: opts.purpose,
       optional: optional || k > 0 || (!left.length && !pl.length),
     });
