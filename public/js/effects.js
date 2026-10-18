@@ -2255,6 +2255,22 @@ on(/^exile cards equal to its mana value from the top of target player's library
   grantPlay(ids, env.me, { anyMana: true, until: G.s.turn + (G.s.active === env.me ? 0 : 1) });
   env.did.push(`exiles the top ${ids.length} of ${whoseLib(o)} library to play`);
 }, { first: true, multi: true });
+// Molten Tide (Pyre Rhymer), High Tide: "Until end of turn, whenever you tap a Mountain for mana, add an additional {R}."
+on(/^until end of turn, whenever (you|a player) taps? an? (plains|island|swamp|mountain|forest) for mana, (?:add|that player adds) an additi?onal \{([wubrg])\}$/, async (m, env) => {
+  G.s.eotLandBonus = (G.s.eotLandBonus || []).filter((b) => b.turn === G.s.turn);
+  G.s.eotLandBonus.push({ turn: G.s.turn, pid: m[1] === 'you' ? env.me : null, type: m[2][0].toUpperCase() + m[2].slice(1), col: m[3].toUpperCase() });
+  env.did.push(`${m[2][0].toUpperCase() + m[2].slice(1)}s tap for an extra {${m[3].toUpperCase()}} this turn`);
+}, { first: true });
+// Glimpse the Impossible: "At the beginning of the next end step, if any of those cards remain exiled, put them into your
+// graveyard, then create a 0/1 colorless Eldrazi Spawn creature token for each card put into your graveyard this way."
+on(/^at the beginning of the next end step, if any of those cards remain exiled, put them into your graveyard, then create (.+?) for each card put into your graveyard this way$/, async (m, env) => {
+  const ids = (env.them_ && env.them_.length ? env.them_ : (env.exiledIds || [])).slice();
+  if (!ids.length) return;
+  G.s.delayed = G.s.delayed || [];
+  G.s.delayed.push({ at: 'endStep', kind: 'leftoverExileToGy', ids, src: env.src.iid, pid: env.me, tokens: m[1] });
+  env.did.push('at the next end step, the cards still in exile go to the graveyard and make tokens');
+}, { first: true });
+on(/^those tokens have "sacrifice this creature: add \{c\}\.?"$/, async () => {}, { first: true });
 // Expensive Taste
 on(/^exile the top (\w+) cards of target opponent's library face down\. you may look at and play those cards for as long as they remain exiled$/, async (m, env) => {
   const [t] = await playerTarget(env, 'target opponent');
@@ -5048,6 +5064,8 @@ export async function enterAsCopy(pid, c, choosers) {
   c.face = model.face || 0;
   if (m[1]) c.tapped = true;
   if (/isn't legendary|not legendary/.test(except)) c.notLegendary = true;
+  // Chameleon, Master of Disguise: "except his name is Chameleon, Master of Disguise"
+  if (/\b(?:his|her|its|their) name is ~/.test(except)) c.nameOverride = DB[c.origDef].name;
   if (/it's an? ([a-z]+) in addition to its other types/.test(except)) c.addTypes = ((c.addTypes || '') + ' ' + except.match(/it's an? ([a-z]+) in addition/)[1].replace(/^\w/, (x) => x.toUpperCase())).trim();
   const quoted = (m[4] || '').match(/"([^"]+)"/);
   if (quoted) c.extraText = ((c.extraText || '') + '\n' + quoted[1].replace(/this creature/gi, '~')).trim();

@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.60",
+    "title": "Glimpse the Impossible, Chameleon, Pyre Rhymer",
+    "notes": [
+      "Glimpse the Impossible: at the next end step, any of the exiled cards you didn't play go to your graveyard and you get an Eldrazi Spawn for each (before, that part was left for you to do by hand).",
+      "Chameleon, Master of Disguise: when it enters as a copy of one of your creatures, it keeps its own name.",
+      "Pyre Rhymer: casting its Molten Tide copy now makes your Mountains tap for an extra {R} for the rest of the turn (it did nothing before). High Tide and similar \"until end of turn, whenever you tap an Island for mana\" cards work the same way.",
+      "Decadent Dragon checked: the Treasure on attack, Expensive Taste exiling the opponent's top two cards (hidden from them, playable by you, lands included) and casting the Dragon from exile afterwards all work."
+    ]
+  },
+  {
     "version": "1.3.59",
     "title": "Connive prompt",
     "notes": [

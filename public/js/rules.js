@@ -783,6 +783,8 @@ export function manaAbility(inst) {
       if (land && mine && x.chosenColor && /Whenever a land's ability causes you to add one or more mana of the chosen color, add an additional one mana of that color/i.test(xo) && (r.colors || []).includes(x.chosenColor)) r = addColor(r, x.chosenColor);
       if (mine && /If you tap a permanent for mana, it produces twice as much of that mana instead/i.test(xo)) doubles++;
     }
+    // Molten Tide / High Tide: until end of turn
+    for (const b of G.s.eotLandBonus || []) if (land && b.turn === G.s.turn && (!b.pid || b.pid === inst.controller) && hasSubtype(inst, b.type)) r = addColor(r, b.col);
     if (doubles) r = same(r, (r.amount || 1) * (2 ** doubles - 1));
   }
   const o = oracle(inst);

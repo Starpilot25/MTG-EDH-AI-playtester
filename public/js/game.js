@@ -341,6 +341,19 @@ async function endStepThings(pid) {
       revealCreaturesOnto(d.pid, d.n);
       continue;
     }
+    // Glimpse the Impossible: what's still exiled goes to the graveyard, and a token for each
+    if (d.kind === 'leftoverExileToGy') {
+      const left = (d.ids || []).filter((i) => card(i) && card(i).zone === 'exile');
+      for (const i of left) move(i, 'graveyard');
+      const src = card(d.src);
+      if (left.length && src) {
+        const { resolveEffects } = await import('./effects.js');
+        const { T } = await import('./triggers.js');
+        const did = await resolveEffects(`Create ${left.length} ${d.tokens.replace(/^(?:a|an|one) /, '').replace(/ token$/, ' tokens')}.`, src, { me: d.pid, choosers: T.choosers, forced: true });
+        log(d.pid, `${nameTag(src)}: ${left.length} unplayed card${left.length === 1 ? '' : 's'} go${left.length === 1 ? 'es' : ''} to the graveyard; ${did.join('; ')}.`);
+      }
+      continue;
+    }
     // Dragonhawk: "~ deals 2 damage to each opponent for each of those cards that are still exiled"
     if (d.kind === 'exiledDamage') {
       const k = (d.ids || []).filter((i) => card(i) && card(i).zone === 'exile').length;
