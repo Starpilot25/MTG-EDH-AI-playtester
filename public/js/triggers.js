@@ -5,7 +5,7 @@ import {
   abilitiesGone, isCreature, sculptors, SECTORS, SECTOR_SIGN, isLand, isType, oracle, face, hasKw, kwNum, power, toughness, cardValue, hasSubtype, payCost, typeLine,
 } from './rules.js';
 import {
-  G, card, cardsIn, zoneOf, log, nameTag, eventQueue, queueEvent, stateBased, cardName, move, toBattlefield, addCounters,
+  G, card, cardsIn, zoneOf, log, nameTag, eventQueue, queueEvent, stateBased, cardName, move, toBattlefield, addCounters, changeLife,
   createToken, genericTokenDef, sacrifice, opp, libTop, esc,
   withReadCache, discard as discardCard, draw as drawCards, ringLevel,
 } from './state.js';
@@ -1605,6 +1605,34 @@ export async function settle() {
         }
         hits = hits.concat(extra);
       }
+      // more "that ability triggers an additional time": Krang (a player drawing), Felix Five-Boots (combat damage to a
+      // player), Dr. Beverly Crusher (you gaining life), Veyran (you casting an instant or sorcery), Gandalf the White
+      // (a legendary permanent or an artifact entering or leaving)
+      if (hits.length && /^(?:draw|combatDamagePlayer|combatDamageOnce|lifeGained|cast|enters|leaves|dies)$/.test(ev.type)) {
+        const extra = [];
+        for (const h of hits) {
+          const ctl = h.controller || h.src.controller;
+          let n = 0;
+          for (const x of cardsIn(ctl, 'battlefield')) {
+            const o = oracle(x);
+            if (!/triggers an additional time/i.test(o)) continue;
+            if (ev.type === 'draw' && /If a player drawing a card causes a triggered ability of a permanent you control to trigger/i.test(o)) n++;
+            if ((ev.type === 'combatDamagePlayer' || ev.type === 'combatDamageOnce') && ev.controller === ctl && /If a creature you control dealing combat damage to a player causes a triggered ability/i.test(o)) n++;
+            if (ev.type === 'lifeGained' && ev.pid === ctl && /If you gaining life causes a triggered ability/i.test(o)) n++;
+            if (ev.type === 'cast' && ev.controller === ctl && /If you casting or copying an instant or sorcery spell causes a triggered ability/i.test(o)) {
+              const sp = card(ev.iid);
+              if (sp && /\b(?:Instant|Sorcery)\b/.test(DB[sp.def].faces[ev.copyFace || sp.face || 0].typeLine || DB[sp.def].typeLine || '')) n++;
+            }
+            if (/^(?:enters|leaves|dies)$/.test(ev.type) && /If a legendary permanent or an artifact entering or leaving the battlefield causes a triggered ability/i.test(o)) {
+              const ob = card(ev.iid);
+              const tl = ob ? typeLine(ob) : DB[ev.def] ? DB[ev.def].typeLine : '';
+              if (/\bLegendary\b|\bArtifact\b/.test(tl || '')) n++;
+            }
+          }
+          for (let k = 0; k < n; k++) extra.push(h);
+        }
+        hits = hits.concat(extra);
+      }
       for (const hit of hits) {
         // "This ability triggers only once each turn" / "for the first time each turn": once it has triggered,
         // it doesn't trigger again this turn (so it never shows up on the stack)
@@ -1697,29 +1725,79 @@ export async function settle() {
   }
 }
 
-// "{2}, {T}: Copy target triggered ability you control." — offered while one of your triggers is on the stack.
-// The AI copies triggers that do something worth having twice (cards, tokens, removal, damage, ramp).
-const COPY_TRIG = /(?:^|\n)((?:\{[^}]+\})*),? ?\{T\}: Copy target (?:activated or )?triggered ability you control/i;
-async function copyTriggerWith(hit, controller, text) {
+// Copying abilities on the stack: Strionic Resonator, Lithoform Engine, Adric, Tawnos, Echo, Weaver of Harmony, Abstruse
+// Archaic, The Peregrine Dynamo, Peter Parker's Camera, Gogo, Mister Fantastic, Kirol, Scientist Supreme of A.I.M.
+// ("Copy target [activated or] triggered ability you control [from a … source] [twice]") — offered while one of your
+// abilities is on the stack; the copy resolves first. The AI copies abilities worth having twice.
+const COPY_TOOL = /(?:^|\n)([^\n:]*?): Copy target (activated or )?triggered ability you control(?: from (?:an? )?(another legendary source that's not a commander|artifact source|enchantment source|creature source|colorless source))?( twice| X times)?\.([^\n]*)/i;
+function copyWorthIt(text) {
+  return /\b(?:draws?|create|destroy|exile|deals?|return|gain control|search|put [^.]* onto the battlefield|counters?|scry|investigate|treasure|untap|copy)\b/i.test(text) && !/\b(?:you lose|sacrifice|discard)\b/i.test(text);
+}
+function copyToolCost(controller, tool, cost, rest) {
+  // can the cost be paid right now? → a plan (mana to pay, things to tap/remove), or null
+  if (/\{T\}/.test(cost) && tool.tapped) return null;
+  if (/Activate only once each turn/i.test(rest) && tool.copyUsedTurn === G.s.turn) return null;
+  if (/Activate only during your turn/i.test(rest) && G.s.active !== controller) return null;
+  const plan = { mana: (cost.match(/\{(?!T\})[^}]+\}/g) || []).join('').replace(/\{X\}\{X\}/, '{2}').replace(/\{X\}/g, '{1}'), tap: /\{T\}/.test(cost), life: 0, tapOthers: [], counter: null };
+  const tm = cost.match(/Tap (two|three|\d+) untapped creatures you control/i);
+  if (tm) {
+    const k = { two: 2, three: 3 }[tm[1].toLowerCase()] || +tm[1];
+    const pool = cardsIn(controller, 'battlefield').filter((x) => isCreature(x) && !x.tapped && x.iid !== tool.iid).sort((x, y) => cardValue(x) - cardValue(y));
+    if (pool.length < k) return null;
+    plan.tapOthers = pool.slice(0, k).map((x) => x.iid);
+  }
+  const lm = cost.match(/Pay (\d+) life/i);
+  if (lm) {
+    if (G.s.players[controller].life <= +lm[1]) return null;
+    plan.life = +lm[1];
+  }
+  const rm = cost.match(/Remove an? (\w+) counter from/i);
+  if (rm) {
+    if (!((tool.counters || {})[rm[1].toLowerCase()] > 0)) return null;
+    plan.counter = rm[1].toLowerCase();
+  }
+  return plan;
+}
+function sourceFits(kind, tool, src) {
+  if (!kind) return true;
+  if (/artifact/.test(kind)) return isType(src, 'Artifact');
+  if (/enchantment/.test(kind)) return isType(src, 'Enchantment');
+  if (/creature/.test(kind)) return isCreature(src);
+  if (/colorless/.test(kind)) return !((DB[src.def] || {}).colors || []).length;
+  if (/legendary/.test(kind)) return src.iid !== tool.iid && /\bLegendary\b/.test(typeLine(src)) && !src.isCommander;
+  return true;
+}
+// How many times to copy this ability (each tool used once, after paying for it). kind: 'triggered' or 'activated'.
+export async function copyAbilityWith(src, controller, text, kind) {
   if (!T.payMana) return 0;
-  const tools = cardsIn(controller, 'battlefield').filter((c) => !c.tapped && !c.phasedOut && COPY_TRIG.test(oracle(c)) && c.iid !== hit.src.iid);
-  if (!tools.length) return 0;
   let n = 0;
-  for (const tool of tools) {
-    const cost = (oracle(tool).match(COPY_TRIG) || [])[1] || '';
-    let yes;
-    if (controller === 'ai') {
-      yes = /\b(?:draws?|create|destroy|exile|deals?|return|gain control|search|put [^.]* onto the battlefield|counters?|scry|investigate|treasure)\b/i.test(text) && !/\b(?:you lose|sacrifice|discard)\b/i.test(text);
-    } else {
-      yes = await T.confirm(cardName(tool), `${cardName(hit.src)}'s ability is on the stack:\n${text}\n\nCopy it with ${cardName(tool)}${cost ? ` (pay ${cost} and tap it)` : ' (tap it)'}? The copy resolves first.`);
-    }
+  for (const tool of cardsIn(controller, 'battlefield')) {
+    if (tool.phasedOut || tool.iid === src.iid && /\{T\}/.test(oracle(tool).match(COPY_TOOL)?.[1] || '')) continue;
+    const m = oracle(tool).match(COPY_TOOL);
+    if (!m || (kind === 'activated' && !m[2])) continue;
+    if (!sourceFits((m[3] || '').toLowerCase(), tool, src)) continue;
+    const plan = copyToolCost(controller, tool, m[1], m[5] || '');
+    if (!plan) continue;
+    const times = /twice/i.test(m[4] || '') ? 2 : 1;
+    const costLabel = [plan.mana && `pay ${plan.mana}`, plan.tap && 'tap it', plan.life && `pay ${plan.life} life`, plan.tapOthers.length && `tap ${plan.tapOthers.map((i) => cardName(card(i))).join(' and ')}`, plan.counter && `remove a ${plan.counter} counter`].filter(Boolean).join(', ');
+    const yes = controller === 'ai'
+      ? copyWorthIt(text) && (!plan.life || G.s.players.ai.life > 15)
+      : await T.confirm(cardName(tool), `${cardName(src)}'s ${kind} ability is on the stack:\n${text}\n\nCopy it${times > 1 ? ' twice' : ''} with ${cardName(tool)}${costLabel ? ` (${costLabel})` : ''}? The copy resolves first.`);
     if (!yes) continue;
-    if (cost && !(await T.payMana(controller, cost, cardName(tool)))) continue;
-    tool.tapped = true;
-    log(controller, `${controller === 'p' ? 'You copy' : 'The AI copies'} ${nameTag(hit.src)}'s triggered ability with ${nameTag(tool)}.`);
-    n++;
+    if (plan.mana && !(await T.payMana(controller, plan.mana, cardName(tool)))) continue;
+    if (plan.tap) tool.tapped = true;
+    for (const i of plan.tapOthers) if (card(i)) card(i).tapped = true;
+    if (plan.life) changeLife(controller, -plan.life, false);
+    if (plan.counter) tool.counters[plan.counter]--;
+    tool.copyUsedTurn = G.s.turn;
+    log(controller, `${controller === 'p' ? 'You copy' : 'The AI copies'} ${nameTag(src)}'s ${kind} ability with ${nameTag(tool)}${times > 1 ? ' (twice)' : ''}.`);
+    n += times;
   }
   return n;
+}
+T.copyAbilityWith = copyAbilityWith;
+async function copyTriggerWith(hit, controller, text) {
+  return copyAbilityWith(hit.src, controller, text, 'triggered');
 }
 
 // Several of your triggers at once: you choose the order they resolve in (identical ones needn't be ordered)

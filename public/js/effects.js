@@ -93,6 +93,14 @@ export function stripName(text, c) {
     const fm = name.match(/^([A-Z][\w'-]{2,}) (?:of|the|from|and)\b/);
     if (fm) t = t.replace(new RegExp('\\b' + fm[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b(?! (?:of|the|from|and)\\b)', 'g'), '~');
   }
+  // Star Trek-style: "Dr. Beverly Crusher" is "Dr. Crusher" in its own text
+  {
+    const w = short.split(' ');
+    if (w.length >= 3) {
+      const alt = `${w[0]} ${w[w.length - 1]}`;
+      if (alt.length > 5) t = t.replace(word(alt), '~');
+    }
+  }
   return t
     .replace(/\bthis (creature|artifact|enchantment|permanent|land|card|Aura|Equipment|Vehicle|spell|Saga|Class|Case|planeswalker|battle|Spacecraft|Room)\b/gi, "~")
     .replace(/[“”]/g, '"')
@@ -203,6 +211,8 @@ export function activatedAbilities(c) {
     const cost = m[1];
     if (/^(Level|STATION|LEVEL|Max speed|Companion|Chapter|[IVX]+(?:, [IVX]+)*) /.test(cost) || /—/.test(cost)) continue;
     if (!/\{|Sacrifice|Discard|Pay|Remove|Exile|Tap|Return|Put|Collect evidence|Forage|Exert/i.test(cost)) continue;
+    // Strionic Resonator & co. are used from the prompt that appears while your ability is on the stack
+    if (/^Copy target (?:activated or )?triggered ability you control/i.test(m[2])) continue;
     if (/^Add\b/.test(m[2]) && !/\bfor each\b|\bX\b/.test(m[2])) {
       // mana abilities are paid automatically, except odd ones the player may want by hand
       if (!/Sacrifice|Pay|Remove/i.test(cost)) continue;

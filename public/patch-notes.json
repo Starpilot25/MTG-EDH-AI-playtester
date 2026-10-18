@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.63",
+    "title": "Ability copiers and trigger doublers",
+    "notes": [
+      "Ability copiers: when one of your abilities is on the stack, you're asked whether to copy it with any card that can (the copy resolves first). Works with Strionic Resonator, Lithoform Engine, Adric, Tawnos, Echo, Weaver of Harmony, Abstruse Archaic, The Peregrine Dynamo (each only from the source type it allows), Peter Parker's Camera (uses a film counter), Gogo, Mister Fantastic (copies twice), Kirol (taps two of your creatures) and Scientist Supreme of A.I.M. (2 life). The \"activated or triggered\" ones also copy activated abilities.",
+      "\"Whenever you activate an ability\" copiers: Rings of Brighthearth (pay {2}), Kurkesh (an artifact's ability, pay {R}), Verrak (pay the life again), Ashnod the Uncaring (when something was sacrificed) and Ertha Jo (abilities that target a creature or player).",
+      "\"That ability triggers an additional time\" now also works for Krang (a player drawing a card), Felix Five-Boots (combat damage to a player), Dr. Beverly Crusher (gaining life), Veyran (casting an instant or sorcery) and Gandalf the White (a legendary permanent or artifact entering or leaving).",
+      "Dr. Beverly Crusher and other cards that call themselves by a shortened name (\"Dr. Crusher\") now work on themselves.",
+      "The AI uses all of these too, copying abilities worth having twice."
+    ]
+  },
+  {
     "version": "1.3.62",
     "title": "Shared Animosity, Caged Sun, Parapet Thrasher",
     "notes": [

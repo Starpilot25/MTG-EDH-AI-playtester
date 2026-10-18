@@ -1763,6 +1763,12 @@ export async function activateAbility(pid, c, ab, env) {
   const abText = ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim();
   if (await announceAbility(pid, srcSnap, abText, env)) return true;
   if (env.render) env.render(); // show the costs as paid (the source tapped, mana spent) while the ability resolves
+  // copies made while it's on the stack (Rings of Brighthearth, Kurkesh, Lithoform Engine…) resolve first
+  const extra = await activationCopies(pid, srcSnap, ab, abText, lifeCost);
+  for (let k = 0; k < extra; k++) {
+    const again = await resolveEffects(abText, srcSnap, ctx({ x }));
+    log(pid, `Copy of ${nameTag(srcSnap)}'s ability: ${again.join('; ') || 'resolves'}.`);
+  }
   let did;
   try {
     did = await resolveEffects(abText, srcSnap, ctx({ x }));
@@ -1774,6 +1780,44 @@ export async function activateAbility(pid, c, ab, env) {
   return true;
 }
 
+// "Whenever you activate an ability…, copy that ability": Rings of Brighthearth (pay {2}), Kurkesh (an artifact's; pay {R}),
+// Verrak (life was paid; pay it again), Ashnod the Uncaring (something was sacrificed), Ertha Jo (it targets a creature or
+// player) — plus tools that copy "target activated or triggered ability you control" (Lithoform Engine, Adric…).
+async function activationCopies(pid, src, ab, text, lifePaid) {
+  let n = 0;
+  const ai = pid === 'ai';
+  const worth = /\b(?:draws?|create|destroy|exile|deals?|return|gain control|search|put [^.]* onto the battlefield|counters?|scry|untap)\b/i.test(text) && !/\b(?:you lose|discard)\b/i.test(text);
+  const ask = (who, body) => (ai ? Promise.resolve(worth) : T.confirm(cardName(who), body));
+  for (const x of cardsIn(pid, 'battlefield')) {
+    if (x.phasedOut) continue;
+    const o = oracle(x).replace(/"[^"]*"/g, '');
+    let m;
+    if ((m = o.match(/Whenever you activate an ability(?: of an? (artifact|creature|artifact or creature))?, if it isn't a mana ability, you may pay ((?:\{[^}]+\})+)\. If you do, copy that ability/i))) {
+      if (m[1] && !m[1].split(' or ').some((k) => (k === 'creature' ? isCreature(src) : isType(src, 'Artifact')))) continue;
+      if (!(await ask(x, `${cardName(x)}: pay ${m[2]} to copy ${cardName(src)}'s ability?\n${text}`))) continue;
+      if (!T.payMana || !(await T.payMana(pid, m[2], cardName(x)))) continue;
+      log(pid, `${nameTag(x)} copies ${nameTag(src)}'s ability.`);
+      n++;
+    } else if (/Whenever you activate an ability that isn't a mana ability, if life was paid to activate it, you may pay that much life again\. If you do, copy that ability/i.test(o)) {
+      if (!lifePaid || G.s.players[pid].life <= lifePaid || (ai && G.s.players.ai.life - lifePaid < 15)) continue;
+      if (!(await ask(x, `${cardName(x)}: pay ${lifePaid} life again to copy ${cardName(src)}'s ability?`))) continue;
+      changeLife(pid, -lifePaid, false);
+      log(pid, `${nameTag(x)} copies ${nameTag(src)}'s ability (${lifePaid} life).`);
+      n++;
+    } else if (/Whenever you activate an ability of an artifact or creature that isn't a mana ability, if one or more permanents were sacrificed to activate it, you may copy that ability/i.test(o)) {
+      if (!(ab.sac || ab.sacOther) || !(isCreature(src) || isType(src, 'Artifact'))) continue;
+      if (!(await ask(x, `${cardName(x)}: copy ${cardName(src)}'s ability?`))) continue;
+      log(pid, `${nameTag(x)} copies ${nameTag(src)}'s ability.`);
+      n++;
+    } else if (/Whenever you activate an ability that targets a creature or player, copy that ability/i.test(o)) {
+      if (!/\btarget (?:creature|player|opponent)\b|\bany target\b/i.test(text)) continue;
+      log(pid, `${nameTag(x)} copies ${nameTag(src)}'s ability.`);
+      n++;
+    }
+  }
+  if (T.copyAbilityWith) n += await T.copyAbilityWith(src, pid, text, 'activated');
+  return n;
+}
 // Locus of Enlightenment, Rowan Kenrith's emblem: "Whenever you activate an ability that isn't a mana ability, copy it."
 function abilityCopiers(pid) {
   const RE = /Whenever you activate an ability that isn't a mana ability, copy it/i;
