@@ -945,6 +945,11 @@ function manaAbilityRaw(inst) {
     const r = manaAbilityPlain(inst, o, produced);
     return r ? { ...r, onlyFor: 'abilities' } : r;
   }
+  // Powerstone: "This mana can't be spent to cast a nonartifact spell." (artifact spells and any ability are fine)
+  if (/\{T\}: Add [^.]+\. This mana can't be spent to cast (?:a )?nonartifact spells?/.test(o)) {
+    const r = manaAbilityPlain(inst, o, produced);
+    return r ? { ...r, onlyFor: 'artifactOrAbility' } : r;
+  }
   // Giada: "Spend this mana only to cast an Angel spell."
   // Vedalken Engineer: "Spend this mana only to cast artifact spells or activate abilities of artifacts."
   const only = o.match(/\{T\}: Add [^.]+\. Spend this mana only to cast (?:an? )?([A-Z][\w-]+|creature|artifact|instant or sorcery|noncreature) (?:creature )?spells?( or activate abilities of (?:artifacts|\1s))?/);

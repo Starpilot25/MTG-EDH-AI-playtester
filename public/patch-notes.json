@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.54",
+    "title": "Powerstones",
+    "notes": [
+      "Powerstone tokens: their mana now really can't be spent on nonartifact spells. Auto-pay uses them for artifact spells and for abilities (and ward or \"unless you pay\" costs), and won't count them toward a creature or other nonartifact spell. Before, they worked like any colorless mana source.",
+      "Mana you float from a Powerstone shows the restriction in the mana pool tooltip and the log."
+    ]
+  },
+  {
     "version": "1.3.53",
     "title": "Myriad Landscape",
     "notes": [

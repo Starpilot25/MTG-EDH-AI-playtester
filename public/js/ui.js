@@ -537,7 +537,7 @@ function statusLine(pid) {
   const pool = (s.pool && s.pool[pid]) || [];
   if (pool.length) {
     const lim = pool.map(poolSym).filter((p) => p.onlyFor);
-    const tip = `Floating mana (empties between steps)${lim.length ? ` — ${lim.length} restricted: only for ${[...new Set(lim.map((p) => (p.onlyFor === 'abilities' ? 'abilities' : p.onlyFor === 'fromExile' ? 'spells from exile' : p.onlyFor + ' spells')))].join(', ')}` : ''}`;
+    const tip = `Floating mana (empties between steps)${lim.length ? ` — ${lim.length} restricted: only for ${[...new Set(lim.map((p) => (p.onlyFor === 'abilities' ? 'abilities' : p.onlyFor === 'artifactOrAbility' ? 'artifact spells and abilities' : p.onlyFor === 'fromExile' ? 'spells from exile' : p.onlyFor + ' spells')))].join(', ')}` : ''}`;
     bits.push(`<span class="st pool" title="${esc(tip)}">Pool ${manaSymbols(pool.map((x) => { const p = poolSym(x); return `{${p.col === 'ANY' ? '*' : p.col}}`; }).join(''))}${lim.length ? '<sup>*</sup>' : ''}</span>`);
   }
   if (pid === 'p' && s.dayNight) bits.push(`<span class="st daynight ${s.dayNight}">${s.dayNight === 'day' ? '☀ Day' : '☾ Night'}</span>`);
@@ -1840,7 +1840,7 @@ async function floatMana(c) {
     G.s.pool.p.push(...syms);
     c.tapped = true;
     c.floated = { syms, step: G.s.step, turn: G.s.turn };
-    log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${poolSym(x).col}}`).join(''))}${m.onlyFor ? ` (only for ${m.onlyFor === 'abilities' ? 'abilities' : m.onlyFor === 'fromExile' ? 'spells cast from exile' : m.onlyFor + ' spells' + (m.abilitiesOf ? ' or abilities' : '')})` : ''}.`);
+    log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${poolSym(x).col}}`).join(''))}${m.onlyFor ? ` (only for ${m.onlyFor === 'abilities' ? 'abilities' : m.onlyFor === 'artifactOrAbility' ? 'artifact spells and abilities' : m.onlyFor === 'fromExile' ? 'spells cast from exile' : m.onlyFor + ' spells' + (m.abilitiesOf ? ' or abilities' : '')})` : ''}.`);
     if (m.sac && hasSubtype(c, 'Treasure')) G.s.treasurePool = { pid: 'p', turn: G.s.turn }; // Rain of Riches
     if (m.sac) sacrifice(c.iid);
     if (m.pain && syms.some((x) => m.pain.includes(x))) {

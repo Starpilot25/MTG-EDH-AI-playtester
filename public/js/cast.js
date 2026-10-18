@@ -32,6 +32,8 @@ const instantFace = (f) => /\bInstant\b/.test((f.typeLine || '').split('—')[0]
 function restrictedOk(onlyFor, abilitiesOf, spell, opts) {
   if (!onlyFor) return true;
   if (onlyFor === 'abilities') return !!opts.ability; // The Enigma Jewel
+  // (no spell being cast — ward, "unless you pay", abilities — is fine too)
+  if (onlyFor === 'artifactOrAbility') return !!opts.ability || !spell || spell.zone === 'battlefield' || (/\bArtifact\b/.test((DB[spell.def].faces[spell.face || 0] || {}).typeLine || DB[spell.def].typeLine || '')); // Powerstone
   if (onlyFor === 'fromExile') return !!spell && spell.zone === 'exile' && !opts.ability;
   if (onlyFor === 'colorless') return !!spell && !opts.ability && spell.zone !== 'battlefield' && !(DB[spell.def].colors || []).length;
   if (opts.ability) return !!(abilitiesOf && spell && spell.zone === 'battlefield' && (/^[a-z]/.test(abilitiesOf) ? new RegExp(`\\b${abilitiesOf}\\b`, 'i').test(DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine || '') : hasSubtype(spell, abilitiesOf)));
