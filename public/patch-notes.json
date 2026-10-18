@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.47",
+    "title": "Loading when Scryfall is busy",
+    "notes": [
+      "Cards you've loaded before are now kept on your computer. A deck you've played before loads instantly, and still loads when Scryfall (the card database) is down or busy.",
+      "When Scryfall answers with a \"busy\" error (like error 503), loading waits and tries again a few times instead of failing straight away; the deck panel says it's retrying. If Scryfall is still down after that, you get a plain explanation instead of \"Scryfall error 503\"."
+    ]
+  },
+  {
     "version": "1.3.46",
     "title": "Faster deck loading",
     "notes": [

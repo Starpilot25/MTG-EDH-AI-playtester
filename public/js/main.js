@@ -1,7 +1,7 @@
 // Setup screen, game start, mulligans.
 import {
   DB, parseDecklist, importFromUrl, resolveDeck, legendaryCandidates, secondCandidates, canPair, wantsPair, SAMPLE_DECKS, PRECON_DECKS,
-  listSaved, saveDeck, deleteSaved, deckToText,
+  listSaved, saveDeck, deleteSaved, deckToText, fetchHooks,
 } from './data.js';
 import { G, newGame, cardsIn, move, log, esc, emit } from './state.js';
 import { loadDungeons } from './dungeon.js';
@@ -101,6 +101,7 @@ async function loadSlot(pid) {
   const btn = $('.load', el);
   status.className = 'status';
   status.innerHTML = '<span class="spinner"></span> Loading cards from Scryfall…';
+  fetchHooks.status = (msg) => (status.innerHTML = `<span class="spinner"></span> ${msg}`);
   btn.disabled = true;
   try {
     let parsed;

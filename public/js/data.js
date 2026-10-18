@@ -133,15 +133,76 @@ export async function importFromUrl(url) {
   return api('/api/deck?url=' + encodeURIComponent(url.trim()));
 }
 
+// Cards you've loaded before are kept on this computer, so a deck you've played loads instantly and still loads
+// when Scryfall is down or busy (error 503). Only cards not seen before are asked for, and a busy Scryfall is retried.
+export const fetchHooks = { status: () => {} };
+const CARD_KEY = 'edh-card-cache-v1';
+let cardStore = null;
+const store = () => {
+  if (cardStore) return cardStore;
+  try { cardStore = JSON.parse(localStorage.getItem(CARD_KEY) || '{}') || {}; } catch (e) { cardStore = {}; }
+  return cardStore;
+};
+const storeSave = () => {
+  const st = store();
+  let keys = Object.keys(st);
+  // keep the most recently used ~2500 cards
+  if (keys.length > 2500) {
+    keys.sort((a, b) => (st[a].t || 0) - (st[b].t || 0));
+    for (const k of keys.slice(0, keys.length - 2500)) delete st[k];
+  }
+  for (let tries = 0; tries < 4; tries++) {
+    try {
+      localStorage.setItem(CARD_KEY, JSON.stringify(st));
+      return;
+    } catch (e) {
+      keys = Object.keys(st).sort((a, b) => (st[a].t || 0) - (st[b].t || 0)); // storage full: drop the oldest quarter
+      for (const k of keys.slice(0, Math.ceil(keys.length / 4))) delete st[k];
+    }
+  }
+};
+const identKey = (x) => (x.id ? 'id:' + x.id : x.set && x.collector_number ? `sc:${x.set}/${x.collector_number}`.toLowerCase() : 'n:' + String(x.name || '').toLowerCase());
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function fetchCards(identifiers) {
-  const { cards } = await api('/api/cards', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ identifiers }),
+  const st = store();
+  const now = Date.now();
+  const found = identifiers.map((x) => {
+    const hit = st[identKey(x)];
+    if (hit) hit.t = now;
+    return hit ? hit.c : null;
   });
-  const out = cards.map((c) => (c ? normalize(c) : null));
+  const missingIdx = found.map((c, i) => (c ? -1 : i)).filter((i) => i >= 0);
+  if (missingIdx.length) {
+    const want = missingIdx.map((i) => identifiers[i]);
+    let cards = null;
+    let lastErr = null;
+    const waits = [0, 2000, 5000, 10000];
+    for (let k = 0; k < waits.length && !cards; k++) {
+      if (waits[k]) {
+        fetchHooks.status(`Scryfall is busy — trying again (${k} of ${waits.length - 1})…`);
+        await sleepMs(waits[k]);
+      }
+      try {
+        cards = (await api('/api/cards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifiers: want }) })).cards;
+      } catch (e) {
+        lastErr = e;
+        // only a busy / unavailable Scryfall is worth waiting for (429, 5xx); anything else fails at once
+        if (!/Scryfall error (?:429|5\d\d)|timed? ?out|ECONNRESET|fetch failed/i.test(e.message)) throw e;
+      }
+    }
+    if (!cards) {
+      const code = (lastErr && (lastErr.message.match(/\b(429|5\d\d)\b/) || [])[1]) || '';
+      throw new Error(`Scryfall (the card database this app uses) isn't answering right now${code ? ` (error ${code})` : ''}. It's usually back within a few minutes — try loading again then. Decks you've loaded before keep working.`);
+    }
+    missingIdx.forEach((i, j) => {
+      found[i] = cards[j] || null;
+      if (cards[j]) st[identKey(identifiers[i])] = { c: cards[j], t: now };
+    });
+  }
+  storeSave();
+  const out = found.map((c) => (c ? normalize(c) : null));
   // never hold up loading: swap foreign-language pictures in the background
-  englishImages(cards.filter(Boolean)).catch(() => {});
+  englishImages(found.filter(Boolean)).catch(() => {});
   return out;
 }
 

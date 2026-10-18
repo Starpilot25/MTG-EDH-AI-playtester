@@ -31,15 +31,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Scryfall asks for ~10 requests/second at most.
 let lastScryfall = 0;
 async function scryfall(url, init = {}) {
-  const wait = Math.max(0, lastScryfall + 110 - Date.now());
-  if (wait) await sleep(wait);
-  lastScryfall = Date.now();
-  const res = await fetch(url, {
-    ...init,
-    headers: { 'User-Agent': APP_UA, Accept: 'application/json', 'Content-Type': 'application/json', ...(init.headers || {}) },
-  });
-  const body = await res.json().catch(() => ({}));
-  return { status: res.status, body };
+  // Scryfall asks for ~10 requests a second at most; when it's busy (429) or briefly down (5xx), wait and retry
+  let last = null;
+  for (const backoff of [0, 1500, 4000]) {
+    if (backoff) await sleep(backoff);
+    const wait = Math.max(0, lastScryfall + 110 - Date.now());
+    if (wait) await sleep(wait);
+    lastScryfall = Date.now();
+    try {
+      const res = await fetch(url, {
+        ...init,
+        headers: { 'User-Agent': APP_UA, Accept: 'application/json', 'Content-Type': 'application/json', ...(init.headers || {}) },
+      });
+      const body = await res.json().catch(() => ({}));
+      last = { status: res.status, body };
+      if (res.status !== 429 && res.status < 500) return last;
+    } catch (e) {
+      last = { status: 503, body: { details: e.message } };
+    }
+  }
+  return last;
 }
 
 const cardCache = new Map(); // key -> trimmed card
