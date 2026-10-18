@@ -1618,7 +1618,8 @@ on(/^(?:you may )?pay that much life\. if you do, draw that many cards$/, async 
   const k = env.thatMuch || 0;
   if (!k) return;
   const pl = G.s.players[env.me];
-  const yes = env.me === 'ai' ? pl.life - k >= 15 : await env.choosers.p.confirm?.(`Pay ${k} life to draw ${k} card${k === 1 ? '' : 's'}?`) ?? true;
+  // you already said yes to the trigger (which showed the amount): don't ask a second time
+  const yes = env.me === 'ai' ? pl.life - k >= 15 && pl.life - k > 5 : env.lastMay === true ? true : await env.choosers.p.confirm(cardName(env.src), `Pay ${k} life to draw ${k} card${k === 1 ? '' : 's'}?`);
   if (!yes) return;
   changeLife(env.me, -k, false);
   draw(env.me, k, true);

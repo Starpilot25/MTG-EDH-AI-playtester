@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.49",
+    "title": "Niv-Mizzet, Ghost Counsel",
+    "notes": [
+      "Niv-Mizzet, Ghost Counsel: when you gain life you're asked once, and the question shows the actual amount (\"Pay 2 life. If you do, draw 2 cards\"). Before, you were asked twice, and the second question said \"undefined\".",
+      "The AI now uses Niv-Mizzet, Ghost Counsel's life-for-cards trigger when it has life to spare (it always declined before)."
+    ]
+  },
+  {
     "version": "1.3.48",
     "title": "Daxos, Pelt Collector",
     "notes": [
