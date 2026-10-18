@@ -1,7 +1,7 @@
 // The tabletop: rendering, drag and drop, menus, dialogs and shortcuts.
 import { DB, searchTokens, imageHooks } from './data.js';
 import {
-  hasSubtype, isLand, isCreature, isType, power, toughness, basePT, oracle, isPermanentCard, canBlock, canAttack, hasKw, face, payCostKeep, keywordChanges, abilitiesGone,
+  hasSubtype, isLand, isCreature, isType, power, toughness, basePT, oracle, isPermanentCard, canBlock, canAttack, mustAttack, hasKw, face, payCostKeep, keywordChanges, abilitiesGone,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, esc, snapshot, undo, redo, shuffle, mill, libTop,
@@ -123,6 +123,7 @@ function cardHTML(c, opts = {}) {
     }
   }
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
+  if (c.zone === 'battlefield' && c.goaded && isCreature(c)) badges.push(`<span class="badge goad" title="Goaded by ${c.goaded.by === 'p' ? 'you' : 'the AI'}: attacks each combat if able, and attacks a player other than ${c.goaded.by === 'p' ? 'you' : 'the AI'} if able. Lasts until ${c.goaded.until > 9999 ? 'the end of the game' : c.goaded.by === 'p' ? 'your next turn' : "the AI's next turn"}.">⚑ Goaded</span>`);
   // Auras and Equipment: what they're attached to; a creature: what's attached to it
   if (c.zone === 'battlefield' && G.s) {
     const host = c.attachedTo && card(c.attachedTo);
@@ -1595,6 +1596,7 @@ function playerEnv(extra = {}) {
   };
 }
 hooks.payFor = playerPay;
+hooks.say = (t) => toast(t);
 hooks.envFor = (pid) => (pid === 'p' ? playerEnv() : aiEnv(hooks));
 T.castFree = (pid, iid, o = {}) => castFree(pid, iid, hooks.envFor(pid), o);
 T.payMana = async (pid, cost, label, opts = {}) => {
@@ -2684,6 +2686,9 @@ export function bindEvents() {
       return render();
     }
     if (a === 'skip-combat') {
+      // goaded creatures can't just stay home
+      const must = cardsIn('p', 'battlefield').filter((c) => mustAttack(c) && canAttack(c));
+      if (must.length && !cardsIn('ai', 'battlefield').some(attackTaxOf)) return toast(`${must.map((c) => cardName(c)).join(', ')} must attack this combat${must.some((c) => c.goaded) ? ' (goaded)' : ''}.`);
       G.s.combat = null;
       G.s.step = 'main2';
       return render();

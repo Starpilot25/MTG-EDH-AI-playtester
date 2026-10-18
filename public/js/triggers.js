@@ -1645,6 +1645,16 @@ export async function settle() {
           continue;
         }
         if (G.s !== s0) return;
+        // Strionic Resonator, Lithoform Engine: copy this trigger first (the copy resolves before the original)
+        const copies = await copyTriggerWith(hit, controller, tText(hit));
+        for (let k = 0; k < copies && G.s === s0; k++) {
+          try {
+            await resolveTrigger(hit, controller, ev);
+          } catch (e) {
+            if (!(e instanceof Cancelled)) console.error(e);
+          }
+        }
+        if (G.s !== s0) return;
         try {
           await resolveTrigger(hit, controller, ev);
         } catch (e) {
@@ -1685,6 +1695,31 @@ export async function settle() {
       T.render();
     }
   }
+}
+
+// "{2}, {T}: Copy target triggered ability you control." — offered while one of your triggers is on the stack.
+// The AI copies triggers that do something worth having twice (cards, tokens, removal, damage, ramp).
+const COPY_TRIG = /(?:^|\n)((?:\{[^}]+\})*),? ?\{T\}: Copy target (?:activated or )?triggered ability you control/i;
+async function copyTriggerWith(hit, controller, text) {
+  if (!T.payMana) return 0;
+  const tools = cardsIn(controller, 'battlefield').filter((c) => !c.tapped && !c.phasedOut && COPY_TRIG.test(oracle(c)) && c.iid !== hit.src.iid);
+  if (!tools.length) return 0;
+  let n = 0;
+  for (const tool of tools) {
+    const cost = (oracle(tool).match(COPY_TRIG) || [])[1] || '';
+    let yes;
+    if (controller === 'ai') {
+      yes = /\b(?:draws?|create|destroy|exile|deals?|return|gain control|search|put [^.]* onto the battlefield|counters?|scry|investigate|treasure)\b/i.test(text) && !/\b(?:you lose|sacrifice|discard)\b/i.test(text);
+    } else {
+      yes = await T.confirm(cardName(tool), `${cardName(hit.src)}'s ability is on the stack:\n${text}\n\nCopy it with ${cardName(tool)}${cost ? ` (pay ${cost} and tap it)` : ' (tap it)'}? The copy resolves first.`);
+    }
+    if (!yes) continue;
+    if (cost && !(await T.payMana(controller, cost, cardName(tool)))) continue;
+    tool.tapped = true;
+    log(controller, `${controller === 'p' ? 'You copy' : 'The AI copies'} ${nameTag(hit.src)}'s triggered ability with ${nameTag(tool)}.`);
+    n++;
+  }
+  return n;
 }
 
 // Several of your triggers at once: you choose the order they resolve in (identical ones needn't be ordered)

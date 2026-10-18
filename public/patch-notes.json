@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.57",
+    "title": "Strionic Resonator, goad",
+    "notes": [
+      "Strionic Resonator (and Lithoform Engine): when one of your abilities triggers and the Resonator is untapped, you're asked whether to copy it (pay {2} and tap it); the copy resolves first. The AI copies its own triggers when they draw cards, make tokens, remove things and the like.",
+      "Goad: goaded creatures now show a ⚑ Goaded tag (hover it for who goaded it and how long it lasts). A goaded creature of yours is put into the attack automatically, as before, but now it can't be taken back out, and you can't skip combat while it's able to attack (unless attacking costs something, like Propaganda)."
+    ]
+  },
+  {
     "version": "1.3.56",
     "title": "Leftover mana floats",
     "notes": [

@@ -560,6 +560,11 @@ export function toggleAttacker(iid) {
   const c = card(iid);
   if (!isCreature(c) || c.controller !== 'p') return;
   const k = cb.attackers.indexOf(iid);
+  // goaded / "attacks each combat if able": it has to attack (unless attacking costs something — that's never required)
+  if (k >= 0 && mustAttack(c) && !cardsIn('ai', 'battlefield').some(attackTaxOf)) {
+    if (hooks.say) hooks.say(`${cardName(c)} ${c.goaded ? 'is goaded and' : ''} must attack this combat.`.replace('  ', ' '));
+    return;
+  }
   if (k >= 0) cb.attackers.splice(k, 1);
   else {
     if (!canAttack(c)) return;

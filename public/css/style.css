@@ -876,3 +876,5 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .badge.attached { background: #1d2230; color: #b9c8ec; border-color: #4d5c80; font-size: 9px; padding: 2px 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .badge.att-list { background: #1d2230; color: #b9c8ec; border-color: #4d5c80; font-weight: 700; }
 .card.att-hl { box-shadow: 0 0 0 3px #7f9be0, 0 0 16px rgb(127 155 224 / 0.6); }
+
+.badge.goad { background: #2b1714; color: #ffb199; border-color: #b4553f; font-weight: 700; font-size: 9px; padding: 2px 4px; }
