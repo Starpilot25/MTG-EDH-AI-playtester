@@ -1,5 +1,5 @@
 {
-  "version": "1.3.63",
+  "version": "1.3.64",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "8ac08a37cc4ca5262a725235cbe51164c605c5b9c61626b58851a59ba3622801",
@@ -16,7 +16,7 @@
     "public/js/state.js": "f8eebce7b013f8762f85cf6676e32153e482bf74eb1be00358e4b4f7ce537e38",
     "public/js/statics.js": "1df40a467ed8763b258838350002a2aa018e9f24a15104189cef33b8f8dfbb52",
     "public/js/triggers.js": "7974ec9ad27879ff2d2d82305e2ecd11e15c4ff3bd310a32cd07e66bdbcd79f1",
-    "public/js/ui.js": "e0ff9c64582e823f55e89b652d603447a094ec33c367fa122e937a984d1a048b",
-    "public/patch-notes.json": "ad741cf9c9a0156ae52da4955aa27e240e4b7f588808939f48cb93f39c5a94e9"
+    "public/js/ui.js": "daceba88553631aa38cff530d6978a482f10117fb7f5777bb1035df1d5a8b072",
+    "public/patch-notes.json": "cd8d2a15bc275eecc894d96c20ca37eba9b26f6fb65c60edcfa6f49e090e3b51"
   }
 }

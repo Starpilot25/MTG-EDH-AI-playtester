@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.64",
+    "title": "Stolen-card popup closes",
+    "notes": [
+      "The \"Stolen\" / \"Gained control\" popup couldn't be closed if it appeared while you were choosing a target: the target picker was swallowing every click outside the banner, including the popup's OK button. Popups now work while you're targeting, and Escape closes the popup first instead of cancelling your target."
+    ]
+  },
+  {
     "version": "1.3.63",
     "title": "Ability copiers and trigger doublers",
     "notes": [

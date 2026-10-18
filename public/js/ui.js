@@ -2520,6 +2520,8 @@ export function bindEvents() {
     'click',
     (e) => {
       if (!pendingTarget) return;
+      // a popup (the "stolen" notice, a card zoom…) still works while you're choosing a target
+      if (e.target.closest && e.target.closest('#dialog')) return;
       const b = e.target.closest('button');
       if (b && b.dataset.tgtPlayer) {
         e.stopPropagation();
@@ -2870,7 +2872,7 @@ function onKey(e) {
   const k = e.key;
   if (k === 'Escape') {
     closeMenu();
-    if (pendingTarget) return cancelTarget();
+    if (pendingTarget && !dialogOpen()) return cancelTarget();
     return closeDialog();
   }
   if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') {
