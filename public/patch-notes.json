@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.50",
+    "title": "Deck loading speed",
+    "notes": [
+      "Loading a deck no longer waits for its tokens: they're fetched in the background, and if Scryfall is busy they don't hold anything up.",
+      "The English-picture check now only looks at cards from deck links that name a specific printing (pasted lists by name are already English), and starts a few seconds after loading, so it never competes with it.",
+      "After loading, the deck panel says where the cards came from — \"all saved on this computer\", or how many came from Scryfall and how long that took — so you can tell when Scryfall itself is the slow part."
+    ]
+  },
+  {
     "version": "1.3.49",
     "title": "Niv-Mizzet, Ghost Counsel",
     "notes": [

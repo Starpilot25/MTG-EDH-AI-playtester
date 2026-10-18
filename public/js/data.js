@@ -163,7 +163,8 @@ const storeSave = () => {
 };
 const identKey = (x) => (x.id ? 'id:' + x.id : x.set && x.collector_number ? `sc:${x.set}/${x.collector_number}`.toLowerCase() : 'n:' + String(x.name || '').toLowerCase());
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
-export async function fetchCards(identifiers) {
+export const loadStats = { cached: 0, fetched: 0, ms: 0 };
+export async function fetchCards(identifiers, opts = {}) {
   const st = store();
   const now = Date.now();
   const found = identifiers.map((x) => {
@@ -176,10 +177,10 @@ export async function fetchCards(identifiers) {
     const want = missingIdx.map((i) => identifiers[i]);
     let cards = null;
     let lastErr = null;
-    const waits = [0, 2000, 5000, 10000];
+    const waits = opts.retry === false ? [0] : [0, 1500, 4000, 8000];
     for (let k = 0; k < waits.length && !cards; k++) {
       if (waits[k]) {
-        fetchHooks.status(`Scryfall is busy — trying again (${k} of ${waits.length - 1})…`);
+        if (!opts.quiet) fetchHooks.status(`Scryfall is busy — trying again (${k} of ${waits.length - 1})…`);
         await sleepMs(waits[k]);
       }
       try {
@@ -198,11 +199,18 @@ export async function fetchCards(identifiers) {
       found[i] = cards[j] || null;
       if (cards[j]) st[identKey(identifiers[i])] = { c: cards[j], t: now };
     });
+    if (!opts.quiet) Object.assign(loadStats, { fetched: missingIdx.length, ms: Date.now() - now });
+  }
+  if (!opts.quiet) {
+    loadStats.cached = identifiers.length - missingIdx.length;
+    if (!missingIdx.length) Object.assign(loadStats, { fetched: 0, ms: 0 });
   }
   storeSave();
   const out = found.map((c) => (c ? normalize(c) : null));
-  // never hold up loading: swap foreign-language pictures in the background
-  englishImages(found.filter(Boolean)).catch(() => {});
+  // Foreign-language pictures can only come from a printing picked by id or set + number (deck links); a card asked for
+  // by name is already the English printing. Check those few, a few seconds later, so it never competes with loading.
+  const printed = found.filter((c, i) => c && (identifiers[i].id || identifiers[i].collector_number));
+  if (printed.length && !opts.quiet) setTimeout(() => englishImages(printed).catch(() => {}), 4000);
   return out;
 }
 
@@ -312,13 +320,8 @@ export async function resolveDeck(parsed) {
   const tokenIds = [...new Set([...out.commanders, ...out.cards].flatMap((id) => DB[id].tokens))].filter(
     (id) => !DB[id]
   );
-  if (tokenIds.length) {
-    try {
-      await fetchCards(tokenIds.slice(0, 150).map((id) => ({ id })));
-    } catch (e) {
-      /* tokens are optional */
-    }
-  }
+  // In the background: the deck is ready without them, and a busy Scryfall shouldn't hold up loading.
+  if (tokenIds.length) fetchCards(tokenIds.slice(0, 150).map((id) => ({ id })), { retry: false, quiet: true }).catch(() => {});
   return out;
 }
 

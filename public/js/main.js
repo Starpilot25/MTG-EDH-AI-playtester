@@ -1,7 +1,7 @@
 // Setup screen, game start, mulligans.
 import {
   DB, parseDecklist, importFromUrl, resolveDeck, legendaryCandidates, secondCandidates, canPair, wantsPair, SAMPLE_DECKS, PRECON_DECKS,
-  listSaved, saveDeck, deleteSaved, deckToText, fetchHooks,
+  listSaved, saveDeck, deleteSaved, deckToText, fetchHooks, loadStats,
 } from './data.js';
 import { G, newGame, cardsIn, move, log, esc, emit } from './state.js';
 import { loadDungeons } from './dungeon.js';
@@ -194,7 +194,9 @@ function showSummary(pid) {
   const status = $('.status', el);
   const total = deck.cards.length + deck.commanders.length;
   status.className = 'status ok';
-  status.textContent = `Loaded ${total} cards.`;
+  // where the cards came from, so a slow load can be told apart: saved on this computer, or fetched from Scryfall
+  const ls = loadStats;
+  status.textContent = `Loaded ${total} cards.${ls.fetched ? ` (${ls.fetched} new from Scryfall in ${(ls.ms / 1000).toFixed(1)} s${ls.cached ? `, ${ls.cached} already saved` : ''})` : ls.cached ? ' (all saved on this computer)' : ''}`;
   const sum = $('.summary', el);
   const cmds = deck.commanders.map((id) => DB[id]);
   const cands = legendaryCandidates(deck);
