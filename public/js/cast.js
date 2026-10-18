@@ -359,7 +359,8 @@ function anyColorCost(cost) {
 function genericAdjust(pid, c, opt) {
   const d = DB[c.def];
   const f = d.faces[opt.face || 0] || d.faces[0];
-  const o = stripName(f.oracle || '', c);
+  // (reminder text out: Affinity's "(This spell costs {1} less to cast for each artifact you control.)" was counted twice)
+  const o = stripName(f.oracle || '', c).replace(/\([^)]*\)/g, '');
   let delta = costDelta(pid, c, c.zone);
   if (c.zone === 'command' && c.isCommander) delta += commanderTax(pid, c.iid);
   let m;
@@ -1727,6 +1728,10 @@ export async function activateAbility(pid, c, ab, env) {
         left--;
       }
     }
+  }
+  if (ab.putCounters) {
+    const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.putCounters[1].toLowerCase()] || +ab.putCounters[1] || 1;
+    addCounters(c, ab.putCounters[2].toLowerCase(), k, { by: pid });
   }
   if (ab.exert) c.noUntapUntil = s.turn + 2;
   c.usedAbilities[ab.raw] = ab.exhaust ? 'ever' : s.turn;

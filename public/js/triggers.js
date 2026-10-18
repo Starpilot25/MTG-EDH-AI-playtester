@@ -214,6 +214,9 @@ export function triggersOf(c, defOverride) {
       add('attacks', m[2], { anyOfMine: true, kind, chosenType: kind === 'chosen type' });
       add('enters', m[2], { mine: true, kind: kind === 'chosen type' ? '' : kind, chosenType: kind === 'chosen type' });
     }
+    // Mazemind Tome: "When there are four or more page counters on ~, exile it. If you do, you gain 4 life."
+    else if ((m = line.match(/^When there are (\w+) or more ([a-z+\/1-]+) counters on ~, (.+)$/i)))
+      add('counterPut', m[3], { self: true, kind: m[2].toLowerCase(), nth: { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, ten: 10 }[m[1].toLowerCase()] || +m[1] || 4 });
     else if ((m = line.match(/^When the (tenth|fifth|third|sixth|seventh|twentieth) (\+1\/\+1|[a-z]+) counter is put on ~, (.+)$/i)))
       add('counterPut', m[3], { self: true, kind: m[2].toLowerCase(), nth: { third: 3, fifth: 5, sixth: 6, seventh: 7, tenth: 10, twentieth: 20 }[m[1].toLowerCase()] });
     else if ((m = line.match(/^Whenever you put one or more counters on another creature, (.+)$/i)))

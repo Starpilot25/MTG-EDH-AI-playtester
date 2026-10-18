@@ -841,6 +841,9 @@ export function changeLife(pid, delta, reason) {
   if (delta > 0 && G.s && G.s.phase === 'play') {
     const plus = cardsIn(pid, 'battlefield').filter((c) => !c.phasedOut && /If you would gain life, you gain that much life plus 1 instead/i.test(oracle(c))).length;
     delta += plus;
+    // Rhox Faithmender, Boon Reflection, Alhammarret's Archive: "you gain twice that much life instead" (each one doubles)
+    const dbl = cardsIn(pid, 'battlefield').filter((c) => !c.phasedOut && /If you would gain life, you gain twice that much life instead/i.test(oracle(c))).length;
+    delta *= 2 ** dbl;
   }
   setLife(pid, G.s.players[pid].life + delta, reason);
 }

@@ -1,22 +1,22 @@
 {
-  "version": "1.3.51",
+  "version": "1.3.52",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "b1421302368897be0fd17d1926db09c8b061e08124bf0f3f7ce4db0b24d45c73",
     "public/index.html": "1848de5425414eb96ec2a80cd3c35f0f2210022a6b4351974a1f79b59284ac55",
     "public/js/ai.js": "47c7368670aacf67e80ea5ede64d6edec479636240e07349aef6760520e5222f",
     "public/js/aicombat.js": "16bf5634d0f9e61315d30c61c6ba35226c9a50a4fbddf753eb0e76a0e3cbc67e",
-    "public/js/cast.js": "1099516b48ec86d521d8158a7e3b69185b6f18ec4a2196fe80464158904c957e",
+    "public/js/cast.js": "e6d81bc43dee90c03232d2a889a49567a3a4aa281f76e9ef43c22dc22e443254",
     "public/js/data.js": "86b69a179ef93276907e45c96c14e02dc91991001b1b11b2a839752a4ffbb955",
     "public/js/dungeon.js": "10c2b69fa213d7b8ff9335fd93ef412e8bd72c4919ea68831ff7aed5280f52ef",
-    "public/js/effects.js": "eed2b0fb1c17c05dda81ec0050f9047aeacbb056f5bf4df54ce46b01259a1d5b",
+    "public/js/effects.js": "ad98603c357de20304a02d9921369bd7d7058066400241c295ccce2c30cca0de",
     "public/js/game.js": "5236d094f5b50d0338f2574a439be143bbced2ab180cd1229e41136a66383cb3",
     "public/js/main.js": "7cefc2de3bbba663d2e4168d99f2f1e187e6a876529a2cbfd93bf5a1d4e357d5",
     "public/js/rules.js": "03d14502bd0598b06b4e1de608dc4cd01a58b89deaa9096af6c7636b7dc8053e",
-    "public/js/state.js": "ef0d5434a39b4ca3875c1e9b1975ab20a39171d497b3beebbd6b93e94a9695d3",
+    "public/js/state.js": "f8eebce7b013f8762f85cf6676e32153e482bf74eb1be00358e4b4f7ce537e38",
     "public/js/statics.js": "19b8328e735186aee9c76e72204ea2a2c90bf939e40470030394ca0a347d30f3",
-    "public/js/triggers.js": "fd8298e6e4079349da567d0ad244d4d91b7682f4fc5bbd8fbf3c92e554818669",
+    "public/js/triggers.js": "94105d1f2d1efb24cd8934a2dabd0b04d58d1a8112e91e5a201d6ac8864b866d",
     "public/js/ui.js": "f9512396e8bfe7219335a0323316f9aca763adb754f58c208752e34e2a5282e0",
-    "public/patch-notes.json": "28265f90822e08d9c96cd22546a26fe1d3fe62b83e2673bbb45bb465ab3c34ea"
+    "public/patch-notes.json": "acc0db3df6e1b6bed5130b0f02d161c4f09b4b1e1e5fde9ec4208b76237e06cb"
   }
 }

@@ -217,6 +217,7 @@ export function activatedAbilities(c) {
       discardN: (cost.match(/Discard (a|two|\d+) cards?/i) || [])[1],
       exert: /Exert ~/i.test(cost),
       removeCounters: cost.match(/Remove (a|an|one|two|three|\d+|X) (?:([+-]\d+\/[+-]\d+|\w+) )?counters? from ~/i), // no kind: any counters (Ghost-Spider)
+      putCounters: cost.match(/Put (a|an|one|two|three|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on ~/i), // Mazemind Tome: "Put a page counter on ~"
       payLife: (cost.match(/Pay (\d+) life/i) || [])[1] || (/Pay life equal to the number of colors in your commanders?'? color identity/i.test(cost) ? 'identity' : undefined),
       payEnergy: (cost.match(/\{E\}/g) || []).length,
       exileFromGy: cost.match(/Exile (a|two|three|\d+|X) (?:other )?(?:([a-z]+) )?cards? from your graveyard/i),
@@ -2607,6 +2608,8 @@ on(/^exile (.+?)(?: until ~ leaves the battlefield)?$/, async (m, env) => {
     if (objs.length <= 3) env.did.push(`exiles ${nm}`);
   }
   if (objs.length > 3) env.did.push(`exiles ${objs.length} permanents`);
+  // "Exile it. If you do, you gain 4 life." (Mazemind Tome): "if you do" means something was exiled
+  if (/^(?:it|~|this [a-z]+)$/.test(m[1].trim())) env.lastMay = objs.some((c) => card(c.iid) && card(c.iid).zone !== 'battlefield');
   // Duplicant: "As long as a card exiled with ~ is a creature card, ~ has the power, toughness, and creature types of the last
   // creature card exiled with ~."
   const dsrc = env.src && card(env.src.iid);
@@ -2614,8 +2617,10 @@ on(/^exile (.+?)(?: until ~ leaves the battlefield)?$/, async (m, env) => {
   if (dsrc && dsrc.zone === 'battlefield' && lastCreature && /has the power, toughness, and creature types of the last creature card exiled with ~/i.test(stripName(oracle(dsrc), dsrc))) {
     const f = DB[lastCreature.def].faces[0];
     const subs = ((f.typeLine || '').split('—')[1] || '').trim();
-    dsrc.layerFx = [...(dsrc.layerFx || []).filter((e) => !e.imprint), { ts: nextStamp(), imprint: true, base: { p: parseInt(f.power, 10) || 0, t: parseInt(f.toughness, 10) || 0 }, ...(subs ? { types: { subAdd: subs } } : {}) }];
-    env.did.push(`${nameTag(dsrc)} becomes ${parseInt(f.power, 10) || 0}/${parseInt(f.toughness, 10) || 0}${subs ? ' ' + subs : ''}`);
+    // "*" (Tarmogoyf, Psychosis Crawler): its characteristic-defining ability still works in exile
+    const bp = /\*/.test(`${f.power}${f.toughness}`) ? basePT(card(lastCreature.iid)) : { p: parseInt(f.power, 10) || 0, t: parseInt(f.toughness, 10) || 0 };
+    dsrc.layerFx = [...(dsrc.layerFx || []).filter((e) => !e.imprint), { ts: nextStamp(), imprint: true, base: { p: bp.p, t: bp.t }, ...(subs ? { types: { subAdd: subs } } : {}) }];
+    env.did.push(`${nameTag(dsrc)} becomes ${bp.p}/${bp.t}${subs ? ' ' + subs : ''}`);
   }
 }, { skipIf: /top|graveyard|cards from|until you exile/ });
 on(/^return (.+?) to (?:its|their) owner'?s?'? hands?/, async (m, env) => {
