@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.55",
+    "title": "Lavaleaper, mana doublers, Rousing Refrain",
+    "notes": [
+      "Lavaleaper: \"All creatures have haste\" now works, and every basic land (both players') taps for an extra mana of the same type.",
+      "Land mana doublers now work too (none did before): Heartbeat of Spring, Mana Flare and Dictate of Karametra (every land, both players), Zendikar Resurgent, Mirari's Wake and Vorinclex (your lands), Crypt Ghast and Nissa, Who Shakes the World (extra {B} from Swamps / {G} from Forests), Gauntlet of Power and Caged Sun (the chosen color), and Mana Reflection (every permanent you tap makes twice as much). Auto-pay and tapping by hand both count the extra mana.",
+      "Rousing Refrain: the red mana it adds now really stays in your pool until end of turn (it emptied at the next step before), so casting it from suspend in your upkeep leaves the mana for your main phase."
+    ]
+  },
+  {
     "version": "1.3.54",
     "title": "Powerstones",
     "notes": [

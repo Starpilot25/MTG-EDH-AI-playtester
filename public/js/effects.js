@@ -1611,7 +1611,7 @@ on(/^until end of turn, you don't lose this mana as steps and phases end$/, asyn
   if (!a) return;
   const keep = (G.s.keepMana = G.s.keepMana || {});
   const prev = keep[env.me] && keep[env.me].turn === G.s.turn ? keep[env.me].list : [];
-  keep[env.me] = { turn: G.s.turn, list: [...prev, ...Array.from({ length: a.n }, () => a.sym)] };
+  keep[env.me] = { turn: G.s.turn, list: [...prev, ...(a.list || Array.from({ length: a.n }, () => a.sym))] };
   env.did.push('that mana stays until end of turn');
 }, { first: true });
 // Niv-Mizzet, Ghost Counsel: "you may pay that much life. if you do, draw that many cards"
@@ -5522,6 +5522,7 @@ on(/^add ((?:\{[wubrgc]\})+)(?: for each ([^.]+))?/, async (m, env) => {
   }
   addMana(env.me, syms);
   env.lastAdded = syms;
+  env.lastManaAdded = { list: syms }; // Rousing Refrain: "Until end of turn, you don't lose this mana…"
   env.did.push(`adds ${syms.map((x) => `{${x}}`).join('') || 'no mana'}`);
 });
 // Irencrag Feat: "Add seven {R}."
@@ -5531,6 +5532,7 @@ on(/^add (two|three|four|five|six|seven|eight|nine|ten|x|\d+) (\{[wubrgc]\})(?: 
   const syms = Array.from({ length: k }, () => m[2][1].toUpperCase());
   addMana(env.me, syms);
   env.lastAdded = syms;
+  env.lastManaAdded = { list: syms };
   env.did.push(`adds ${syms.map((x) => `{${x}}`).join('')}`);
 });
 // Mana Seism: "… then add that much {C}"

@@ -751,6 +751,40 @@ export function manaAbility(inst) {
         : { ...r, amount: (r.amount || 1) + 1, each: undefined, colors: [...new Set([...(r.colors || []), ...extra])] };
     }
   }
+  // Lavaleaper, Heartbeat of Spring, Mana Flare, Zendikar Resurgent, Mirari's Wake, Vorinclex, Crypt Ghast, Nissa, Gauntlet of
+  // Power, Caged Sun, Mana Reflection: extra mana whenever a land (or permanent) is tapped for mana
+  if (G.s && inst.zone === 'battlefield' && r.amount) {
+    const isBasic = /\bBasic\b/.test(typeLine(inst));
+    const land = isLand(inst);
+    const same = (r_, k = 1) => {
+      // k more of the same mana the permanent makes
+      if (r_.each && r_.each.length) return { ...r_, amount: r_.each.length + k, each: [...r_.each, ...Array(k).fill(r_.each[0])] };
+      if ((r_.colors || []).length === 1 && (r_.amount || 1) === 1) return { ...r_, amount: 1 + k, each: Array(1 + k).fill(r_.colors[0]) };
+      return { ...r_, amount: (r_.amount || 1) + k };
+    };
+    const addColor = (r_, col) => {
+      const base = r_.each || ((r_.colors || []).length === 1 ? Array(r_.amount || 1).fill(r_.colors[0]) : null);
+      return base ? { ...r_, amount: base.length + 1, each: [...base, col], colors: [...new Set([...base, col])] } : { ...r_, amount: (r_.amount || 1) + 1, colors: [...new Set([...(r_.colors || []), col])], each: undefined };
+    };
+    let doubles = 0;
+    for (const i of [...G.s.players.p.zones.battlefield, ...G.s.players.ai.zones.battlefield]) {
+      const x = G.s.cards[i];
+      if (!x || x.phasedOut) continue;
+      const xr = DB[x.def].faces[x.face || 0].oracle || DB[x.def].faces[0].oracle || '';
+      if (!/(?:taps?|tapped) an? [^.]*?for mana|tap a permanent for mana/i.test(xr) || abilitiesGone(x)) continue; // cheap check on the printed text first
+      const xo = oracle(x);
+      const mine = x.controller === inst.controller;
+      if (land && isBasic && /Whenever a player taps a basic land for mana, that player adds one mana of any type that land produced/i.test(xo)) r = same(r);
+      if (land && /Whenever a player taps a land for mana, that player adds one mana of any type that land produced/i.test(xo)) r = same(r);
+      if (land && mine && /Whenever you tap a land for mana, add one mana of any type that land produced/i.test(xo)) r = same(r);
+      let tm;
+      if (land && mine && (tm = xo.match(/Whenever you tap an? (Plains|Island|Swamp|Mountain|Forest) for mana, add an additional \{([WUBRG])\}/i)) && hasSubtype(inst, tm[1])) r = addColor(r, tm[2].toUpperCase());
+      if (land && isBasic && x.chosenColor && /Whenever a basic land is tapped for mana of the chosen color, its controller adds an additional one mana of that color/i.test(xo) && (r.colors || []).includes(x.chosenColor)) r = addColor(r, x.chosenColor);
+      if (land && mine && x.chosenColor && /Whenever a land's ability causes you to add one or more mana of the chosen color, add an additional one mana of that color/i.test(xo) && (r.colors || []).includes(x.chosenColor)) r = addColor(r, x.chosenColor);
+      if (mine && /If you tap a permanent for mana, it produces twice as much of that mana instead/i.test(xo)) doubles++;
+    }
+    if (doubles) r = same(r, (r.amount || 1) * (2 ** doubles - 1));
+  }
   const o = oracle(inst);
   const painful = new Set();
   const symsOf = (t) => (/one mana of any color/i.test(t) ? ['W', 'U', 'B', 'R', 'G'] : (t.match(/\{[WUBRGC]\}/g) || []).map((x) => x[1]));

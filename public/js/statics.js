@@ -193,6 +193,11 @@ function parseStatics(text, selfName) {
       pushAnthem({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: 0, t: 0, grants: kwList(m[3]) });
       continue;
     }
+    // Lavaleaper, Concordant Crossroads, Fires of Yavimaya-style for everyone: "All creatures have haste."
+    if ((m = l.match(/^(?:all|each) (other )?((?:[\w-]+ ){0,2}?)creatures (?:have|gain) (.+?)\.?$/))) {
+      pushAnthem({ who: 'all', other: !!m[1], f: filterFrom(m[2]), p: 0, t: 0, grants: kwList(m[3]) });
+      continue;
+    }
     if ((m = l.match(/^creatures your opponents control get ([+-]\d+)\/([+-]\d+)/))) {
       pushAnthem({ who: 'theirs', f: {}, p: +m[1], t: +m[2], grants: [] });
       continue;
