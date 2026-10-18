@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.56",
+    "title": "Leftover mana floats",
+    "notes": [
+      "When auto-pay taps a source that makes more mana than the cost needs — Sol Ring for a one-mana spell, a Gilded Lotus, a land doubled by Lavaleaper — the extra mana now goes into your mana pool instead of vanishing. The log says what floated, and you can spend it on your next spell or ability before the step ends. Gilded Lotus leaves mana of the color it was tapped for. The AI gets the same."
+    ]
+  },
+  {
     "version": "1.3.55",
     "title": "Lavaleaper, mana doublers, Rousing Refrain",
     "notes": [

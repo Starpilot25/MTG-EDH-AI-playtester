@@ -1211,10 +1211,12 @@ function payCostRaw(cost, sources, opts = {}) {
   if (!best) return null;
   const finalUsed = new Array(units.length).fill(false);
   const tappedSet = new Set();
+  const paidAs = new Map(); // source -> the color one of its units paid a colored pip with
   best.pick.forEach((k, pi) => {
     if (k < 0) return;
     finalUsed[k] = true;
     tappedSet.add(units[k].iid);
+    paidAs.set(units[k].iid, units[k].colors.find((col) => pips[pi].includes(col)));
     if (hurts(units[k], pips[pi].filter((p) => p !== '2GEN'))) pains.push(units[k].iid);
   });
   // --- generic (and snow/any pips), then X
@@ -1273,7 +1275,17 @@ function payCostRaw(cost, sources, opts = {}) {
   });
   const unitsUsed = units.filter((u, k) => finalUsed[k]).map((u) => u.iid);
   if (opts.signets && opts.signets.some((i) => !unitsUsed.includes(i))) return null;
-  return { payers, x, sacs: [...new Set(sacs)], special, pains: [...new Set(pains)], unitsUsed, genericUnits };
+  // Mana a tapped source made but this cost didn't need (Sol Ring for a one-drop): it goes to the mana pool.
+  // A source whose units can each be any of several colors (Gilded Lotus) leaves mana of the color it was used for.
+  const leftover = [];
+  const usedSrc = new Set(payers);
+  units.forEach((u, k) => {
+    if (finalUsed[k] || u.kind || u.restricted || u.sac || !usedSrc.has(u.iid)) return;
+    if (u.colors.length === 1) return void leftover.push(u.colors[0]);
+    const spent = units.find((v, j) => finalUsed[j] && v.iid === u.iid);
+    leftover.push(paidAs.get(u.iid) || (spent && spent.colors.length === 1 ? spent.colors[0] : 'ANY'));
+  });
+  return { payers, x, sacs: [...new Set(sacs)], special, pains: [...new Set(pains)], unitsUsed, genericUnits, leftover };
 }
 
 export function totalMana(sources) {

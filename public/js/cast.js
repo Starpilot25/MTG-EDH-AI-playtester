@@ -111,6 +111,12 @@ export function applyPayment(pid, pay) {
     else if (card(sp.iid)) card(sp.iid).tapped = true;
   }
   if (usedPool.length && G.s.pool) G.s.pool[pid] = G.s.pool[pid].filter((_, k) => !usedPool.includes(k));
+  // the rest of a multi-mana source's mana floats (Sol Ring tapped for a one-mana spell leaves {C})
+  if ((pay.leftover || []).length) {
+    G.s.pool = G.s.pool || { p: [], ai: [] };
+    G.s.pool[pid].push(...pay.leftover);
+    if (pid === 'p') log('p', `Unused mana floats in your pool: ${pay.leftover.map((x) => (x === 'ANY' ? '{any}' : `{${x}}`)).join('')}.`);
+  }
   // Rain of Riches: remember that mana from a Treasure went into this payment
   const tp = G.s.treasurePool;
   if (usedPool.length && tp && tp.pid === pid && tp.turn === G.s.turn) G.s.treasureSpent = { pid, turn: G.s.turn };
