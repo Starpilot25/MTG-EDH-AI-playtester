@@ -70,25 +70,33 @@ function builtIn(name) {
   return { rooms, order: rows.map((r) => r[0]), first: rows[0][0] };
 }
 
+// The rooms always come from the built-in list, so the dungeons are ready at once; the dungeon cards themselves
+// (just for their pictures) are fetched in the background and never hold up starting a game.
+let dungeonFetch = null;
 export async function loadDungeons() {
   const missing = DUNGEON_NAMES.filter((n) => !DUNGEONS[n]);
-  if (!missing.length) return;
-  // the card itself (for its image); the rooms always come from the built-in list
-  let defs = [];
-  try {
-    defs = await fetchCards(missing.map((name) => ({ name })));
-  } catch (e) {
-    console.warn('Could not load dungeon cards', e);
+  for (const name of missing) {
+    const id = 'dungeon-def-' + name.replace(/\W+/g, '-');
+    if (!DB[id]) DB[id] = { id, name, layout: 'normal', cmc: 0, manaCost: '', typeLine: 'Dungeon', colors: [], ci: [], keywords: [], produced: [], tokens: [], faces: [{ name, manaCost: '', typeLine: 'Dungeon', oracle: '', img: null, imgLarge: null }] };
+    DUNGEONS[name] = { id, name, ...builtIn(name), placeholder: true };
   }
-  missing.forEach((name, i) => {
-    let d = (defs || []).find((x) => x && x.name === name) || null;
-    if (!d) {
-      const id = 'dungeon-def-' + name.replace(/\W+/g, '-');
-      if (!DB[id]) DB[id] = { id, name, layout: 'normal', cmc: 0, manaCost: '', typeLine: 'Dungeon', colors: [], ci: [], keywords: [], produced: [], tokens: [], faces: [{ name, manaCost: '', typeLine: 'Dungeon', oracle: '', img: null, imgLarge: null }] };
-      d = DB[id];
-    }
-    DUNGEONS[name] = { id: d.id, name, ...builtIn(name) };
-  });
+  if (dungeonFetch || !DUNGEON_NAMES.some((n) => DUNGEONS[n].placeholder)) return;
+  const want = DUNGEON_NAMES.filter((n) => DUNGEONS[n].placeholder);
+  dungeonFetch = fetchCards(want.map((name) => ({ name })), { retry: false, quiet: true })
+    .then((defs) => {
+      want.forEach((name, i) => {
+        const d = (defs || [])[i];
+        if (!d || d.name !== name) return;
+        // the placeholder picks up the real card's picture (games already started keep pointing at the same id)
+        const ph = DB[DUNGEONS[name].id];
+        if (ph && d.faces && d.faces[0]) ph.faces[0] = { ...ph.faces[0], img: d.faces[0].img, imgLarge: d.faces[0].imgLarge, oracle: d.faces[0].oracle || '' };
+        delete DUNGEONS[name].placeholder;
+      });
+    })
+    .catch((e) => console.warn('Could not load dungeon cards', e))
+    .finally(() => {
+      dungeonFetch = null;
+    });
 }
 
 function dungeonSrc(pid, dg) {
