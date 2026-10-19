@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.73",
+    "title": "Prismatic Lens, clearer floating mana",
+    "notes": [
+      "Prismatic Lens (and similar \"{T}: Add {C}\" + \"{1}, {T}: Add one mana of any color\" rocks): colored mana now costs the extra {1}. Before, it made any color for free. Tapping it by hand lets you pick plain {C} or pay {1} from your pool for a color.",
+      "Floating mana is easier to read: a \"Floating N\" chip with one colored pip per color and a count (e.g. C ×3, G ×2). Restricted mana has a dashed ring; hover for what it can pay for.",
+      "Mana symbols in the log and elsewhere now show as small colored pips instead of plain letters."
+    ]
+  },
+  {
     "version": "1.3.72",
     "title": "Garruk, Scaretiller, Ultima, emblems",
     "notes": [

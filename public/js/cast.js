@@ -79,7 +79,7 @@ export function manaSources(pid, opts = {}) {
       const best = Object.entries(m.byColor).sort((a, b) => Math.min(b[1], pips(b[0])) - Math.min(a[1], pips(a[0])) || b[1] - a[1])[0];
       if (best) m = { ...m, colors: [best[0]], amount: best[1] };
     }
-    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, energy: m.energy, energyNeed: m.energyNeed, activation: m.activation || 0, restricted: !!m.onlyFor });
+    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, filterAlt: m.filterAlt, energy: m.energy, energyNeed: m.energyNeed, activation: m.activation || 0, restricted: !!m.onlyFor });
   }
   // Waterbend: untapped artifacts and creatures can each pay {1} of the waterbend cost
   if (opts.waterbend)

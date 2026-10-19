@@ -889,6 +889,15 @@ function manaAbilityRaw(inst) {
       return k > 0 ? { colors: [km[1].toUpperCase()], amount: k } : null;
     }
   }
+  // Prismatic Lens, Manalith-likes with a paid upgrade: "{T}: Add {C}." plus "{1}, {T}: Add one mana of any color."
+  {
+    const fm = o.match(/(?:^|\n)\{T\}: Add (\{[WUBRGC]\})\.(?:\n|$)/);
+    const pm = o.match(/(?:^|\n)\{(\d)\}, \{T\}: Add (one mana of any color|\{[WUBRGC]\}(?: or \{[WUBRGC]\})*)\.(?:\n|$)/);
+    if (fm && pm && !(isCreature(inst) && inst.sick && !hasKw(inst, 'haste'))) {
+      const paid = /any color/.test(pm[2]) ? ['W', 'U', 'B', 'R', 'G'] : pm[2].match(/\{([WUBRGC])\}/g).map((x) => x[1]);
+      return { colors: [fm[1][1]], amount: 1, filterAlt: { colors: paid, amount: 1, activation: +pm[1] } };
+    }
+  }
   // Signets and other filters: "{1}, {T}: Add {W}{U}." — pay {1} from another source, get both colors
   {
     const sg = o.match(/(?:^|\n)\{(\d)\}, \{T\}: Add ((?:\{[WUBRGC]\}){2,3})\./);
@@ -1126,15 +1135,16 @@ function signetChainOk(on, genericUnits) {
   return true;
 }
 export function payCost(cost, sources, opts = {}) {
-  const filters = sources.filter((s) => s.activation);
+  const filters = sources.filter((s) => s.activation || s.filterAlt).map((s) => (s.filterAlt ? { ...s, ...s.filterAlt, filterAlt: undefined, kind: '' } : s));
   const plain = sources.filter((s) => !s.activation);
   let best = payCostRaw(cost, plain, opts);
   if (best || !filters.length) return best;
   const n = Math.min(filters.length, 6);
   for (let mask = 1; mask < 1 << n && !best; mask++) {
     const on = filters.filter((_, k) => mask & (1 << k));
+    const plainHere = plain.filter((p) => !on.some((o) => o.iid === p.iid));
     const extra = on.reduce((a, s) => a + s.activation, 0);
-    const r = payCostRaw(cost, [...plain, ...on.map((s) => ({ ...s, kind: '' }))], { ...opts, extraGeneric: (opts.extraGeneric || 0) + extra, signets: on.map((s) => s.iid), nodeCap: 4000 });
+    const r = payCostRaw(cost, [...plainHere, ...on.map((s) => ({ ...s, kind: '' }))], { ...opts, extraGeneric: (opts.extraGeneric || 0) + extra, signets: on.map((s) => s.iid), nodeCap: 4000 });
     if (!r) continue;
     // a signet can't pay for its own activation, but it can pay for another one: a land pays signet A, A's mana pays
     // signet B, and so on. Activate them in order, paying each from the generic mana of lands and signets already on.

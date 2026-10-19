@@ -882,3 +882,20 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .zv-grid.pick .pk-ptile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; aspect-ratio: 63 / 88; width: 100%; border: 1px dashed var(--brass); border-radius: 8px; background: rgb(255 255 255 / 0.04); padding: 6px; text-align: center; }
 .zv-grid.pick .pk-ptile b { font-size: 1.05em; }
 .zv-grid.pick .pk-ptile small { font-size: 0.8em; opacity: 0.85; white-space: pre-line; }
+/* mana symbols: small colored pips (log, costs, pool) */
+.ms { display: inline-flex; align-items: center; justify-content: center; min-width: 1.3em; height: 1.3em; padding: 0 0.25em; border-radius: 999px; font: 700 0.72em/1 system-ui, sans-serif; color: #1d1b18; background: #c9c3b8; margin: 0 1px; vertical-align: 0.08em; box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.28); box-sizing: border-box; }
+.ms-w { background: #f6efd2; }
+.ms-u { background: #8ec3ea; }
+.ms-b { background: #4a4240; color: #eee5dc; }
+.ms-r { background: #ee9a7c; }
+.ms-g { background: #8cc596; }
+.ms-c { background: #d4d0ca; }
+.ms-any { background: conic-gradient(#f6efd2, #8ec3ea, #4a4240, #ee9a7c, #8cc596, #f6efd2); color: #fff; text-shadow: 0 0 2px #000; }
+.ms-e { background: #f3d36b; }
+/* floating mana chip: one pip per color with a count */
+.status-row .st.pool { display: inline-flex; flex-wrap: wrap; white-space: normal; max-width: 100%; box-sizing: border-box; row-gap: 3px; align-items: center; gap: 4px; padding: 3px 8px; border-color: var(--brass); background: rgb(211 170 82 / 0.12); font-size: 12px; }
+.st.pool > b { font-weight: 600; color: var(--brass); margin-right: 2px; }
+.pool-pip { display: inline-flex; align-items: center; gap: 1px; }
+.pool-pip .ms { font-size: 13px; }
+.pool-pip i { font-style: normal; font-weight: 700; font-size: 11px; }
+.pool-pip.only .ms { outline: 1.5px dashed var(--brass); outline-offset: 1px; }

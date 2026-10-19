@@ -544,7 +544,22 @@ function statusLine(pid) {
   if (pool.length) {
     const lim = pool.map(poolSym).filter((p) => p.onlyFor);
     const tip = `Floating mana (empties between steps)${lim.length ? ` — ${lim.length} restricted: only for ${[...new Set(lim.map((p) => (p.onlyFor === 'abilities' ? 'abilities' : p.onlyFor === 'artifactOrAbility' ? 'artifact spells and abilities' : p.onlyFor === 'fromExile' ? 'spells from exile' : p.onlyFor + ' spells')))].join(', ')}` : ''}`;
-    bits.push(`<span class="st pool" title="${esc(tip)}">Pool ${manaSymbols(pool.map((x) => { const p = poolSym(x); return `{${p.col === 'ANY' ? '*' : p.col}}`; }).join(''))}${lim.length ? '<sup>*</sup>' : ''}</span>`);
+    // grouped by color with a count: {C}×3 {G}×2 — restricted mana shown separately with a dashed ring
+    const groups = new Map();
+    for (const x of pool) {
+      const p = poolSym(x);
+      const key = p.col + '|' + (p.onlyFor || '');
+      const g = groups.get(key) || { col: p.col, only: p.onlyFor, n: 0 };
+      g.n++;
+      groups.set(key, g);
+    }
+    const order = ['W', 'U', 'B', 'R', 'G', 'C', 'ANY'];
+    const pips = [...groups.values()].sort((a, b) => !!a.only - !!b.only || order.indexOf(a.col) - order.indexOf(b.col)).map((g) => {
+      const label = g.col === 'ANY' ? '✦' : g.col;
+      const only = g.only ? ` — only for ${g.only === 'abilities' ? 'abilities' : g.only === 'artifactOrAbility' ? 'artifact spells and abilities' : g.only === 'fromExile' ? 'spells from exile' : g.only + ' spells'}` : '';
+      return `<span class="pool-pip${g.only ? ' only' : ''}" title="${esc(`${g.n} ${g.col === 'ANY' ? 'mana of any color' : '{' + g.col + '}'}${only}`)}"><span class="ms ms-${g.col.toLowerCase()}">${label}</span>${g.n > 1 ? `<i>×${g.n}</i>` : ''}</span>`;
+    }).join('');
+    bits.push(`<span class="st pool" title="${esc(tip)}"><b>Floating ${pool.length}</b>${pips}</span>`);
   }
   if (pid === 'p' && s.dayNight) bits.push(`<span class="st daynight ${s.dayNight}">${s.dayNight === 'day' ? '☀ Day' : '☾ Night'}</span>`);
   return bits.length ? `<div class="status-row">${bits.join('')}</div>` : '';
@@ -1825,6 +1840,18 @@ async function floatMana(c) {
     const k = await playerChooser.choose({ prompt: `Tap ${cardName(c)} for…`, options: all.map((x) => ({ label: `${'{' + (x.colors[0] || 'C') + '}'}`.repeat(x.amount || 1) + (x.onlyFor ? ` (only for ${x.onlyFor} spells)` : '') })), aiPick: () => 0 });
     if (k === null || k === undefined || k < 0) return;
     m = { ...m, ...all[k], alts: undefined };
+  }
+  // Prismatic Lens: plain {C}, or pay {1} from the pool for any color
+  if (m.filterAlt) {
+    const fa = m.filterAlt;
+    const free = ((G.s.pool && G.s.pool.p) || []).filter((x) => !poolSym(x).onlyFor).length;
+    if (free >= fa.activation) {
+      const nm = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green', C: 'Colorless' };
+      const opts = [{ label: `{${m.colors[0]}}` }, ...fa.colors.map((x) => ({ label: `Pay {${fa.activation}}: ${nm[x]} {${x}}` }))];
+      const k = await playerChooser.choose({ prompt: `Tap ${cardName(c)} for…`, options: opts, aiPick: () => 0 });
+      if (k === null || k === undefined || k < 0) return;
+      m = k === 0 ? { ...m, filterAlt: undefined } : { ...m, colors: [fa.colors[k - 1]], amount: 1, activation: fa.activation, filterAlt: undefined };
+    } else m = { ...m, filterAlt: undefined };
   }
   // Nyx Lotus: any color, as much as your devotion to it
   if (m.byColor) {
