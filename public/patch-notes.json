@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.77",
+    "title": "The Ur-Dragon and Omens",
+    "notes": [
+      "The Ur-Dragon (and other \"Dragon spells cost less\" effects) no longer discount the Omen half of a Dragon card — an Omen is cast as an instant or sorcery, not a Dragon. The same goes for Adventure halves and the back face of double-faced cards: cost changes now look at the half you're actually casting."
+    ]
+  },
+  {
     "version": "1.3.76",
     "title": "Orrery, Nettlecyst, It That Heralds the End, Bad Moon, Lozhan, Call the Spirit Dragons",
     "notes": [

@@ -474,9 +474,10 @@ const NOT_CREATURE_TYPE = /^(creature|artifact|enchantment|land|planeswalker|bat
 function isChangelingDef(d) {
   return (d.keywords || []).includes('changeling') || /(?:^|\n)Changeling\b/.test((d.faces[0] || {}).oracle || '');
 }
-function spellFits(filter, d) {
+function spellFits(filter, d, faceIdx = 0) {
   if (!filter) return true;
-  const tl = d.faces[0].typeLine;
+  // the half being cast: an Omen or Adventure half is an instant/sorcery, not a Dragon spell (The Ur-Dragon)
+  const tl = (d.faces[faceIdx] || d.faces[0]).typeLine || d.faces[0].typeLine;
   return filter.replace(/\b(?:other|another)\b/g, '').split(/\s+(?:and|or)\s+|\s+/).filter(Boolean).every((w) => {
     if (w === 'noncreature') return !/Creature/.test(tl);
     if (w === 'nonartifact') return !/Artifact/.test(tl);
@@ -494,8 +495,9 @@ function spellFits(filter, d) {
   });
 }
 
+const manaValueOfCost = (mc) => (mc.match(/\{[^}]+\}/g) || []).reduce((a, x) => a + (/^\{\d+\}$/.test(x) ? +x.slice(1, -1) : x === '{X}' ? 0 : 1), 0);
 // Generic mana added to (or taken off) a spell's cost by permanents on the battlefield.
-export function costDelta(pid, c, fromZone) {
+export function costDelta(pid, c, fromZone, faceIdx = 0) {
   const d = DB[c.def];
   let delta = 0;
   for (const src of field()) {
@@ -506,7 +508,7 @@ export function costDelta(pid, c, fromZone) {
       if (cm.from === 'exile' && fromZone !== 'exile') continue;
       if (cm.from === 'anywhere other than your hand' && (!fromZone || fromZone === 'hand')) continue; // Advanced Reconstruction
       if (/commander/.test(cm.filter) && !c.isCommander) continue;
-      if (!spellFits(cm.filter.replace(/commander/, '').trim(), d)) continue;
+      if (!spellFits(cm.filter.replace(/commander/, '').trim(), d, faceIdx)) continue;
       if (cm.yourTurn && G.s.active !== pid) continue;
       if (cm.chosen && !(src.chosenCardType && new RegExp('\\b' + src.chosenCardType + '\\b', 'i').test((d.faces[0].typeLine || '').split('—')[0]))) continue;
       if (cm.each) {
@@ -516,7 +518,7 @@ export function costDelta(pid, c, fromZone) {
       }
       if (cm.stat) {
         const f = d.faces[c.face || 0] || d.faces[0];
-        const v = cm.stat === 'mana value' ? d.cmc || 0 : parseInt(cm.stat === 'power' ? f.power : f.toughness, 10);
+        const v = cm.stat === 'mana value' ? (faceIdx && d.faces[faceIdx] && d.faces[faceIdx].manaCost ? manaValueOfCost(d.faces[faceIdx].manaCost) : d.cmc || 0) : parseInt(cm.stat === 'power' ? f.power : f.toughness, 10);
         if (!Number.isFinite(v) || (cm.statDir === 'greater' ? v < cm.statN : v > cm.statN)) continue;
       }
       delta += cm.delta;
@@ -525,7 +527,7 @@ export function costDelta(pid, c, fromZone) {
   // temporary ones (Elspeth Conquers Death: "… cost {2} more to cast until your next turn")
   for (const t of (G.s && G.s.tempCosts) || []) {
     if (t.until <= G.s.turn || t.owner === pid) continue;
-    if (spellFits(t.filter, d)) delta += t.delta;
+    if (spellFits(t.filter, d, faceIdx)) delta += t.delta;
   }
   return delta;
 }

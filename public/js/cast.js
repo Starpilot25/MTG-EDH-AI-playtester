@@ -413,7 +413,7 @@ function genericAdjust(pid, c, opt) {
   const f = d.faces[opt.face || 0] || d.faces[0];
   // (reminder text out: Affinity's "(This spell costs {1} less to cast for each artifact you control.)" was counted twice)
   const o = stripName(f.oracle || '', c).replace(/\([^)]*\)/g, '');
-  let delta = costDelta(pid, c, c.zone);
+  let delta = costDelta(pid, c, c.zone, opt.face || 0);
   if (c.zone === 'command' && c.isCommander) delta += commanderTax(pid, c.iid);
   let m;
   if ((m = o.match(/(?:This spell|~) costs \{(\d+)\} less to cast for each ([^.]+)\./i))) delta -= +m[1] * (countPhrase(pid, m[2], helpers, c.iid) || 0);
