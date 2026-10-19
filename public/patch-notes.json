@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.78",
+    "title": "Scion of Draco",
+    "notes": [
+      "Scion of Draco: your creatures now get vigilance if white, hexproof if blue, lifelink if black, first strike if red and trample if green (multicolored creatures get several). Its Domain discount now works too ({2} less per basic land type among your lands)."
+    ]
+  },
+  {
     "version": "1.3.77",
     "title": "The Ur-Dragon and Omens",
     "notes": [

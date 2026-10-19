@@ -217,6 +217,14 @@ function parseStatics(text, selfName) {
       pushAnthem({ who: 'all', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: [] });
       continue;
     }
+    // Scion of Draco: "Each creature you control has vigilance if it's white, hexproof if it's blue, lifelink if it's black, …"
+    if ((m = l.match(/^each (other )?creature you control has (.+? if it's (?:white|blue|black|red|green)(?:,? (?:and )?.+? if it's (?:white|blue|black|red|green))*)\.?$/))) {
+      for (const part of m[2].split(/,? and |, /)) {
+        const pm = part.match(/^(.+?) if it's (white|blue|black|red|green)$/);
+        if (pm) pushAnthem({ who: 'mine', other: !!m[1], f: { creature: true, color: COLOR_WORDS[pm[2]] }, p: 0, t: 0, grants: kwList(pm[1]) });
+      }
+      continue;
+    }
     // Bad Moon, Crusade, Gloomlance-style: "Black creatures get +1/+1.", "Nonblack creatures get -1/-1", "Green creatures have trample"
     if ((m = l.match(/^((?:[\w-]+ ){0,2}?)creatures (?:get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?|have (.+?))\.?$/)) && !/\b(?:you|your|opponents?|that|those|attacking|blocking)\b/.test(m[1] || '')) {
       pushAnthem({ who: 'all', f: filterFrom(m[1]), p: m[2] ? +m[2] : 0, t: m[3] ? +m[3] : 0, grants: kwList(m[4] || m[5] || '') });
@@ -695,7 +703,7 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
         if (new RegExp(t).test(DB[c.def].typeLine.split('—')[0])) types.add(t);
     return types.size;
   }
-  if (/^basic land types among lands you control/.test(p)) {
+  if (/^basic land types? among lands you control/.test(p)) {
     const types = new Set();
     for (const c of bf(pid)) for (const t of ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']) if (helpers.typeLine(c).includes(t)) types.add(t);
     return types.size;
