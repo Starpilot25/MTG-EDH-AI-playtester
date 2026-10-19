@@ -217,6 +217,11 @@ function parseStatics(text, selfName) {
       pushAnthem({ who: 'all', other: !!m[1], f: filterFrom(m[2]), p: +m[3], t: +m[4], grants: [] });
       continue;
     }
+    // Bad Moon, Crusade, Gloomlance-style: "Black creatures get +1/+1.", "Nonblack creatures get -1/-1", "Green creatures have trample"
+    if ((m = l.match(/^((?:[\w-]+ ){0,2}?)creatures (?:get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?|have (.+?))\.?$/)) && !/\b(?:you|your|opponents?|that|those|attacking|blocking)\b/.test(m[1] || '')) {
+      pushAnthem({ who: 'all', f: filterFrom(m[1]), p: m[2] ? +m[2] : 0, t: m[3] ? +m[3] : 0, grants: kwList(m[4] || m[5] || '') });
+      continue;
+    }
     if ((m = l.match(/^all ([\w-]+?)s get ([+-]\d+)\/([+-]\d+)/))) {
       pushAnthem({ who: 'all', f: filterFrom(m[1]), p: +m[2], t: +m[3], grants: [] });
       continue;
@@ -478,6 +483,8 @@ function spellFits(filter, d) {
     if (/^non/.test(w)) return !new RegExp(w.slice(3), 'i').test(tl);
     if (COLOR_WORDS[w]) return d.colors.includes(COLOR_WORDS[w]);
     if (w === 'multicolored') return d.colors.length > 1;
+    if (w === 'colorless') return !(d.colors || []).length;
+    if (w === 'monocolored') return (d.colors || []).length === 1;
     if (w === 'instant' || w === 'sorcery') return /Instant|Sorcery/.test(tl);
     if (w === 'historic') return /Legendary|Artifact|Saga/.test(tl);
     if (w === 'commander') return true;
@@ -567,6 +574,15 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
     const am = p.match(/^(other )?attacking (creature|[a-z-]+)s?( you control)?$/);
     if (am && G.s) {
       return Object.values(G.s.cards).filter((c) => c.zone === 'battlefield' && c.attacking && (am[2] === 'creature' ? true : helpers.hasSubtype(c, am[2][0].toUpperCase() + am[2].slice(1))) && (!am[3] || c.controller === pid) && (!am[1] || c.iid !== srcIid)).length;
+    }
+  }
+  // Nettlecyst, Cranial Plating-likes: "artifact and/or enchantment you control", "artifact or creature you control"
+  {
+    const om = p.match(/^((?:artifact|creature|enchantment|land|planeswalker|battle)s?)(?:, (artifact|creature|enchantment|land|planeswalker|battle)s?,?)? (?:and\/or|or) ((?:artifact|creature|enchantment|land|planeswalker|battle)s?) (you control|your opponents control|an opponent controls|on the battlefield)$/);
+    if (om && G.s) {
+      const types = [om[1], om[2], om[3]].filter(Boolean).map((t) => t.replace(/s$/, '')).map((t) => t[0].toUpperCase() + t.slice(1));
+      const ctl = om[4];
+      return Object.values(G.s.cards).filter((c) => c.zone === 'battlefield' && !c.phasedOut && (ctl === 'on the battlefield' || (ctl === 'you control' ? c.controller === pid : c.controller !== pid)) && types.some((t) => new RegExp('\\b' + t + '\\b').test(helpers.typeLine(c).split('—')[0]))).length;
     }
   }
   // Lifestream's Blessing: "creatures you controlled as you cast this spell" — near enough, the ones you control now

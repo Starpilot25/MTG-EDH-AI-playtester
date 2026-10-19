@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.76",
+    "title": "Orrery, Nettlecyst, It That Heralds the End, Bad Moon, Lozhan, Call the Spirit Dragons",
+    "notes": [
+      "Ghirapur Orrery: each player can now play an extra land each turn (the draw-three part already worked). Same for other \"each player may play an additional land\" cards.",
+      "Nettlecyst: \"+1/+1 for each artifact and/or enchantment you control\" now counts, so the Germ no longer dies instantly. \"X or Y you control\" counts work in general.",
+      "It That Heralds the End: colorless spells with mana value 7+ now cost {1} less (the +1/+1 part already worked). \"Colorless spells\" cost changes work in general.",
+      "Bad Moon: \"Black creatures get +1/+1\" now works, along with other color anthems for everyone (Crusade, etc.).",
+      "Lozhan, Dragons' Legacy: now deals damage equal to the spell's mana value, and can't target commanders.",
+      "Call the Spirit Dragons: the upkeep trigger now puts a counter on a Dragon of each color (spreading them across different Dragons) and wins the game with five."
+    ]
+  },
+  {
     "version": "1.3.75",
     "title": "Whispersilk Cloak",
     "notes": [

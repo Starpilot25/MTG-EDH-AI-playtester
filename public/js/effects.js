@@ -1006,6 +1006,8 @@ async function pickTargets(env, phrase, opts = {}) {
   // "Tap target permanent, then untap another target permanent": not one already chosen by this ability
   if (/\banother target\b/.test(p) && env.pickedSoFar) cands = cands.filter((c) => !env.pickedSoFar.includes(c.iid));
   if (opts.filter) cands = cands.filter(opts.filter);
+  // Lozhan: "any target that isn't a commander"
+  if (/\bthat (?:isn't|is not|'s not) a commander\b|\bnoncommander\b/.test(p)) cands = cands.filter((c) => !c.isCommander);
   // "each of up to two other targets" (Drakuseth): not the ones already chosen
   const ex = opts.exclude || [];
   if (ex.length) cands = cands.filter((c) => !ex.some((e) => e.iid === c.iid));
@@ -1344,7 +1346,7 @@ function amountOf(word, env) {
     const it = /^(?:damage )?equal to (?:~'s|his|her)/.test(w) ? env.src : env.it && env.it.iid ? card(env.it.iid) : env.src;
     return it ? Math.max(0, lkiPT(it).t) : 0;
   }
-  if ((m = w.match(/^(?:damage )?equal to (?:that creature's|that permanent's|that card's|its) (?:mana value|converted mana cost)/))) {
+  if ((m = w.match(/^(?:damage )?equal to (?:that creature's|that permanent's|that card's|that spell's|its) (?:mana value|converted mana cost)/))) {
     const it = env.it && env.it.iid ? card(env.it.iid) : env.src;
     return it ? DB[it.def].cmc || 0 : 0;
   }
@@ -4221,6 +4223,39 @@ on(/^for as long as that land has a blight counter on it, it loses all land type
   c.blightLand = true;
   env.did.push(`${nameTag(c)} is blighted: no land types or abilities, taps for {C}`);
 }, { first: true });
+// Call the Spirit Dragons: "For each color, put a +1/+1 counter on a Dragon you control of that color. If you put +1/+1 counters on five Dragons this way, you win the game."
+on(/^for each color, put a \+1\/\+1 counter on a dragon you control of that color\. if you put \+1\/\+1 counters on five dragons this way, you win the game$/, async (m, env) => {
+  const dragons = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && hasSubtype(c, 'Dragon'));
+  // give each color to a different Dragon where possible (most different Dragons = closest to winning): small matching
+  const cols = ['W', 'U', 'B', 'R', 'G'].filter((col) => dragons.some((d) => colorsOf(d).includes(col)));
+  let best = null;
+  const tryAssign = (k, used, pick) => {
+    if (k === cols.length) {
+      const distinct = new Set(pick).size;
+      if (!best || distinct > best.distinct) best = { distinct, pick: [...pick] };
+      return;
+    }
+    const opts = dragons.filter((d) => colorsOf(d).includes(cols[k]));
+    // prefer an unused Dragon first
+    for (const d of [...opts.filter((d) => !used.has(d.iid)), ...opts.filter((d) => used.has(d.iid))]) {
+      const had = used.has(d.iid);
+      used.add(d.iid);
+      pick.push(d.iid);
+      tryAssign(k + 1, used, pick);
+      pick.pop();
+      if (!had) used.delete(d.iid);
+      if (best && best.distinct === cols.length) return;
+    }
+  };
+  tryAssign(0, new Set(), []);
+  if (!best || !best.pick.length) return env.did.push('no colored Dragons');
+  best.pick.forEach((iid, k) => addCounters(card(iid), '+1/+1', 1, { by: env.me }));
+  const got = [...new Set(best.pick)];
+  env.did.push(`puts +1/+1 counters on ${got.map((i) => nameTag(card(i))).join(', ')} (${cols.join('')})`);
+  if (got.length >= 5) {
+    winGame(env.me, 'Call the Spirit Dragons — five Dragons got counters');
+  }
+}, { first: true, multi: true });
 on(/^bolster (\w+)/, async (m, env) => {
   const cs = cardsIn(env.me, 'battlefield').filter(isCreature).sort((a, b) => toughness(a) - toughness(b));
   if (!cs.length) return;

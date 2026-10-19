@@ -1333,6 +1333,8 @@ export function landsAllowed(pid) {
     const m = o.match(/You may play (two|three) additional lands on each of your turns/i);
     if (m) k += m[1] === 'two' ? 2 : 3;
   }
+  // Ghirapur Orrery, Rites of Flourishing, Exploration-for-all: "Each player may play an additional land on each of their turns."
+  for (const c of allBattlefields()) if (!c.phasedOut && /Each player may play an additional land on each of their turns/i.test(oracle(c))) k++;
   return k;
 }
 export function playLand(pid, iid, faceIdx = 0, pos = {}) {
