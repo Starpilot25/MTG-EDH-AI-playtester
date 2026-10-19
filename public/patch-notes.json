@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.75",
+    "title": "Whispersilk Cloak",
+    "notes": [
+      "Whispersilk Cloak: the equipped creature now can't be blocked (it only got shroud before). Other Equipment and Auras that say \"Equipped/Enchanted creature can't be blocked\" work too."
+    ]
+  },
+  {
     "version": "1.3.74",
     "title": "Super State",
     "notes": [

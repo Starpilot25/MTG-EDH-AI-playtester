@@ -1401,6 +1401,8 @@ export function canBlock(blocker, attacker) {
     if (hasKw(attacker, kw) && G.s && G.s.players[blocker.controller].zones.battlefield.some((i) => G.s.cards[i] && typeLine(G.s.cards[i]).includes(land))) return false;
   }
   if (/(?:^|\n|\. )[^.\n]*can't be blocked\.?(?:$|\n)/.test(ao)) return false;
+  // Whispersilk Cloak, Rogue's Passage-style grants: "Equipped creature can't be blocked and has shroud." / "Enchanted creature can't be blocked."
+  if (G.s && Object.values(G.s.cards).some((x) => x.attachedTo === attacker.iid && x.zone === 'battlefield' && !abilitiesGone(x) && /(?:^|\n)(?:Equipped|Enchanted) creature (?:gets [+-]\d+\/[+-]\d+,? (?:and )?)?can't be blocked(?:\.| and )/i.test(oracle(x)))) return false;
   if (attacker.unblockableTurn === (G.s && G.s.turn) && !(attacker.unblockableExcept && hasKw(blocker, attacker.unblockableExcept))) return false;
   let m;
   // "can't be blocked as long as it's attacking alone" (Yuan-Ti Malison), "... as long as you're the monarch / have the initiative"
