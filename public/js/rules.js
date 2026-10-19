@@ -2,6 +2,7 @@
 import { DB } from './data.js';
 import { G, readCache, cacheTwin, queueEvent, nextStamp, ringLevel } from './state.js';
 import { staticMods, setTextFn, countPhrase, playerFlag } from './statics.js';
+import { seats, opponents, isPlayer } from './state.js';
 
 export const COLORS = ['W', 'U', 'B', 'R', 'G', 'C'];
 const COLOR_WORDS = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
@@ -46,7 +47,7 @@ export function globalLayerFx() {
   if (!G.s) return [];
   if (readCache.on && readCache.layerFx) return readCache.layerFx;
   const out = [];
-  for (const pid of ['p', 'ai'])
+  for (const pid of seats())
     for (const iid of G.s.players[pid].zones.battlefield) {
       const x = G.s.cards[iid];
       if (!x || x.phasedOut || x.faceDown) continue;
@@ -789,7 +790,7 @@ export function manaAbility(inst) {
       return base ? { ...r_, amount: base.length + 1, each: [...base, col], colors: [...new Set([...base, col])] } : { ...r_, amount: (r_.amount || 1) + 1, colors: [...new Set([...(r_.colors || []), col])], each: undefined };
     };
     let doubles = 0;
-    for (const i of [...G.s.players.p.zones.battlefield, ...G.s.players.ai.zones.battlefield]) {
+    for (const i of seats().flatMap((k) => G.s.players[k].zones.battlefield)) {
       const x = G.s.cards[i];
       if (!x || x.phasedOut) continue;
       const xr = DB[x.def].faces[x.face || 0].oracle || DB[x.def].faces[0].oracle || '';
@@ -948,9 +949,9 @@ function manaAbilityRaw(inst) {
     const cp = o.match(/\{T\}: Add one mana of any (color|type) that a land (an opponent controls|you control|your opponents control) could produce/i);
     if (cp) {
       if (!G.s) return { colors: produced, amount: 1 };
-      const pid = /you control/.test(cp[2]) && !/opponent/.test(cp[2]) ? inst.controller : inst.controller === 'p' ? 'ai' : 'p';
+      const pids = /you control/.test(cp[2]) && !/opponent/.test(cp[2]) ? [inst.controller] : opponents(inst.controller);
       const set = new Set();
-      for (const iid of G.s.players[pid].zones.battlefield) {
+      for (const iid of pids.flatMap((k) => G.s.players[k].zones.battlefield)) {
         const x = G.s.cards[iid];
         if (!x || x.phasedOut || !isLand(x) || /could produce/.test(oracle(x))) continue;
         const r = manaAbility({ ...x, tapped: false, sick: false });
@@ -1335,7 +1336,7 @@ export const SECTOR_SIGN = { alpha: 'α', beta: 'β', gamma: 'γ' };
 export function sculptors() {
   if (!G.s) return [];
   const out = [];
-  for (const pid of ['p', 'ai']) for (const i of G.s.players[pid].zones.battlefield) {
+  for (const pid of seats()) for (const i of G.s.players[pid].zones.battlefield) {
     const c = G.s.cards[i];
     if (c && !c.phasedOut && /(?:^|\n)Space sculptor\b/i.test(oracle(c))) out.push(c);
   }
@@ -1439,7 +1440,7 @@ export function damageMods(amount, src, victimPid, opts = {}) {
   if (!G.s || amount <= 0) return amount;
   const srcCtl = src ? src.controller || src.owner : null;
   let a = amount;
-  for (const pid of ['p', 'ai']) {
+  for (const pid of seats()) {
     for (const iid of G.s.players[pid].zones.battlefield) {
       const x = G.s.cards[iid];
       if (!x || x.phasedOut || x.faceDown || abilitiesGone(x)) continue;
@@ -1450,7 +1451,7 @@ export function damageMods(amount, src, victimPid, opts = {}) {
       if (/If a source would deal damage to an opponent or a permanent an opponent controls, that source deals double that damage/i.test(o) && victimPid && victimPid !== pid) a *= 2;
     }
   }
-  for (const pid of ['p', 'ai']) {
+  for (const pid of seats()) {
     if (victimPid !== pid) continue;
     for (const iid of G.s.players[pid].zones.battlefield) {
       const x = G.s.cards[iid];
@@ -1480,7 +1481,7 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
       const bl = (blocks[aid] || []).filter(alive);
       const wasBlocked = (blocks[aid] || []).length > 0 || !!(G.s && G.s.combat && G.s.combat.blocks === blocks && (G.s.combat.wasBlocked || {})[aid]);
       const tgt = targets[aid] || defender;
-      const toPlayer = tgt === 'p' || tgt === 'ai';
+      const toPlayer = isPlayer(tgt);
       const dest = (amount) => (toPlayer ? { type: 'player', from: aid, to: tgt, amount } : { type: 'permanent', from: aid, to: tgt, amount });
       if (deals(a)) {
         let dmg = Math.max(0, /assigns combat damage equal to its toughness/i.test(oracle(a)) ? toughness(a) : power(a));

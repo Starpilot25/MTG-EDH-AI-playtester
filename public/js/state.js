@@ -100,17 +100,30 @@ function newPlayer(name) {
 }
 
 const isCreatureCard = (c) => /Creature/.test((DB[c.def].faces[c.face || 0] || DB[c.def].faces[0]).typeLine || DB[c.def].typeLine || '');
-export function freshTurnStats() {
+export function freshTurnStats(list = seats()) {
   const one = () => ({ loyaltyActivated: 0, spells: 0, noncreatureSpells: 0, lifeLost: 0, lifeGained: 0, damagedOpp: false, attacked: false, landsPlayed: 0, drawn: 0, cardsLeftGy: 0, permLeft: false, speedUp: false, discarded: [] });
-  return { p: one(), ai: one(), creatureDied: false, warped: false };
+  const ts = {};
+  for (const k of list) ts[k] = one();
+  return Object.assign(ts, { creatureDied: false, warped: false });
 }
 
-export function newGame(pDeck, aiDeck) {
+// newGame(yourDeck, aiDeck) is 1v1; newGame(yourDeck, ai1, ai2[, ai3]) seats a pod of 3-4 players.
+export function newGame(pDeck, ...aiDecks) {
   nextId = 1;
+  const list = ['p', ...AI_SEATS.slice(0, Math.max(1, aiDecks.length))];
+  const pod = list.length > 2;
+  const players = {};
+  const decks = {};
+  const allDecks = [pDeck, ...aiDecks];
+  list.forEach((k, i) => {
+    players[k] = newPlayer(k === 'p' ? 'You' : pod ? `AI ${i}` : 'AI');
+    decks[k] = { name: allDecks[i].name };
+  });
   const s = {
+    seats: list,
     cards: {},
-    players: { p: newPlayer('You'), ai: newPlayer('AI') },
-    decks: { p: { name: pDeck.name }, ai: { name: aiDeck.name } },
+    players,
+    decks,
     turn: 0,
     active: null,
     first: null,
@@ -124,17 +137,17 @@ export function newGame(pDeck, aiDeck) {
     monarch: null,
     initiative: null,
     dayNight: null,
-    extraTurns: { p: 0, ai: 0 },
+    extraTurns: Object.fromEntries(list.map((k) => [k, 0])),
     extraCombats: 0,
-    ts: freshTurnStats(),
+    ts: freshTurnStats(list),
     delayed: [],
-    pool: { p: [], ai: [] },
+    pool: Object.fromEntries(list.map((k) => [k, []])),
   };
   G.s = s;
   eventQueue.length = 0;
   G.undo = [];
   G.redo = [];
-  for (const [pid, deck] of [['p', pDeck], ['ai', aiDeck]]) {
+  for (const [pid, deck] of list.map((k, i) => [k, allDecks[i]])) {
     for (const id of deck.commanders) {
       const iid = makeCard(id, pid, 'command');
       s.cards[iid].isCommander = true;
@@ -147,10 +160,14 @@ export function newGame(pDeck, aiDeck) {
     for (const id of deck.cards) makeCard(id, pid, 'library');
     shuffleArr(s.players[pid].zones.library);
   }
-  s.first = Math.random() < 0.5 ? 'p' : 'ai';
-  log('sys', `Coin flip: <b>${s.first === 'p' ? 'you go' : 'the AI goes'} first</b>.`);
-  draw('p', 7, true);
-  draw('ai', 7, true);
+  if (!pod) {
+    s.first = Math.random() < 0.5 ? 'p' : 'ai';
+    log('sys', `Coin flip: <b>${s.first === 'p' ? 'you go' : 'the AI goes'} first</b>.`);
+  } else {
+    s.first = list[Math.floor(Math.random() * list.length)];
+    log('sys', `Random start: <b>${s.first === 'p' ? 'you go' : s.players[s.first].name + ' goes'} first</b>. Turn order: ${list.map((k) => (k === 'p' ? 'you' : s.players[k].name)).join(' → ')}.`);
+  }
+  for (const k of list) draw(k, 7, true);
   return s;
 }
 
@@ -180,8 +197,97 @@ export function cardsIn(pid, z) {
 export function allOnField(pid) {
   return G.s.players[pid].zones.battlefield.map((i) => G.s.cards[i]).filter(Boolean);
 }
+// ------------------------------------------------------------ seats
+// 'p' is you. AI seats are 'ai', 'ai2', 'ai3'. G.s.seats lists everyone in turn order (clockwise: each
+// player's left-hand neighbour comes next). A 1v1 game is ['p', 'ai'], so everything below reduces to the
+// two-player rules there.
+export const AI_SEATS = ['ai', 'ai2', 'ai3'];
+export function seats() {
+  return (G.s && G.s.seats) || ['p', 'ai'];
+}
+export const isAI = (pid) => AI_SEATS.includes(pid);
+// is this id a player (seat) rather than a card?
+export const isPlayer = (x) => !!(x && G.s && G.s.players[x]) || x === 'p' || AI_SEATS.includes(x);
+export const multiplayer = () => seats().length > 2;
+export function inGame(pid) {
+  const pl = G.s && G.s.players[pid];
+  return !!pl && !pl.lost;
+}
+// players still in the game, in turn order
+export function livingSeats() {
+  return seats().filter(inGame);
+}
+// everyone except pid who is still in the game (in 1v1: the other player, even after they lost)
+export function opponents(pid) {
+  if (!multiplayer()) return seats().filter((k) => k !== pid);
+  return livingSeats().filter((k) => k !== pid);
+}
+// the next player in turn order who is still in the game (the player to pid's left)
+export function nextSeat(pid, dir = 1) {
+  const all = seats();
+  const n = all.length;
+  let k = all.indexOf(pid);
+  for (let step = 0; step < n; step++) {
+    k = (k + dir + n) % n;
+    if (all[k] !== pid && inGame(all[k])) return all[k];
+  }
+  return all.find((x) => x !== pid) || pid;
+}
+// Who an AI seat is focusing on (threat assessment lives in ai.js and registers itself here).
+export const seatHooks = { focus: null };
+// "The" opponent. In 1v1 that's simply the other player. In a pod, code that still needs a single opponent
+// (a default target, "that player" with nothing chosen) gets the one this seat is focused on: for an AI, its
+// threat assessment; for you, the next opponent in turn order.
 export function opp(pid) {
-  return pid === 'p' ? 'ai' : 'p';
+  if (!multiplayer()) return pid === 'p' ? 'ai' : 'p';
+  const opps = opponents(pid);
+  if (!opps.length) return nextSeat(pid);
+  if (isAI(pid) && seatHooks.focus) {
+    const f = seatHooks.focus(pid);
+    if (f && opps.includes(f)) return f;
+  }
+  return nextSeat(pid);
+}
+// The turn number on which pid's next turn starts, for "until your next turn". In 1v1 this has always been
+// counted as two turns from now; in a pod it depends on where pid sits relative to the active player.
+export function nextTurnNumber(pid) {
+  const s = G.s;
+  if (!multiplayer()) return s.turn + 2;
+  const order = livingSeats();
+  const n = order.length;
+  const a = order.indexOf(s.active);
+  const k = order.indexOf(pid);
+  if (a < 0 || k < 0) return s.turn + n;
+  const d = (k - a + n) % n;
+  return s.turn + (d === 0 ? n : d);
+}
+// A creature that joins an attack already in progress ("enters tapped and attacking"): in a pod it attacks
+// the same player as the creature that made it, or else whoever most of the attackers are going after.
+export function joinAttack(iid, srcIid) {
+  const cb = G.s && G.s.combat;
+  if (!cb || !multiplayer()) return;
+  cb.targets = cb.targets || {};
+  if (cb.targets[iid]) return;
+  const from = srcIid && cb.targets[srcIid];
+  if (from) {
+    cb.targets[iid] = from;
+    return;
+  }
+  const counts = {};
+  for (const a of cb.attackers) if (cb.targets[a]) counts[cb.targets[a]] = (counts[cb.targets[a]] || 0) + 1;
+  const best = Object.entries(counts).sort((x, y) => y[1] - x[1])[0];
+  const c = G.s.cards[iid];
+  cb.targets[iid] = best ? best[0] : opp(c ? c.controller : 'p');
+}
+// every permanent on the battlefield, seat by seat (phased-out ones excluded, like cardsIn)
+export function allBattlefields() {
+  return seats().flatMap((k) => cardsIn(k, 'battlefield'));
+}
+// Display names: "you", "the AI" in 1v1, "AI 2" style names in a pod
+export function seatName(pid) {
+  if (pid === 'p') return 'you';
+  if (!multiplayer()) return 'the AI';
+  return (G.s.players[pid] && G.s.players[pid].name) || pid;
 }
 
 export function cardName(inst) {
@@ -296,7 +402,7 @@ export function move(iid, zone, opts = {}) {
   // commander replacement
   delete c.cmdAsk;
   if (c.isCommander && !opts.noCommandZone && fromZone !== zone && fromZone !== 'command') {
-    const auto = c.owner === 'ai' || G.settings.commanderZone === 'auto';
+    const auto = isAI(c.owner) || G.settings.commanderZone === 'auto';
     const gyEx = zone === 'graveyard' || zone === 'exile';
     if (auto && gyEx) zone = 'command';
     // the player decides: it goes there, and a prompt offers the command zone
@@ -454,7 +560,7 @@ export function entersTapped(c, o = oracle(c).replace(/\([^)]*\)/g, '')) {
   if ((m = line.match(/unless you control (?:a|an) ([^.]+?)\.?$/i))) return !others.some((x) => permMatches(x, m[1]));
   if (/unless you have two or more opponents/i.test(line)) return true; // one opponent here
   if ((m = line.match(/unless a player has (\d+) or less life/i))) return !Object.values(s.players).some((pl) => pl.life <= +m[1]);
-  if ((m = line.match(/unless your opponents control (\w+) or more lands/i))) return cardsIn(opp(pid), 'battlefield').filter(isLand).length < (NUMW[m[1]] || +m[1]);
+  if ((m = line.match(/unless your opponents control (\w+) or more lands/i))) return opponents(pid).flatMap((o) => cardsIn(o, 'battlefield')).filter(isLand).length < (NUMW[m[1]] || +m[1]);
   if (/unless it's your turn/i.test(line)) return s.active !== pid;
   if (/if it's not your turn/i.test(line)) return s.active !== pid;
   if (/unless it's your first, second, or third turn of the game/i.test(line)) return Math.ceil(s.turn / 2) > 3;
@@ -625,19 +731,19 @@ function drawReplacement(pid) {
   }
   const oracleOf = (x) => oracle(x); // the active text ("Max speed — " lines only at max speed)
   const field = (who) => s.players[who].zones.battlefield.map((i) => s.cards[i]).filter((x) => x && !x.phasedOut && !abilitiesGone(x));
-  const other = pid === 'p' ? 'ai' : 'p';
+  const others = opponents(pid).flatMap(field); // every opponent's permanents
   // Notion Thief (an opponent of the drawer)
   // Chains of Mephistopheles (anyone's): discard instead (then draw), or mill if they can't
-  const chains = [...field(pid), ...field(other)].find((x) => /If a player would draw a card except the first one they draw in each of their draw steps, that player discards a card instead/i.test(oracleOf(x)));
+  const chains = [...field(pid), ...others].find((x) => /If a player would draw a card except the first one they draw in each of their draw steps, that player discards a card instead/i.test(oracleOf(x)));
   if (chains && !exempt) return { deferred: 'chains', by: chains };
   // Underrealm Lich (yours): look at the top three, keep one, the rest go to the graveyard
   const lich = field(pid).find((x) => /If you would draw a card, instead look at the top three cards of your library, then put one into your hand and the rest into your graveyard/i.test(oracleOf(x)));
   if (lich) return { deferred: 'lich', by: lich };
-  const thief = field(other).find((x) => /If an opponent would draw a card except the first one they draw in each of their draw steps, instead (?:you skip|that player skips) that draw and you draw a card/i.test(oracleOf(x)));
-  if (thief && !exempt) return { stolenBy: other, by: thief };
+  const thief = others.find((x) => /If an opponent would draw a card except the first one they draw in each of their draw steps, instead (?:you skip|that player skips) that draw and you draw a card/i.test(oracleOf(x)));
+  if (thief && !exempt) return { stolenBy: thief.controller, by: thief };
   // Narset, Parter of Veils (opponents) / Spirit of the Labyrinth (everyone): no more than one card each turn
-  const limit = field(other).find((x) => /Each opponent can't draw more than one card each turn/i.test(oracleOf(x)))
-    || [...field(pid), ...field(other)].find((x) => /Each player can't draw more than one card each turn/i.test(oracleOf(x)));
+  const limit = others.find((x) => /Each opponent can't draw more than one card each turn/i.test(oracleOf(x)))
+    || [...field(pid), ...others].find((x) => /Each player can't draw more than one card each turn/i.test(oracleOf(x)));
   if (limit && (ts.drawn || 0) >= 1) return { blocked: limit };
   let mult = 1;
   const why = [];
@@ -771,10 +877,12 @@ export function setLife(pid, value, reason) {
   if (ts) {
     if (value < before) {
       ts.lifeLost += before - value;
-      G.s.ts[opp(pid)].damagedOpp = true;
+      // in a pod, the player whose turn it is gets the credit (in 1v1, the other player)
+      const by = multiplayer() ? (G.s.active && G.s.active !== pid ? G.s.active : null) : opp(pid);
+      if (by && G.s.ts[by]) G.s.ts[by].damagedOpp = true;
       queueEvent({ type: 'lifeLost', pid, amount: before - value });
       // Start your engines!: speed goes up once on your turn when an opponent loses life
-      const o = opp(pid);
+      const o = by || opp(pid);
       const po = G.s.players[o];
       if (G.s.active === o && po.speed > 0 && po.speed < 4 && !G.s.ts[o].speedUp) {
         po.speed++;
@@ -827,7 +935,7 @@ export function withReadCache(fn) {
 // Mindslaver / Emrakul: you control the AI during this turn
 export function aiSlaved() {
   const s = G.s;
-  return !!(s && s.slaved && s.slaved.of === 'ai' && s.slaved.turn === s.turn);
+  return !!(s && s.slaved && isAI(s.slaved.of) && s.slaved.turn === s.turn);
 }
 // Sen Triplets: `by` may play lands and cast spells from `of`'s hand this turn
 export function handControl(by, of) {
@@ -863,17 +971,76 @@ export function loseGame(pid, why) {
   const pl = G.s.players[pid];
   if (pl.lost || G.s.winner) return;
   pl.lost = why;
-  G.s.winner = opp(pid);
-  log('sys', `<b>${pid === 'p' ? 'You lose' : 'The AI loses'}</b> — ${why}.`);
+  if (!multiplayer()) {
+    G.s.winner = opp(pid);
+    log('sys', `<b>${pid === 'p' ? 'You lose' : 'The AI loses'}</b> — ${why}.`);
+    return;
+  }
+  G.s.lastLoss = why;
+  log('sys', `<b>${pid === 'p' ? 'You lose' : pl.name + ' loses'}</b> — ${why}.`);
+  leaveGame(pid);
+  const left = livingSeats();
+  if (left.length === 1) {
+    G.s.winner = left[0];
+    log('sys', `<b>${left[0] === 'p' ? 'You win' : G.s.players[left[0]].name + ' wins'}</b> — last player standing.`);
+  } else if (pid === 'p') {
+    // you're out: the game is over for you (the AI with the most life is shown as the winner)
+    G.s.winner = left.slice().sort((a, b) => G.s.players[b].life - G.s.players[a].life)[0];
+  }
 }
+// "You win the game": in a pod every opponent loses
 export function winGame(pid, why) {
-  loseGame(opp(pid), why);
+  if (!multiplayer()) return loseGame(opp(pid), why);
+  for (const o of opponents(pid)) loseGame(o, why);
+}
+
+// Rule 800.4a: when a player leaves a multiplayer game, everything they own leaves with them, anything of
+// theirs someone else controls goes too, and anything of someone else's they control goes back to its owner.
+function leaveGame(pid) {
+  const s = G.s;
+  for (const c of Object.values(s.cards)) {
+    if (c.owner === pid) {
+      if (c.zone) {
+        const z = s.players[c.controller] && s.players[c.controller].zones[c.zone];
+        const k = z ? z.indexOf(c.iid) : -1;
+        if (k >= 0) z.splice(k, 1);
+        const zo = s.players[pid].zones[c.zone];
+        const ko = zo ? zo.indexOf(c.iid) : -1;
+        if (ko >= 0) zo.splice(ko, 1);
+      }
+      c.zone = null;
+      c.leftGame = true;
+      delete c.attachedTo;
+    } else if (c.controller === pid && c.zone === 'battlefield') {
+      const z = s.players[pid].zones.battlefield;
+      z.splice(z.indexOf(c.iid), 1);
+      c.controller = c.owner;
+      s.players[c.owner].zones.battlefield.push(c.iid);
+      c.attacking = false;
+      c.blocking = false;
+    }
+  }
+  // auras and equipment left on nothing fall off / go to the graveyard through the normal checks
+  for (const c of Object.values(s.cards)) if (c.attachedTo && s.cards[c.attachedTo] && s.cards[c.attachedTo].leftGame) delete c.attachedTo;
+  if (s.combat) {
+    s.combat.attackers = s.combat.attackers.filter((i) => s.cards[i] && !s.cards[i].leftGame && s.combat.targets[i] !== pid && !(s.cards[s.combat.targets[i]] || {}).leftGame);
+    for (const k of Object.keys(s.combat.blocks || {})) s.combat.blocks[k] = s.combat.blocks[k].filter((b) => s.cards[b] && !s.cards[b].leftGame && s.cards[b].controller !== pid);
+  }
+  // the monarch / initiative passes to the active player (or the next player, if it was their own turn)
+  const heir = s.active && s.active !== pid && inGame(s.active) ? s.active : nextSeat(pid);
+  if (s.monarch === pid) {
+    s.monarch = heir;
+    log(heir, `${heir === 'p' ? 'You become' : s.players[heir].name + ' becomes'} the monarch.`);
+  }
+  if (s.initiative === pid) s.initiative = heir;
+  s.delayed = (s.delayed || []).filter((d) => d.pid !== pid && d.controller !== pid);
+  s.pool[pid] = [];
 }
 
 // Untap step: stun counters and "doesn't untap" effects
 export function untapAll(pid) {
   // Endbringer, Seedborn Muse-style: "Untap ~ during each other player's untap step."
-  for (const c of cardsIn(pid === 'p' ? 'ai' : 'p', 'battlefield')) {
+  for (const c of seats().filter((k) => k !== pid).flatMap((k) => cardsIn(k, 'battlefield'))) {
     if (!c.tapped || c.phasedOut) continue;
     if (!/Untap (?:~|this [a-z]+|[^.\n]*?) during each other player's untap step/i.test(oracle(c).split(DB[c.def].name).join('~'))) continue;
     if ((c.counters || {}).stun) {
@@ -1062,7 +1229,7 @@ export function stateBased() {
     }
     legendRule();
     const died = [];
-    for (const pid of ['p', 'ai']) {
+    for (const pid of seats()) {
       for (const c of cardsIn(pid, 'battlefield')) {
         if (isCreature(c) && toughness(c) <= 0) died.push({ c, zero: true });
         else if (isCreature(c) && isDead(c)) died.push({ c });
@@ -1092,14 +1259,14 @@ export function stateBased() {
       }
     }
     // the city's blessing
-    for (const pid of ['p', 'ai']) {
+    for (const pid of seats()) {
       const pl = s.players[pid];
       if (!pl.cityBlessing && cardsIn(pid, 'battlefield').length >= 10 && cardsIn(pid, 'battlefield').some((c) => /\bAscend\b/.test(oracle(c)))) {
         pl.cityBlessing = true;
         log(pid, `${pid === 'p' ? 'You get' : 'The AI gets'} the city's blessing.`);
       }
     }
-    for (const pid of ['p', 'ai']) checkLoss(pid);
+    for (const pid of seats()) checkLoss(pid);
     if (!changed) break;
   }
 }
@@ -1127,9 +1294,9 @@ const oracleOf = (c) => oracle(c);
 
 export function legendViolations() {
   const out = [];
-  const field = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')];
+  const field = allBattlefields();
   if (field.some((c) => !c.faceDown && /The "legend rule" doesn't apply\.|The “legend rule” doesn’t apply\./i.test(oracleOf(c)))) return out;
-  for (const pid of ['p', 'ai']) {
+  for (const pid of seats()) {
     if (cardsIn(pid, 'battlefield').some((c) => !c.faceDown && /legend rule["”] doesn['’]t apply to permanents you control/i.test(oracleOf(c)))) continue;
     const groups = {};
     for (const c of cardsIn(pid, 'battlefield')) {
@@ -1149,13 +1316,13 @@ export function legendViolations() {
 const legendAsked = new Set();
 function legendRule() {
   for (const v of legendViolations()) {
-    if (v.controller === 'ai') {
+    if (isAI(v.controller)) {
       const cs = v.ids.map((i) => G.s.cards[i]);
       const score = (c) => Object.values(c.counters || {}).reduce((a, b) => a + b, 0) * 2 +
         Object.values(G.s.cards).filter((o) => o.attachedTo === c.iid).length * 3 + v.ids.indexOf(c.iid) * 0.1;
       cs.sort((a, b) => score(b) - score(a));
       for (const c of cs.slice(1)) {
-        log('ai', `Legend rule: the AI keeps one ${nameTag(c)} and puts the other into the graveyard.`);
+        log(v.controller, `Legend rule: ${seatName(v.controller)} keeps one ${nameTag(c)} and puts the other into the graveyard.`);
         move(c.iid, 'graveyard');
       }
     } else {

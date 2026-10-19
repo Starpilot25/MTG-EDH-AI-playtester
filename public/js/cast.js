@@ -22,6 +22,8 @@ import {
 import { costDelta, countPhrase, repl } from './statics.js';
 import { helpers } from './rules.js';
 import { fire, settle, T } from './triggers.js';
+import { seats, opponents, isAI, multiplayer, allBattlefields, seatName } from './state.js';
+import { nextTurnNumber } from './state.js';
 
 const isLandFace = (f) => /\bLand\b/.test((f.typeLine || '').split('—')[0]);
 const instantFace = (f) => /\bInstant\b/.test((f.typeLine || '').split('—')[0]);
@@ -113,7 +115,7 @@ export function applyPayment(pid, pay) {
   if (usedPool.length && G.s.pool) G.s.pool[pid] = G.s.pool[pid].filter((_, k) => !usedPool.includes(k));
   // the rest of a multi-mana source's mana floats (Sol Ring tapped for a one-mana spell leaves {C})
   if ((pay.leftover || []).length) {
-    G.s.pool = G.s.pool || { p: [], ai: [] };
+    G.s.pool = G.s.pool || Object.fromEntries(seats().map((k) => [k, []]));
     G.s.pool[pid].push(...pay.leftover);
     if (pid === 'p') log('p', `Unused mana floats in your pool: ${pay.leftover.map((x) => (x === 'ANY' ? '{any}' : `{${x}}`)).join('')}.`);
   }
@@ -143,13 +145,13 @@ export function applyPayment(pid, pay) {
 export { anyColorCost };
 export function emptyPools(endOfTurn = false) {
   if (!G.s || !G.s.pool) return;
-  const next = { p: [], ai: [] };
-  for (const pid of ['p', 'ai']) {
+  const next = Object.fromEntries(seats().map((k) => [k, []]));
+  for (const pid of seats()) {
     const left = G.s.pool[pid] || [];
     if (!left.length) continue;
     const field = cardsIn(pid, 'battlefield').map((x) => oracle(x));
     // Upwelling, Kruphix, Omnath, Horizon Stone…
-    if (cardsIn('p', 'battlefield').concat(cardsIn('ai', 'battlefield')).some((x) => /Players don't lose unspent mana as steps and phases end/i.test(oracle(x)))) next[pid] = left;
+    if (allBattlefields().some((x) => /Players don't lose unspent mana as steps and phases end/i.test(oracle(x)))) next[pid] = left;
     else if (field.some((o) => /If you would lose unspent (?:green )?mana, that mana becomes colorless instead/i.test(o))) next[pid] = left.map(() => 'C');
     else if (!endOfTurn && field.some((o) => /You don't lose unspent red mana as steps and phases end/i.test(o)) && left.some((x) => poolSym(x).col === 'R')) {
       // Leyline Tyrant: red mana stays (until the turn ends)
@@ -176,7 +178,7 @@ export function emptyPools(endOfTurn = false) {
     }
   }
   G.s.pool = next;
-  if (!next.p.length && !next.ai.length) G.s.treasurePool = null;
+  if (!Object.values(next).some((x) => x.length)) G.s.treasurePool = null;
 }
 
 // ------------------------------------------------------------ ways to cast a card
@@ -282,7 +284,7 @@ export function castOptions(pid, c) {
       const cost = altCost(o0, kw);
       if (!cost) continue;
       if (mode === 'surge' && ts.spells < 1) continue;
-      if (mode === 'spectacle' && !(s.ts[opp(pid)].lifeLost > 0)) continue;
+      if (mode === 'spectacle' && !opponents(pid).some((o) => (s.ts[o] || {}).lifeLost > 0)) continue;
       if (mode === 'prowl' && !ts.damagedOpp) continue;
       if (mode === 'freerunning' && !ts.damagedOpp) continue;
       if (mode === 'webslinging' && !cardsIn(pid, 'battlefield').some((x) => isCreature(x) && x.tapped)) continue;
@@ -553,8 +555,8 @@ export async function castSpell(pid, iid, opt, env) {
   if (mk && !env.free) {
     // AI: kick as many times as the mana it has allows
     const mv = (cost) => ((cost || '').match(/\{(\d+)\}/g) || []).reduce((a, x) => a + +x.slice(1, -1), 0) + ((cost || '').match(/\{[WUBRGCS](?:\/[WUBRGP])?\}/g) || []).length;
-    const avail = pid === 'ai' ? manaSources(pid, { spell: c }).reduce((a, s_) => a + (s_.amount || 1), 0) : 0;
-    const aiTimes = pid === 'ai' && mv(mk) ? Math.max(0, Math.min(10, Math.floor((avail - mv(f.manaCost || DB[c.def].manaCost) - mv(info.extraMana)) / mv(mk)))) : 0;
+    const avail = isAI(pid) ? manaSources(pid, { spell: c }).reduce((a, s_) => a + (s_.amount || 1), 0) : 0;
+    const aiTimes = isAI(pid) && mv(mk) ? Math.max(0, Math.min(10, Math.floor((avail - mv(f.manaCost || DB[c.def].manaCost) - mv(info.extraMana)) / mv(mk)))) : 0;
     const times = await ch.chooseNumber({ prompt: `Multikicker ${mk}: how many times?`, min: 0, max: 10, ai: aiTimes });
     for (let k = 0; k < times; k++) info.extraMana = (info.extraMana || '') + mk;
     info.kicked = times;
@@ -610,7 +612,7 @@ export async function castSpell(pid, iid, opt, env) {
     const pool = cardsIn(pid, 'battlefield').filter(isCreature);
     // the AI feeds it tokens only
     const picks = pool.length ? await ch.pickCards({ prompt: `${label}: sacrifice any number of creatures (each one copies the spell)`, cards: pool.map((x) => x.iid), min: 0, max: pool.length, purpose: 'sacrifice', src: c, aiScore: (x) => (x.token ? 5 : -10) }) : [];
-    const sacs = pid === 'ai' ? picks.filter((i) => card(i) && card(i).token) : picks;
+    const sacs = isAI(pid) ? picks.filter((i) => card(i) && card(i).token) : picks;
     for (const i of sacs) sacrifice(i);
     info.replicate += sacs.length;
     if (sacs.length) log(pid, `${pid === 'p' ? 'You sacrifice' : 'The AI sacrifices'} ${sacs.length} creature${sacs.length === 1 ? '' : 's'} to copy ${label} ${sacs.length} time${sacs.length === 1 ? '' : 's'}.`);
@@ -689,7 +691,7 @@ export async function castSpell(pid, iid, opt, env) {
       const life = +dm[2];
       if (s.players[pid].life <= life) continue;
       // the AI only pays life when it needs the discount to cast the spell
-      const yes = pid === 'ai' ? s.players[pid].life >= 12 && !payCost(costStr, manaSources(pid, { spell: c }), { self: c.iid, extraGeneric: genericAdjust(pid, c, opt) }) : await ch.confirm(cardName(df), `Pay ${life} life so ${label} costs {${dm[3]}} less?`, {});
+      const yes = isAI(pid) ? s.players[pid].life >= 12 && !payCost(costStr, manaSources(pid, { spell: c }), { self: c.iid, extraGeneric: genericAdjust(pid, c, opt) }) : await ch.confirm(cardName(df), `Pay ${life} life so ${label} costs {${dm[3]}} less?`, {});
       if (!yes) continue;
       changeLife(pid, -life, false);
       costStr = costStr.replace(`{${dm[3]}}`, '');
@@ -757,7 +759,7 @@ export async function castSpell(pid, iid, opt, env) {
     return true;
   }
   // storm / gravestorm / replicate / casualty copies, cascade
-  let copies = (hasKw(c, 'storm') ? ts.spells - 1 + s.ts[opp(pid)].spells : 0) + info.replicate + (info.casualty ? 1 : 0);
+  let copies = (hasKw(c, 'storm') ? ts.spells - 1 + seats().filter((k) => k !== pid).reduce((a, k) => a + ((s.ts[k] || {}).spells || 0), 0) : 0) + info.replicate + (info.casualty ? 1 : 0);
   // Way of the Cryomancer: "When you next cast an instant or sorcery spell this turn, copy that spell."
   // Jace Reawakened −6: copy every spell this turn
   if (s.copyAll && s.copyAll.pid === pid && s.copyAll.turn === s.turn && !opt.copy) {
@@ -790,7 +792,7 @@ export async function castSpell(pid, iid, opt, env) {
   // --- responses
   let countered = false;
   // Jace, Unraveler of Secrets emblem: "Whenever an opponent casts their first spell each turn, counter that spell."
-  if (!opt.copy && ts.spells === 1 && !cantBeCountered(c) && ((s.players[opp(pid)].emblems || []).some((e) => /Whenever an opponent casts their first spell each turn, counter that spell/i.test(e)))) {
+  if (!opt.copy && ts.spells === 1 && !cantBeCountered(c) && (opponents(pid).flatMap((o) => s.players[o].emblems || []).some((e) => /Whenever an opponent casts their first spell each turn, counter that spell/i.test(e)))) {
     log(opp(pid), `The emblem counters ${nameTag(c)} (first spell this turn).`);
     s[stackSlot] = s[stackSlot] || {};
     s[stackSlot].countered = true;
@@ -798,12 +800,12 @@ export async function castSpell(pid, iid, opt, env) {
   }
   const splitSecond = hasKw(c, 'split second');
   if (!countered && !splitSecond && !cantBeCountered(c)) {
-    if (pid === 'ai' && env.respond && !aiSlaved()) {
+    if (isAI(pid) && env.respond && !aiSlaved()) {
       // announce the targets so you can see them while deciding whether to respond
       const ch0 = env.choosers[pid];
       if (ch0 && !isPermanentCard({ faces: [d.faces[fIdx] || d.faces[0]] })) {
         ch0.plan = null;
-        const tg = await predictTargets(pid, c, fIdx, { ...env.choosers, [opp(pid)]: ch0 }, info.x || 0).catch(() => []);
+        const tg = await predictTargets(pid, c, fIdx, { ...env.choosers, ...Object.fromEntries(seats().filter((k) => k !== pid).map((k) => [k, ch0])) }, info.x || 0).catch(() => []);
         if (tg.length) {
           ch0.plan = tg.slice();
           if (s[stackSlot]) s[stackSlot].targets = tg;
@@ -816,6 +818,8 @@ export async function castSpell(pid, iid, opt, env) {
     } else if (pid === 'p' && env.aiCounter && !aiSlaved()) {
       countered = await env.aiCounter(c);
     }
+    // pods: the other AI seats may counter an AI's spell too
+    if (!countered && isAI(pid) && multiplayer() && env.aiCounter && G.s === s && !aiSlaved()) countered = await env.aiCounter(c);
   }
   if (leftStack()) {
     s[stackSlot] = null;
@@ -829,12 +833,12 @@ export async function castSpell(pid, iid, opt, env) {
   const counteredByEffect = !!(s[stackSlot] && s[stackSlot].countered);
   s[stackSlot] = null;
   if (countered) {
-    if (pid === 'ai' && !counteredByEffect) log(opp(pid), `You counter ${nameTag(c)}.`);
+    if (isAI(pid) && !counteredByEffect) log(opp(pid), `You counter ${nameTag(c)}.`);
     move(iid, bounced ? 'hand' : exileCountered || exileInstead(iid) || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard');
     env.render();
     // Transcendent Dragon: "then you may cast it without paying its mana cost"
     if (stealCast && card(iid) && card(iid).zone === 'exile') {
-      const yes = stealCast === 'ai' || (await env.choosers.p.confirm(cardName(c), `Cast ${cardName(c)} without paying its mana cost?`, {}));
+      const yes = isAI(stealCast) || (await env.choosers.p.confirm(cardName(c), `Cast ${cardName(c)} without paying its mana cost?`, {}));
       if (yes) await castFree(stealCast, iid, env);
     }
     return true;
@@ -933,7 +937,7 @@ export async function castFree(pid, iid, env, extra = {}) {
 
 function ctxFor(pid, env, extra = {}) {
   return {
-    me: pid, choosers: env.choosers, castFree: (p, i) => castFree(p, i, env), stackTarget: pid === 'p' && G.s.stack ? G.s.stack.iid : pid === 'ai' && G.s.pstack ? G.s.pstack.iid : null,
+    me: pid, choosers: env.choosers, castFree: (p, i) => castFree(p, i, env), stackTarget: pid === 'p' && G.s.stack ? G.s.stack.iid : isAI(pid) && G.s.pstack ? G.s.pstack.iid : null,
     ...extra,
   };
 }
@@ -982,7 +986,7 @@ async function resolveSpell(pid, c, opt, info, env) {
       }
     }
     if (opt.mode === 'bestow') {
-      const pool = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter(isCreature);
+      const pool = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter(isCreature);
       if (pool.length) {
         c.bestowed = true; // enters as an Aura: no creature "enters" triggers, no 0/0 death
         toBattlefield(c.iid, pid, env.pos || {});
@@ -1026,9 +1030,12 @@ async function resolveSpell(pid, c, opt, info, env) {
     const ep = hasSubtype(c, 'Aura') && oracle(c).match(/^Enchant (player|opponent)/m);
     if (ep) {
       c.enchantedPlayer = opp(pid);
-      if (ep[1] === 'player' && pid === 'p') {
-        const k = await env.choosers[pid].choose({ prompt: `${cardName(c)}: enchant which player?`, options: [{ label: 'The AI' }, { label: 'Yourself' }], aiPick: () => 0 });
-        c.enchantedPlayer = k === 1 ? 'p' : 'ai';
+      if (pid === 'p' && (ep[1] === 'player' || opponents(pid).length > 1)) {
+        const others = opponents(pid);
+        const opts = others.map((o) => ({ label: multiplayer() ? seatName(o) : 'The AI' }));
+        if (ep[1] === 'player') opts.push({ label: 'Yourself' });
+        const k = await env.choosers[pid].choose({ prompt: `${cardName(c)}: enchant which player?`, options: opts, aiPick: () => 0 });
+        c.enchantedPlayer = k >= others.length ? 'p' : others[k] || others[0];
       }
       log(pid, `${nameTag(c)} enchants ${c.enchantedPlayer === 'p' ? 'you' : 'the AI'}.`);
     }
@@ -1264,7 +1271,7 @@ export async function payOtherCost(pid, text, src, env) {
       continue;
     }
     if (/^exert ~$/.test(p)) {
-      src.noUntapUntil = G.s.turn + 2;
+      src.noUntapUntil = nextTurnNumber(src.controller);
       continue;
     }
     // unknown cost: let the player pay it by hand
@@ -1317,11 +1324,11 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
 // Mana abilities don't use the stack, so they never stop here.
 async function announceAbility(pid, c, text, env) {
   const s = G.s;
-  if (pid !== 'ai' || !env.respond || !G.settings.pauseOnAiSpells || s.stack || s.pstack || aiSlaved()) return false;
+  if (!isAI(pid) || !env.respond || !G.settings.pauseOnAiSpells || s.stack || s.pstack || aiSlaved()) return false;
   if (/^add\b/i.test(String(text || '').trim())) return false;
   const ch0 = env.choosers[pid];
   if (ch0) ch0.plan = null;
-  const tg = await predictTargets(pid, c, c.face || 0, { ...env.choosers, [opp(pid)]: ch0 }, 0, text).catch(() => []);
+  const tg = await predictTargets(pid, c, c.face || 0, { ...env.choosers, ...Object.fromEntries(seats().filter((k) => k !== pid).map((k) => [k, ch0])) }, 0, text).catch(() => []);
   if (ch0 && tg.length) ch0.plan = tg.slice();
   s.stack = { iid: c.iid, by: pid, face: c.face || 0, ability: text, targets: tg };
   env.render();
@@ -1384,7 +1391,7 @@ export async function useZoneAbility(pid, iid, ab, env) {
         const [pick] = await ch.pickCards({ prompt: `${ab.label}: search for a ${typ} card`, cards: lib.map((x) => x.iid), min: 0, max: 1, purpose: 'tutor', src: c, aiScore: () => 0 });
         shuffle(pid);
         if (pick) move(pick, 'hand');
-        log(pid, `${pid === 'p' ? 'You' : 'The AI'} ${typ}cycle${pid === 'ai' ? 's' : ''} ${nameTag(c)}${pick ? ' and find' + (pid === 'ai' ? 's' : '') + ' a card' : ''}.`);
+        log(pid, `${pid === 'p' ? 'You' : 'The AI'} ${typ}cycle${isAI(pid) ? 's' : ''} ${nameTag(c)}${pick ? ' and find' + (isAI(pid) ? 's' : '') + ' a card' : ''}.`);
       } else {
         draw(pid, 1, true);
         log(pid, `${pid === 'p' ? 'You cycle' : 'The AI cycles'} ${nameTag(c)}.`);
@@ -1412,7 +1419,7 @@ export async function useZoneAbility(pid, iid, ab, env) {
       return true;
     }
     case 'reinforce': {
-      const pool = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter(isCreature);
+      const pool = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter(isCreature);
       if (!pool.length || !(await payM(ab.mana))) return false;
       discardCard(iid);
       const pick = await ch.target({ forced: true, prompt: `Reinforce ${ab.n}`, candidates: pool.map((x) => x.iid), harm: false, src: c });
@@ -1476,7 +1483,7 @@ export async function useZoneAbility(pid, iid, ab, env) {
       return true;
     }
     case 'scavenge': {
-      const pool = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter(isCreature);
+      const pool = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter(isCreature);
       if (!pool.length || !(await payM(ab.mana))) return false;
       const k = power({ ...c, zone: 'graveyard' });
       move(iid, 'exile');
@@ -1541,7 +1548,7 @@ export async function activateAbility(pid, c, ab, env) {
       await settle();
       const spellSrc = { ...c, face: 1 };
       let countered = false;
-      if (pid === 'ai' && env.respond && !aiSlaved()) {
+      if (isAI(pid) && env.respond && !aiSlaved()) {
         const verdict = await env.respond(c.iid);
         countered = verdict === 'counter';
       } else if (pid === 'p' && env.aiCounter && !aiSlaved()) countered = await env.aiCounter(spellSrc);
@@ -1632,7 +1639,7 @@ export async function activateAbility(pid, c, ab, env) {
       if (!(await payM(ab.mana))) throw new Cancelled();
       attachTo(c, card(pick.iid));
       if (ab.kind === 'reconfigure') c.reconfigured = true;
-      log(pid, `${pid === 'p' ? 'You' : 'The AI'} ${ab.kind === 'equip' ? 'equip' : 'attach'}${pid === 'ai' ? 's' : ''} ${nameTag(c)} to ${nameTag(card(pick.iid))}.`);
+      log(pid, `${pid === 'p' ? 'You' : 'The AI'} ${ab.kind === 'equip' ? 'equip' : 'attach'}${isAI(pid) ? 's' : ''} ${nameTag(c)} to ${nameTag(card(pick.iid))}.`);
       return true;
     }
     case 'crew':
@@ -1669,7 +1676,7 @@ export async function activateAbility(pid, c, ab, env) {
         }
         return out;
       };
-      const picks = pid === 'ai' ? aiPicks() : await ch.pickCards({
+      const picks = isAI(pid) ? aiPicks() : await ch.pickCards({
         // station any number of creatures at once: each one is a separate station activation (charge counters equal to its power)
         prompt: ab.kind === 'station' ? `Station: tap any number of creatures — ${name} gets charge counters equal to their total power` : `${ab.kind === 'crew' ? 'Crew' : 'Saddle'} ${need}: tap creatures with total power ${need} or more`,
         cards: pool.map((x) => x.iid), min: 1, max: pool.length, purpose: 'crew', src: c, aiScore: (x) => power(x) - cardValue(x) / 2,
@@ -1807,7 +1814,7 @@ export async function activateAbility(pid, c, ab, env) {
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.putCounters[1].toLowerCase()] || +ab.putCounters[1] || 1;
     addCounters(c, ab.putCounters[2].toLowerCase(), k, { by: pid });
   }
-  if (ab.exert) c.noUntapUntil = s.turn + 2;
+  if (ab.exert) c.noUntapUntil = nextTurnNumber(c.controller);
   c.usedAbilities[ab.raw] = ab.exhaust ? 'ever' : s.turn;
   log(pid, `${pid === 'p' ? 'You activate' : 'AI activates'} ${nameTag(c)}: <i>${esc(ab.costText.replace(/~/g, name.split(',')[0]))}</i>.`);
   const srcSnap = c;
@@ -1840,7 +1847,7 @@ export async function activateAbility(pid, c, ab, env) {
 // player) — plus tools that copy "target activated or triggered ability you control" (Lithoform Engine, Adric…).
 async function activationCopies(pid, src, ab, text, lifePaid) {
   let n = 0;
-  const ai = pid === 'ai';
+  const ai = isAI(pid);
   const worth = /\b(?:draws?|create|destroy|exile|deals?|return|gain control|search|put [^.]* onto the battlefield|counters?|scry|untap)\b/i.test(text) && !/\b(?:you lose|discard)\b/i.test(text);
   const ask = (who, body) => (ai ? Promise.resolve(worth) : T.confirm(cardName(who), body));
   for (const x of cardsIn(pid, 'battlefield')) {
@@ -1861,7 +1868,7 @@ async function activationCopies(pid, src, ab, text, lifePaid) {
       log(pid, `${nameTag(x)} copies ${nameTag(src)}'s ability.`);
       n++;
     } else if (/Whenever you activate an ability that isn't a mana ability, if life was paid to activate it, you may pay that much life again\. If you do, copy that ability/i.test(o)) {
-      if (!lifePaid || G.s.players[pid].life <= lifePaid || (ai && G.s.players.ai.life - lifePaid < 15)) continue;
+      if (!lifePaid || G.s.players[pid].life <= lifePaid || (ai && G.s.players[pid].life - lifePaid < 15)) continue;
       if (!(await ask(x, `${cardName(x)}: pay ${lifePaid} life again to copy ${cardName(src)}'s ability?`))) continue;
       changeLife(pid, -lifePaid, false);
       log(pid, `${nameTag(x)} copies ${nameTag(src)}'s ability (${lifePaid} life).`);

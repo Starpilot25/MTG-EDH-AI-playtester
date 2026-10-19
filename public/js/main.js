@@ -35,6 +35,8 @@ const cardImg = (d) =>
     : `<div class="img-missing">${esc(d.name)}</div>`;
 
 const slots = { p: { deck: null, mode: 'paste' }, ai: { deck: null, mode: 'sample' } };
+// test hook: the deck loaded in a setup slot (used with window.__podDecks to seat a pod)
+if (typeof window !== 'undefined') window.__slotDeck = (pid) => slots[pid] && slots[pid].deck;
 let savedDecks = [];
 
 // ------------------------------------------------------------ saved decks
@@ -405,7 +407,10 @@ async function beginGame() {
   cancelPending();
   closeDialog(true);
   run.aiBusy = false;
-  newGame(lastDecks.p, lastDecks.ai);
+  // Pods: extra AI opponents (the setup screen for these comes later; for now a test hook can add them:
+  // window.__podDecks = [deck, deck] seats 'ai2' and 'ai3')
+  const extra = (typeof window !== 'undefined' && Array.isArray(window.__podDecks) ? window.__podDecks : []).slice(0, 2);
+  newGame(lastDecks.p, lastDecks.ai, ...extra);
   showTable();
   render();
   aiMulligans();

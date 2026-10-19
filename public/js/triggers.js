@@ -26,8 +26,19 @@ function interveningIfFails(hit, ev) {
   }
 }
 import { venture, takeInitiative } from './dungeon.js';
+import { seats, opponents, isAI, isPlayer, multiplayer } from './state.js';
 
 // Filled in by ui.js: choosers for both players, a yes/no prompt, render, and casting hooks.
+// The player an attacking creature is attacking (or who controls the planeswalker/battle it attacks).
+// In 1v1 that's always the opponent.
+function attackedPlayer(c) {
+  if (!multiplayer()) return opp(c.controller);
+  const t = G.s.combat && G.s.combat.targets && G.s.combat.targets[c.iid];
+  if (t && isPlayer(t)) return t;
+  const tc = t && card(t);
+  return tc ? tc.protector || tc.controller : opp(c.controller);
+}
+
 export const T = {
   choosers: null,
   confirm: async () => true,
@@ -478,8 +489,10 @@ function keywordTriggers(c) {
   }, 'Flanking', { self: true });
   if (hasKw(c, 'melee')) t('attacks', '~ gets +1/+1 until end of turn', { self: true });
   if (hasKw(c, 'dethrone')) f('attacks', async () => {
-    const def = opp(c.controller);
-    if (G.s.players[def].life >= G.s.players[c.controller].life) {
+    const def = attackedPlayer(c);
+    // "the player with the most life or tied for most life"
+    const most = multiplayer() ? Math.max(...livingSeats().map((k) => G.s.players[k].life)) : G.s.players[c.controller].life;
+    if (G.s.players[def].life >= most) {
       addCounters(c, '+1/+1', 1);
       return ['dethrone: +1/+1 counter'];
     }
@@ -514,7 +527,7 @@ function keywordTriggers(c) {
   if (kwNum(c, 'Mobilize')) t('attacks', `create ${kwNum(c, 'Mobilize')} 1/1 red Warrior creature tokens tapped and attacking. sacrifice them at the beginning of the next end step`, { self: true });
   if (hasKw(c, 'myriad')) void 0; // one opponent: nothing to copy
   if (hasKw(c, 'provoke')) f('attacks', async (ctx) => {
-    const def = opp(c.controller);
+    const def = attackedPlayer(c);
     const cands = cardsIn(def, 'battlefield').filter(isCreature);
     if (!cands.length) return [];
     const pick = await ctx.choosers[c.controller].target({ prompt: 'Provoke: choose a creature that must block', candidates: cands.map((x) => x.iid), harm: true, src: c, optional: true });
@@ -551,7 +564,7 @@ function keywordTriggers(c) {
         const raw = DB[c.def].faces[c.face || 0].oracle || '';
         // the AI takes the mode that does something every turn
         const aiPick = () => (new RegExp(`• ${opts[1]} — At the beginning`).test(raw) ? 1 : 0);
-        const k = await (T.choosers[c.controller] || T.choosers.ai).choose({ prompt: `${cardName(c)}: choose ${opts[0]} or ${opts[1]}`, options: opts.map((x) => ({ label: x })), aiPick });
+        const k = await (T.choosers[c.controller] || T.choosers.p).choose({ prompt: `${cardName(c)}: choose ${opts[0]} or ${opts[1]}`, options: opts.map((x) => ({ label: x })), aiPick });
         if (!card(c.iid)) return [];
         card(c.iid).chosenMode = opts[k === 1 ? 1 : 0];
         return [`chooses ${card(c.iid).chosenMode}`];
@@ -575,7 +588,7 @@ function keywordTriggers(c) {
         n[0] += 3; // creatures also stop attackers and blockers
         return n.indexOf(Math.max(...n));
       };
-      const k = await (T.choosers[c.controller] || T.choosers.ai).choose({ prompt: `${cardName(c)}: choose a card type`, options: types.map((x) => ({ label: x })), aiPick });
+      const k = await (T.choosers[c.controller] || T.choosers.p).choose({ prompt: `${cardName(c)}: choose a card type`, options: types.map((x) => ({ label: x })), aiPick });
       if (!card(c.iid)) return [];
       card(c.iid).chosenCardType = types[k] || 'Creature';
       return [`chooses ${card(c.iid).chosenCardType.toLowerCase()}`];
@@ -592,7 +605,7 @@ function keywordTriggers(c) {
           const n = types.map((t) => mine.filter((y) => new RegExp('\\b' + t + '\\b').test((DB[y.def].typeLine || '').split('—')[0])).length);
           return n.indexOf(Math.max(...n));
         };
-        const k = await (T.choosers[c.controller] || T.choosers.ai).choose({ prompt: `${cardName(c)}: choose ${types.join(', ')}`, options: types.map((x) => ({ label: x })), aiPick });
+        const k = await (T.choosers[c.controller] || T.choosers.p).choose({ prompt: `${cardName(c)}: choose ${types.join(', ')}`, options: types.map((x) => ({ label: x })), aiPick });
         if (!card(c.iid)) return [];
         card(c.iid).chosenCardType = types[k] || types[0];
         return [`chooses ${card(c.iid).chosenCardType.toLowerCase()}`];
@@ -611,7 +624,7 @@ function keywordTriggers(c) {
         const n = cols.map((x) => Object.values(G.s.cards).filter((y) => y.owner === c.controller && (DB[y.def].colors || []).includes(x)).length);
         return n.indexOf(Math.max(...n));
       };
-      const k = await (T.choosers[c.controller] || T.choosers.ai).choose({ prompt: `${cardName(c)}: choose a color`, options: names.map((x) => ({ label: x })), aiPick });
+      const k = await (T.choosers[c.controller] || T.choosers.p).choose({ prompt: `${cardName(c)}: choose a color`, options: names.map((x) => ({ label: x })), aiPick });
       if (!card(c.iid)) return [];
       card(c.iid).chosenColor = cols[k] || 'G';
       return [`chooses ${names[k] || 'green'}`];
@@ -620,14 +633,14 @@ function keywordTriggers(c) {
     if (!T.payMana) return [];
     const paid = await T.payMana(c.controller, '{W/B}', `Extort (${cardName(c)})`);
     if (!paid) return [];
-    const def = opp(c.controller);
-    G.s.players[def].life -= 1;
-    G.s.players[c.controller].life += 1;
-    return ['extorts 1'];
+    const opps = opponents(c.controller);
+    for (const def of opps) G.s.players[def].life -= 1;
+    G.s.players[c.controller].life += opps.length;
+    return [`extorts ${opps.length}`];
   }, 'Extort', { spell: '', mine: true });
   if (hasKw(c, 'exploit')) f('enters', async (ctx) => {
     const cands = cardsIn(c.controller, 'battlefield').filter(isCreature);
-    const yes = c.controller === 'ai' ? cands.some((x) => x.token || cardValue(x) < 3) : await T.confirm(cardName(c), 'Exploit: sacrifice a creature?');
+    const yes = isAI(c.controller) ? cands.some((x) => x.token || cardValue(x) < 3) : await T.confirm(cardName(c), 'Exploit: sacrifice a creature?');
     if (!yes) return [];
     const [pick] = await ctx.choosers[c.controller].pickCards({ forced: true, prompt: 'Exploit: choose a creature to sacrifice', cards: cands.map((x) => x.iid), min: 1, max: 1, purpose: 'sacrifice', src: c, aiScore: (x) => -cardValue(x) + (x.iid === c.iid ? -3 : 0) });
     if (!pick) return [];
@@ -657,7 +670,7 @@ function keywordTriggers(c) {
     const cands = cardsIn(c.controller, 'battlefield').filter((x) => isCreature(x) && x.iid !== c.iid);
     if (!cands.length) return [];
     const picks = await ctx.choosers[c.controller].pickCards({ prompt: `Devour ${k}: sacrifice any number of other creatures`, cards: cands.map((x) => x.iid), min: 0, max: cands.length, purpose: 'devour', src: c, aiScore: (x) => (x.token ? 5 : -cardValue(x)) });
-    const eat = c.controller === 'ai' ? picks.filter((i) => card(i).token) : picks;
+    const eat = isAI(c.controller) ? picks.filter((i) => card(i).token) : picks;
     eat.forEach((i) => sacrifice(i));
     addCounters(c, '+1/+1', k * eat.length);
     return eat.length ? [`devours ${eat.length}`] : [];
@@ -692,7 +705,7 @@ function keywordTriggers(c) {
   }, 'Decayed', { self: true });
   if (kwNum(c, 'Backup')) f('enters', async (ctx) => {
     const k = kwNum(c, 'Backup');
-    const cands = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter(isCreature);
+    const cands = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter(isCreature);
     // the AI backs up a creature that can still attack this turn (it gets the abilities too), else itself
     const me = c.controller;
     const aiScore = (x) => (x.controller !== me ? -100 : x.iid === c.iid ? 3 : !x.sick || hasKw(x, 'haste') ? 6 + power(x) : 1);
@@ -718,7 +731,7 @@ function keywordTriggers(c) {
   }, 'Backup', { self: true });
   if (/\bLiving weapon\b/.test(o)) void 0; // handled on 'germ'
   if (kwNum(c, 'Bloodthirst')) f('enters', async () => {
-    if (G.s.ts[opp(c.controller)].lifeLost > 0) {
+    if (opponents(c.controller).some((o) => (G.s.ts[o] || {}).lifeLost > 0)) {
       addCounters(c, '+1/+1', kwNum(c, 'Bloodthirst'));
       return ['bloodthirst'];
     }
@@ -737,7 +750,7 @@ function keywordTriggers(c) {
     return bonus ? await resolveEffects(bonus, c, { ...ctx, me: c.controller, forced: true }) : [];
   }, 'Tribute', { self: true });
   if (hasKw(c, 'unleash')) f('enters', async (ctx) => {
-    const yes = c.controller === 'ai' ? true : await T.confirm(cardName(c), 'Unleash: enter with a +1/+1 counter? (It can\'t block while it has one.)');
+    const yes = isAI(c.controller) ? true : await T.confirm(cardName(c), 'Unleash: enter with a +1/+1 counter? (It can\'t block while it has one.)');
     if (yes) {
       addCounters(c, '+1/+1', 1);
       c.grants = [...(c.grants || []), 'unleashed'];
@@ -846,9 +859,9 @@ function spellMatches(filter, d, c) {
 
 // ------------------------------------------------------------ which triggers does an event set off?
 function onField() {
-  const out = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')].filter((c) => !c.faceDown);
+  const out = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter((c) => !c.faceDown);
   // Eminence: commanders' abilities that also work from the command zone
-  for (const pid of ['p', 'ai']) for (const c of cardsIn(pid, 'command')) if (c.isCommander && /(?:^|\n)Eminence — /.test((DB[c.def].faces[0] || {}).oracle || '')) out.push(c);
+  for (const pid of seats()) for (const c of cardsIn(pid, 'command')) if (c.isCommander && /(?:^|\n)Eminence — /.test((DB[c.def].faces[0] || {}).oracle || '')) out.push(c);
   return out;
 }
 
@@ -856,7 +869,7 @@ function onField() {
 const gyTrigCache = new Map();
 function gyTriggerCards() {
   const out = [];
-  for (const pid of ['p', 'ai'])
+  for (const pid of seats())
     for (const c of cardsIn(pid, 'graveyard')) {
       let k = gyTrigCache.get(c.def);
       if (k === undefined) {
@@ -1408,7 +1421,7 @@ async function specialEvent(ev) {
       if (!/Whenever you attack with your commander, if (?:this card|~|[^,]+) is in your graveyard, you may return it to the battlefield tapped and attacking/i.test(oracle({ ...x, zone: 'battlefield' }))) continue;
       if (G.s.combat.jocasta === G.s.turn + ':' + x.iid) continue;
       G.s.combat.jocasta = G.s.turn + ':' + x.iid;
-      const yes = ev.controller === 'ai' ? true : await T.confirm(cardName(x), `Return ${cardName(x)} from your graveyard to the battlefield tapped and attacking?`);
+      const yes = isAI(ev.controller) ? true : await T.confirm(cardName(x), `Return ${cardName(x)} from your graveyard to the battlefield tapped and attacking?`);
       if (!yes) continue;
       toBattlefield(x.iid, ev.controller);
       const y = card(x.iid);
@@ -1451,9 +1464,9 @@ async function specialEvent(ev) {
     if (!c || c.zone !== 'battlefield' || !c.tapped) return true;
     const pl = G.s.players[ev.controller];
     let pay;
-    if (ev.controller === 'ai') {
+    if (isAI(ev.controller)) {
       // pay when it's the AI's own turn and it can afford the life (it wants to use the mana now)
-      pay = G.s.active === 'ai' && pl.life > 10 + ev.life && G.s.turn > 2;
+      pay = isAI(G.s.active) && pl.life > 10 + ev.life && G.s.turn > 2;
     } else pay = await T.confirm(cardName(c), `Pay ${ev.life} life so ${cardName(c)} enters untapped?`);
     if (pay) {
       pl.life -= ev.life;
@@ -1494,7 +1507,7 @@ async function specialEvent(ev) {
     const c = card(ev.iid);
     if (!c || c.zone !== 'exile') return true;
     const cost = (oracle(c).match(/Madness ((?:\{[^}]+\})+)/) || [])[1];
-    const yes = cost && T.castFree ? await (ev.pid === 'ai' ? Promise.resolve(true) : T.confirm(cardName(c), `Madness: cast ${cardName(c)} for ${cost}?`)) : false;
+    const yes = cost && T.castFree ? await (isAI(ev.pid) ? Promise.resolve(true) : T.confirm(cardName(c), `Madness: cast ${cardName(c)} for ${cost}?`)) : false;
     if (yes && (await T.castFree(ev.pid, ev.iid, { cost, mode: 'madness' }))) return true;
     if (card(ev.iid) && card(ev.iid).zone === 'exile') move(ev.iid, 'graveyard');
     return true;
@@ -1508,7 +1521,7 @@ async function specialEvent(ev) {
       if (giver) mc = oracle(giver).match(/Nonland cards in your hand have miracle ((?:\{[^}]+\})+)/i)[1];
     }
     if (mc && c.zone === 'hand') {
-      const yes = ev.pid === 'ai' ? true : await T.confirm(cardName(c), `Miracle: cast ${cardName(c)} for ${mc}?`);
+      const yes = isAI(ev.pid) ? true : await T.confirm(cardName(c), `Miracle: cast ${cardName(c)} for ${mc}?`);
       if (yes) await T.castFree(ev.pid, ev.iid, { cost: mc, mode: 'miracle' });
     }
   }
@@ -1676,7 +1689,7 @@ export async function settle() {
           continue;
         }
         // the AI's trigger waits on the stack so you can respond to it (Stifle, an instant…)
-        if (controller === 'ai' && T.announceTrigger && (await T.announceTrigger(hit, tText(hit)))) {
+        if (isAI(controller) && T.announceTrigger && (await T.announceTrigger(hit, tText(hit)))) {
           log('p', `You counter ${nameTag(hit.src)}'s triggered ability.`);
           if (G.s !== s0) return;
           continue;
@@ -1698,7 +1711,7 @@ export async function settle() {
           if (!(e instanceof Cancelled)) console.error(e);
         } finally {
           // the targets announced for the AI's trigger are used up
-          if (controller === 'ai' && T.choosers && T.choosers.ai && T.choosers.ai.plan) T.choosers.ai.plan = null;
+          if (isAI(controller) && T.choosers && T.choosers[controller] && T.choosers[controller].plan) T.choosers[controller].plan = null;
         }
         if (G.s !== s0) return;
       }
@@ -1789,8 +1802,8 @@ export async function copyAbilityWith(src, controller, text, kind) {
     if (!plan) continue;
     const times = /twice/i.test(m[4] || '') ? 2 : 1;
     const costLabel = [plan.mana && `pay ${plan.mana}`, plan.tap && 'tap it', plan.life && `pay ${plan.life} life`, plan.tapOthers.length && `tap ${plan.tapOthers.map((i) => cardName(card(i))).join(' and ')}`, plan.counter && `remove a ${plan.counter} counter`].filter(Boolean).join(', ');
-    const yes = controller === 'ai'
-      ? copyWorthIt(text) && (!plan.life || G.s.players.ai.life > 15)
+    const yes = isAI(controller)
+      ? copyWorthIt(text) && (!plan.life || G.s.players[controller].life > 15)
       : await T.confirm(cardName(tool), `${cardName(src)}'s ${kind} ability is on the stack:\n${text}\n\nCopy it${times > 1 ? ' twice' : ''} with ${cardName(tool)}${costLabel ? ` (${costLabel})` : ''}? The copy resolves first.`);
     if (!yes) continue;
     if (plan.mana && !(await T.payMana(controller, plan.mana, cardName(tool)))) continue;
@@ -1867,7 +1880,7 @@ function readAheadPick(c) {
   if (!m) return 0;
   const k = +m[1];
   const dies = (pid) => cardsIn(pid, 'battlefield').filter((x) => isCreature(x) && toughness(x) - (x.damage || 0) <= k && !hasKw(x, 'indestructible')).length;
-  return dies(c.controller) > dies(c.controller === 'p' ? 'ai' : 'p') ? 1 : 0;
+  return dies(c.controller) > opponents(c.controller).reduce((a, o) => a + dies(o), 0) ? 1 : 0;
 }
 async function resolveTriggerRaw(hit, controller, ev) {
   const { src, trig } = hit;
@@ -1882,7 +1895,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
     me: controller, choosers: T.choosers, forced: true, thatPlayer: hit.thatPlayer, it: hit.it || null, wasAttacking: hit.wasAttacking, castFree: T.castFree, deadCounters: ev && ev.counters,
     kicked: src.kicked, bargained: src.bargained, x: hit.x !== undefined ? hit.x : src.xPaid || 0, castMode: src.castMode, castFrom: src.castFrom, event: ev,
     // a spell waiting on the other side of the stack (Transcendent Dragon: "counter target spell")
-    stackTarget: controller === 'p' && G.s.stack && !G.s.stack.ability ? G.s.stack.iid : controller === 'ai' && G.s.pstack ? G.s.pstack.iid : null,
+    stackTarget: controller === 'p' && G.s.stack && !G.s.stack.ability ? G.s.stack.iid : isAI(controller) && G.s.pstack ? G.s.pstack.iid : null,
   };
   if (hit.amount !== undefined) {
     ctx.lastAmount = hit.amount;
@@ -1901,7 +1914,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
   if (trig.optional) {
     text = text.replace(/^you may /i, '');
     // the AI takes optional triggers unless they cost it something
-    const yes = controller === 'ai' ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
+    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
     if (!yes) return;
     ctx.lastMay = true; // "you may discard a card. If you do, draw two cards."
   }
@@ -1920,7 +1933,7 @@ export async function assignSectors() {
   const sc = sculptors();
   if (!sc.length) return;
   const owner = sc[0].controller;
-  for (const pid of [opp(owner), owner]) {
+  for (const pid of [...opponents(owner), owner]) {
     let all = null;
     for (const iid of [...G.s.players[pid].zones.battlefield]) {
       const c = card(iid);

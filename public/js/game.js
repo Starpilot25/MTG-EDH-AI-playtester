@@ -15,9 +15,10 @@ import { maxHandSize } from './statics.js';
 import { fire, settle, T } from './triggers.js';
 import {
   aiMainPhase, aiChooseAttackers, aiChooseBlocks, aiCleanup, aiKeepHand, aiBottom, aiAttackTargets, aiPrepareCombat, aiPay, aiEnv,
-  aiInstantWindow,
+  aiInstantWindow, asSeat,
 } from './ai.js';
 import { emptyPools, castFree, applyPayment } from './cast.js';
+import { seats, opponents, isAI, isPlayer, multiplayer, nextSeat, inGame, seatName } from './state.js';
 
 // UI hooks, filled in by ui.js
 export const hooks = {
@@ -25,7 +26,7 @@ export const hooks = {
   wait: (ms) => new Promise((r) => setTimeout(r, ms)),
   respond: async () => 'resolve',
   askBlocks: async () => {},
-  attackTargets: async (attackers) => Object.fromEntries(attackers.map((i) => [i, 'ai'])),
+  attackTargets: async (attackers) => Object.fromEntries(attackers.map((i) => [i, opp('p')])),
   turnStarted: () => {},
   envFor: null, // (pid) => cast.js env
 };
@@ -33,7 +34,8 @@ export const hooks = {
 export const run = { aiBusy: false };
 
 const envFor = (pid) => (hooks.envFor ? hooks.envFor(pid) : aiEnv(hooks));
-const who = (pid) => (pid === 'p' ? 'you' : 'the AI');
+const who = (pid) => seatName(pid);
+const aiName = (pid) => (multiplayer() ? seatName(pid) : 'AI');
 
 // ------------------------------------------------------------ mulligans
 export function mulligan(pid) {
@@ -51,11 +53,13 @@ export function bottomCount(pid) {
 }
 
 export function aiMulligans() {
-  while (!aiKeepHand() && G.s.players.ai.mulligans < 3) mulligan('ai');
-  const b = bottomCount('ai');
-  if (b) aiBottom(b);
-  const m = G.s.players.ai.mulligans;
-  log('ai', m ? `AI mulligans ${m === 1 ? 'once' : m + ' times'} and keeps ${7 - b}.` : 'AI keeps its opening seven.');
+  for (const k of seats().filter(isAI)) asSeat(k, () => {
+    while (!aiKeepHand() && G.s.players[k].mulligans < 3) mulligan(k);
+    const b = bottomCount(k);
+    if (b) aiBottom(b);
+    const m = G.s.players[k].mulligans;
+    log(k, m ? `${aiName(k)} mulligans ${m === 1 ? 'once' : m + ' times'} and keeps ${7 - b}.` : `${aiName(k)} keeps its opening seven.`);
+  });
 }
 
 export async function startPlay() {
@@ -71,10 +75,10 @@ function setStep(step) {
 
 // Pay a mana cost for an upkeep keyword. AI pays when it can; you get asked.
 async function payOrNot(pid, cost, question) {
-  if (pid === 'ai') {
-    const p = await aiPay('ai', cost, question, {});
+  if (isAI(pid)) {
+    const p = await aiPay(pid, cost, question, {});
     if (!p) return false;
-    applyPayment('ai', p);
+    applyPayment(pid, p);
     return true;
   }
   const yes = await T.confirm('Upkeep', question);
@@ -88,9 +92,9 @@ export async function beginTurn(pid) {
   if (s.winner && !s.continueAfterWin) return hooks.render();
   const prevActive = s.active;
   const prevSpells = prevActive ? s.ts[prevActive].spells : -1;
-  s.lastTurnSpells = { total: s.ts.p.spells + s.ts.ai.spells, max: Math.max(s.ts.p.spells, s.ts.ai.spells) };
+  s.lastTurnSpells = { total: seats().reduce((a, k) => a + ((s.ts[k] || {}).spells || 0), 0), max: Math.max(...seats().map((k) => (s.ts[k] || {}).spells || 0)) };
   s.turn++;
-  s.turns = s.turns || { p: 0, ai: 0 };
+  s.turns = s.turns || Object.fromEntries(seats().map((k) => [k, 0]));
   s.turns[pid] = (s.turns[pid] || 0) + 1;
   s.active = pid;
   s.landPlayed = false;
@@ -99,15 +103,17 @@ export async function beginTurn(pid) {
   s.combat = null;
   s.lastTs = s.ts; // "if you lost life last turn"
   s.ts = freshTurnStats();
-  log('turn', `${pid === 'p' ? 'Your turn' : "AI's turn"} ${s.turns[pid]} (round ${Math.ceil(s.turn / 2)})${s.extraTurnNow ? ' (extra turn)' : ''}`);
+  log('turn', `${pid === 'p' ? 'Your turn' : `${aiName(pid)}'s turn`} ${s.turns[pid]} (round ${Math.ceil(s.turn / (multiplayer() ? seats().length : 2))})${s.extraTurnNow ? ' (extra turn)' : ''}`);
+  // grudges fade: what an opponent did to this player a round ago matters less now
+  if (s.grudge && s.grudge[pid]) for (const k of Object.keys(s.grudge[pid])) s.grudge[pid][k] *= 0.6;
   s.inExtraTurn = !!s.extraTurnNow;
   // Mindslaver / Emrakul: the controller of this turn
   s.slaved = null;
   if (s.slaveNext && s.slaveNext.of === pid) {
     const sl = s.slaveNext;
     s.slaveNext = null;
-    if (sl.of === 'ai' && sl.by === 'p') {
-      s.slaved = { by: 'p', of: 'ai', turn: s.turn };
+    if (isAI(sl.of) && sl.by === 'p') {
+      s.slaved = { by: 'p', of: sl.of, turn: s.turn };
       log('sys', 'You control the AI during this turn: you make all of its choices and see its hand.');
     } else log('sys', "The AI would control your turn — this playtester doesn't support that, so play your turn as the AI would.");
     if (sl.extraAfter) s.extraTurns[pid] = (s.extraTurns[pid] || 0) + 1;
@@ -117,7 +123,7 @@ export async function beginTurn(pid) {
   phasing(pid);
   // day / night
   dayNight(prevSpells);
-  if (pid === 'ai' || G.settings.autoUntap) untapAll(pid);
+  if (isAI(pid) || G.settings.autoUntap) untapAll(pid);
   else for (const c of cardsIn(pid, 'battlefield')) c.sick = false;
   setStep('upkeep');
   hooks.render();
@@ -130,7 +136,7 @@ export async function beginTurn(pid) {
   if (G.s !== s) return;
   setStep('draw');
   const skipDraw = s.turn === 1;
-  if (!skipDraw && (pid === 'ai' || G.settings.autoDraw)) draw(pid, 1);
+  if (!skipDraw && (isAI(pid) || G.settings.autoDraw)) draw(pid, 1);
   fire({ type: 'drawStep', active: pid });
   await settle();
   if (G.s !== s) return;
@@ -140,7 +146,7 @@ export async function beginTurn(pid) {
   fire({ type: 'mainPhase', active: pid });
   await settle();
   if (G.s !== s) return;
-  if (pid === 'ai') await runAiTurn();
+  if (isAI(pid)) await runAiTurn(pid);
 }
 
 // Phasing: permanents with phasing phase out; phased-out ones phase back in (with what's attached).
@@ -149,14 +155,14 @@ export function phasing(pid) {
     if (c.phasedOut) {
       if (c.phasedWith || c.phasedUntil) continue;
       delete c.phasedOut;
-      for (const a of [...allOnField('p'), ...allOnField('ai')]) if (a.phasedWith === c.iid) {
+      for (const a of seats().flatMap(allOnField)) if (a.phasedWith === c.iid) {
         delete a.phasedOut;
         delete a.phasedWith;
       }
       log(pid, `${nameTag(c)} phases in.`);
     } else if (hasKw(c, 'phasing')) {
       c.phasedOut = true;
-      for (const a of [...allOnField('p'), ...allOnField('ai')]) if (a.attachedTo === c.iid) {
+      for (const a of seats().flatMap(allOnField)) if (a.attachedTo === c.iid) {
         a.phasedOut = true;
         a.phasedWith = c.iid;
       }
@@ -167,7 +173,7 @@ export function phasing(pid) {
 
 function dayNight(prevSpells) {
   const s = G.s;
-  const any = [...allOnField('p'), ...allOnField('ai')].some((c) => /\b(?:Daybound|Nightbound)\b/.test(DB[c.def].faces.map((f) => f.oracle).join('\n')));
+  const any = seats().flatMap(allOnField).some((c) => /\b(?:Daybound|Nightbound)\b/.test(DB[c.def].faces.map((f) => f.oracle).join('\n')));
   if (!s.dayNight && any) {
     s.dayNight = 'day';
     log('sys', 'It becomes day.');
@@ -181,7 +187,7 @@ function dayNight(prevSpells) {
     }
   }
   if (!s.dayNight) return;
-  for (const c of [...allOnField('p'), ...allOnField('ai')]) {
+  for (const c of seats().flatMap(allOnField)) {
     const d = DB[c.def];
     if (d.faces.length < 2 || !/\bDaybound\b/.test(d.faces[0].oracle || '')) continue;
     const want = s.dayNight === 'night' ? 1 : 0;
@@ -203,7 +209,7 @@ async function upkeepKeywords(pid) {
       const cost = echo.mana || DB[c.def].manaCost;
       if (await payOrNot(pid, cost, `Pay echo ${cost} for ${cardName(c)}? (Otherwise sacrifice it.)`)) {
         c.echoPaid = true;
-        log(pid, `${who(pid)} pay${pid === 'ai' ? 's' : ''} echo for ${nameTag(c)}.`);
+        log(pid, `${who(pid)} pay${isAI(pid) ? 's' : ''} echo for ${nameTag(c)}.`);
       } else {
         log(pid, `${nameTag(c)} is sacrificed (echo not paid).`);
         sacrifice(c.iid);
@@ -219,17 +225,17 @@ async function upkeepKeywords(pid) {
       let paid = false;
       if (/^\{/.test(unit)) {
         const total = unit.repeat(age);
-        const tooMuch = pid === 'ai' && parseCost(total).generic + parseCost(total).pips.length > 4;
+        const tooMuch = isAI(pid) && parseCost(total).generic + parseCost(total).pips.length > 4;
         paid = !tooMuch && (await payOrNot(pid, total, `Cumulative upkeep: pay ${total} for ${cardName(c)}? (Otherwise sacrifice it.)`));
       } else if (/pay (\d+) life/i.test(unit)) {
         const k = +unit.match(/pay (\d+) life/i)[1] * age;
-        const yes = pid === 'ai' ? s.players.ai.life > k + 10 : await T.confirm('Cumulative upkeep', `Pay ${k} life for ${cardName(c)}? (Otherwise sacrifice it.)`);
+        const yes = isAI(pid) ? s.players[pid].life > k + 10 : await T.confirm('Cumulative upkeep', `Pay ${k} life for ${cardName(c)}? (Otherwise sacrifice it.)`);
         if (yes) {
           changeLife(pid, -k);
           paid = true;
         }
       } else {
-        paid = pid === 'ai' ? false : await T.confirm('Cumulative upkeep', `${cardName(c)}: ${unit} × ${age}. Did you pay it? (No sacrifices it.)`);
+        paid = isAI(pid) ? false : await T.confirm('Cumulative upkeep', `${cardName(c)}: ${unit} × ${age}. Did you pay it? (No sacrifices it.)`);
       }
       if (!paid) {
         log(pid, `${nameTag(c)} is sacrificed (cumulative upkeep not paid).`);
@@ -293,7 +299,7 @@ async function upkeepKeywords(pid) {
     s.delayed.splice(s.delayed.indexOf(d), 1);
     const c = card(d.iid);
     if (!c || c.zone !== 'exile') continue;
-    const yes = pid === 'ai' ? true : await T.confirm('Rebound', `Cast ${cardName(c)} from exile without paying its mana cost?`);
+    const yes = isAI(pid) ? true : await T.confirm('Rebound', `Cast ${cardName(c)} from exile without paying its mana cost?`);
     if (yes) await castFree(pid, d.iid, envFor(pid), {});
     if (card(d.iid) && card(d.iid).zone === 'exile') move(d.iid, 'graveyard');
     if (G.s !== s) return;
@@ -309,7 +315,7 @@ async function endStepThings(pid) {
     draw(pid, 1, true);
     log(pid, `The monarch (${who(pid)}) draws a card.`);
   }
-  for (const c of [...allOnField('p'), ...allOnField('ai')]) {
+  for (const c of seats().flatMap(allOnField)) {
     if (!c.endOfTurn || c.zone !== 'battlefield') continue;
     const what = c.endOfTurn;
     delete c.endOfTurn;
@@ -419,20 +425,50 @@ function nextTurnOf(pid) {
     s.extraTurnNow = true;
     return pid;
   }
-  return opp(pid);
+  return nextSeat(pid); // the player to the left (in 1v1, the opponent)
 }
 
-// Let the AI act at instant speed during your turn.
-async function aiWindow(kind) {
+// Let the AI seats act at instant speed during someone else's turn, in turn order after the active player.
+// `only` limits it to some seats (in combat: the defending players).
+async function aiWindow(kind, only = null) {
+  const s = G.s;
   const was = run.aiBusy;
   run.aiBusy = true;
   hooks.render();
   try {
-    await aiInstantWindow(hooks, kind);
+    for (const k of aiSeatsAfter(s.active)) {
+      if (G.s !== s || s.winner) break;
+      if (only && !only.includes(k)) continue;
+      await asSeat(k, () => aiInstantWindow(hooks, kind));
+    }
   } finally {
     run.aiBusy = was;
     hooks.render();
   }
+}
+// the AI seats still in the game, in turn order starting after `pid` (not including pid)
+function aiSeatsAfter(pid) {
+  const order = seats();
+  const n = order.length;
+  const k = Math.max(0, order.indexOf(pid));
+  const out = [];
+  for (let i = 1; i <= n; i++) {
+    const x = order[(k + i) % n];
+    if (x !== pid && isAI(x) && inGame(x)) out.push(x);
+  }
+  return out;
+}
+// The player an attack target belongs to: a player is itself; a planeswalker its controller; a battle its protector.
+function playerOfTarget(t, attackerPid) {
+  if (isPlayer(t)) return t;
+  const c = t && card(t);
+  if (!c) return opp(attackerPid);
+  return isType(c, 'Battle') ? c.protector || opp(c.controller) : c.controller;
+}
+// which players are being attacked (by at least one creature), in turn order
+function defendersOf(cb, attackerPid) {
+  const set = new Set(cb.attackers.map((i) => playerOfTarget((cb.targets || {})[i] || opp(attackerPid), attackerPid)));
+  return seats().filter((k) => set.has(k));
 }
 
 export async function playerNextStep() {
@@ -574,7 +610,7 @@ export function toggleAttacker(iid) {
   if (!isCreature(c) || c.controller !== 'p') return;
   const k = cb.attackers.indexOf(iid);
   // goaded / "attacks each combat if able": it has to attack (unless attacking costs something — that's never required)
-  if (k >= 0 && mustAttack(c) && !cardsIn('ai', 'battlefield').some(attackTaxOf)) {
+  if (k >= 0 && mustAttack(c) && !opponents('p').some((o) => cardsIn(o, 'battlefield').some(attackTaxOf))) {
     if (hooks.say) hooks.say(`${cardName(c)} ${c.goaded ? 'is goaded and' : ''} must attack this combat.`.replace('  ', ' '));
     return;
   }
@@ -587,14 +623,17 @@ export function toggleAttacker(iid) {
 }
 
 // Planeswalkers and battles the attacker could go after instead of the player.
+// In a pod: every opponent, and each of their planeswalkers and battles.
 export function attackOptions(attackerPid) {
-  const def = opp(attackerPid);
-  const out = [{ id: def, label: def === 'ai' ? 'The AI' : 'You' }];
-  const jaceSafe = G.s.noAttackJace && G.s.noAttackJace.turn === G.s.turn && G.s.noAttackJace.owner === def;
-  for (const c of cardsIn(def, 'battlefield')) if (isType(c, 'Planeswalker') && !(jaceSafe && hasSubtype(c, 'Jace'))) out.push({ id: c.iid, label: `${cardName(c)} (${c.counters.loyalty || 0} loyalty)` });
-  // battles: attack the ones your opponent protects (in 1v1, battles you control are protected by the AI)
-  for (const c of [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')])
-    if (isType(c, 'Battle') && (c.protector || opp(c.controller)) === def) out.push({ id: c.iid, label: `${cardName(c)} (${c.counters.defense || 0} defense)` });
+  const out = [];
+  for (const def of opponents(attackerPid)) {
+    out.push({ id: def, label: def === 'p' ? 'You' : multiplayer() ? seatName(def) : 'The AI' });
+    const jaceSafe = G.s.noAttackJace && G.s.noAttackJace.turn === G.s.turn && G.s.noAttackJace.owner === def;
+    for (const c of cardsIn(def, 'battlefield')) if (isType(c, 'Planeswalker') && !(jaceSafe && hasSubtype(c, 'Jace'))) out.push({ id: c.iid, label: `${cardName(c)} (${c.counters.loyalty || 0} loyalty)${multiplayer() ? ` — ${seatName(def)}` : ''}` });
+    // battles: attack the ones your opponent protects (in 1v1, battles you control are protected by the AI)
+    for (const c of seats().flatMap((k) => cardsIn(k, 'battlefield')))
+      if (isType(c, 'Battle') && (c.protector || opp(c.controller)) === def) out.push({ id: c.iid, label: `${cardName(c)} (${c.counters.defense || 0} defense)` });
+  }
   return out;
 }
 
@@ -603,11 +642,12 @@ function attackLimits(cb, attackerPid) {
   const seen = {};
   for (const a of cb.attackers) {
     const t = (cb.targets || {})[a];
-    const tc = t && t !== 'p' && t !== 'ai' ? card(t) : null;
+    const tc = t && !isPlayer(t) ? card(t) : null;
     if (!tc || !/No more than one creature can attack (?:~|this planeswalker|[^.]+?) each combat/i.test(oracle(tc))) continue;
     if (seen[t]) {
-      cb.targets[a] = opp(attackerPid);
-      log(attackerPid, `Only one creature can attack ${nameTag(tc)}; ${nameTag(card(a))} attacks ${opp(attackerPid) === 'p' ? 'you' : 'the AI'} instead.`);
+      const back = multiplayer() ? tc.controller : opp(attackerPid);
+      cb.targets[a] = back;
+      log(attackerPid, `Only one creature can attack ${nameTag(tc)}; ${nameTag(card(a))} attacks ${seatName(back)} instead.`);
     } else seen[t] = true;
   }
 }
@@ -623,16 +663,17 @@ export function attackTaxOf(x) {
 
 // Propaganda, Ghostly Prison, Sphere of Safety: what attacking costs
 export function attackTax(attackers, targets, attackerPid) {
-  const def = opp(attackerPid);
   let total = 0;
-  for (const x of cardsIn(def, 'battlefield')) {
-    const tx = attackTaxOf(x);
-    if (!tx) continue;
-    const per = tx.per;
-    const andPws = tx.andPws;
-    for (const a of attackers) {
-      const t = (targets || {})[a] || def;
-      if (t === def || (andPws && card(t) && card(t).controller === def)) total += per;
+  for (const def of opponents(attackerPid)) {
+    for (const x of cardsIn(def, 'battlefield')) {
+      const tx = attackTaxOf(x);
+      if (!tx) continue;
+      const per = tx.per;
+      const andPws = tx.andPws;
+      for (const a of attackers) {
+        const t = (targets || {})[a] || opp(attackerPid);
+        if (t === def || (andPws && card(t) && card(t).controller === def)) total += per;
+      }
     }
   }
   return total;
@@ -668,7 +709,7 @@ export async function confirmAttacks() {
       cb.targets = {};
       return hooks.render();
     }
-  } else cb.targets = Object.fromEntries(cb.attackers.map((i) => [i, 'ai']));
+  } else cb.targets = Object.fromEntries(cb.attackers.map((i) => [i, opp('p')]));
   attackLimits(cb, 'p');
   {
     const tax = attackTax(cb.attackers, cb.targets, 'p');
@@ -686,11 +727,11 @@ export async function confirmAttacks() {
   declareAttack(cb, 'p');
   cb.stage = 'triggers';
   hooks.render();
-  fireAttacks(cb.attackers, 'p', 'ai');
+  fireAttacks(cb.attackers, 'p', opp('p'));
   await settle();
   if (G.s !== s || !s.combat) return;
   cb.attackers = cb.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
-  await aiWindow('attackers'); // removal on an attacker, a flash blocker, a fog
+  await aiWindow('attackers', multiplayer() ? defendersOf(cb, 'p') : null); // removal on an attacker, a flash blocker, a fog
   if (G.s !== s || !s.combat) return;
   // your window after attack triggers, before blockers (pump an attacker, sacrifice something, flash in a creature…)
   if (hooks.combatWindow) {
@@ -705,15 +746,22 @@ export async function confirmAttacks() {
     cb.stage = 'triggers';
   }
   cb.attackers = cb.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
-  cb.blocks = aiChooseBlocks(cb.attackers);
-  const bl = Object.entries(cb.blocks);
-  if (bl.length)
-    log('ai', bl.map(([a, bs]) => `AI blocks ${nameTag(card(a))} with ${bs.map((b) => nameTag(card(b))).join(' + ')}`).join('. ') + '.');
-  else log('ai', 'AI does not block.');
-  fireBlocks(cb, 'ai');
+  // each defending AI blocks the creatures attacking it (and its planeswalkers and battles)
+  cb.blocks = {};
+  const defenders = multiplayer() ? defendersOf(cb, 'p') : ['ai'];
+  for (const d of defenders) {
+    const mine = multiplayer() ? cb.attackers.filter((i) => playerOfTarget(cb.targets[i], 'p') === d) : cb.attackers;
+    const blocks = asSeat(d, () => aiChooseBlocks(mine));
+    Object.assign(cb.blocks, blocks);
+    const bl = Object.entries(blocks);
+    if (bl.length)
+      log(d, bl.map(([a, bs]) => `${aiName(d)} blocks ${nameTag(card(a))} with ${bs.map((b) => nameTag(card(b))).join(' + ')}`).join('. ') + '.');
+    else log(d, `${aiName(d)} does not block.`);
+  }
+  fireBlocks(cb, 'p');
   await settle();
   if (G.s !== s || !s.combat) return;
-  await aiWindow('blocks'); // combat tricks on its blockers
+  await aiWindow('blocks', multiplayer() ? defenders : null); // combat tricks on its blockers
   if (G.s !== s || !s.combat) return;
   cb.stage = 'damage';
   hooks.render();
@@ -734,9 +782,10 @@ function declareAttack(cb, pid) {
   s.ts[pid].attackedWith = (s.ts[pid].attackedWith || 0) + cb.attackers.length; // Windbrisk Heights: "attacked with three or more creatures this turn"
   const at = (i) => {
     const t = cb.targets[i];
-    return t === 'p' || t === 'ai' ? '' : ` → ${nameTag(card(t))}`;
+    if (isPlayer(t)) return multiplayer() ? ` → ${seatName(t)}` : '';
+    return ` → ${nameTag(card(t))}`;
   };
-  log(pid, `${pid === 'p' ? 'You attack' : 'AI attacks'} with ${cb.attackers.map((i) => nameTag(card(i)) + at(i)).join(', ')}.`);
+  log(pid, `${pid === 'p' ? 'You attack' : `${aiName(pid)} attacks`} with ${cb.attackers.map((i) => nameTag(card(i)) + at(i)).join(', ')}.`);
 }
 
 export async function resolvePlayerCombat() {
@@ -759,7 +808,7 @@ export async function resolvePlayerCombat() {
       if (plan) cb.assign[aid] = plan;
     }
   }
-  applyCombat(cb.attackers, cb.blocks, 'ai', cb.targets);
+  applyCombat(cb.attackers, cb.blocks, opp('p'), cb.targets);
   hooks.render();
   await settle();
   if (G.s !== s) return;
@@ -772,7 +821,7 @@ export async function resolvePlayerCombat() {
 async function endCombat(pid) {
   const s = G.s;
   fire({ type: 'endCombat', active: pid });
-  for (const c of [...allOnField('p'), ...allOnField('ai')]) {
+  for (const c of seats().flatMap(allOnField)) {
     if (c.endOfCombat === 'sacrifice' && c.zone === 'battlefield') {
       delete c.endOfCombat;
       log(c.controller, `${nameTag(c)} is sacrificed at end of combat.`);
@@ -787,27 +836,42 @@ async function endCombat(pid) {
   void s;
 }
 
+// `defender` is the default (in 1v1 the only) defending player; in a pod each attacker's own target decides it.
 function fireAttacks(attackers, controller, defender) {
   const targets = (G.s.combat && G.s.combat.targets) || {};
+  const defOf = (iid) => (multiplayer() ? playerOfTarget(targets[iid] || defender, controller) : defender);
   for (const iid of attackers) {
     if (card(iid)) card(iid).attackedTurn = G.s.turn;
-    fire({ type: 'attacks', iid, controller, defender, target: targets[iid] || defender });
+    fire({ type: 'attacks', iid, controller, defender: defOf(iid), target: targets[iid] || defender });
   }
-  if (attackers.length === 1) fire({ type: 'attacksAlone', iid: attackers[0], controller, defender });
-  if (attackers.length) fire({ type: 'youAttack', controller, defender });
+  if (attackers.length === 1) fire({ type: 'attacksAlone', iid: attackers[0], controller, defender: defOf(attackers[0]) });
+  if (attackers.length) fire({ type: 'youAttack', controller, defender: defOf(attackers[0]) });
+  // grudges (pods): AI seats remember who attacked them
+  if (multiplayer()) {
+    const s = G.s;
+    s.grudge = s.grudge || {};
+    for (const iid of attackers) {
+      const d = defOf(iid);
+      if (!isAI(d)) continue;
+      s.grudge[d] = s.grudge[d] || {};
+      s.grudge[d][controller] = (s.grudge[d][controller] || 0) + 1 + Math.max(0, (card(iid) && power(card(iid))) || 0) * 0.25;
+    }
+  }
 }
 
-function fireBlocks(cb, defender) {
+// attacker: the attacking player
+function fireBlocks(cb, attacker) {
+  const defOf = (iid) => (multiplayer() ? playerOfTarget((cb.targets || {})[iid] || opp(attacker), attacker) : opp(attacker));
   for (const iid of cb.attackers) {
     const bl = (cb.blocks[iid] || []).filter((b) => card(b));
     if (bl.length) {
-      fire({ type: 'blocked', iid, blockers: bl, defender });
+      fire({ type: 'blocked', iid, blockers: bl, defender: defOf(iid) });
       for (const b of bl) if (card(b)) card(b).blockedTurn = G.s.turn;
       for (const b of bl) {
         card(b).blocking = true;
-        fire({ type: 'blocks', iid: b, attacker: iid, defender: opp(defender) });
+        fire({ type: 'blocks', iid: b, attacker: iid, defender: attacker });
       }
-    } else fire({ type: 'unblocked', iid, defender });
+    } else fire({ type: 'unblocked', iid, defender: defOf(iid) });
   }
 }
 
@@ -816,6 +880,7 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
   const events = combatDamage(s.cards, attackers, blocks, defender, (iid) => card(iid).controller, targets);
   const lines = [];
   let toPlayer = 0;
+  const toEach = {}; // damage dealt to each player (pods: an attack can be split across opponents)
   for (const ev of events) {
     const src = card(ev.from);
     if (!src) continue;
@@ -848,10 +913,16 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     } else {
       setLife(victim, dpl.life - ev.amount, false);
       toPlayer += ev.amount;
+      toEach[victim] = (toEach[victim] || 0) + ev.amount;
       if (ev.commander) dpl.cmdDmg[ev.from] = (dpl.cmdDmg[ev.from] || 0) + ev.amount;
       lines.push(`${nameTag(src)} deals ${ev.amount}`);
     }
     s.ts[ev.controller].damagedOpp = true;
+    if (ev.amount > 0 && multiplayer() && isAI(victim)) {
+      s.grudge = s.grudge || {};
+      s.grudge[victim] = s.grudge[victim] || {};
+      s.grudge[victim][ev.controller] = (s.grudge[victim][ev.controller] || 0) + ev.amount;
+    }
     if (ev.amount > 0) {
       fire({ type: 'combatDamagePlayer', iid: ev.from, controller: ev.controller, player: victim, amount: ev.amount });
       if (G.s.ts[victim]) {
@@ -880,36 +951,48 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
       }
     }
   }
-  const hitters = [...new Set(events.filter((e) => e.type === 'player' && e.amount > 0).map((e) => e.controller))];
-  hitters.forEach((controller) => {
-    const sources = [];
-    for (const e of events) if (e.type === 'player' && e.amount > 0 && e.controller === controller) {
-      const x = sources.find((y) => y.iid === e.from);
-      if (x) x.amount += e.amount;
-      else sources.push({ iid: e.from, amount: e.amount });
+  // each player who was dealt combat damage (in 1v1: the defender)
+  const victimOf = (e) => e.to || defender;
+  const victims = multiplayer() ? seats().filter((k) => events.some((e) => e.type === 'player' && e.amount > 0 && victimOf(e) === k)) : [defender];
+  for (const v of victims) {
+    const hitters = [...new Set(events.filter((e) => e.type === 'player' && e.amount > 0 && (!multiplayer() || victimOf(e) === v)).map((e) => e.controller))];
+    hitters.forEach((controller) => {
+      const sources = [];
+      for (const e of events) if (e.type === 'player' && e.amount > 0 && e.controller === controller && (!multiplayer() || victimOf(e) === v)) {
+        const x = sources.find((y) => y.iid === e.from);
+        if (x) x.amount += e.amount;
+        else sources.push({ iid: e.from, amount: e.amount });
+      }
+      fire({ type: 'combatDamageOnce', controller, player: v, sources });
+    });
+    if (hitters.length && s.initiative === v) fire({ type: 'takeInitiative', pid: hitters[0] });
+    if (hitters.length && s.monarch === v) {
+      s.monarch = hitters[0];
+      log(hitters[0], `${hitters[0] === 'p' ? 'You become' : multiplayer() ? `${seatName(hitters[0])} becomes` : 'The AI becomes'} the monarch.`);
     }
-    fire({ type: 'combatDamageOnce', controller, player: defender, sources });
-  });
-  if (hitters.length && s.initiative === defender) fire({ type: 'takeInitiative', pid: hitters[0] });
-  if (hitters.length && s.monarch === defender) {
-    s.monarch = hitters[0];
-    log(hitters[0], `${hitters[0] === 'p' ? 'You become' : 'The AI becomes'} the monarch.`);
   }
   const lifelinkTotal = events.filter((e) => e.lifelink).reduce((a, e) => a + e.amount, 0);
-  if (lines.length) log(opp(defender), `Combat damage: ${lines.join(', ')}${toPlayer ? ` (${toPlayer} to ${defender === 'p' ? 'you' : 'the AI'})` : ''}.`);
-  if (lifelinkTotal) log(opp(defender), `Lifelink: ${opp(defender) === 'p' ? 'you gain' : 'AI gains'} ${lifelinkTotal}.`);
+  const atkr = multiplayer() ? (s.combat && s.combat.by) || s.active : opp(defender);
+  const toText = multiplayer()
+    ? Object.entries(toEach).map(([k, n]) => `${n} to ${seatName(k)}`).join(', ')
+    : `${toPlayer} to ${defender === 'p' ? 'you' : 'the AI'}`;
+  if (lines.length) log(atkr, `Combat damage: ${lines.join(', ')}${toPlayer ? ` (${toText})` : ''}.`);
+  if (lifelinkTotal) log(atkr, `Lifelink: ${atkr === 'p' ? 'you gain' : `${aiName(atkr)} gains`} ${lifelinkTotal}.`);
   stateBased();
-  checkLoss(defender);
+  if (multiplayer()) for (const k of seats()) checkLoss(k);
+  else checkLoss(defender);
 }
 
 // ------------------------------------------------------------ AI turn
-async function aiCombat() {
+// An AI seat's combat (runs inside asSeat(pid)). In a pod its attackers can go at different players; each
+// defending player blocks the creatures attacking them.
+async function aiCombat(pid = 'ai') {
   const s = G.s;
   const wait = (m = G.settings.aiSpeed) => hooks.wait(m);
   setStep('combat');
-  fire({ type: 'beginCombat', active: 'ai' });
+  fire({ type: 'beginCombat', active: pid });
   await settle();
-  if (G.s !== s || s.winner) return;
+  if (G.s !== s || s.winner || !inGame(pid)) return;
   const slaved = aiSlaved() && hooks.slavedAttack;
   if (!slaved) await aiPrepareCombat(hooks);
   if (G.s !== s) return;
@@ -918,54 +1001,76 @@ async function aiCombat() {
   if (G.s !== s) return;
   let attackers = slaved ? (picked ? picked.attackers : []) : aiChooseAttackers();
   if (!attackers.length || attackRestrictions(attackers)) {
-    await endCombat('ai');
+    await endCombat(pid);
     return;
   }
-  s.combat = { by: 'ai', attackers, blocks: {}, targets: {}, stage: 'blocks', selected: null };
+  s.combat = { by: pid, attackers, blocks: {}, targets: {}, stage: 'blocks', selected: null };
   s.combat.targets = slaved ? picked.targets : aiAttackTargets(attackers);
-  attackLimits(s.combat, 'ai');
+  attackLimits(s.combat, pid);
   {
     // the AI pays attack taxes, dropping its weakest attackers until it can afford them
-    let tax = attackTax(attackers, s.combat.targets, 'ai');
+    let tax = attackTax(attackers, s.combat.targets, pid);
     while (tax > 0) {
-      const p = await envFor('ai').pay('ai', `{${tax}}`, 'Attack tax', {});
+      const p = await envFor(pid).pay(pid, `{${tax}}`, 'Attack tax', {});
       if (p) {
-        applyPayment('ai', p);
-        log('ai', `AI pays {${tax}} to attack.`);
+        applyPayment(pid, p);
+        log(pid, `${aiName(pid)} pays {${tax}} to attack.`);
         break;
       }
       attackers = attackers.slice().sort((x, y) => power(card(y)) - power(card(x))).slice(0, -1);
       s.combat.attackers = attackers;
-      tax = attackTax(attackers, s.combat.targets, 'ai');
+      tax = attackTax(attackers, s.combat.targets, pid);
     }
     if (!attackers.length) {
-      await endCombat('ai');
+      await endCombat(pid);
       return;
     }
   }
-  declareAttack(s.combat, 'ai');
+  declareAttack(s.combat, pid);
   hooks.render();
-  fireAttacks(attackers, 'ai', 'p');
+  fireAttacks(attackers, pid, opp(pid));
   await settle();
   if (G.s !== s) return;
   attackers = attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
   s.combat.attackers = attackers;
-  const canAnyBlock = cardsIn('p', 'battlefield').some((b) => attackers.some((a) => canBlock(b, card(a))));
+  const pod = multiplayer();
+  const defenders = pod ? defendersOf(s.combat, pid) : ['p'];
+  const aimedAt = (d) => s.combat.attackers.filter((i) => playerOfTarget(s.combat.targets[i], pid) === d);
+  // pods: the AIs being attacked get to respond first (removal on an attacker, a flash blocker, a fog)
+  if (pod) await aiWindow('attackers', defenders.filter(isAI));
+  if (G.s !== s || !s.combat) return;
+  const cb = s.combat;
+  const atMe = pod ? aimedAt('p') : cb.attackers;
+  const canAnyBlock = atMe.length && cardsIn('p', 'battlefield').some((b) => atMe.some((a) => card(a) && canBlock(b, card(a))));
   if (canAnyBlock) await hooks.askBlocks(); // (you can also cast instants and activate abilities while choosing blocks)
   else if (hooks.combatWindow) await hooks.combatWindow('aiAttack');
   if (G.s !== s) return;
-  const cb = s.combat;
+  // you can only block creatures attacking you (or your planeswalkers and battles)
+  if (pod) for (const k of Object.keys(cb.blocks)) if (!atMe.includes(k)) delete cb.blocks[k];
   // provoked creatures that could have blocked their provoker must
   for (const b of cardsIn('p', 'battlefield')) {
     if (!b.provokedBy || !cb.attackers.includes(b.provokedBy) || b.tapped || !canBlock(b, card(b.provokedBy))) continue;
+    if (pod && !atMe.includes(b.provokedBy)) continue;
     if (Object.values(cb.blocks).some((v) => v.includes(b.iid))) continue;
     cb.blocks[b.provokedBy] = [...(cb.blocks[b.provokedBy] || []), b.iid];
     log('p', `${nameTag(b)} is provoked into blocking.`);
   }
   const bl = Object.entries(cb.blocks).filter(([, v]) => v.length);
   if (bl.length) log('p', bl.map(([a, bs]) => `You block ${nameTag(card(a))} with ${bs.map((b) => nameTag(card(b))).join(' + ')}`).join('. ') + '.');
-  fireBlocks(cb, 'p');
+  // the other defending AIs block what's coming at them
+  if (pod) for (const d of defenders.filter(isAI)) {
+    const mine = aimedAt(d);
+    if (!mine.length) continue;
+    const blocks = asSeat(d, () => aiChooseBlocks(mine));
+    Object.assign(cb.blocks, blocks);
+    const ent = Object.entries(blocks);
+    if (ent.length) log(d, ent.map(([a, bs]) => `${aiName(d)} blocks ${nameTag(card(a))} with ${bs.map((b) => nameTag(card(b))).join(' + ')}`).join('. ') + '.');
+    else log(d, `${aiName(d)} does not block.`);
+  }
+  fireBlocks(cb, pid);
   await settle();
+  if (G.s !== s || !s.combat) return;
+  if (pod) await aiWindow('blocks', defenders.filter(isAI)); // combat tricks on their blockers
   if (G.s !== s || !s.combat) return;
   await aiInstantWindow(hooks, 'ownBlocked'); // pump an attacker or remove a blocker
   if (G.s !== s || !s.combat) return;
@@ -973,55 +1078,62 @@ async function aiCombat() {
   if (hooks.combatWindow && bl.length) await hooks.combatWindow('afterBlocks');
   if (G.s !== s || !s.combat) return;
   cb.attackers = cb.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
-  applyCombat(cb.attackers, cb.blocks, 'p', cb.targets);
+  applyCombat(cb.attackers, cb.blocks, opp(pid), cb.targets);
   hooks.render();
   await settle();
   if (G.s !== s) return;
-  await endCombat('ai');
+  await endCombat(pid);
   s.combat = null;
   hooks.render();
   await wait();
 }
 
-export async function runAiTurn() {
+export async function runAiTurn(pid = 'ai') {
   const s = G.s;
   run.aiBusy = true;
   hooks.render();
   const wait = (m = G.settings.aiSpeed) => hooks.wait(m);
+  // the turn stops early if this player leaves the game (pods) or the game ends
+  const over = () => G.s !== s || s.winner || !inGame(pid);
   try {
-    await wait();
-    if (G.s !== s) return;
-    if (aiSlaved() && hooks.slavedMain) await hooks.slavedMain(false);
-    else await aiMainPhase(hooks);
-    if (G.s !== s || s.winner) return;
-    await aiCombat();
-    while (G.s === s && !s.winner && s.extraCombats > 0) {
-      s.extraCombats--;
-      log('sys', 'An additional combat phase begins.');
-      await aiCombat();
-    }
-    if (G.s !== s || s.winner) return;
-    setStep('main2');
-    hooks.render();
-    fire({ type: 'main2', active: 'ai' });
-    await settle();
-    if (G.s !== s) return;
-    if (aiSlaved() && hooks.slavedMain) await hooks.slavedMain(true);
-    else await aiMainPhase(hooks, true);
-    if (G.s !== s) return;
-    await extraBeginningPhases('ai');
-    if (G.s !== s) return;
-    setStep('end');
-    hooks.render();
-    fire({ type: 'endStep', active: 'ai' });
-    await settle();
-    if (G.s !== s) return;
-    await endStepThings('ai');
-    if (G.s !== s) return;
-    aiCleanup();
-    cleanupStep();
-    hooks.render();
-    await wait(Math.min(400, G.settings.aiSpeed));
+    await asSeat(pid, async () => {
+      await wait();
+      if (G.s !== s) return;
+      if (aiSlaved() && hooks.slavedMain) await hooks.slavedMain(false);
+      else await aiMainPhase(hooks);
+      if (over()) return;
+      await aiCombat(pid);
+      while (G.s === s && !s.winner && inGame(pid) && s.extraCombats > 0) {
+        s.extraCombats--;
+        log('sys', 'An additional combat phase begins.');
+        await aiCombat(pid);
+      }
+      if (over()) return;
+      setStep('main2');
+      hooks.render();
+      fire({ type: 'main2', active: pid });
+      await settle();
+      if (over()) return;
+      if (aiSlaved() && hooks.slavedMain) await hooks.slavedMain(true);
+      else await aiMainPhase(hooks, true);
+      if (over()) return;
+      await extraBeginningPhases(pid);
+      if (over()) return;
+      setStep('end');
+      hooks.render();
+      fire({ type: 'endStep', active: pid });
+      await settle();
+      if (over()) return;
+      await endStepThings(pid);
+      if (over()) return;
+      // pods: the other AIs act at the end of this turn (flash creatures, instants, abilities)
+      if (multiplayer()) await aiWindow('endStep');
+      if (over()) return;
+      aiCleanup();
+      cleanupStep();
+      hooks.render();
+      await wait(Math.min(400, G.settings.aiSpeed));
+    });
   } catch (e) {
     if (G.s === s) throw e; // the player quit to the deck menu mid-turn: the abandoned game just stops
     return;
@@ -1032,8 +1144,14 @@ export async function runAiTurn() {
     }
   }
   if (G.s !== s) return;
-  if (!s.winner || s.continueAfterWin) await beginTurn(nextTurnOf('ai'));
-  else hooks.render();
+  if (!s.winner || s.continueAfterWin) {
+    // a player who left mid-turn: clean up what's left of the turn and move on
+    if (multiplayer() && !inGame(pid)) {
+      s.combat = null;
+      cleanupStep();
+    }
+    await beginTurn(nextTurnOf(pid));
+  } else hooks.render();
 }
 
 export { isLand, DB, face, toBattlefield, dayNight, upkeepKeywords, endStepThings, cleanupStep, applyCombat };

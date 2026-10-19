@@ -4,6 +4,7 @@ import { DB } from './data.js';
 import { G, readCache, cacheTwin } from './state.js';
 import { evalCond } from './effects.js';
 import { abilitiesGone, helpers as rulesHelpersObj } from './rules.js';
+import { seats, opponents, opp as oppOf } from './state.js';
 
 const COLOR_WORDS = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
 const parsedCache = new Map();
@@ -333,8 +334,8 @@ function field() {
 function fieldRaw() {
   if (!G.s) return [];
   const out = [];
-  for (const pid of ['p', 'ai']) out.push(...emblemObjects(pid));
-  for (const pid of ['p', 'ai'])
+  for (const pid of seats()) out.push(...emblemObjects(pid));
+  for (const pid of seats())
   {
     for (const iid of G.s.players[pid].zones.battlefield) {
       const c = G.s.cards[iid];
@@ -579,7 +580,7 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   {
     const gg = p.match(/^(?:the )?greatest (power|toughness|mana value) among (creature )?cards in (all graveyards|your graveyard|graveyards)$/);
     if (gg && G.s) {
-      const pids = /your/.test(gg[3]) ? [pid] : ['p', 'ai'];
+      const pids = /your/.test(gg[3]) ? [pid] : seats();
       const vals = pids.flatMap((w) => G.s.players[w].zones.graveyard.map((i) => G.s.cards[i])).filter((c) => c && (!gg[2] || /Creature/.test(DB[c.def].faces[0].typeLine || '')))
         .map((c) => (gg[1] === 'mana value' ? DB[c.def].cmc || 0 : parseInt(gg[1] === 'power' ? DB[c.def].faces[0].power : DB[c.def].faces[0].toughness, 10) || 0));
       return vals.length ? Math.max(0, ...vals) : 0;
@@ -593,7 +594,7 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   {
     const wm = p.match(/^((?:other |nontoken |untapped |tapped )*(?:[\w-]+ )?)creatures? (you control|your opponents control|an opponent controls|on the battlefield) with (power|toughness|mana value) (\d+) or (greater|less)$/);
     if (wm && G.s && helpers) {
-      const who = wm[2] === 'you control' ? [pid] : wm[2] === 'on the battlefield' ? ['p', 'ai'] : [pid === 'p' ? 'ai' : 'p'];
+      const who = wm[2] === 'you control' ? [pid] : wm[2] === 'on the battlefield' ? seats() : opponents(pid);
       const f = filterFrom(wm[1]);
       return who.flatMap((w) => G.s.players[w].zones.battlefield.map((i) => G.s.cards[i]))
         .filter((c) => c && !c.phasedOut && helpers.isCreature(c) && (!/other/.test(wm[1]) || c.iid !== srcIid) && matchesFilter(c, f, helpers))
@@ -609,7 +610,7 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
     const gm0 = p.match(/^(?:the )?(?:greatest )?(power|toughness|mana value) among ((?:other )?(?:[\w-]+ ){0,2}?)(creatures|[\w-]+s) (you control|your opponents control|on the battlefield)$/);
     const gm = gm0 && [gm0[0], gm0[1], gm0[2] + (gm0[3] === 'creatures' ? '' : gm0[3].replace(/s$/, '') + ' '), gm0[4]];
     if (gm && G.s && helpers) {
-      const who = gm[3] === 'you control' ? [pid] : gm[3] === 'on the battlefield' ? ['p', 'ai'] : [pid === 'p' ? 'ai' : 'p'];
+      const who = gm[3] === 'you control' ? [pid] : gm[3] === 'on the battlefield' ? seats() : opponents(pid);
       const words = gm[2].trim();
       const f = filterFrom(words);
       const vals = who.flatMap((w) => G.s.players[w].zones.battlefield.map((i) => G.s.cards[i]))
@@ -622,7 +623,7 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   {
     const pm = p.match(/^(?:total |the total )?(power|toughness) of ((?:other )?(?:[\w-]+ ){0,2}?creatures) (you control|your opponents control|on the battlefield)$/);
     if (pm && G.s && helpers) {
-      const who = pm[3] === 'you control' ? [pid] : pm[3] === 'on the battlefield' ? ['p', 'ai'] : [pid === 'p' ? 'ai' : 'p'];
+      const who = pm[3] === 'you control' ? [pid] : pm[3] === 'on the battlefield' ? seats() : opponents(pid);
       const words = pm[2].replace(/creatures$/, '').trim();
       const f = filterFrom(words);
       return who.flatMap((w) => G.s.players[w].zones.battlefield.map((i) => G.s.cards[i]))
@@ -637,10 +638,10 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   }
   {
     const nm = p.match(/^cards? named (.+?) in (?:each|all) graveyards?$/);
-    if (nm && G.s) return ['p', 'ai'].flatMap((w) => G.s.players[w].zones.graveyard).filter((i) => G.s.cards[i] && DB[G.s.cards[i].def].name.toLowerCase() === nm[1]).length;
+    if (nm && G.s) return seats().flatMap((w) => G.s.players[w].zones.graveyard).filter((i) => G.s.cards[i] && DB[G.s.cards[i].def].name.toLowerCase() === nm[1]).length;
   }
   const s = G.s;
-  const opp = pid === 'p' ? 'ai' : 'p';
+  const opp = oppOf(pid);
   const bf = (who) => s.players[who].zones.battlefield.map((i) => s.cards[i]).filter((c) => c && !c.phasedOut);
   const gy = (who) => s.players[who].zones.graveyard.map((i) => s.cards[i]);
   let m;
@@ -661,16 +662,17 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   }
   // "experience counter you have", "energy counters you have"
   if ((m = p.match(/^(\w+) counters? you have$/))) return m[1] === 'poison' ? s.players[pid].poison || 0 : (s.players[pid].counters || {})[m[1]] || 0;
-  if (/^cards? in (?:target opponent's|an opponent's|each opponent's) hand/.test(p)) return inHand(opp);
-  if (/^cards? in all graveyards/.test(p)) return gy('p').length + gy('ai').length;
-  if (/^creature cards in all graveyards/.test(p)) return [...gy('p'), ...gy('ai')].filter((c) => /Creature/.test(DB[c.def].typeLine)).length;
+  if (/^cards? in each opponent's hand/.test(p)) return opponents(pid).reduce((a, o) => a + inHand(o), 0);
+  if (/^cards? in (?:target opponent's|an opponent's) hand/.test(p)) return inHand(opp);
+  if (/^cards? in all graveyards/.test(p)) return seats().reduce((a, k) => a + gy(k).length, 0);
+  if (/^creature cards in all graveyards/.test(p)) return seats().flatMap(gy).filter((c) => /Creature/.test(DB[c.def].typeLine)).length;
   if (/^creature cards in your graveyard/.test(p)) return gy(pid).filter((c) => /Creature/.test(DB[c.def].typeLine)).length;
   if (/^(?:instant and sorcery|instant or sorcery) cards in your graveyard/.test(p)) return gy(pid).filter((c) => /Instant|Sorcery/.test(DB[c.def].typeLine)).length;
   if (/^land cards in your graveyard/.test(p)) return gy(pid).filter((c) => /Land/.test(DB[c.def].typeLine)).length;
   if (/^cards? in your graveyard/.test(p)) return gy(pid).length;
   if (/^card types among cards in (?:your|all) graveyards?/.test(p)) {
     const types = new Set();
-    for (const c of /all/.test(p) ? [...gy('p'), ...gy('ai')] : gy(pid))
+    for (const c of /all/.test(p) ? seats().flatMap(gy) : gy(pid))
       for (const t of ['Artifact', 'Battle', 'Creature', 'Enchantment', 'Instant', 'Kindred', 'Land', 'Planeswalker', 'Sorcery'])
         if (new RegExp(t).test(DB[c.def].typeLine.split('—')[0])) types.add(t);
     return types.size;
@@ -684,7 +686,7 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   if (/^\+1\/\+1 counters on (?:creatures|permanents) you control/.test(p)) return bf(pid).reduce((a, c) => a + (c.counters['+1/+1'] || 0), 0);
   if (/^colou?rs? among permanents you control/.test(p)) return new Set(bf(pid).flatMap((c) => DB[c.def].colors)).size;
   if ((m = p.match(/^(other )?((?:[\w-]+ ){0,3}?)(creatures|artifacts|enchantments|lands|planeswalkers|permanents|[\w-]+s) (you control|your opponents control|an opponent controls|on the battlefield)/))) {
-    const who = m[4] === 'you control' ? [pid] : m[4] === 'on the battlefield' ? ['p', 'ai'] : [opp];
+    const who = m[4] === 'you control' ? [pid] : m[4] === 'on the battlefield' ? seats() : opponents(pid);
     const kind = m[3].replace(/s$/, '');
     const f = filterFrom(m[2]);
     return who

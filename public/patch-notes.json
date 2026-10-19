@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.70",
+    "title": "Groundwork for multiplayer",
+    "notes": [
+      "Behind the scenes the game can now run a Commander pod: you against two or three AI opponents, each playing its own deck. It isn't playable yet: the table for 3–4 players and a setup screen for the extra opponents come in a later update.",
+      "In a pod, turns go around the table, \"each opponent\" and \"each player\" effects hit everyone, \"target opponent\" picks one, and a player who loses leaves the game along with their cards.",
+      "Each AI decides who to attack and target by sizing up the table: who has the strongest board, who's close to winning, and who has been attacking it.",
+      "1v1 games play exactly as before."
+    ]
+  },
+  {
     "version": "1.3.69",
     "title": "Proliferate players, Select all, energy",
     "notes": [

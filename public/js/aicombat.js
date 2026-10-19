@@ -7,6 +7,7 @@ import {
   isCreature, isType, isLand, oracle, hasKw, power, toughness, canBlock, canAttack, mustAttack, manaAbility, kwNum,
 } from './rules.js';
 import { G, card, cardsIn, opp, casualAI, readCache, cacheTwin } from './state.js';
+import { opponents, isAI, multiplayer } from './state.js';
 
 // ------------------------------------------------------------ how dangerous is it?
 export function threat(c) {
@@ -47,8 +48,8 @@ function threatRaw(c) {
   if (isType(c, 'Battle')) t += 1;
   if (c.isCommander) {
     t += 4;
-    const foe = opp(c.controller || c.owner);
-    const dmg = G.s ? G.s.players[foe].cmdDmg[c.iid] || 0 : 0;
+    // the most commander damage it has dealt to any opponent
+    const dmg = G.s ? Math.max(0, ...opponents(c.controller || c.owner).map((foe) => (G.s.players[foe] ? G.s.players[foe].cmdDmg[c.iid] || 0 : 0))) : 0;
     if (isCreature(c) && dmg + power(c) >= 21) t += 8;
     else if (dmg >= 10) t += 3;
   }
@@ -101,7 +102,7 @@ export function evasive(c) {
     /can't be blocked(?!\s+by creatures with power| as long as)/i.test(o) || hasKw(c, 'menace') ||
     // landwalk: unblockable while the defender has that land
     Object.entries({ islandwalk: 'Island', swampwalk: 'Swamp', forestwalk: 'Forest', mountainwalk: 'Mountain', plainswalk: 'Plains' }).some(([kw, land]) =>
-      hasKw(c, kw) && G.s && G.s.players[c.controller === 'p' ? 'ai' : 'p'].zones.battlefield.some((i) => G.s.cards[i] && new RegExp(land).test(DB[G.s.cards[i].def].typeLine || '')));
+      hasKw(c, kw) && G.s && opponents(c.controller).flatMap((o) => G.s.players[o].zones.battlefield).some((i) => G.s.cards[i] && new RegExp(land).test(DB[G.s.cards[i].def].typeLine || '')));
 }
 
 // ------------------------------------------------------------ combat simulator
@@ -253,14 +254,13 @@ export function planBlocks(defender, attackerIds, opts = {}) {
 
 // ------------------------------------------------------------ attacking
 // Score an attack: damage and trades now, minus what the counter-attack costs.
-export function scoreAttack(attacker, ids) {
+export function scoreAttack(attacker, ids, def = opp(attacker)) {
   const s = G.s;
-  const def = opp(attacker);
   const dpl = s.players[def];
   const me = s.players[attacker];
   const atk = ids.map(card).filter(Boolean).map((a) => (a.attacking ? a : { ...a, attacking: true }));
   if (!atk.length) return { score: -crackBack(attacker, []) * lifeWeight(me.life) * 0.3, lethal: false };
-  const blocks = planBlocks(def, ids, { targets: {} });
+  const blocks = planBlocks(def, ids, { targets: Object.fromEntries(ids.map((i) => [i, def])) });
   let score = 0;
   let dmg = 0;
   let poison = 0;
@@ -285,9 +285,16 @@ export function scoreAttack(attacker, ids) {
   return { score, lethal: false, blocks };
 }
 
-// How much damage the opponent could swing back with next turn if `tappedIds` stay tapped.
+// How much damage the opponent could swing back with next turn if `tappedIds` stay tapped. In a pod each
+// opponent picks someone to attack, so the strongest swing counts fully and the rest in part.
 export function crackBack(pid, tappedIds) {
-  const foe = opp(pid);
+  if (multiplayer()) {
+    const per = opponents(pid).map((o) => crackBackFrom(pid, o, tappedIds)).sort((a, b) => b - a);
+    return (per[0] || 0) + per.slice(1).reduce((a, b) => a + b, 0) * 0.35;
+  }
+  return crackBackFrom(pid, opp(pid), tappedIds);
+}
+function crackBackFrom(pid, foe, tappedIds) {
   const theirs = cardsIn(foe, 'battlefield').filter((c) => isCreature(c) && !c.pacifiedBy && !hasKw(c, 'defender')).map((c) => ({ ...c, attacking: true }));
   if (!theirs.length) return 0;
   const home = cardsIn(pid, 'battlefield').filter((c) => isCreature(c) && !tappedIds.includes(c.iid) && !c.pacifiedBy);
@@ -302,12 +309,12 @@ export function crackBack(pid, tappedIds) {
 
 // Choose attackers: start from everything that can attack, drop the worst until no drop helps;
 // also build up from nothing, and keep the better plan.
-export function planAttack(pid) {
+export function planAttack(pid, def = opp(pid)) {
   const mine = cardsIn(pid, 'battlefield').filter((c) => canAttack(c) && !c.pacifiedBy && Math.max(0, power(c)) + kwNum(c, 'Annihilator') > 0 || (canAttack(c) && mustAttack(c)));
   const forced = mine.filter(mustAttack).map((c) => c.iid);
   const all = mine.map((c) => c.iid);
   if (!all.length) return [];
-  const score = (ids) => scoreAttack(pid, ids).score;
+  const score = (ids) => scoreAttack(pid, ids, def).score;
   // identical creatures (a pile of tokens) are interchangeable: only try one of each kind per step
   const kindOf = (i) => {
     const c = card(i);
@@ -366,8 +373,9 @@ export function planAttack(pid) {
   let chosen = bestUp > best ? up : down;
   // Casual AI: no all-in swings. Unless the attack is lethal, keep enough creatures home to block
   // (the best blockers stay back), the way a friendly pod plays.
-  if (casualAI() && pid === 'ai' && chosen.length && !scoreAttack(pid, chosen).lethal) {
-    const foes = cardsIn(opp(pid), 'battlefield').filter((c) => isCreature(c) && !hasKw(c, 'defender'));
+  if (casualAI() && isAI(pid) && chosen.length && !scoreAttack(pid, chosen, def).lethal) {
+    // the biggest board among the opponents decides how many stay home (in 1v1, the opponent's)
+    const foes = opponents(pid).map((o) => cardsIn(o, 'battlefield').filter((c) => isCreature(c) && !hasKw(c, 'defender'))).sort((a, b) => b.length - a.length)[0] || [];
     const keep = Math.min(Math.ceil(foes.length / 2), Math.max(0, mine.length - 1));
     const home = mine.filter((c) => !chosen.includes(c.iid) && !hasKw(c, 'vigilance')).length;
     let need = keep - home;

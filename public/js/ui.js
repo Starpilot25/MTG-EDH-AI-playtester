@@ -11,7 +11,7 @@ import {
 import {
   hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn, attackTax, attackTaxOf,
 } from './game.js';
-import { aiChooser, aiMaybeCounter, aiMaybeCounterTrigger, aiPay, aiEnv } from './ai.js';
+import { aiChooser, aiMaybeCounter, aiMaybeCounterTrigger, aiPay, aiEnv, seatChoosers, chooserFor } from './ai.js';
 import {
   manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, displayCost, manaLifeGain, topAccess, isLibraryTop, landOptions, playLand, landsAllowed, applyPayment, poolSym, tagPoolSym,
   activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft, instantLoyalty,
@@ -22,6 +22,8 @@ import {
   Cancelled, activatedAbilities, zoneAbilities, predictTargets,
 } from './effects.js';
 import { payCost, totalMana, sculptors, SECTORS, SECTOR_SIGN, manaAbility } from './rules.js';
+import { seats, isAI } from './state.js';
+import { isPlayer, multiplayer, seatName } from './state.js';
 
 // Boards can be popped out into their own windows; lookups search those windows too.
 const popouts = new Map(); // pid -> { win, doc }
@@ -181,7 +183,7 @@ function cardHTML(c, opts = {}) {
     if (ai >= 0) {
       // who it's attacking: a player or a planeswalker/battle
       const tg = (cb.targets || {})[c.iid];
-      const tc = tg && tg !== 'p' && tg !== 'ai' ? card(tg) : null;
+      const tc = tg && !isPlayer(tg) ? card(tg) : null;
       const defender = tc ? null : tg || opp(c.controller);
       const label = tc ? cardName(tc) : defender === 'p' ? 'You' : 'AI';
       badges.push(`<span class="tag atk ${tc ? 'atk-pw' : 'atk-player'}" title="Attacking ${esc(tc ? cardName(tc) : defender === 'p' ? 'you' : 'the AI')}">⚔ ${ai + 1} → ${esc(label.length > 12 ? label.split(/[ ,]/)[0] : label)}</span>`);
@@ -286,14 +288,16 @@ T.announceTrigger = async (hit, text) => {
   if (!canRespondNow()) return false;
   // work out what it will target now, show it, and hold the AI to that choice when it resolves
   let tg = [];
+  const by = isAI(card(hit.src.iid).controller) ? card(hit.src.iid).controller : 'ai';
+  const ch = chooserFor(by);
   try {
-    aiChooser.plan = null;
-    tg = await predictTargets('ai', card(hit.src.iid), card(hit.src.iid).face || 0, { ai: aiChooser, p: aiChooser }, hit.x || 0, hit.trig.text || text);
+    ch.plan = null;
+    tg = await predictTargets(by, card(hit.src.iid), card(hit.src.iid).face || 0, Object.fromEntries(seats().map((k) => [k, ch])), hit.x || 0, hit.trig.text || text);
   } catch (e) {
     tg = [];
   }
-  if (tg.length) aiChooser.plan = tg.slice();
-  s.stack = { iid: hit.src.iid, by: 'ai', face: card(hit.src.iid).face || 0, ability: text, trigger: true, targets: tg };
+  if (tg.length) ch.plan = tg.slice();
+  s.stack = { iid: hit.src.iid, by, face: card(hit.src.iid).face || 0, ability: text, trigger: true, targets: tg };
   render();
   let countered = false;
   try {
@@ -423,9 +427,9 @@ function renderAll() {
       el.classList.toggle('under-attack', !!n);
     }
   }
-  document.body.classList.toggle('ai-turn', s.active === 'ai');
+  document.body.classList.toggle('ai-turn', isAI(s.active));
   document.body.classList.toggle('target-mode', !!pendingTarget);
-  document.body.classList.toggle('block-mode', !!(s.combat && s.combat.by === 'ai' && pendingBlocks));
+  document.body.classList.toggle('block-mode', !!(s.combat && isAI(s.combat.by) && pendingBlocks));
   document.body.classList.toggle('attack-mode', !!(s.combat && s.combat.by === 'p' && s.combat.stage === 'declare'));
   document.body.classList.toggle('opp-popped', popouts.has('ai'));
   for (const d of popDocs()) d.body.className = document.body.className + ' popout-body';
@@ -903,7 +907,7 @@ function renderBanner() {
     html = `<div class="combat-bar targeting"><span class="eyebrow">${esc(srcName)}</span>
       <p>${esc(r.prompt)}. ${r.candidates.length ? 'Legal targets are highlighted — click one.' : ''}</p>
       <div class="btns">
-        ${(r.players || []).map((pid) => `<button class="${pid === 'ai' ? 'primary' : ''}" data-tgt-player="${pid}">${pid === 'ai' ? 'Target the AI' : 'Target yourself'}</button>`).join('')}
+        ${(r.players || []).map((pid) => `<button class="${isAI(pid) ? 'primary' : ''}" data-tgt-player="${pid}">${isAI(pid) ? (multiplayer() ? `Target ${esc(seatName(pid))}` : 'Target the AI') : 'Target yourself'}</button>`).join('')}
         ${r.optional ? '<button data-act="tgt-skip">No target</button>' : ''}
         ${r.forced ? '' : '<button data-act="tgt-cancel">Cancel <kbd>Esc</kbd></button>'}
       </div></div>`;
@@ -950,7 +954,7 @@ function renderBanner() {
         <p>${bl ? `The AI blocked ${bl} attacker${bl > 1 ? 's' : ''}. Numbered tags show who blocks whom.` : 'The AI did not block.'} Use tricks now by hand, then deal damage.</p>
         <div class="btns"><button class="primary" data-act="damage">Deal damage <kbd>Enter</kbd></button></div></div>`;
     }
-  } else if (s.combat && s.combat.by === 'ai' && pendingBlocks) {
+  } else if (s.combat && isAI(s.combat.by) && pendingBlocks) {
     const cb = s.combat;
     const total = cb.attackers.filter((a) => !(cb.blocks[a] || []).length).reduce((a, i) => a + Math.max(0, power(card(i))), 0);
     html = `<div class="combat-bar danger"><span class="eyebrow">The AI attacks you</span>
@@ -1289,7 +1293,8 @@ export const playerChooser = {
   },
 };
 hooks.playerChooser = playerChooser;
-T.choosers = { p: playerChooser, ai: aiChooser };
+// every seat's chooser (yours and one per AI seat in this game)
+Object.defineProperty(T, 'choosers', { configurable: true, get: () => seatChoosers(playerChooser) });
 
 // ------------------------------------------------------------ Mindslaver: you control the AI's turn
 // While you control the AI, every choice it would make (targets, modes, "may" questions, cards to pick) comes to you.
@@ -1613,7 +1618,7 @@ async function playerPay(pid, cost, label, opts = {}) {
 
 function playerEnv(extra = {}) {
   return {
-    choosers: { p: playerChooser, ai: aiChooser },
+    choosers: seatChoosers(playerChooser),
     pay: playerPay,
     render: () => render(),
     wait: (ms) => hooks.wait(ms),
@@ -1855,7 +1860,7 @@ async function floatMana(c) {
   // restricted mana keeps its restriction in the pool (Orb of Dragonkind: Dragon spells only)
   syms = syms.map((x) => tagPoolSym(x, m));
   act(() => {
-    G.s.pool = G.s.pool || { p: [], ai: [] };
+    G.s.pool = G.s.pool || Object.fromEntries(seats().map((k) => [k, []]));
     if (m.activation) {
       // spend colorless first, then whatever is most plentiful
       for (let k = 0; k < m.activation; k++) {
@@ -2495,7 +2500,7 @@ function onCardClick(iid, e) {
   const s = G.s;
   if (c.zone === 'battlefield') {
     if (s.combat && s.combat.by === 'p' && s.combat.stage === 'declare' && isCreature(c)) return toggleAttacker(iid);
-    if (s.combat && s.combat.by === 'ai' && pendingBlocks) return blockClick(c);
+    if (s.combat && isAI(s.combat.by) && pendingBlocks) return blockClick(c);
     return toggleTap(iid);
   }
   if (c.zone === 'library') return act(() => draw('p', 1));
@@ -2654,7 +2659,7 @@ export function bindEvents() {
     const t = e.target;
     // blocking: after picking your creature, click the AI's attacker it blocks
     const oppCard = t.closest('#opp-field .card[data-iid]');
-    if (oppCard && G.s && G.s.combat && G.s.combat.by === 'ai' && pendingBlocks) {
+    if (oppCard && G.s && G.s.combat && isAI(G.s.combat.by) && pendingBlocks) {
       const c = card(oppCard.dataset.iid);
       if (c) return blockClick(c);
     }
@@ -2743,7 +2748,7 @@ export function bindEvents() {
     if (a === 'continue') {
       G.s.continueAfterWin = true;
       render();
-      if (G.s.active === 'ai' && !run.aiBusy) beginTurn('p');
+      if (isAI(G.s.active) && !run.aiBusy) beginTurn('p');
       return;
     }
     if (a === 'rematch' || a === 'newdecks') return window.dispatchEvent(new CustomEvent('edh:' + a));
