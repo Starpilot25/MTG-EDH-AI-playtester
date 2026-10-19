@@ -4591,8 +4591,16 @@ on(/^exchange control of (.+)$/, async (m, env) => {
 on(/^(each opponent|target opponent|target player|each player|that player|defending player|you|its controller) sacrifices? (a|an|one|two|three|x|\d+|all|half the) ([^.]+?)(?: of (?:their|his or her) choice)?(?:\.|$| for each)/, async (m, env) => {
   const pids = await playerTarget(env, m[1]);
   for (const pid of pids) {
-    const kindPhrase = m[3].replace(/ they control$| you control$/, '').replace(/s$/, '');
-    const pool = cardsIn(pid, 'battlefield').filter((c) => matchesAny(c, kindPhrase || 'permanent'));
+    let kindPhrase = m[3].replace(/ they control$| you control$/, '').replace(/s$/, '');
+    // Consumed by Greed: "a creature with the greatest power among creatures they control"
+    const ext = kindPhrase.match(/^(.+?) with the (greatest|highest|least|lowest) (power|toughness|mana value)(?: among [^.]+)?$/);
+    if (ext) kindPhrase = ext[1];
+    let pool = cardsIn(pid, 'battlefield').filter((c) => matchesAny(c, kindPhrase || 'permanent'));
+    if (ext && pool.length) {
+      const val = (c) => (ext[3] === 'power' ? power(c) : ext[3] === 'toughness' ? toughness(c) : DB[c.def].cmc || 0);
+      const best = /greatest|highest/.test(ext[2]) ? Math.max(...pool.map(val)) : Math.min(...pool.map(val));
+      pool = pool.filter((c) => val(c) === best);
+    }
     if (!pool.length) {
       env.couldntSac = [...(env.couldntSac || []), pid];
       continue;
@@ -4891,6 +4899,20 @@ on.first = true; // the handlers below are specific and take priority over the g
 // --- mana payments inside effects: "You may pay {2}. If you do, …"
 on(/^pay (?!\{e\})((?:\{[^}]+\})+)$/, async (m, env) => {
   const { T } = await import('./triggers.js');
+  // Tilonalli's Summoner: "you may pay {X}{R}. If you do, create X …" — choose X (as much as you can afford)
+  if (/\{x\}/i.test(m[1]) && castMod) {
+    const base = m[1].replace(/\{x\}/gi, '');
+    let max = 0;
+    while (max < 20 && payCost(base + `{${max + 1}}`, castMod.manaSources(env.me))) max++;
+    if (!payCost(base || '{0}', castMod.manaSources(env.me))) { env.lastMay = false; return env.did.push(`can't pay ${m[1]}`); }
+    let x = await env.choosers[env.me].chooseNumber({ prompt: `${cardName(env.src)}: choose X for ${m[1].toUpperCase()} (0–${max})`, min: 0, max, ai: max });
+    x = Math.max(0, Math.min(max, +x || 0));
+    const cost = base + (x ? `{${x}}` : '');
+    const paid = !cost || (T.payMana ? await T.payMana(env.me, cost, cardName(env.src)) : false);
+    env.lastMay = !!paid;
+    if (paid) { env.x = x; env.did.push(`${who(env.me)} ${s_(env.me, 'pay')} ${m[1]} with X = ${x}`); }
+    return;
+  }
   const paid = T.payMana ? await T.payMana(env.me, m[1], cardName(env.src)) : false;
   env.lastMay = !!paid;
   if (paid) env.did.push(`${who(env.me)} ${s_(env.me, 'pay')} ${m[1]}`);
@@ -5068,11 +5090,11 @@ on(/^each of them enters with an additional \+1\/\+1 counter on it/, async (m, e
   for (const d of env.delayedNow || []) d.counter = '+1/+1';
   if ((env.delayedNow || []).length) env.did.push('each returns with an extra counter');
 });
-on(/^(?:(?:sacrifice|exile) (it|them|that creature|those creatures|that token|those tokens) at the beginning of (?:the|your) next end step|at the beginning of (?:the|your) next end step, (?:sacrifice|exile) (it|them|that creature|those creatures|that token|those tokens))$/, async (m, env) => {
+on(/^(?:(?:sacrifice|exile) (it|them|that creature|those creatures|that token|those tokens) at the beginning of (?:the|your) next end step|at the beginning of (?:the|your) next end step, (?:sacrifice|exile) (it|them|that creature|those creatures|that token|those tokens))( unless you have the city's blessing)?$/, async (m, env) => {
   m[1] = m[1] || m[2];
   const ids = /them|those/.test(m[1]) && (env.them_ || env.made) ? env.them_ || env.made : env.it && env.it.iid ? [env.it.iid] : [];
-  if (ids.length) env.did.push(`${ids.length === 1 && card(ids[0]) ? nameTag(card(ids[0])) : ids.length + ' permanents'} will ${/exile/.test(env.sentence) ? 'be exiled' : 'be sacrificed'} at end of turn`);
-  for (const i of ids) if (card(i)) card(i).endOfTurn = /^exile/.test(env.sentence) ? 'exile' : 'sacrifice';
+  if (ids.length) env.did.push(`${ids.length === 1 && card(ids[0]) ? nameTag(card(ids[0])) : ids.length + ' permanents'} will ${/exile/.test(env.sentence) ? 'be exiled' : 'be sacrificed'} at end of turn${m[3] ? " unless you have the city's blessing" : ''}`);
+  for (const i of ids) if (card(i)) { card(i).endOfTurn = /^exile|, exile/.test(env.sentence) ? 'exile' : 'sacrifice'; if (m[3]) card(i).eotUnlessBlessing = true; }
 });
 on(/^(that creature|it|that permanent|those creatures|target creature|that land) (?:doesn't|don't) untap during (?:its|their) controller'?s'? next untap step$/, async (m, env) => {
   const objs = await objects(env, m[1]);

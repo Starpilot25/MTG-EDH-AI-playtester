@@ -1352,6 +1352,13 @@ export function canBlock(blocker, attacker) {
   const bo = oracle(blocker);
   if ((/(?:^|\n|\. )(?:~|This creature|[A-Z][^.\n]*?) can't block\.?/.test(bo) && !/can't block (?:creatures with|unless|alone)/i.test(bo)) || hasKw(blocker, 'decayed') || blocker.suspected) return false;
   if ((blocker.grants || []).includes('unleashed') && (blocker.counters || {})['+1/+1']) return false;
+  // Bedlam: "Creatures can't block." (also "Creatures your opponents control can't block", "Creatures you control can't block")
+  if (G.s && Object.values(G.s.players).some((P) => (P.zones.battlefield || []).some((i) => {
+    const x = G.s.cards[i];
+    if (!x || x.phasedOut || abilitiesGone(x)) return false;
+    const bm = oracle(x).match(/(?:^|\n)(?:All )?creatures( your opponents control| you control)? can't block(?: this turn)?\.?(?:$|\n)/i);
+    return !!bm && (!bm[1] || (/opponents/i.test(bm[1]) ? blocker.controller !== x.controller : blocker.controller === x.controller));
+  }))) return false;
   if (blocker.goaded && false) return false;
   if (/can block only creatures with flying/i.test(bo) && !hasKw(attacker, 'flying')) return false;
   if (hasKw(blocker, 'shadow') && !hasKw(attacker, 'shadow')) return false;

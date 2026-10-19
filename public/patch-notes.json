@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.71",
+    "title": "Consumed by Greed, Demand Answers, Bedlam, Tilonalli, Nyx Lotus",
+    "notes": [
+      "Consumed by Greed: the opponent now has to sacrifice their creature with the greatest power (they could pick any creature before).",
+      "Demand Answers and other \"sacrifice an artifact or discard a card\" costs: you now choose and pay one of them (before, nothing was paid).",
+      "Bedlam: \"Creatures can't block\" now stops all blocking (also works for \"creatures your opponents control can't block\").",
+      "Tilonalli's Summoner: you choose X when you pay {X}{R} (X was always 0), and the tokens are exiled at end of turn unless you have the city's blessing.",
+      "Nyx Lotus: auto-pay now picks the color the spell needs instead of always your highest devotion."
+    ]
+  },
+  {
     "version": "1.3.70",
     "title": "Groundwork for multiplayer",
     "notes": [

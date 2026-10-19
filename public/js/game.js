@@ -319,6 +319,8 @@ async function endStepThings(pid) {
     if (!c.endOfTurn || c.zone !== 'battlefield') continue;
     const what = c.endOfTurn;
     delete c.endOfTurn;
+    // Tilonalli's Summoner: "… unless you have the city's blessing"
+    if (c.eotUnlessBlessing && s.players[c.controller] && s.players[c.controller].cityBlessing) continue;
     if (what === 'hand') {
       log(c.controller, `${nameTag(c)} returns to its owner's hand (dash).`);
       move(c.iid, 'hand');

@@ -71,6 +71,13 @@ export function manaSources(pid, opts = {}) {
     const alt = (m.alts || []).filter((a) => restrictedOk(a.onlyFor, a.abilitiesOf, spell, opts)).sort((a, b) => b.amount - a.amount)[0];
     if (alt && alt.amount > m.amount) m = { ...m, ...alt };
     if (!restrictedOk(m.onlyFor, m.abilitiesOf, spell, opts)) continue;
+    // Nyx Lotus: one color, as much as your devotion — pick the color this spell actually needs
+    if (m.byColor && spell && DB[spell.def]) {
+      const mc = (DB[spell.def].faces[spell.face || 0] || {}).manaCost || DB[spell.def].manaCost || '';
+      const pips = (col) => (mc.match(new RegExp(`\\{${col}(?:/[A-Z])?\\}`, 'g')) || []).length;
+      const best = Object.entries(m.byColor).sort((a, b) => Math.min(b[1], pips(b[0])) - Math.min(a[1], pips(a[0])) || b[1] - a[1])[0];
+      if (best) m = { ...m, colors: [best[0]], amount: best[1] };
+    }
     out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, energy: m.energy, energyNeed: m.energyNeed, activation: m.activation || 0, restricted: !!m.onlyFor });
   }
   // Waterbend: untapped artifacts and creatures can each pay {1} of the waterbend cost
@@ -1146,6 +1153,35 @@ export async function payOtherCost(pid, text, src, env) {
   const parts = t.split(/, and |, | and (?=sacrifice|discard|pay|exile|tap|return|remove|collect|forage|reveal)/);
   for (const p of parts) {
     let m;
+    // Demand Answers: "sacrifice an artifact or discard a card" — either one
+    if ((m = p.match(/^((?:sacrifice|discard|exile|tap|return|pay|reveal|blight) .+?) or ((?:sacrifice|discard|exile|tap|return|pay|reveal|blight) .+)$/))) {
+      const opts = [m[1], m[2]];
+      const can = (o) => {
+        let q;
+        if ((q = o.match(/^sacrifice (?:a|an|one|another) (.+)$/))) return cardsIn(pid, 'battlefield').some((x) => x.iid !== src.iid && matchesFilter(x, q[1]));
+        if ((q = o.match(/^discard (?:a|an|one) ?(.*?)\s*cards?$/))) return cardsIn(pid, 'hand').some((x) => x.iid !== src.iid && (!q[1] || matchesFilter(x, q[1])));
+        return true;
+      };
+      const ok = opts.filter(can);
+      if (!ok.length) return false;
+      let pick = ok[0];
+      if (ok.length > 1) {
+        // the AI gives up a token or cheap artifact before a card from hand
+        const aiPick = () => {
+          const sacK = opts.findIndex((o) => /^sacrifice/.test(o));
+          if (sacK >= 0) {
+            const f = opts[sacK].replace(/^sacrifice (?:a|an|one|another) /, '');
+            if (cardsIn(pid, 'battlefield').some((x) => x.iid !== src.iid && matchesFilter(x, f) && (x.token || cardValue(x) < 2))) return sacK;
+            return 1 - sacK;
+          }
+          return 0;
+        };
+        const k = await ch.choose({ prompt: `${cardName(src)}: additional cost`, options: opts.map((o) => ({ label: o.replace(/^\w/, (x) => x.toUpperCase()) })), aiPick });
+        pick = opts[k] || ok[0];
+      }
+      if (!(await payOtherCost(pid, pick, src, env))) return false;
+      continue;
+    }
     // blight N: put N -1/-1 counters on a creature you control
     if ((m = p.match(/^blight (\d+)$/))) {
       const pool = cardsIn(pid, 'battlefield').filter(isCreature);
