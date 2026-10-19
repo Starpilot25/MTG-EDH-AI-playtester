@@ -1,5 +1,12 @@
 [
   {
+    "version": "..1",
+    "title": "Super State",
+    "notes": [
+      "Super State: its \"deals that much damage to each other opponent\" trigger was misread as damage to every creature, wiping the board. It now only hits other opponents (nobody in a 1-on-1 game; the other players in multiplayer)."
+    ]
+  },
+  {
     "version": "1.3.73",
     "title": "Prismatic Lens, clearer floating mana",
     "notes": [

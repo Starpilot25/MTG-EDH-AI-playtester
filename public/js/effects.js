@@ -2388,8 +2388,14 @@ async function damageTargetPick(env, src, t, amount) {
   }
 }
 // "~ deals 4 damage to each other opponent" — with two players, nobody else is there
-on(/^(?:~|this creature|it) deals (\w+) damage to each other opponent$/, async (m, env) => {
-  env.did.push('there are no other opponents');
+// Super State: "it deals that much damage to each other opponent" (other than the one it just hit)
+on(/^(?:~|this creature|it|that creature|enchanted creature|equipped creature) deals (that much|\w+) damage to each other opponent$/, async (m, env) => {
+  const k = m[1] === 'that much' ? env.lastAmount || 0 : n(m[1], env.x);
+  const hit = env.thatPlayer;
+  const others = opponents(env.me).filter((pid) => pid !== hit && inGame(pid));
+  if (!others.length || !k) return env.did.push('there are no other opponents');
+  const srcC = /^(?:it|that creature|enchanted creature|equipped creature)$/.test(m[0].split(' deals')[0]) && env.it && env.it.iid && card(env.it.iid) ? card(env.it.iid) : env.src;
+  for (const pid of others) damagePlayer(env, srcC, pid, k);
 }, { first: true });
 // Shared Animosity: "it gets +1/+0 until end of turn for each other attacking creature that shares a creature type with it"
 on(/^it gets \+(\d+)\/\+(\d+) (?:until end of turn )?for each other attacking creature that shares a creature type with it(?: until end of turn)?$/, async (m, env) => {

@@ -9,7 +9,7 @@
     "public/js/cast.js": "8967b8a95471f14dad83f6310c24510d792ed333f4030721f207f9fef9ea088c",
     "public/js/data.js": "86b69a179ef93276907e45c96c14e02dc91991001b1b11b2a839752a4ffbb955",
     "public/js/dungeon.js": "10c2b69fa213d7b8ff9335fd93ef412e8bd72c4919ea68831ff7aed5280f52ef",
-    "public/js/effects.js": "de0bd54ed5ae03c310437453ef2c5bb9ecee62f6ddab4fc6ff66feef5fe1e928",
+    "public/js/effects.js": "5116ffa9cbc6ff5c7b29c6100680795905fe736eff2bc0b340e41ea7b28a15cc",
     "public/js/game.js": "08272752109af3e8ecaeafd95e939823800e5d4ebc2a3e2dfe3a770c7f95e8f5",
     "public/js/main.js": "c4dcd901fbb8236ec56106246271cecbfe36f7b25dcba56956280a1c64957fc5",
     "public/js/rules.js": "7cc45d07af4ab79bd7cbc16378b595419eeaa593c9d6b792feec4519a21df759",
@@ -17,6 +17,6 @@
     "public/js/statics.js": "76ec5a802764d0cb1fae55d07e64acd8d5bde070770db5eb6c9cfd4492a39724",
     "public/js/triggers.js": "ddb2f893e1f3e540487476ab1109be6ecefb7a2b6fe500e9f34359dd6016ff61",
     "public/js/ui.js": "121a67f92106080b689e186b51fbcaccd81981d0bb350eca5f0af8c22d313269",
-    "public/patch-notes.json": "92c5aa40ca9c652a990ef2eec03eff60d6badeae7c3280468dfdf7b9b7a487ed"
+    "public/patch-notes.json": "d1585dc59e9804652fdda83d1da606bbc678e15d5c8c6d0a67f962037450eb5a"
   }
 }
