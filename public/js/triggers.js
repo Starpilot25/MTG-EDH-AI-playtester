@@ -9,6 +9,8 @@ import {
   createToken, genericTokenDef, sacrifice, opp, libTop, esc,
   withReadCache, discard as discardCard, draw as drawCards, ringLevel,
 } from './state.js';
+import { tapPerm } from './state.js';
+import { emblemObjects } from './statics.js';
 import {
   resolveEffects, stripName, knownEffect, bindTriggerHooks, addMana, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords, evalCond,
 } from './effects.js';
@@ -433,7 +435,7 @@ export function triggersOf(c, defOverride) {
       add('monstrous', m[1], { self: true });
     else if ((m = line.match(/^When ~ exploits a creature, (.+)$/i)))
       add('exploited', m[1], { self: true });
-    else if ((m = line.match(/^When(?:ever)? ~ (?:transforms into|becomes) [^,]+, (.+)$/i)))
+    else if ((m = line.match(/^When(?:ever)? ~ (?:transforms into|becomes) (?!tapped,)[^,]+, (.+)$/i)))
       add('transformed', m[1], { self: true });
     else if ((m = line.match(/^When this Class becomes level (\d+), (.+)$/i)))
       add('classLevel', m[2], { self: true, level: +m[1] });
@@ -542,7 +544,7 @@ function keywordTriggers(c) {
     if (!cands.length) return [];
     const [pick] = await ctx.choosers[c.controller].pickCards({ prompt: 'Enlist: tap a non-attacking creature to add its power', cards: cands.map((x) => x.iid), min: 0, max: 1, purpose: 'enlist', src: c, aiScore: (x) => power(x) - cardValue(x) / 3 });
     if (!pick) return [];
-    card(pick).tapped = true;
+    tapPerm(card(pick));
     pumpEOT(c, { p: power(card(pick)), t: 0, grants: [] });
     return [`enlists ${nameTag(card(pick))} (+${power(card(pick))}/+0)`];
   }, 'Enlist', { self: true });
@@ -889,6 +891,8 @@ function matches(ev) {
   const each = (fn) => {
     for (const c of onField()) for (const trig of triggersOf(c)) if (!trig.fromGy) fn(c, trig);
     for (const c of gyTriggerCards()) for (const trig of triggersOf({ ...c, controller: c.owner })) if (trig.fromGy) fn(c, trig);
+    // emblems with triggered abilities (Garruk, Caller of Beasts: "Whenever you cast a creature spell, …")
+    for (const pid of seats()) if ((G.s.players[pid].emblems || []).some((e) => /^(?:When|Whenever|At)\b/i.test(e))) for (const c of emblemObjects(pid)) for (const trig of triggersOf(c)) fn(c, trig);
   };
   const whoOk = (trigWho, c, pid) => !trigWho || (trigWho === 'you' ? pid === c.controller : trigWho === 'an opponent' ? pid !== c.controller : true);
   switch (ev.type) {
@@ -1343,6 +1347,7 @@ function matches(ev) {
       break;
     case 'explored':
     case 'connived':
+    case 'tapped':
     case 'monstrous':
     case 'exploited':
     case 'transformed':
@@ -1426,7 +1431,7 @@ async function specialEvent(ev) {
       toBattlefield(x.iid, ev.controller);
       const y = card(x.iid);
       if (!y) continue;
-      y.tapped = true;
+      tapPerm(y);
       y.attacking = true;
       G.s.combat.attackers.push(y.iid);
       if (G.s.combat.targets) G.s.combat.targets[y.iid] = G.s.combat.targets[ev.iid] || ev.defender;

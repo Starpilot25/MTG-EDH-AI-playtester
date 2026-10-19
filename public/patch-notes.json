@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.72",
+    "title": "Garruk, Scaretiller, Ultima, emblems",
+    "notes": [
+      "Garruk, Caller of Beasts: +1 now puts the revealed creatures into your hand (it only revealed), and the −7 emblem works (\"Whenever you cast a creature spell, search for a creature and put it onto the battlefield\").",
+      "Emblems with triggered abilities now trigger in general.",
+      "Scaretiller: \"Whenever ~ becomes tapped\" was read as a transform trigger and never fired. \"Becomes tapped\" triggers now fire whenever the permanent gets tapped (attacking, tapping for mana, paying {T} costs, crew/convoke, effects).",
+      "Ultima, Origin of Oblivion: the blight counter now turns the land into a land with no types or abilities that taps for {C}, and your lands tapped for {C} make an extra {C}. The AI blights your lands, not its own.",
+      "God-Eternal Bontu, Monstrous Vortex and Quilled Greatwurm checked: they already worked."
+    ]
+  },
+  {
     "version": "1.3.71",
     "title": "Consumed by Greed, Demand Answers, Bedlam, Tilonalli, Nyx Lotus",
     "notes": [

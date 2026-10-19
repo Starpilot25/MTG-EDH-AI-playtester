@@ -8,6 +8,7 @@ import {
   setLife, toBattlefield, createToken, stateBased, commanderTax, cardName, makeCard, CARD_W, CARD_H,
   STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, ringLevel, RING_TEXT, restoreInPlace, sacrifice, changeLife, withReadCache, aiSlaved, handControl,
 } from './state.js';
+import { tapPerm } from './state.js';
 import {
   hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn, attackTax, attackTaxOf,
 } from './game.js';
@@ -1875,7 +1876,7 @@ async function floatMana(c) {
       log('p', `You pay {${m.activation}} to activate ${nameTag(c)}.`);
     }
     G.s.pool.p.push(...syms);
-    c.tapped = true;
+    tapPerm(c);
     c.floated = { syms, step: G.s.step, turn: G.s.turn };
     log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${poolSym(x).col}}`).join(''))}${m.onlyFor ? ` (only for ${m.onlyFor === 'abilities' ? 'abilities' : m.onlyFor === 'artifactOrAbility' ? 'artifact spells and abilities' : m.onlyFor === 'fromExile' ? 'spells cast from exile' : m.onlyFor + ' spells' + (m.abilitiesOf ? ' or abilities' : '')})` : ''}.`);
     if (m.sac && hasSubtype(c, 'Treasure')) G.s.treasurePool = { pid: 'p', turn: G.s.turn }; // Rain of Riches

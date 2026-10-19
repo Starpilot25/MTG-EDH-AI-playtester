@@ -304,7 +304,7 @@ function staticsOfRaw(c) {
 }
 
 // Emblems act like permanents for static effects (Elspeth's "+2/+2 and flying")
-function emblemObjects(pid) {
+export function emblemObjects(pid) {
   return (G.s.players[pid].emblems || []).map((t, k) => {
     const id = 'emblem:' + t;
     if (!DB[id]) DB[id] = { id, name: 'Emblem', layout: 'emblem', cmc: 0, manaCost: '', typeLine: 'Emblem', colors: [], ci: [], keywords: [], produced: [], tokens: [], faces: [{ name: 'Emblem', manaCost: '', typeLine: 'Emblem', oracle: t }] };

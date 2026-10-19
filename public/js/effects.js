@@ -11,6 +11,7 @@ import {
   stateBased, shuffle, cardName, opp, addCounters, loseAllAbilities, nextStamp, destroy, sacrifice, discard as discardCard, mill as millCards,
   libTop, queueEvent, winGame, loseGame, esc, makeCard, ringLevel, RING_TEXT, aiSlaved,
 } from './state.js';
+import { tapPerm } from './state.js';
 // A spell being cast stays in its zone until it resolves; effects must not see it in the hand
 // (Brainsurge can't put itself back, Windfall doesn't shuffle itself away, "cards in hand" counts exclude it).
 // triggers.js's shared hooks (castFree, render…), loaded lazily to avoid a circular import
@@ -1816,7 +1817,7 @@ on(/^(?:he|she) gains ([a-z ]+) until end of turn$/, async (m, env) => {
 on(/^tap those creatures and put a stun counter on each of them$/, async (m, env) => {
   const ids = (env.them_ || []).filter((i) => card(i) && card(i).zone === 'battlefield');
   for (const i of ids) {
-    card(i).tapped = true;
+    tapPerm(card(i));
     addCounters(card(i), 'stun', 1);
   }
   env.did.push(ids.length ? `taps and stuns ${ids.map((i) => nameTag(card(i))).join(', ')}` : 'finds no creatures');
@@ -4056,7 +4057,7 @@ on(/^put (a|an|one|two|three|four|five|six|x|\d+|that many) ([+-]\d+\/[+-]\d+|[a
   if (fe && /^creature blocking it$/.test(fe[1])) k *= env.thatMuch || 0;
   else if (fe) k *= countPhrase(env.me, fe[1], helpers, env.src.iid) || 0;
   const kind = m[2];
-  const objs = await objects(env, m[3], { harm: /^-/.test(kind) || kind === 'stun' });
+  const objs = await objects(env, m[3], { harm: /^-/.test(kind) || kind === 'stun' || kind === 'blight' || kind === 'bounty' });
   for (const c of objs) {
     addCounters(c, kind, k);
     if (objs.length <= 3) env.did.push(`puts ${k} ${kind} counter${k === 1 ? '' : 's'} on ${nameTag(c)}`);
@@ -4206,6 +4207,13 @@ on(/^(?:then )?(?:you may )?pay (any amount of \{e\}|one or more \{e\}|an amount
   env.lastMay = true;
   env.lastAmount = env.thatMuch = env.energyPaid = k;
   env.did.push(`pays ${k} energy`);
+}, { first: true });
+// Ultima, Origin of Oblivion: "For as long as that land has a blight counter on it, it loses all land types and abilities and has "{T}: Add {C}.""
+on(/^for as long as that land has a blight counter on it, it loses all land types and abilities and has "\{t\}: add \{c\}\.?"$/, async (m, env) => {
+  const c = env.it && env.it.iid && card(env.it.iid);
+  if (!c || c.zone !== 'battlefield') return env.did.push('no land');
+  c.blightLand = true;
+  env.did.push(`${nameTag(c)} is blighted: no land types or abilities, taps for {C}`);
 }, { first: true });
 on(/^bolster (\w+)/, async (m, env) => {
   const cs = cardsIn(env.me, 'battlefield').filter(isCreature).sort((a, b) => toughness(a) - toughness(b));
@@ -4499,7 +4507,7 @@ on(/^(tap|untap) (.+?)(?:\. (?:it|that creature|they) (?:doesn't|don't) untap du
   const objs = await objects(env, m[2], { harm: m[1] === 'tap' });
   const freeze = /doesn't untap|don't untap/.test(env.sentence);
   for (const c of objs) {
-    c.tapped = m[1] === 'tap';
+    if (m[1] === 'tap') tapPerm(c); else c.tapped = false;
     if (freeze) c.noUntapUntil = G.s.turn + (c.controller === G.s.active ? 3 : 2);
   }
   if (objs.length) env.did.push(`${m[1]}s ${objs.length > 3 ? objs.length + ' permanents' : objs.map(nameTag).join(', ')}`);
@@ -5468,7 +5476,7 @@ on(/^reveal the top (\w+) cards? of your library\. put (?:all|each) ([a-z ]+?) c
   const toGy = /into your graveyard/.test(env.sentence);
   ids.filter((i) => !hits.includes(i)).forEach((i) => move(i, toGy ? 'graveyard' : 'library', toGy ? {} : { to: 'bottom' }));
   env.did.push(`reveals ${ids.length}, takes ${hits.length}`);
-});
+}, { multi: true });
 on(/^(?:you )?(scry|surveil) (\d+|x)/, async (m, env) => {
   const sv = m[1] === 'surveil';
   let k = n(m[2], env.x);
@@ -6330,7 +6338,7 @@ on(/^for each creature with one or more votes, put that many stun counters on it
     const c = card(iid);
     if (!c || c.zone !== 'battlefield') continue;
     addCounters(c, 'stun', k);
-    c.tapped = true;
+    tapPerm(c);
     env.did.push(`puts ${k} stun counter${k > 1 ? 's' : ''} on ${nameTag(c)} and taps it`);
   }
 }, { first: true });
@@ -6974,7 +6982,7 @@ async function runSentence(sentence, env) {
   }
   // "Draw a card, then discard a card." / "Scry 1, then draw a card."
   const parts = s.split(/,? then (?=[a-z])/i);
-  if (parts.length > 1 && !/^search/i.test(s) && !/faces a villainous choice/i.test(s) && !BLINK_RE.test(s.toLowerCase()) && !H.some((h) => h.first && !h.never && h.re.test(s.toLowerCase()) && /then/.test(h.re.source))) {
+  if (parts.length > 1 && !/^search/i.test(s) && !/faces a villainous choice/i.test(s) && !/\bemblem with ["']/i.test(s) && !BLINK_RE.test(s.toLowerCase()) && !H.some((h) => h.first && !h.never && h.re.test(s.toLowerCase()) && /then/.test(h.re.source))) {
     for (const p of parts) await runSentence(p, env);
     return;
   }

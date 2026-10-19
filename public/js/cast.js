@@ -14,6 +14,7 @@ import {
   libTop, esc, makeCard, changeLife, aiSlaved,
   tappedHook,
 } from './state.js';
+import { tapPerm } from './state.js';
 import {
   resolveEffects, spellText, etbText, costOf, attachAura, attachTo, activatedAbilities, zoneAbilities, Cancelled,
   matchesFilter, analyze, stripName, spellFilterOk,
@@ -110,14 +111,14 @@ export function applyPayment(pid, pay) {
   for (const iid of pay.payers || []) {
     if (String(iid).startsWith('pool:')) usedPool.push(+iid.slice(5));
     else if (card(iid)) {
-      card(iid).tapped = true;
+      tapPerm(card(iid));
       tappedHook(card(iid));
     }
   }
   for (const sp of pay.special || []) {
     if (sp.kind === 'pool') usedPool.push(+String(sp.iid).slice(5));
     else if (sp.kind === 'delve') move(sp.iid, 'exile');
-    else if (card(sp.iid)) card(sp.iid).tapped = true;
+    else if (card(sp.iid)) tapPerm(card(sp.iid));
   }
   if (usedPool.length && G.s.pool) G.s.pool[pid] = G.s.pool[pid].filter((_, k) => !usedPool.includes(k));
   // the rest of a multi-mana source's mana floats (Sol Ring tapped for a one-mana spell leaves {C})
@@ -1276,7 +1277,7 @@ export async function payOtherCost(pid, text, src, env) {
       const pool = cardsIn(pid, 'battlefield').filter((x) => !x.tapped && (!/\bother\b/.test(m[2]) || x.iid !== src.iid) && matchesFilter(x, m[2].replace(/^other /, '')) && (!m[3] || hasKw(x, m[3])));
       if (pool.length < k) return false;
       const picks = await ch.pickCards({ prompt: `Tap ${k} untapped ${m[2]}`, cards: pool.map((x) => x.iid), min: k, max: k, purpose: 'tap', src, aiScore: (x) => -cardValue(x) });
-      picks.forEach((i) => (card(i).tapped = true));
+      picks.forEach((i) => tapPerm(card(i)));
       continue;
     }
     // Force of Will & co.: "exile a blue card from your hand"
@@ -1725,7 +1726,7 @@ export async function activateAbility(pid, c, ab, env) {
       });
       const total = picks.reduce((a, i) => a + Math.max(0, power(card(i))), 0);
       if (ab.kind !== 'station' && total < need) return env.say(`Not enough power (${total}/${need}).`);
-      picks.forEach((i) => (card(i).tapped = true));
+      picks.forEach((i) => tapPerm(card(i)));
       if (ab.kind === 'crew') c.crewedTurn = s.turn;
       else if (ab.kind === 'saddle') c.saddledTurn = s.turn;
       else {
@@ -1825,7 +1826,7 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.collectEvidence && !(await payOtherCost(pid, `collect evidence ${ab.collectEvidence}`, c, env))) throw new Cancelled();
   if (ab.forage && !(await payOtherCost(pid, 'forage', c, env))) throw new Cancelled();
   if (ab.tap) {
-    c.tapped = true;
+    tapPerm(c);
     tappedHook(c);
   }
   if (ab.untap) c.tapped = false;

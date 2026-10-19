@@ -100,11 +100,14 @@ function typeFxOf(inst, base) {
     }
   return fx.sort((a, b) => a.ts - b.ts);
 }
+// Ultima, Origin of Oblivion: "For as long as that land has a blight counter on it, it loses all land types and abilities and has "{T}: Add {C}.""
+export const blighted = (inst) => !!(inst && inst.blightLand && ((inst.counters || {}).blight || 0) > 0);
 export function typeLine(inst) {
   if (inst.faceDown) return 'Creature';
   if (inst.becameTreasure) return 'Artifact — Treasure'; // Vraska, Betrayal's Sting
   if (inst.bestowed && inst.zone === 'battlefield') return 'Enchantment — Aura'; // bestowed: an Aura, not a creature (702.103)
   let t = printedTypes(inst);
+  if (blighted(inst)) t = t.split(' — ')[0];
   if (inst.notLegendary) t = t.replace(/^Legendary /, '');
   // Layer 4, in timestamp order (each one sees the result of the ones before it: Opalescence after March of the Machines…)
   for (const f of typeFxOf(inst, t)) {
@@ -130,6 +133,7 @@ function colorFx(inst) {
 export function lostAbilitiesAt(inst) {
   if (!inst) return 0;
   let lt = inst.lostAbilities ? inst.lostAt || 1 : 0;
+  if (blighted(inst)) lt = Math.max(lt, 1); // Ultima's blight counter
   for (const e of inst.layerFx || []) if (e.loseAll) lt = Math.max(lt, e.ts);
   if (inst.zone === 'battlefield' && G.s) {
     const fx = globalLayerFx();
@@ -707,7 +711,17 @@ export function manaValueOf(cost) {
 
 // What a permanent can tap for: {colors, amount, sac?} or null.
 // Pain lands, Talismans, horizon lands, Mana Confluence: some of the colors cost 1 life to make.
+// Forsaken Monument: "Whenever you tap a permanent for {C}, add an additional {C}." / Ultima: "Whenever you tap a land for {C}, …"
+function withExtraC(inst, r) {
+  if (G.s && inst.zone === 'battlefield' && (r.colors || []).length === 1 && r.colors[0] === 'C') {
+    const land = isLand(inst);
+    const extra = G.s.players[inst.controller].zones.battlefield.filter((i) => { const x = G.s.cards[i]; if (!x || x.phasedOut || abilitiesGone(x)) return false; const o = oracle(x); return /Whenever you tap a permanent for \{C\}, add an additional \{C\}/i.test(o) || (land && /Whenever you tap a land for \{C\}, add an additional \{C\}/i.test(o)); }).length;
+    if (extra) r = { ...r, amount: (r.amount || 1) + extra, ...(r.each ? { each: [...r.each, ...Array(extra).fill('C')] } : {}), ...(r.alts ? { alts: r.alts.map((a) => ({ ...a, amount: a.amount + extra })) } : {}) };
+  }
+  return r;
+}
 export function manaAbility(inst) {
+  if (blighted(inst)) return inst.tapped || inst.phasedOut ? null : withExtraC(inst, { colors: ['C'], amount: 1 });
   // an effect that gave it a mana ability (Imprisoned in the Moon: "{T}: Add {C}")
   for (const e of inst.layerFx || []) if (e.mana) return isCreature(inst) && inst.sick && !hasKw(inst, 'haste') ? null : { colors: e.mana, amount: 1 };
   // it lost all abilities: no mana abilities of its own (Vraska's Treasure keeps the one it was given) — but a land with a
@@ -745,11 +759,7 @@ export function manaAbility(inst) {
     }
   }
   if (!r) return r;
-  // Forsaken Monument: "Whenever you tap a permanent for {C}, add an additional {C}."
-  if (G.s && inst.zone === 'battlefield' && (r.colors || []).length === 1 && r.colors[0] === 'C') {
-    const extra = G.s.players[inst.controller].zones.battlefield.filter((i) => { const x = G.s.cards[i]; return x && !x.phasedOut && !abilitiesGone(x) && /Whenever you tap a permanent for \{C\}, add an additional \{C\}/i.test(oracle(x)); }).length;
-    if (extra) r = { ...r, amount: (r.amount || 1) + extra, ...(r.each ? { each: [...r.each, ...Array(extra).fill('C')] } : {}), ...(r.alts ? { alts: r.alts.map((a) => ({ ...a, amount: a.amount + extra })) } : {}) };
-  }
+  r = withExtraC(inst, r);
   // Goldspan Dragon: "Treasures you control have "{T}, Sacrifice this artifact: Add two mana of any one color.""
   if (r.sac && G.s && inst.zone === 'battlefield' && hasSubtype(inst, 'Treasure') && G.s.players[inst.controller].zones.battlefield.some((i) => {
     const x = G.s.cards[i];

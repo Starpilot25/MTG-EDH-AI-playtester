@@ -307,6 +307,12 @@ export function esc(s) {
 }
 
 // Captain America, Living Legend: a creature you control that becomes tapped for the first time during your turn untaps
+// tap a permanent and let "Whenever ~ becomes tapped" triggers see it
+export function tapPerm(c) {
+  if (!c || c.tapped) return;
+  c.tapped = true;
+  if (c.zone === 'battlefield') queueEvent({ type: 'tapped', iid: c.iid, controller: c.controller });
+}
 export function tappedHook(c) {
   if (!c || !G.s || c.zone !== 'battlefield' || !isCreature(c)) return;
   const first = c.firstTapTurn !== G.s.turn;
@@ -325,7 +331,7 @@ export function log(who, html) {
 // ------------------------------------------------------------ zone movement
 const RESET = ['chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
-  'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
+  'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
   'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
