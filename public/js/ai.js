@@ -699,7 +699,7 @@ function targetsAvailable(text, c) {
 
 // Modes the AI knows how to use well.
 const AI_MODES = new Set(['normal', 'back', 'adventure', 'fuse', 'flashback', 'escape', 'foretold', 'plotted', 'impulse', 'hideaway', 'fromGraveyard',
-  'mayhem', 'gyPermit', 'disturb', 'aftermath', 'prototype', 'surge', 'spectacle', 'prowl', 'freerunning', 'overload', 'awaken', 'bestow', 'harmonize', 'omen', 'coram', 'freecast']);
+  'mayhem', 'gyPermit', 'disturb', 'aftermath', 'prototype', 'surge', 'spectacle', 'prowl', 'freerunning', 'overload', 'awaken', 'bestow', 'harmonize', 'omen', 'coram', 'freecast', 'retrace']);
 
 // Every way the AI could cast something right now, best option per card.
 function options(filter = () => true) {
@@ -725,6 +725,12 @@ function options(filter = () => true) {
       if (!AI_MODES.has(opt.mode) || opt.other) continue;
       if (!timingOk(AI, c, opt)) continue;
       if (opt.mode === 'bestow' && !cardsIn(AI, 'battlefield').some(isCreature)) continue;
+      // retrace (Six): only with a spare land to discard — it has made its land drop or has plenty of lands out
+      if (opt.mode === 'retrace') {
+        const handLands = cardsIn(AI, 'hand').filter(isLand).length;
+        const out = cardsIn(AI, 'battlefield').filter(isLand).length;
+        if (!handLands || !((G.s.landsPlayed || 0) >= landsAllowed(AI) || handLands > 1 || out >= 6)) continue;
+      }
       const cost = opt.cost || '';
       if (!cost && !opt.free) continue; // uncastable (no mana cost)
       const eff = effectiveCost(AI, c, opt);

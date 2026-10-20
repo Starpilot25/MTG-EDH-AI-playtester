@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.90",
+    "title": "AI uses retrace",
+    "notes": [
+      "The AI now casts cards with retrace (its own, or from Six) — but only when it has a spare land to discard: after its land drop, with two or more lands in hand, or with six or more lands already out."
+    ]
+  },
+  {
     "version": "1.3.89",
     "title": "Hedge Shredder, Six, Ob Nixilis, Braids",
     "notes": [
