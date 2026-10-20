@@ -81,6 +81,12 @@ export function manaSources(pid, opts = {}) {
     }
     out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, filterAlt: m.filterAlt, energy: m.energy, energyNeed: m.energyNeed, activation: m.activation || 0, restricted: !!m.onlyFor });
   }
+  // Relic of Legends: "Tap an untapped legendary creature you control: Add one mana of any color." — each such creature is a source
+  {
+    const relic = cardsIn(pid, 'battlefield').find((x) => !x.phasedOut && !abilitiesGone(x) && /(?:^|\n)Tap an untapped legendary creature you control: Add one mana of any color/i.test(oracle(x)));
+    if (relic) for (const c of cardsIn(pid, 'battlefield')) if (isCreature(c) && !c.tapped && /\bLegendary\b/.test(typeLine(c)) && !out.some((o) => o.iid === c.iid) && c.iid !== (opts.self || null))
+      out.push({ iid: c.iid, colors: ['W', 'U', 'B', 'R', 'G'], amount: 1, relicVia: relic.iid });
+  }
   // Waterbend: untapped artifacts and creatures can each pay {1} of the waterbend cost
   if (opts.waterbend)
     for (const c of cardsIn(pid, 'battlefield')) if ((isCreature(c) || isType(c, 'Artifact')) && !c.tapped && c.iid !== opts.self && !out.some((o) => o.iid === c.iid)) out.push({ iid: c.iid, colors: [], amount: 1, kind: 'waterbend' });

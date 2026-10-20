@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.94",
+    "title": "Photon, Relic of Legends",
+    "notes": [
+      "Photon, Mighty Marvel: the mana it adds stays in your pool until end of turn again (the last update accidentally made it empty after combat). Neheb's {R} stays too.",
+      "Relic of Legends: tapping your untapped legendary creatures for mana now works — auto-pay can use each of them for one mana of any color (even ones that just came into play), on top of the Relic itself."
+    ]
+  },
+  {
     "version": "1.3.93",
     "title": "Precon scan, batch 3 (30 cards)",
     "notes": [

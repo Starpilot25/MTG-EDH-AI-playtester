@@ -4526,9 +4526,9 @@ on(/^draw that many cards and add that much \{([wubrgc])\}$/, async (m, env) => 
   if (!k) return;
   draw(env.me, k, true);
   addMana(env.me, Array(k).fill(m[1].toUpperCase()));
+  env.lastManaAdded = { list: Array(k).fill(m[1].toUpperCase()) };
   env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${k} and ${s_(env.me, 'add')} ${'{' + m[1].toUpperCase() + '}'}×${k}`);
 }, { first: true });
-on(/^until end of turn, you don't lose this mana as steps and phases end$/, async () => {}, { first: true });
 // Nils: "for each player, put a +1/+1 counter on up to one target creature that player controls"
 on(/^for each player, put a (\+1\/\+1|[a-z]+) counter on up to one target creature that player controls$/, async (m, env) => {
   const got = [];
