@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.85",
+    "title": "Fast-forward toggle",
+    "notes": [
+      "New button next to Next step: ⏯ means your turn stops at every step (untap, upkeep, draw); click it to switch to ⏩, which goes straight to your main phase like before. Switching to ⏩ during your upkeep or draw jumps you to your main phase right away. The choice is remembered."
+    ]
+  },
+  {
     "version": "1.3.84",
     "title": "Scouring Swarm",
     "notes": [

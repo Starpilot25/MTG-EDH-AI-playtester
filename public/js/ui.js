@@ -456,6 +456,15 @@ function renderTop() {
   $('#btn-next').textContent = next;
   $('#btn-next').disabled = !mine;
   $('#btn-end').disabled = !mine;
+  {
+    const every = G.settings.everyStep !== false;
+    const bs = $('#btn-steps');
+    if (bs) {
+      bs.textContent = every ? '⏯' : '⏩';
+      bs.title = every ? 'Every step: your turn stops in untap, upkeep and draw. Click to fast-forward to your main phase instead.' : 'Fast: your turn goes straight to your main phase. Click to stop at every step.';
+      bs.classList.toggle('on', !every);
+    }
+  }
   $('#btn-undo').disabled = !G.undo.length || run.aiBusy;
   $('#btn-redo').disabled = !G.redo.length || run.aiBusy;
 }
@@ -2801,6 +2810,23 @@ export function bindEvents() {
   $('#btn-end').addEventListener('click', () => {
     snapshot();
     playerEndTurn();
+  });
+  // switch between stopping at every step and fast-forwarding to your main phase
+  $('#btn-steps').addEventListener('click', async () => {
+    G.settings.everyStep = G.settings.everyStep === false;
+    try {
+      const k = 'edhpt:settings';
+      const v = JSON.parse(localStorage.getItem(k) || '{}');
+      v.everyStep = G.settings.everyStep;
+      localStorage.setItem(k, JSON.stringify(v));
+    } catch (e) { /* storage unavailable */ }
+    toast(G.settings.everyStep ? 'Every step: your turn stops in untap, upkeep and draw.' : 'Fast: your turn goes straight to your main phase.');
+    render();
+    // switched to fast in the middle of your beginning phase: go on to the main phase
+    if (!G.settings.everyStep && G.s && G.s.active === 'p' && !run.aiBusy && ['untap', 'upkeep', 'draw'].includes(G.s.step)) {
+      snapshot();
+      await playerNextStep();
+    }
   });
   $('#btn-undo').addEventListener('click', () => !run.aiBusy && undo());
   $('#btn-redo').addEventListener('click', () => !run.aiBusy && redo());

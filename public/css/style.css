@@ -899,3 +899,5 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .pool-pip .ms { font-size: 13px; }
 .pool-pip i { font-style: normal; font-weight: 700; font-size: 11px; }
 .pool-pip.only .ms { outline: 1.5px dashed var(--brass); outline-offset: 1px; }
+#btn-steps { white-space: nowrap; min-width: 36px; padding-left: 8px; padding-right: 8px; font-size: 15px; }
+#btn-steps.on { border-color: var(--brass); color: var(--brass); }
