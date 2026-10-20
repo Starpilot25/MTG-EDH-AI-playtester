@@ -444,6 +444,12 @@ export function move(iid, zone, opts = {}) {
     return null;
   }
   const leavingField = fromZone === 'battlefield' && zone !== 'battlefield';
+  // Grafted Exoskeleton leaving: the creature it was attached to is sacrificed
+  if (leavingField && c.attachedTo && s.cards[c.attachedTo] && s.cards[c.attachedTo].zone === 'battlefield' && /becomes unattached from a permanent, sacrifice that permanent/i.test(oracle(c))) {
+    const host = c.attachedTo;
+    c.attachedTo = null;
+    queueMicrotask(() => { if (G.s === s && s.cards[host] && s.cards[host].zone === 'battlefield') { log(s.cards[host].controller, `${nameTag(s.cards[host])} is sacrificed (its Equipment came off).`); sacrifice(host); } });
+  }
   if (leavingField && c.origDef) endCopy(c);
   if (leavingField || (zone !== 'battlefield' && fromZone !== 'battlefield')) {
     if (c.becameLand) delete c.nameOverride;

@@ -140,6 +140,72 @@ function parseTriggerText(text, speed) {
     } else if ((m = line.match(/^Whenever (?:a player|an opponent|you) cycles? (?:a|another) card, (.+)$/i))) {
       add('cycle', m[1], { anyPlayer: /a player/i.test(line), oppOnly: /an opponent/i.test(line) });
     }
+    // ---- precon batch 3
+    // Grafted Exoskeleton: handled when it moves (effects attachTo / state move)
+    else if (/^Whenever ~ becomes unattached from a permanent, sacrifice that permanent/i.test(line)) void 0;
+    // Hammer of Nazahn: "Whenever ~ or another Equipment you control enters"
+    else if ((m = line.match(/^Whenever ~ or another (Equipment|Aura|artifact|enchantment) you control enters, (.+)$/i))) {
+      add('enters', m[2], { self: true });
+      add('enters', m[2], { other: true, mine: true, kind: m[1].toLowerCase() });
+    }
+    // Glimmer Lens: "Whenever equipped creature and at least one other creature attack"
+    else if ((m = line.match(/^Whenever equipped creature and at least (one|two) other creatures? attack, (.+)$/i)))
+      add('youAttack', m[2], { equippedPlus: m[1].toLowerCase() === 'two' ? 2 : 1 });
+    // Holy Avenger, Living Lore: "Whenever equipped creature / ~ deals combat damage" (to anything)
+    else if ((m = line.match(/^Whenever (~|equipped creature) deals combat damage, (.+)$/i))) {
+      const o = m[1] === '~' ? { self: true } : { attachedTo: true };
+      add('combatDamagePlayer', m[2], o);
+      add('combatDamageCreature', m[2], o);
+    }
+    // Komainu Battle Armor, Millicent: "Whenever ~ or equipped creature deals combat damage to a player"
+    else if ((m = line.match(/^Whenever ~ or equipped creature deals combat damage to a player, (.+)$/i))) {
+      add('combatDamagePlayer', m[1], { self: true });
+      add('combatDamagePlayer', m[1], { attachedTo: true });
+    } else if ((m = line.match(/^Whenever ~ or another (nontoken )?([A-Z][\w-]+) you control dies or deals combat damage to a player, (.+)$/i))) {
+      add('dies', m[3], { self: true });
+      add('dies', m[3], { other: true, mine: true, nontoken: !!m[1], kind: m[2].toLowerCase() });
+      add('combatDamagePlayer', m[3], { self: true });
+      add('combatDamagePlayer', m[3], { anyOfMine: true, other: true, kind: m[2].toLowerCase() });
+    }
+    // Jedit Ojanen: "Whenever ~ or another legendary creature enters"
+    else if ((m = line.match(/^Whenever ~ or another ((?:[\w-]+ )?creature) enters, (.+)$/i))) {
+      add('enters', m[2], { self: true });
+      add('enters', m[2], { other: true, kind: m[1].toLowerCase() });
+    }
+    // Nick Valentine: "Whenever ~ or another artifact creature you control dies"
+    else if ((m = line.match(/^Whenever ~ or another ((?:[\w-]+ )?creature) you control dies, (.+)$/i))) {
+      add('dies', m[2], { self: true });
+      add('dies', m[2], { other: true, mine: true, kind: m[1].toLowerCase() });
+    }
+    // Kingpin: "Whenever you sacrifice ~ or another creature"
+    else if ((m = line.match(/^Whenever you sacrifice ~ or another (creature|artifact|permanent), (.+)$/i)))
+      add('sacrificed', m[2], { kind: m[1].toLowerCase(), who: 'you' });
+    // Knights of the Black Rose: "Whenever an opponent becomes the monarch"
+    else if ((m = line.match(/^Whenever an opponent becomes the monarch, (.+)$/i)))
+      add('becameMonarch', m[1], { theirs: true });
+    // Kothophed: "Whenever a permanent owned by another player is put into a graveyard from the battlefield"
+    else if ((m = line.match(/^Whenever a (permanent|creature|artifact|land) owned by another player is put into a graveyard from the battlefield, (.+)$/i)))
+      add('toGraveyard', m[2], { kind: m[1].toLowerCase(), fromBf: true, theirs: true });
+    // Lorcan: "Whenever a creature card is put into an opponent's graveyard from anywhere"
+    else if ((m = line.match(/^Whenever an? ((?:[a-z]+ )?card) is put into an opponent's graveyard from anywhere, (.+)$/i)))
+      add('toGraveyard', m[2], { kind: m[1].toLowerCase().replace(/ card$/, '') || 'card', theirs: true });
+    // MACH-1: "When ~ enters and whenever you gain life"
+    else if ((m = line.match(/^When ~ enters and whenever you gain life, (.+)$/i))) {
+      add('enters', m[1], { self: true });
+      add('lifeGained', m[1], { who: 'you', oncePerTurn: /only once each turn/i.test(line) });
+    }
+    // MacCready: "Whenever a creature with power 4 or greater attacks you"
+    else if ((m = line.match(/^Whenever a creature with power (\d+) or greater attacks you, (.+)$/i)))
+      add('youAttack', m[2], { defend: true, minPowerAtk: +m[1] });
+    // Nakia: "Whenever your commander enters"
+    else if ((m = line.match(/^Whenever your commander enters, (.+)$/i)))
+      add('enters', m[1], { mine: true, commander: true });
+    // Maddening Hex: "Whenever enchanted player casts a noncreature spell"
+    else if ((m = line.match(/^Whenever enchanted player casts (?:a|an) ([^,]*?)spell, (.+)$/i)))
+      add('cast', m[2], { spell: m[1].toLowerCase().trim(), enchantedPlayer: true });
+    // Midnight Clock: "When the twelfth hour counter is put on ~"
+    else if ((m = line.match(/^When the (twelfth|eighth|ninth|fourth|second) ([a-z]+) counter is put on ~, (.+)$/i)))
+      add('counterPut', m[3], { self: true, kind: m[2].toLowerCase(), nth: { second: 2, fourth: 4, eighth: 8, ninth: 9, twelfth: 12 }[m[1].toLowerCase()] });
     // ---- precon batch 2
     // Amulet of Vigor: "Whenever a permanent you control enters tapped, untap it."
     else if ((m = line.match(/^Whenever (?:a|another) (permanent|creature|land|artifact) you control enters tapped, (.+)$/i)))
@@ -385,8 +451,8 @@ function parseTriggerText(text, speed) {
       add('upkeep', m[2], { whose: m[1].toLowerCase().replace("each player's", 'each') });
     else if ((m = line.match(/^At the beginning of (your|each|each player's|each opponent's) draw step, (.+)$/i)))
       add('drawStep', m[2], { whose: m[1].toLowerCase().replace("each player's", 'each') });
-    else if ((m = line.match(/^At the beginning of (?:combat on your turn|each combat|combat on each opponent's turn), (.+)$/i)))
-      add('beginCombat', m[1], { whose: /each combat/i.test(line) ? 'each' : /each opponent's/i.test(line) ? "each opponent's" : 'your' });
+    else if ((m = line.match(/^At the beginning of (?:combat on your turn|each combat|combat on each opponent's turn|combat on each player's turn), (.+)$/i)))
+      add('beginCombat', m[1], { whose: /each combat|each player's/i.test(line) ? 'each' : /each opponent's/i.test(line) ? "each opponent's" : 'your' });
     else if ((m = line.match(/^At the beginning of (your|each|each opponent's|each player's) end step, (.+)$/i)) || (m = line.match(/^At the beginning of (the|the next) end step, (.+)$/i)))
       add('endStep', m[2], { whose: /^the/i.test(m[1]) || /each player's/i.test(m[1]) ? 'each' : m[1].toLowerCase() });
     else if ((m = line.match(/^At the beginning of your (?:precombat |first )?main phase, (.+)$/i)))
@@ -1122,6 +1188,7 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'toGraveyard') return;
         if (trig.mine && c.controller !== (trig.fromBf ? ev.controller : ev.owner)) return;
+        if (trig.theirs && ev.owner === c.controller) return; // Lorcan, Kothophed: an opponent's card
         if (trig.notFromBf && ev.from === 'battlefield') return;
         if (trig.fromBf && ev.from !== 'battlefield') return;
         const ok = trig.kind.split(/\s+/).every((w) => {
@@ -1177,7 +1244,7 @@ function matches(ev) {
           return;
         }
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, amount: ev.amount });
-        else if (trig.anyOfMine && c.controller === ev.controller && !(trig.commander && !(atk && atk.isCommander)) && (!trig.kind || (atk && matchesFilter(atk, trig.kind))) && (!trig.faceUpTurn || (atk && atk.turnedUpTurn === G.s.turn)) && (!trig.enchanted || (atk && Object.values(G.s.cards).some((a) => a.attachedTo === atk.iid && a.zone === 'battlefield' && /Aura/.test(typeLine(a))))) && (!trig.withCounter || (atk && Object.entries(atk.counters || {}).some(([k, v]) => v > 0 && (trig.withCounter === 'any' || k === trig.withCounter))))) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid }, amount: ev.amount });
+        else if (trig.anyOfMine && c.controller === ev.controller && !(trig.other && c.iid === ev.iid) && !(trig.commander && !(atk && atk.isCommander)) && (!trig.kind || (atk && matchesFilter(atk, trig.kind))) && (!trig.faceUpTurn || (atk && atk.turnedUpTurn === G.s.turn)) && (!trig.enchanted || (atk && Object.values(G.s.cards).some((a) => a.attachedTo === atk.iid && a.zone === 'battlefield' && /Aura/.test(typeLine(a))))) && (!trig.withCounter || (atk && Object.entries(atk.counters || {}).some(([k, v]) => v > 0 && (trig.withCounter === 'any' || k === trig.withCounter))))) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid }, amount: ev.amount });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid }, amount: ev.amount });
       });
       // ciphered spells cast a copy
@@ -1226,6 +1293,19 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'youAttack') return;
         if (trig.anyAttacker) { out.push({ src: c, trig, thatPlayer: ev.controller }); return; }
+        // Glimmer Lens: equipped creature and at least one other creature attack
+        if (trig.equippedPlus) {
+          const ids = (G.s.combat && G.s.combat.attackers) || [];
+          if (c.controller === ev.controller && c.attachedTo && ids.includes(c.attachedTo) && ids.length > trig.equippedPlus) out.push({ src: c, trig });
+          return;
+        }
+        // MacCready: a creature with power 4 or greater attacks you (each one)
+        if (trig.minPowerAtk) {
+          if (c.controller !== ev.defender || c.controller === ev.controller) return;
+          for (const a of ((G.s.combat && G.s.combat.attackers) || []).map(card).filter((x) => x && power(x) >= trig.minPowerAtk && (((G.s.combat.targets || {})[x.iid] || ev.defender) === c.controller)))
+            out.push({ src: c, trig, thatPlayer: a.controller, it: { iid: a.iid } });
+          return;
+        }
         if (trig.defend) {
           if (c.controller !== ev.defender || c.controller === ev.controller) return;
           if (trig.minCount && ((G.s.combat && G.s.combat.attackers) || []).filter((a) => ((G.s.combat.targets || {})[a] || ev.defender) === c.controller || (card((G.s.combat.targets || {})[a]) || {}).controller === c.controller).length < trig.minCount) return;
@@ -1349,6 +1429,7 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'cast') return;
         if (trig.mine && c.controller !== ev.controller) return;
+        if (trig.enchantedPlayer && (c.enchantedPlayer || opp(c.controller)) !== ev.controller) return; // Maddening Hex
         if (trig.theirs && c.controller === ev.controller) return;
         if (trig.notSelf && c.iid === ev.iid) return;
         // "your first instant or sorcery spell each turn": the first of that kind, not the first spell overall
@@ -1485,7 +1566,7 @@ function matches(ev) {
       break;
     // Custodi Lich: "Whenever you become the monarch"
     case 'becameMonarch':
-      each((c, trig) => trig.event === 'becameMonarch' && c.controller === ev.pid && out.push({ src: c, trig }));
+      each((c, trig) => trig.event === 'becameMonarch' && (trig.theirs ? c.controller !== ev.pid : c.controller === ev.pid) && out.push({ src: c, trig, thatPlayer: ev.pid }));
       break;
     // Dark Depths, Darksteel Reactor: a state trigger noticed by settle()
     case 'stateCounters': {
@@ -2089,7 +2170,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
   if (trig.optional) {
     text = text.replace(/^you may /i, '');
     // the AI takes optional triggers unless they cost it something
-    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
+    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || (/^pay life equal to its mana value\. If you do, put it onto the battlefield/i.test(text) && G.s.players[controller].life >= 20) /* Lorcan */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
     if (!yes) return;
     ctx.lastMay = true; // "you may discard a card. If you do, draw two cards."
   }

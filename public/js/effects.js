@@ -113,7 +113,7 @@ export function stripName(text, c) {
     .replace(/’/g, "'");
 }
 
-const KEYWORD_LINE = /^(Kicker|Multikicker|Flashback|Buyback|Cycling|(?:Basic )?\w+cycling|Teamwork|Escape|Overload|Entwine|Foretell|Madness|Retrace|Jump-start|Splice|Replicate|Conspire|Evoke|Dash|Blitz|Bestow|Mutate|Prototype|Disturb|Encore|Unearth|Embalm|Eternalize|Scavenge|Ninjutsu|Commander ninjutsu|Transmute|Forecast|Suspend|Morph|Megamorph|Disguise|Echo|Cumulative upkeep|Fading|Vanishing|Emerge|Surge|Spectacle|Prowl|Awaken|Aftermath|Fuse|Plot|Offspring|Gift|Bargain|Casualty|Squad|Cleave|Freerunning|Impending|Warp|Mayhem|Harmonize|Web-slinging|Sneak|Spree|Tiered|Escalate|Affinity|Convoke|Delve|Improvise|Assist|Undaunted|Split second|Storm|Cascade|Rebound|Ripple|Gravestorm|Epic|Cipher|Hideaway|Miracle|Channel|Bloodrush|Reinforce|Level up|Outlast|Reconfigure|Crew|Saddle|Station|Craft|Equip|Fortify|Ward|Companion|Partner|Choose a Background|Read ahead|More Than Meets the Eye|Living metal|Enlist|Training|Backup|Toxic|Squad|Devoid|Changeling|Ingest|Myriad|Melee|Skulk|Menace|Flash|Haste|Vigilance|Trample|Reach|Flying|Lifelink|Deathtouch|First strike|Double strike|Defender|Hexproof|Shroud|Indestructible|Infect|Wither|Prowess|Exalted|Persist|Undying|Afterlife|Riot|Decayed|Annihilator|Afflict|Bushido|Rampage|Flanking|Provoke|Renown|Dethrone|Evolve|Extort|Exploit|Fabricate|Devour|Modular|Graft|Soulshift|Bloodthirst|Amplify|Sunburst|Tribute|Unleash|Frenzy|Horsemanship|Shadow|Fear|Intimidate|Banding|Phasing|Mobilize|Exhaust|Max speed|Start your engines|Job select|Daybound|Nightbound|Compleated|Ravenous|For Mirrodin|Living weapon|Umbra armor|Totem armor|Poisonous|Absorb|Frenzy|Ascend|Mentor|Haunt|Champion|Changeling|Battle cry|Soulbond|Totem)\b/i;
+const KEYWORD_LINE = /^(Kicker|Multikicker|Flashback|Buyback|Cycling|(?:Basic )?\w+cycling|Teamwork|Dredge|Escape|Overload|Entwine|Foretell|Madness|Retrace|Jump-start|Splice|Replicate|Conspire|Evoke|Dash|Blitz|Bestow|Mutate|Prototype|Disturb|Encore|Unearth|Embalm|Eternalize|Scavenge|Ninjutsu|Commander ninjutsu|Transmute|Forecast|Suspend|Morph|Megamorph|Disguise|Echo|Cumulative upkeep|Fading|Vanishing|Emerge|Surge|Spectacle|Prowl|Awaken|Aftermath|Fuse|Plot|Offspring|Gift|Bargain|Casualty|Squad|Cleave|Freerunning|Impending|Warp|Mayhem|Harmonize|Web-slinging|Sneak|Spree|Tiered|Escalate|Affinity|Convoke|Delve|Improvise|Assist|Undaunted|Split second|Storm|Cascade|Rebound|Ripple|Gravestorm|Epic|Cipher|Hideaway|Miracle|Channel|Bloodrush|Reinforce|Level up|Outlast|Reconfigure|Crew|Saddle|Station|Craft|Equip|Fortify|Ward|Companion|Partner|Choose a Background|Read ahead|More Than Meets the Eye|Living metal|Enlist|Training|Backup|Toxic|Squad|Devoid|Changeling|Ingest|Myriad|Melee|Skulk|Menace|Flash|Haste|Vigilance|Trample|Reach|Flying|Lifelink|Deathtouch|First strike|Double strike|Defender|Hexproof|Shroud|Indestructible|Infect|Wither|Prowess|Exalted|Persist|Undying|Afterlife|Riot|Decayed|Annihilator|Afflict|Bushido|Rampage|Flanking|Provoke|Renown|Dethrone|Evolve|Extort|Exploit|Fabricate|Devour|Modular|Graft|Soulshift|Bloodthirst|Amplify|Sunburst|Tribute|Unleash|Frenzy|Horsemanship|Shadow|Fear|Intimidate|Banding|Phasing|Mobilize|Exhaust|Max speed|Start your engines|Job select|Daybound|Nightbound|Compleated|Ravenous|For Mirrodin|Living weapon|Umbra armor|Totem armor|Poisonous|Absorb|Frenzy|Ascend|Mentor|Haunt|Champion|Changeling|Battle cry|Soulbond|Totem)\b/i;
 
 export function etbText(c) {
   const t = joinBullets(stripName(oracle(c), c).replace(/\([^)]*\)/g, ''));
@@ -797,6 +797,7 @@ export function evalCond(cond, env) {
   if (/was kicked twice|kicked \w+ times/.test(c)) return (env.kicked || 0) >= 2;
   if (/(?:this spell|~|it) was bargained/.test(c)) return !!env.bargained;
   if (/(?:this spell|~) was cast using teamwork/.test(c)) return !!env.teamwork;
+  if (/^you were the monarch as the turn began$/.test(c)) return G.s.monarchAtStart === env.me;
   if (/the gift was promised|gift was promised/.test(c)) return !!env.gift;
   if (/the gift wasn't promised/.test(c)) return !env.gift;
   if (/(?:you cast it|~ was cast|this spell was cast|it was cast) from (?:a|your) graveyard/.test(c)) return env.castFrom === 'graveyard';
@@ -1303,6 +1304,8 @@ function playersOf(env, phrase) {
   if (/^(?:each player|all players|everyone)$/.test(p)) return [me, ...opponents(me)];
   if (/^(?:that player|its controller|its owner|their controller|that creature's controller|that permanent's controller|that spell's controller)$/.test(p)) {
     if (env.it && env.it.player) return [env.it.player];
+    // "that player" is the player the trigger is about (Komainu: the damaged player), not the controller of "it"
+    if (p === 'that player' && env.thatPlayer) return [env.thatPlayer];
     if (env.it && env.it.iid) {
       const c = card(env.it.iid);
       if (c && c.zone === 'battlefield') return [c.controller];
@@ -3875,7 +3878,7 @@ on(/^you gain life equal to the life lost this way/, async (m, env) => {
   changeLife(env.me, env.lastAmount || 0, false);
   env.did.push(`${who(env.me)} ${s_(env.me, 'gain')} ${env.lastAmount || 0} life`);
 });
-on(/^(?:you|target player|each player|that player) (?:gets?|get) (a|an|one|two|three|x|\d+|\{e\}(?:\{e\})*)(?: (?:poison counters?|rad counters?|experience counters?|energy counters?|\{e\}))?$/, async (m, env) => {
+on(/^(?:you|target player|each player|that player) (?:gets?|get) (a|an|one|two|three|four|five|six|seven|eight|nine|ten|x|\d+|\{e\}(?:\{e\})*)(?: (?:poison counters?|rad counters?|experience counters?|energy counters?|\{e\}))?$/, async (m, env) => {
   const s = env.sentence;
   const pids = /^target player/.test(s) ? await playerTarget(env, 'target player') : /^each player/.test(s) ? seats() : /^that player/.test(s) ? [env.thatPlayer || opp(env.me)] : [env.me];
   const k = /\{e\}/.test(m[1]) ? (m[1].match(/\{e\}/g) || []).length : n(m[1], env.x);
@@ -4443,6 +4446,111 @@ on(/^(?:draw a card, then )?exile a card from your hand face down\. it becomes f
   Object.assign(c, { faceDown: true, foretold: true, foretoldTurn: G.s.turn, faceDownOwnerSees: true, foretellCost: mc.replace(/\{\d+\}/, red ? `{${red}}` : '') || '{0}' });
   env.did.push(`${who(env.me)} ${s_(env.me, 'foretell')} a card`);
 }, { first: true, multi: true });
+// ---- precon batch 3
+// Lorcan: "pay life equal to its mana value" / "It's a Warlock in addition to its other types."
+on(/^pay life equal to (?:its|that card's|that creature's) mana value$/, async (m, env) => {
+  const c = env.it && env.it.iid && card(env.it.iid);
+  const k = c ? DB[c.def].cmc || 0 : 0;
+  changeLife(env.me, -k, false);
+  env.lastMay = true;
+  env.did.push(`${who(env.me)} ${s_(env.me, 'pay')} ${k} life`);
+}, { first: true });
+on(/^it's an? ([a-z]+) in addition to its other types$/, async (m, env) => {
+  const c = env.it && env.it.iid && card(env.it.iid);
+  if (!c || c.zone !== 'battlefield') return;
+  c.addTypes = ((c.addTypes || '') + ' ' + m[1].replace(/^\w/, (x) => x.toUpperCase())).trim();
+}, { first: true });
+// Kessig Cagebreakers: "create a 2/2 green Wolf creature token that's tapped and attacking for each creature card in your graveyard"
+on(/^create (?:a|an|one) (.+?) tokens? that's tapped and attacking for each (.+)$/, async (m, env) => {
+  const k = Math.max(0, countPhrase(env.me, m[2], helpers, env.src && env.src.iid) || 0);
+  if (!k) return env.did.push('creates no tokens');
+  return runSentence(`create ${k} ${m[1]} tokens that are tapped and attacking`, env);
+}, { first: true });
+// Maddening Hex: "~ deals damage to that player equal to the result"
+on(/^(?:~|it) deals damage to (that player|each opponent|target opponent|any target) equal to the result$/, async (m, env) => {
+  const k = env.roll || env.lastAmount || 0;
+  return runSentence(`~ deals ${k} damage to ${m[1]}`, env);
+}, { first: true });
+// Heroic Reinforcements: "Until end of turn, creatures you control get +1/+1 and gain haste."
+on(/^until end of turn, ((?:other )?creatures you control|each creature you control) gets? ([+-]\d+)\/([+-]\d+)(?: and gains? (.+))?$/, async (m, env) => {
+  return runSentence(`${m[1]} get ${m[2]}/${m[3]}${m[4] ? ' and gain ' + m[4] : ''} until end of turn`, env);
+}, { first: true });
+// Hammer of Nazahn: "you may attach that Equipment to target creature you control"
+on(/^attach (?:that equipment|it|~) to target creature you control$/, async (m, env) => {
+  const eq = (env.it && env.it.iid && card(env.it.iid)) || (env.src && card(env.src.iid));
+  if (!eq || eq.zone !== 'battlefield' || !hasSubtype(eq, 'Equipment')) return 'pass';
+  const [t] = await objects(env, 'target creature you control', { harm: false });
+  if (!t) return;
+  attachTo(eq, t);
+  env.did.push(`attaches ${nameTag(eq)} to ${nameTag(t)}`);
+}, { first: true });
+// Learn from the Past: "Target player shuffles their graveyard into their library."
+on(/^(target player|each player|you) shuffles? (?:their|your) graveyard into (?:their|your) library$/, async (m, env) => {
+  const pids = m[1] === 'you' ? [env.me] : await playerTarget(env, m[1], false);
+  for (const pid of pids) {
+    const ids = zoneOf(pid, 'graveyard').slice();
+    for (const i of ids) move(i, 'library');
+    shuffle(pid);
+    env.did.push(`${who(pid)} ${s_(pid, 'shuffle')} ${ids.length} card${ids.length === 1 ? '' : 's'} from the graveyard into the library`);
+  }
+}, { first: true });
+// Loaming Shaman: "target player shuffles any number of target cards from their graveyard into their library"
+on(/^target player shuffles any number of target cards from their graveyard into their library$/, async (m, env) => {
+  const [pid] = await playerTarget(env, 'target player', false);
+  if (!pid) return;
+  const pool = cardsIn(pid, 'graveyard');
+  const picks = pool.length ? await env.choosers[env.me].pickCards({ prompt: 'Choose any number of cards to shuffle into the library', cards: pool.map((c) => c.iid), min: 0, max: pool.length, purpose: 'recur', src: env.src, aiScore: (c) => (pid === env.me ? DB[c.def].cmc || 0 : -1) }) : [];
+  for (const i of picks) move(i, 'library');
+  shuffle(pid);
+  env.did.push(`${who(pid)} ${s_(pid, 'shuffle')} ${picks.length} card${picks.length === 1 ? '' : 's'} into the library`);
+}, { first: true });
+// Last March of the Ents: "then put any number of creature cards from your hand onto the battlefield"
+on(/^(?:then )?put any number of (creature|land|permanent|artifact) cards from your hand onto the battlefield$/, async (m, env) => {
+  const pool = cardsIn(env.me, 'hand').filter((c) => matchesFilter(c, m[1]));
+  const picks = pool.length ? await env.choosers[env.me].pickCards({ prompt: `Put any number of ${m[1]} cards onto the battlefield`, cards: pool.map((c) => c.iid), min: 0, max: pool.length, purpose: 'cheat', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 }) : [];
+  for (const i of picks) toBattlefield(i, env.me);
+  env.did.push(`puts ${picks.length} card${picks.length === 1 ? '' : 's'} onto the battlefield`);
+}, { first: true });
+// Neheb: "you may discard any number of cards. If you do, draw that many cards and add that much {R}."
+on(/^discard any number of cards$/, async (m, env) => {
+  const hand = cardsIn(env.me, 'hand');
+  env.lastMay = false;
+  const picks = hand.length ? await env.choosers[env.me].pickCards({ prompt: 'Discard any number of cards', cards: hand.map((c) => c.iid), min: 0, max: hand.length, purpose: 'discard', src: env.src, aiScore: (c) => (isLand(c) && cardsIn(env.me, 'battlefield').filter(isLand).length >= 5 ? 5 : -(DB[c.def].cmc || 0)) }) : [];
+  for (const i of picks) discardCard(i);
+  env.lastAmount = env.thatMuch = picks.length;
+  env.lastMay = picks.length > 0;
+  env.did.push(`${who(env.me)} ${s_(env.me, 'discard')} ${picks.length}`);
+}, { first: true });
+on(/^draw that many cards and add that much \{([wubrgc])\}$/, async (m, env) => {
+  const k = env.lastAmount || 0;
+  if (!k) return;
+  draw(env.me, k, true);
+  addMana(env.me, Array(k).fill(m[1].toUpperCase()));
+  env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${k} and ${s_(env.me, 'add')} ${'{' + m[1].toUpperCase() + '}'}×${k}`);
+}, { first: true });
+on(/^until end of turn, you don't lose this mana as steps and phases end$/, async () => {}, { first: true });
+// Nils: "for each player, put a +1/+1 counter on up to one target creature that player controls"
+on(/^for each player, put a (\+1\/\+1|[a-z]+) counter on up to one target creature that player controls$/, async (m, env) => {
+  const got = [];
+  for (const pid of seats().filter(inGame)) {
+    const pool = cardsIn(pid, 'battlefield').filter((c) => isCreature(c) && canTarget(c, env.me, env.src));
+    if (!pool.length) continue;
+    const pick = await env.choosers[env.me].target({ prompt: `Put a ${m[1]} counter on a creature ${pid === 'p' ? 'you control' : seatName(pid) + ' controls'}`, candidates: pool.map((c) => c.iid), harm: pid !== env.me, src: env.src, optional: true });
+    if (pick && pick.iid) { addCounters(card(pick.iid), m[1], 1, { by: env.me }); got.push(nameTag(card(pick.iid))); }
+  }
+  env.did.push(got.length ? `puts a ${m[1]} counter on ${got.join(', ')}` : 'puts no counters');
+}, { first: true });
+// Ink-Eyes: "put target creature card from that player's graveyard onto the battlefield under your control"
+on(/^put target ([a-z ]+?) card from that player's graveyard onto the battlefield under your control$/, async (m, env) => {
+  const o = env.thatPlayer || opp(env.me);
+  const pool = cardsIn(o, 'graveyard').filter((c) => matchesFilter(c, m[1]));
+  if (!pool.length) return env.did.push('finds no card');
+  const pick = await env.choosers[env.me].target({ prompt: `Choose a ${m[1]} card in ${o === 'p' ? 'your' : seatName(o) + "'s"} graveyard`, candidates: pool.map((c) => c.iid), harm: false, src: env.src, forced: true });
+  if (!pick || !pick.iid) return;
+  toBattlefield(pick.iid, env.me);
+  env.it = { iid: pick.iid };
+  env.did.push(`puts ${nameTag(card(pick.iid))} onto the battlefield`);
+}, { first: true });
 // ---- precon batch 2
 // Archon of Redemption: "you may gain life equal to that creature's power"
 on(/^gain life equal to (.+)$/, async (m, env) => {
@@ -7728,6 +7836,11 @@ export function attachTo(src, t) {
     const old = card(src.attachedTo);
     if (old.auraBuffs) delete old.auraBuffs[src.iid];
     if (old.pacifiedBy === src.iid) old.pacifiedBy = null;
+    // Grafted Exoskeleton: "Whenever ~ becomes unattached from a permanent, sacrifice that permanent."
+    if (old.iid !== t.iid && old.zone === 'battlefield' && /Whenever ~ becomes unattached from a permanent, sacrifice that permanent/i.test(stripName(o, src))) {
+      log(src.controller, `${nameTag(src)} becomes unattached: ${nameTag(old)} is sacrificed.`);
+      sacrifice(old.iid);
+    }
   }
   src.attachedTo = t.iid;
   // bestow creatures: "Nighthowler and enchanted creature each get +X/+X, where X is …"

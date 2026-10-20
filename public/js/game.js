@@ -119,6 +119,7 @@ export async function beginTurn(pid) {
     if (sl.extraAfter) s.extraTurns[pid] = (s.extraTurns[pid] || 0) + 1;
   }
   s.extraTurnNow = false;
+  s.monarchAtStart = s.monarch; // Knights of the Black Rose: "if you were the monarch as the turn began"
   setStep('untap');
   phasing(pid);
   // day / night

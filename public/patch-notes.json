@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.93",
+    "title": "Precon scan, batch 3 (30 cards)",
+    "notes": [
+      "Triggers: Glimmer Lens, Holy Avenger, Living Lore, Komainu Battle Armor (goads the damaged player's creatures), Millicent, Jedit Ojanen, Nick Valentine, Kingpin, Knights of the Black Rose, Kothophed, Lorcan (pays life and steals the creature as a Warlock), MACH-1, MacCready, Nakia, Maddening Hex, Midnight Clock, Kitt Kanto (each player's combat), Hammer of Nazahn.",
+      "Effects: Grafted Exoskeleton (sacrifices the creature it leaves), Heroic Reinforcements, Kessig Cagebreakers, Learn from the Past, Loaming Shaman, Last March of the Ents, Neheb (discard any number, draw and add that much {R}), Nightkin Ambusher (four rad counters), Nils, Ink-Eyes, Life from the Loam (Dredge no longer shows as a by-hand line).",
+      "\"That player\" in a trigger now means the player it's about (e.g. the player who was dealt damage), not the controller of the creature that dealt it."
+    ]
+  },
+  {
     "version": "1.3.92",
     "title": "Precon scan, batch 2 (30 cards)",
     "notes": [
