@@ -904,3 +904,4 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 #btn-steps .st-a, #btn-steps .st-b { padding: 3px 5px; border-radius: 6px; font-size: 11px; line-height: 1.2; opacity: 0.55; transition: background 0.15s, opacity 0.15s; }
 #btn-steps:not(.fast) .st-a, #btn-steps.fast .st-b { background: rgb(211 170 82 / 0.18); color: var(--brass); opacity: 1; font-weight: 600; }
 #btn-steps.steps-toggle { margin-left: -6px; flex: none; background: rgb(255 255 255 / 0.04); padding: 2px; }
+.status-row .st.gylands { border-color: rgb(211 170 82 / 0.5); color: var(--brass); }

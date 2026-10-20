@@ -14,7 +14,7 @@ import {
 } from './game.js';
 import { aiChooser, aiMaybeCounter, aiMaybeCounterTrigger, aiPay, aiEnv, seatChoosers, chooserFor } from './ai.js';
 import {
-  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, displayCost, manaLifeGain, topAccess, isLibraryTop, landOptions, playLand, landsAllowed, applyPayment, poolSym, tagPoolSym,
+  manaSources, castOptions, castSpell, castFree, timingOk, effectiveCost, displayCost, manaLifeGain, topAccess, gyLandsOk, isLibraryTop, landOptions, playLand, landsAllowed, applyPayment, poolSym, tagPoolSym,
   activateAbility, useZoneAbility, turnFaceUp, companionToHand, loyaltyUsesLeft, instantLoyalty,
 } from './cast.js';
 import { T, fire, settle, triggersOf } from './triggers.js';
@@ -535,6 +535,7 @@ function statusLine(pid) {
   const bits = [];
   if (s.monarch === pid) bits.push('<span class="st monarch" title="Draws a card at the beginning of their end step; combat damage to them steals it">♛ Monarch</span>');
   if (pl.cityBlessing) bits.push('<span class="st" title="City\'s blessing">City\'s blessing</span>');
+  if (gyLandsOk(pid)) bits.push(`<span class="st gylands" title="${pid === 'p' ? 'You' : 'The AI'} may play lands from ${pid === 'p' ? 'your' : 'its'} graveyard (Crucible of Worlds, Ramunap Excavator, Mole Man…). ${pid === 'p' ? 'Double-click a land in the “From graveyard” panel, or right-click it in your graveyard.' : ''}">Lands from graveyard</span>`);
   if (pl.speed) bits.push(`<span class="st" title="Speed">Speed ${pl.speed}${pl.speed >= 4 ? ' (max)' : ''}</span>`);
   {
     const xt = (G.s.extraTurns || {})[pid] || 0;
@@ -669,9 +670,20 @@ function libraryTop(pid) {
 const GY_TAG = { coram: 'Milled', flashback: 'Flashback', escape: 'Escape', jumpstart: 'Jump-start', retrace: 'Retrace', aftermath: 'Aftermath', disturb: 'Disturb', harmonize: 'Harmonize', mayhem: 'Mayhem', fromGraveyard: 'Cast', impulse: 'This turn', adventure: 'Adventure' };
 function graveyardReady(pid) {
   const items = [];
+  // Crucible of Worlds, Ramunap Excavator, Mole Man: lands can be played from here (one tile per land name)
+  const gyLands = gyLandsOk(pid);
+  const landNames = new Set();
+  const landDrop = G.s.active === pid && /^main/.test(G.s.step) && !G.s.stack && (G.s.landsPlayed || 0) < landsAllowed(pid);
   for (const c of cardsIn(pid, 'graveyard')) {
     const tags = [];
     let ready = false;
+    if (gyLands && isLand(c)) {
+      const nm = DB[c.def].name;
+      if (landNames.has(nm)) continue;
+      landNames.add(nm);
+      tags.push('Play land');
+      ready = landDrop;
+    }
     try {
       for (const o of castOptions(pid, c)) {
         const t = GY_TAG[o.mode] || 'Cast';
@@ -1742,7 +1754,7 @@ async function castInner(iid, opts = {}) {
   if (G.s.pstack) return toast('Finish the spell you are casting first.');
   const name = cardName(c);
   // lands (and the land side of modal double-faced cards)
-  const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) ? landOptions('p', c) : [];
+  const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) || (c.zone === 'graveyard' && c.owner === 'p' && gyLandsOk('p')) ? landOptions('p', c) : [];
   const casts = castOptions('p', c);
   const options = [
     ...lands.map((l) => ({ ...l, land: true, label: l.label })),
@@ -2310,7 +2322,7 @@ function menuForCard(c, x, y) {
     items.push('-');
   }
   if ((mine || c.mayPlay === 'p' || c.mayPlayFree === 'p' || c.mayCastFromGy === 'p') && ['hand', 'command', 'graveyard', 'exile'].includes(c.zone) && G.settings.arenaMode) {
-    const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) ? landOptions('p', c) : [];
+    const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) || (c.zone === 'graveyard' && c.owner === 'p' && gyLandsOk('p')) ? landOptions('p', c) : [];
     for (const l of lands) items.push({ label: esc(l.label), fn: () => castByPlayer(c.iid, { option: { ...l, land: true } }) });
     for (const o of castOptions('p', c)) items.push({ label: `${esc(o.label)}${o.cost && !/\{/.test(o.label) ? ' ' + manaSymbols(displayCost('p', c, o)) : ''}`, fn: () => castByPlayer(c.iid, { option: o }) });
     for (const ab of zoneAbilities(c)) items.push({ label: `<span class="ab">${esc(ab.label)}</span>`, fn: () => zoneAbility(c, ab) });
@@ -2661,7 +2673,9 @@ export function bindEvents() {
       // one way to use it: do that; several (flashback and an ability…): show the menu
       const opts = castOptions('p', c);
       const abs = zoneAbilities(c);
-      if (opts.length === 1 && !abs.length) castByPlayer(c.iid, { option: opts[0] });
+      // Crucible of Worlds / Mole Man: a land is just played
+      if (isLand(c) && gyLandsOk('p') && !opts.length && !abs.length) castByPlayer(c.iid);
+      else if (opts.length === 1 && !abs.length) castByPlayer(c.iid, { option: opts[0] });
       else if (!opts.length && abs.length === 1) zoneAbility(c, abs[0]);
       else {
         menuDoc = el.ownerDocument;

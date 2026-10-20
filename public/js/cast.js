@@ -6,7 +6,7 @@
 import { DB } from './data.js';
 import {
   isLand, isCreature, isType, hasSubtype, oracle, face, hasKw, kwNum, kwCost, power, toughness, cardValue,
-  manaAbility, payCost, parseCost, isPermanentCard, typeLine, colorsOf, maxSpeedText,
+  manaAbility, payCost, parseCost, isPermanentCard, typeLine, colorsOf, maxSpeedText, abilitiesGone,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, toBattlefield, createToken, genericTokenDef, stateBased,
@@ -201,6 +201,10 @@ function altCostAny(text, name) {
 
 // Playing from the top of your library: Mystic Forge, Future Sight, Courser of Kruphix, Bolas's Citadel, Vizier of the Menagerie…
 // Returns what pid may do with the top card of their library right now.
+// Crucible of Worlds, Ramunap Excavator, Mole Man: "You may play lands from your graveyard."
+export function gyLandsOk(pid) {
+  return cardsIn(pid, 'battlefield').some((x) => !x.phasedOut && !abilitiesGone(x) && /(?:^|\n)You may play lands from your graveyard\b/i.test(oracle(x)));
+}
 export function topAccess(pid) {
   const a = { look: false, reveal: false, lands: false, filters: [] };
   if (!G.s) return a;
@@ -1364,7 +1368,7 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
         if (T.render) T.render();
       }
     });
-  log(pid, `${pid === 'p' ? 'You play' : 'AI plays'} ${nameTag(c)}${c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : ''}${c.tapped ? ' (tapped)' : ''}.`);
+  log(pid, `${pid === 'p' ? 'You play' : 'AI plays'} ${nameTag(c)}${G.s.lastLandPlay.from === 'graveyard' ? ' from the graveyard' : G.s.lastLandPlay.from === 'exile' ? ' from exile' : ''}${c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : ''}${c.tapped ? ' (tapped)' : ''}.`);
   return true;
 }
 

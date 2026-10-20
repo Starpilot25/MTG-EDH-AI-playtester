@@ -3472,7 +3472,7 @@ on(/^(?!.*\bother targets$)(~|it|this planeswalker) deals (\d+|x) damage to ([^.
   await runSentence(`${m[1]} deals ${m[4]} damage to ${m[5]}`, env);
 }, { first: true });
 // Way of the Healer, Hexhaven Battalion: "create a 2/2 colorless Wizard Soldier creature token named Cadet"
-on(/^create (.+?) tokens? named ([a-z~][a-z~' -]*?)(?: with ([^.]+))?$/, async (m, env) => {
+on(/^create (.+?) tokens? named ([a-z~][a-z~' -]*?)(?: with (.+))?$/, async (m, env) => {
   const at = env.sentence.toLowerCase().indexOf(' named ');
   const nm = env.sentence.slice(at + 7, at + 7 + m[2].length).replace(/~/g, env.src ? cardName(env.src) : '').replace(/\b(?!of\b)\w/g, (x) => x.toUpperCase());
   env.them_ = null;

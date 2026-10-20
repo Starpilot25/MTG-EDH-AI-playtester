@@ -18,7 +18,7 @@ import { maxHandSize } from './statics.js';
 import { threat, planBlocks, planAttack, scoreAttack, fight, pumpOf, evasive, lifeWeight } from './aicombat.js';
 import {
   manaSources, castOptions, castSpell as castThrough, effectiveCost, landOptions, playLand as playLandThrough, landsAllowed,
-  activateAbility, useZoneAbility, turnFaceUp, companionToHand, applyPayment, timingOk, loyaltyUsesLeft, topAccess,
+  activateAbility, useZoneAbility, turnFaceUp, companionToHand, applyPayment, timingOk, loyaltyUsesLeft, topAccess, gyLandsOk,
 } from './cast.js';
 import { seats, opponents, isAI, multiplayer, inGame, seatName, seatHooks } from './state.js';
 import { nextSeat } from './state.js';
@@ -851,6 +851,9 @@ function playLand(h) {
   for (const c of [...cardsIn(AI, 'exile'), ...FOES().flatMap((o) => cardsIn(o, 'exile'))]) if (c.mayPlay === AI && (c.mayPlayUntil || 0) >= s.turn && isLand(c) && !c.castOnly && (!c.myTurnOnly || s.active === AI)) lands.push(c);
   // Courser of Kruphix & co.: a land on top of its library
   { const t = libTop(AI, 1)[0]; if (t && isLand(card(t)) && topAccess(AI).lands) lands.push(card(t)); }
+  // Crucible of Worlds, Ramunap Excavator, Mole Man: lands from its graveyard (played before the ones in hand)
+  const fromGy = gyLandsOk(AI) ? cardsIn(AI, 'graveyard').filter((c) => landOptions(AI, c).length) : [];
+  lands.push(...fromGy);
   // Sen Triplets: your lands too
   for (const o of FOES()) if (handControl(AI, o) && s.handControl.lands) for (const c of cardsIn(o, 'hand')) if (landOptions(AI, c).length) lands.push(c);
   if (!lands.length) return false;
@@ -858,7 +861,7 @@ function playLand(h) {
   const landsOnField = cardsIn(AI, 'battlefield').filter(isLand).length;
   // bounce lands: great with a land to pick back up, useless with none
   const karoo = (c) => /When [^.]+ enters, return a land you control to its owner's hand/i.test(oracle(c));
-  const landScore = (c) => scoreLandForColors(c, want) + (karoo(c) ? (landsOnField ? 2 : -20) : 0);
+  const landScore = (c) => scoreLandForColors(c, want) + (karoo(c) ? (landsOnField ? 2 : -20) : 0) + (c.zone === 'graveyard' ? 1.5 : 0);
   lands.sort((a, b) => landScore(b) - landScore(a));
   const l = lands[0];
   if (karoo(l) && !landsOnField) return false;

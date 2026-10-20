@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.87",
+    "title": "Playing lands from the graveyard",
+    "notes": [
+      "Mole Man, Crucible of Worlds, Ramunap Excavator and friends: you can now actually play lands from your graveyard (before, there was no way to). A gold \"Lands from graveyard\" tag shows under your life total while it's allowed, and the \"From graveyard\" panel lists each land (one per name) marked \"Play land\" — double-click it to play it. Right-clicking a land in your graveyard also offers \"Play\".",
+      "The AI also plays lands from its graveyard when it can (preferring those over lands in hand).",
+      "Mole Man's Moloid tokens now get created (named tokens with an ability in quotes weren't being made), and their \"mill a card when attacking\" works."
+    ]
+  },
+  {
     "version": "1.3.86",
     "title": "Clearer step toggle",
     "notes": [
