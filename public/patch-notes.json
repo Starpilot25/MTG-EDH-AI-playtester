@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.89",
+    "title": "Hedge Shredder, Six, Ob Nixilis, Braids",
+    "notes": [
+      "Hedge Shredder: land cards milled from your library now go onto the battlefield tapped. \"Whenever one or more [land] cards are put into your graveyard from your library\" triggers work in general.",
+      "Six: during your turn, nonland permanent cards in your graveyard can be cast with retrace (discard a land card as an extra cost). The attack trigger already worked.",
+      "Ob Nixilis, the Fallen: \"you may have target player lose 3 life\" now makes them lose the life (the counters part already worked).",
+      "Braids, Arisen Nightmare: after you sacrifice, each opponent chooses whether to sacrifice a permanent of the same type; if they don't, they lose 2 life and you draw a card."
+    ]
+  },
+  {
     "version": "1.3.88",
     "title": "\"Your turn\" banner timing",
     "notes": [

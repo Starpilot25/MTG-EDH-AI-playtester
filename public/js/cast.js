@@ -344,7 +344,10 @@ export function castOptions(pid, c) {
     else if (c.tempFlashback === s.turn && !isLandFace(f0)) add({ mode: 'flashback', label: `Flashback ${f0.manaCost}`, cost: f0.manaCost });
     if ((a = altCostAny(o0, 'Escape'))) add({ mode: 'escape', label: `Escape ${a.mana}${a.other ? ', ' + a.other : ''}`, cost: a.mana, other: a.other });
     if ((a = altCost(o0, 'Jump-start') !== null ? f0.manaCost : null) !== null && /Jump-start/.test(o0)) add({ mode: 'jumpstart', label: 'Jump-start (discard a card)', cost: f0.manaCost });
-    if (/(?:^|\n)Retrace\b/.test(o0)) add({ mode: 'retrace', label: 'Retrace (discard a land)', cost: f0.manaCost });
+    // Six: "During your turn, nonland permanent cards in your graveyard have retrace."
+    const sixRetrace = s.active === pid && !isLandFace(f0) && isPermanentCard({ faces: [f0] })
+      && cardsIn(pid, 'battlefield').some((x) => !x.phasedOut && !abilitiesGone(x) && /During your turn, nonland permanent cards in your graveyard have retrace/i.test(oracle(x)));
+    if ((/(?:^|\n)Retrace\b/.test(o0) || sixRetrace) && cardsIn(pid, 'hand').some((x) => x.iid !== c.iid && isLand(x))) add({ mode: 'retrace', label: 'Retrace (discard a land)', cost: f0.manaCost });
     if (d.layout === 'split' && d.faces[1] && /\bAftermath\b/.test(d.faces[1].oracle || '')) add({ mode: 'aftermath', face: 1, label: `Cast ${d.faces[1].name} (Aftermath)`, cost: d.faces[1].manaCost });
     const dist = altCost(o0, 'Disturb');
     if (dist && d.faces[1]) add({ mode: 'disturb', face: 1, label: `Disturb ${dist}`, cost: dist });

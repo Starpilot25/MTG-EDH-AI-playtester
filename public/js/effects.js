@@ -4288,6 +4288,57 @@ on(/^(?:if (?:she|he|it) was a nonland creature, )?return (?:this card|~) to the
   x.nameOverride = x.becameLand;
   env.did.push(`returns as a tapped land named ${x.becameLand}`);
 }, { first: true, multi: true });
+// Ob Nixilis, the Fallen: "you may have target player lose 3 life" → "target player loses 3 life"
+on(/^have (target player|target opponent|each opponent|each player|that player|its controller|defending player) (lose|gain|draw|mill|discard|sacrifice|create|put|shuffle|exile) (.+)$/, async (m, env) => {
+  const verb = m[2] === 'lose' ? 'loses' : m[2] === 'gain' ? 'gains' : m[2] + 's';
+  const before = env.unknown.length;
+  await runSentence(`${m[1]} ${verb} ${m[3]}`, env);
+  env.lastMay = env.unknown.length === before;
+}, { first: true });
+// Braids, Arisen Nightmare: "If you do, each opponent may sacrifice a permanent that shares a card type with it.
+// For each opponent who doesn't, that player loses 2 life and you draw a card."
+on(/^(?:if you do, )?each opponent may sacrifice a permanent that shares a card type with it\. for each opponent who doesn't, that player loses (\d+) life and you draw (a|one|two) cards?$/, async (m, env) => {
+  const it = env.it && env.it.iid && card(env.it.iid);
+  if (!it) return env.did.push('nothing was sacrificed');
+  const TYPES = ['Artifact', 'Creature', 'Enchantment', 'Land', 'Planeswalker', 'Battle'];
+  const types = TYPES.filter((t) => new RegExp('\\b' + t + '\\b').test((DB[it.def].faces[0].typeLine || DB[it.def].typeLine || '').split('—')[0]));
+  const loss = +m[1];
+  const draws = n(m[2]);
+  for (const o of opponents(env.me).filter(inGame)) {
+    const pool = cardsIn(o, 'battlefield').filter((c) => types.some((t) => new RegExp('\\b' + t + '\\b').test(typeLine(c).split('—')[0])));
+    let pick = null;
+    if (pool.length) {
+      if (isAI(o)) {
+        // the AI gives up something cheap (a token or a spare land) rather than take the hit, unless life is plentiful
+        const cheap = pool.slice().sort((a, b) => cardValue(a) - cardValue(b))[0];
+        const lands = cardsIn(o, 'battlefield').filter(isLand).length;
+        const spare = cheap.token || (isLand(cheap) && lands > 6) || cardValue(cheap) < 1.5;
+        if (spare || G.s.players[o].life <= loss * 2) pick = cheap.iid;
+      } else {
+        const r = await env.choosers[o].pickCards({
+          prompt: `${cardName(env.src)}: sacrifice a ${types.join(' or ').toLowerCase()} — or choose none to lose ${loss} life and let ${who(env.me)} draw`,
+          cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'sacrifice', src: env.src, forced: true, aiScore: (c) => -cardValue(c),
+        });
+        pick = r && r[0];
+      }
+    }
+    if (pick) {
+      env.did.push(`${who(o)} ${s_(o, 'sacrifice')} ${nameTag(card(pick))}`);
+      sacrifice(pick);
+    } else {
+      changeLife(o, -loss, false);
+      draw(env.me, draws, true);
+      env.did.push(`${who(o)} ${s_(o, 'lose')} ${loss} life and ${who(env.me)} ${s_(env.me, 'draw')} ${draws}`);
+    }
+  }
+}, { first: true, multi: true });
+// Hedge Shredder: "put them onto the battlefield tapped" (the land cards just milled)
+on(/^put them onto the battlefield( tapped)?(?: under your control)?$/, async (m, env) => {
+  const ids = (env.trigThem || env.them_ || []).filter((i) => card(i) && card(i).zone === 'graveyard');
+  if (!ids.length) return 'pass';
+  for (const i of ids) toBattlefield(i, env.me, { tapped: !!m[1] });
+  env.did.push(`puts ${ids.map((i) => nameTag(card(i))).join(', ')} onto the battlefield${m[1] ? ' tapped' : ''}`);
+}, { first: true });
 on(/^bolster (\w+)/, async (m, env) => {
   const cs = cardsIn(env.me, 'battlefield').filter(isCreature).sort((a, b) => toughness(a) - toughness(b));
   if (!cs.length) return;

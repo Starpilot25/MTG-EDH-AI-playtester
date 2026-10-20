@@ -380,6 +380,9 @@ function parseTriggerText(text, speed) {
       add('unlock', m[2], { self: true, door: +m[1] - 1 });
     else if ((m = line.match(/^Whenever you (?:fully )?unlock a (?:door|Room)[^,]*, (.+)$/i)))
       add('unlock', m[1], { anyRoom: true, fully: /fully/i.test(line) });
+    else if ((m = line.match(/^Whenever (?:one or more|a) (land |creature |nonland |permanent )?cards? (?:are|is) put into your graveyard from your library, (.+)$/i)) || (m = line.match(/^Whenever you mill (?:one or more|a) (land |creature |nonland )?cards?, (.+)$/i)))
+      // Hedge Shredder: "Whenever one or more land cards are put into your graveyard from your library, put them onto the battlefield tapped."
+      add('mill', m[2], { kind: (m[1] || '').trim() });
     else if ((m = line.match(/^Whenever one or more cards are put into exile from your library and\/or your graveyard, (.+)$/i)))
       add('exiledBatch', m[1], { fromZones: ['library', 'graveyard'], mineOnly: true });
     else if ((m = line.match(/^Whenever one or more (?:other )?permanents phase out and whenever one or more (other )?cards are put into exile from anywhere, (.+)$/i)))
@@ -1286,6 +1289,14 @@ function matches(ev) {
       const sc = card(ev.iid);
       if (sc) for (const trig of triggersOf(sc)) if (trig.event === 'cycle' && trig.self) out.push({ src: sc, trig, controller: ev.pid, x: ev.x });
       each((c, trig) => trig.event === 'cycle' && !trig.self && (trig.anyPlayer || (trig.oppOnly ? c.controller !== ev.pid : c.controller === ev.pid)) && out.push({ src: c, trig, thatPlayer: ev.pid }));
+      break;
+    }
+    case 'mill': {
+      each((c, trig) => {
+        if (trig.event !== 'mill' || c.controller !== ev.pid) return;
+        const ids = (ev.ids || []).filter((i) => card(i) && card(i).zone === 'graveyard' && (!trig.kind || (trig.kind === 'land' ? isLand(card(i)) : trig.kind === 'nonland' ? !isLand(card(i)) : trig.kind === 'creature' ? /Creature/.test(DB[card(i).def].typeLine || '') : /Artifact|Creature|Enchantment|Land|Planeswalker|Battle/.test(DB[card(i).def].typeLine || ''))));
+        if (ids.length) out.push({ src: c, trig, them: ids, amount: ids.length });
+      });
       break;
     }
     case 'energyGained':
