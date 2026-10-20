@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.88",
+    "title": "\"Your turn\" banner timing",
+    "notes": [
+      "The \"Your turn\" banner now shows as soon as your turn begins (in the untap step), instead of only when you reach your first main phase."
+    ]
+  },
+  {
     "version": "1.3.87",
     "title": "Playing lands from the graveyard",
     "notes": [

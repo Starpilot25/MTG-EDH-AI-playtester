@@ -125,6 +125,9 @@ export async function beginTurn(pid) {
   dayNight(prevSpells);
   if (isAI(pid) || G.settings.autoUntap) untapAll(pid);
   else for (const c of cardsIn(pid, 'battlefield')) c.sick = false;
+  // the "Your turn" banner as the turn begins (not only once you reach the main phase)
+  hooks.render();
+  hooks.turnStarted(pid);
   // "Stop at every step": your turn waits in the untap step until you press Next step
   if (pid === 'p' && G.settings.everyStep) return hooks.render();
   await beginUpkeep(pid);
@@ -159,7 +162,6 @@ async function beginMain1(pid) {
   const s = G.s;
   setStep('main1');
   hooks.render();
-  hooks.turnStarted(pid);
   fire({ type: 'mainPhase', active: pid });
   await settle();
   if (G.s !== s) return;
