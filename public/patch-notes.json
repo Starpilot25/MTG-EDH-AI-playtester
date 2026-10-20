@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.83",
+    "title": "Step-by-step turns, Realms Uncharted, Deadly Rollick",
+    "notes": [
+      "Your turn now stops in the untap, upkeep and draw steps too — press Next step (or Enter) to move on, so you can act in your upkeep and draw step. Turn it off in the in-game menu with \"Stop at every step\". Pass turn still goes through upkeep and your draw.",
+      "Realms Uncharted (and Gifts Ungiven-style cards): you search for up to four lands with different names, then your opponent picks two to go to your graveyard and the rest go to your hand.",
+      "Deadly Rollick (and Fierce Guardianship, Deflecting Swat, etc.): when you control your commander you can cast it without paying its mana cost."
+    ]
+  },
+  {
     "version": "1.3.82",
     "title": "Batched token triggers, 1000-token limit",
     "notes": [

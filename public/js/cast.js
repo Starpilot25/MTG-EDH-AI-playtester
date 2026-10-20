@@ -18,7 +18,7 @@ import { tapPerm } from './state.js';
 import {
   resolveEffects, spellText, etbText, costOf, attachAura, attachTo, activatedAbilities, zoneAbilities, Cancelled,
   matchesFilter, analyze, stripName, spellFilterOk,
-  predictTargets, enterAsCopy, attachLooseAuras,
+  predictTargets, enterAsCopy, attachLooseAuras, evalCond,
 } from './effects.js';
 import { costDelta, countPhrase, repl } from './statics.js';
 import { helpers } from './rules.js';
@@ -309,6 +309,13 @@ export function castOptions(pid, c) {
         rest = rest.replace(pm[0], '').replace(/^,? ?and /i, '').trim();
       }
       if (altPayable(pid, c, rest)) add({ mode: 'altcost', label: `Alternative cost: ${m[1]}`, cost: mana, other: rest || undefined, free: !mana && !rest ? true : undefined });
+    }
+    // Deadly Rollick, Fierce Guardianship, Deflecting Swat: "If you control a commander, you may cast this spell without paying its mana cost."
+    if ((m = o0.match(/(?:^|\n)If ([^,\n]+), you may cast (?:this spell|~) without paying its mana cost\./i))) {
+      const cond = m[1].trim();
+      const ok = /^you control a commander$/i.test(cond) ? cardsIn(pid, 'battlefield').some((x) => x.isCommander)
+        : (() => { try { return !!evalCond(cond.toLowerCase(), { me: pid, src: c }); } catch (e) { return false; } })();
+      if (ok) add({ mode: 'freecast', label: `Cast without paying its mana cost (${cond})`, cost: '', free: true });
     }
     if ((m = o0.match(/(?:^|\n)Prototype ((?:\{[^}]+\})+) — (\d+)\/(\d+)/))) add({ mode: 'prototype', label: `Prototype ${m[1]} (${m[2]}/${m[3]})`, cost: m[1], proto: { p: +m[2], t: +m[3] } });
     if ((m = o0.match(/(?:^|\n)Mutate ((?:\{[^}]+\})+)/))) {
@@ -749,7 +756,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (opt.mode === 'gyPermit') s.gyPermit = { ...(s.gyPermit || {}), [opt.permitSrc]: s.turn };
   Object.assign(c, { castMode: opt.mode === 'normal' ? null : opt.mode, kicked: info.kicked, xPaid: info.x, castFrom: fromZone, castFace: fIdx, bargained: !!info.bargained });
   c.colorsSpent = new Set((f.manaCost || '').match(/[WUBRG]/g) || []).size;
-  const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse|gyPermit|coram)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
+  const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse|gyPermit|coram|freecast)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
   log(pid, tag);
   const stackSlot = pid === 'p' && s.stack ? 'pstack' : pid === 'p' ? 'pstack' : 'stack';
   s[stackSlot] = { iid, by: pid, face: fIdx };

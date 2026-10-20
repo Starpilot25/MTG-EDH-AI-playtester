@@ -125,6 +125,13 @@ export async function beginTurn(pid) {
   dayNight(prevSpells);
   if (isAI(pid) || G.settings.autoUntap) untapAll(pid);
   else for (const c of cardsIn(pid, 'battlefield')) c.sick = false;
+  // "Stop at every step": your turn waits in the untap step until you press Next step
+  if (pid === 'p' && G.settings.everyStep) return hooks.render();
+  await beginUpkeep(pid);
+}
+// the rest of the beginning phase, one step at a time (the player's Next step button walks through these)
+async function beginUpkeep(pid) {
+  const s = G.s;
   setStep('upkeep');
   hooks.render();
   fire({ type: 'upkeep', active: pid });
@@ -134,12 +141,22 @@ export async function beginTurn(pid) {
   if (G.s !== s) return;
   await settle();
   if (G.s !== s) return;
+  if (pid === 'p' && G.settings.everyStep) return hooks.render();
+  await beginDraw(pid);
+}
+async function beginDraw(pid) {
+  const s = G.s;
   setStep('draw');
   const skipDraw = s.turn === 1;
   if (!skipDraw && (isAI(pid) || G.settings.autoDraw)) draw(pid, 1);
   fire({ type: 'drawStep', active: pid });
   await settle();
   if (G.s !== s) return;
+  if (pid === 'p' && G.settings.everyStep) return hooks.render();
+  await beginMain1(pid);
+}
+async function beginMain1(pid) {
+  const s = G.s;
   setStep('main1');
   hooks.render();
   hooks.turnStarted(pid);
@@ -480,6 +497,10 @@ export async function playerNextStep() {
   if (s.combat && s.combat.stage === 'begin' && !run.beginning) s.combat.stage = 'declare';
   if (s.combat && s.combat.stage === 'window' && !run.inWindow) s.combat.stage = 'damage'; // reloaded mid-window
   if (s.combat && (s.combat.stage === 'triggers' || s.combat.stage === 'busy' || s.combat.stage === 'begin' || s.combat.stage === 'window')) return;
+  // the beginning phase, step by step ("Stop at every step")
+  if (s.step === 'untap') return beginUpkeep('p');
+  if (s.step === 'upkeep') return beginDraw('p');
+  if (s.step === 'draw') return beginMain1('p');
   if (s.step === 'main1') {
     setStep('combat');
     // beginning of combat: its triggers resolve before attackers are declared
@@ -566,6 +587,19 @@ function afterCombat() {
 export async function playerEndTurn() {
   const s = G.s;
   if (s.active !== 'p' || run.aiBusy) return;
+  // passing from the beginning phase still goes through upkeep and the draw
+  if (['untap', 'upkeep', 'draw'].includes(s.step)) {
+    const every = G.settings.everyStep;
+    G.settings.everyStep = false;
+    try {
+      if (s.step === 'untap') await beginUpkeep('p');
+      else if (s.step === 'upkeep') await beginDraw('p');
+      else await beginMain1('p');
+    } finally {
+      G.settings.everyStep = every;
+    }
+    if (G.s !== s || s.active !== 'p') return;
+  }
   if (s.combat && s.combat.stage !== 'declare') return;
   s.combat = null;
   if (s.step !== 'end') {

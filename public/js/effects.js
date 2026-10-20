@@ -4442,6 +4442,35 @@ on(/^(?:you may )?pay any amount of mana$/, async (m, env) => {
 }, { first: true });
 // the second half of "look at that many cards …, then put one of those cards into your hand and the rest on the bottom" (done by the look)
 on(/^put one of (?:those cards|them) into your hand and the rest on the bottom of your library in (?:a random|any) order$/, async () => {}, { first: true });
+// Realms Uncharted, Gifts Ungiven: "Search your library for up to four [land] cards with different names and reveal them.
+// An opponent chooses two of those cards. Put the chosen cards into your graveyard and the rest into your hand. Then shuffle."
+on(/^search your library for up to (\w+) (land |creature |nonland )?cards with different names and reveal them\. (an opponent|target opponent) chooses (\w+) of those cards\. put the chosen cards into your graveyard and the rest into your hand(?:\. then shuffle)?$/, async (m, env) => {
+  const k = n(m[1]);
+  const pick = n(m[4]);
+  const kind = (m[2] || '').trim();
+  const lib = zoneOf(env.me, 'library').map(card).filter((c) => !kind || matchesFilter(c, kind));
+  const names = (ids) => new Set(ids.map((i) => DB[card(i).def].name)).size === ids.length;
+  let found = await env.choosers[env.me].pickCards({
+    prompt: `Search for up to ${k} ${kind ? kind + ' ' : ''}cards with different names`, cards: lib.map((c) => c.iid), min: 0, max: Math.min(k, lib.length), purpose: kind === 'land' ? 'land' : 'tutor', src: env.src,
+    validate: (ids) => (names(ids) ? '' : 'They must all have different names.'),
+    aiScore: (c) => (isAI(env.me) ? (kind === 'land' ? aiHelpers.landScore(c) : DB[c.def].cmc || 0) : 0),
+  });
+  // the AI's pick (or an old dialog) with a repeated name: keep the first of each name
+  const seen = new Set();
+  found = found.filter((i) => { const nm = DB[card(i).def].name; if (seen.has(nm)) return false; seen.add(nm); return true; });
+  shuffle(env.me);
+  if (!found.length) return env.did.push('finds nothing');
+  const opps = opponents(env.me).filter(inGame);
+  const chooser = m[3] === 'target opponent' ? (await playerTarget(env, 'target opponent'))[0] || opps[0] : opps.length === 1 ? opps[0] : opps[0];
+  const toGy = found.length <= pick ? found.slice() : await env.choosers[chooser].pickCards({
+    forced: true, prompt: `${cardName(env.src)}: choose ${pick} of these to go to ${env.me === 'p' ? 'your' : seatName(env.me) + "'s"} graveyard (the rest go to ${env.me === 'p' ? 'your' : 'their'} hand)`,
+    cards: found, min: pick, max: pick, purpose: 'giftsGy', src: env.src,
+    // the opponent bins the best ones
+    aiScore: (c) => (isLand(c) ? aiHelpers.landScore({ ...c, controller: env.me }) : DB[c.def].cmc || 0),
+  });
+  for (const i of found) move(i, toGy.includes(i) ? 'graveyard' : 'hand');
+  env.did.push(`reveals ${found.map((i) => nameTag(card(i))).join(', ')}; ${who(chooser)} ${s_(chooser, 'put')} ${toGy.map((i) => nameTag(card(i))).join(' and ')} into the graveyard`);
+}, { first: true, multi: true });
 // Hildibrand Manderville: "you may cast it from your graveyard as an Adventure until the end of your next turn"
 on(/^(?:you may )?cast (?:it|~) from your graveyard as an adventure until the end of your next turn$/, async (m, env) => {
   const c = env.src && card(env.src.iid);

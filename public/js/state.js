@@ -24,6 +24,7 @@ export const G = {
     autoTreasure: true,
     autoUntap: true,
     autoDraw: true,
+    everyStep: true,
     arenaMode: true,
     aiStyle: 'casual',
     boardLayout: 'organized',

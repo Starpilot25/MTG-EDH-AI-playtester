@@ -372,6 +372,7 @@ function initSetup() {
   $('#set-pause').checked = st.pauseOnAiSpells ?? true;
   $('#set-treasure').checked = st.autoTreasure ?? true;
   G.settings.orderTriggers = st.orderTriggers ?? true;
+  G.settings.everyStep = st.everyStep ?? true;
   $('#set-arena').checked = st.arenaMode ?? true;
   $('#set-speed').value = st.aiSpeed ?? 650;
   $('#set-aistyle').value = st.aiStyle ?? 'casual';
@@ -530,6 +531,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#set-aistyle').value = e.target.value;
   });
   $('#gm-autodraw').addEventListener('change', (e) => (G.settings.autoDraw = e.target.checked));
+  $('#gm-everystep').addEventListener('change', (e) => {
+    G.settings.everyStep = e.target.checked;
+    store.set('settings', { ...store.get('settings', {}), everyStep: e.target.checked });
+  });
   $('#gm-autountap').addEventListener('change', (e) => (G.settings.autoUntap = e.target.checked));
   $('#btn-menu').addEventListener('click', () => {
     $('#gm-pause').checked = G.settings.pauseOnAiSpells;
@@ -542,6 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#gm-cmdzone').value = G.settings.commanderZone || 'ask';
     $('#gm-dorks').value = G.settings.dorks || 'last';
     $('#gm-autodraw').checked = G.settings.autoDraw;
+    $('#gm-everystep').checked = G.settings.everyStep !== false;
     $('#gm-autountap').checked = G.settings.autoUntap;
   });
   if (location.protocol === 'file:') {
