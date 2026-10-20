@@ -402,6 +402,12 @@ function parseTriggerText(text, speed) {
       // Goldspan Dragon
       add('attacks', m[1], { self: true });
       add('becomesTarget', m[1], { self: true, spellOnly: !/or ability/i.test(line), oppOnly: /an opponent controls/i.test(line) });
+    } else if ((m = line.match(/^Whenever an? ([A-Z][a-z]+) you control becomes the target of a spell or ability an opponent controls, (.+)$/))) {
+      // Thunderbreak Regent
+      add('becomesTarget', m[2], { sub: m[1], oppOnly: true });
+    } else if ((m = line.match(/^Whenever a goaded creature attacks, (.+)$/i))) {
+      // Vengeful Ancestor
+      add('attacks', m[1], { goadedAttacker: true });
     } else if ((m = line.match(/^Whenever ~ becomes the target of a spell(?: or ability)?(?: an opponent controls| you control)?(?: for the first time each turn)?, (.+)$/i))) {
       add('becomesTarget', m[1], { self: true, spellOnly: !/or ability/i.test(line), oppOnly: /an opponent controls/i.test(line), mineOnly: /you control,/i.test(line) });
     } else if ((m = line.match(/^Whenever ~ attacks while (you (?:don't )?control [^,]+), (.+)$/i)))
@@ -1279,6 +1285,10 @@ function matches(ev) {
         } else if (trig.anyOfMine && c.controller === ev.controller && (trig.chosenType ? c.chosenType && hasSubtype(card(ev.iid), c.chosenType) : !trig.kind || matchesFilter(card(ev.iid), trig.kind)) && !(trig.other && c.iid === ev.iid) && !(trig.commander && !(card(ev.iid) || {}).isCommander)) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
         else if (trig.theirAttacker && c.controller !== ev.controller) out.push({ src: c, trig, it: { iid: ev.iid } });
+        else if (trig.goadedAttacker) {
+          const a = card(ev.iid);
+          if (a && a.goaded && (!a.goaded.until || G.s.turn < a.goaded.until)) out.push({ src: c, trig, thatPlayer: a.controller, it: { iid: ev.iid } });
+        }
       });
       break;
     case 'attacksAlone':
@@ -1393,7 +1403,14 @@ function matches(ev) {
       break;
     case 'becomesTarget':
       each((c, trig) => {
-        if (trig.event !== 'becomesTarget' || !trig.self || c.iid !== ev.iid) return;
+        if (trig.event !== 'becomesTarget') return;
+        if (trig.sub) {
+          const t = card(ev.iid);
+          if (!t || t.controller !== c.controller || ev.controller === c.controller || !hasSubtype(t, trig.sub)) return;
+          out.push({ src: c, trig, thatPlayer: ev.controller, it: { iid: ev.iid } });
+          return;
+        }
+        if (!trig.self || c.iid !== ev.iid) return;
         if (trig.spellOnly && !ev.bySpell) return;
         if (trig.oppOnly && ev.controller === c.controller) return;
         if (trig.mineOnly && ev.controller !== c.controller) return;

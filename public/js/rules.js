@@ -751,6 +751,12 @@ export function manaAbility(inst) {
     if (abilitiesGone(inst)) return null;
   }
   let r = manaAbilityRaw(inst);
+  // Haven of the Spirit Dragon: "{T}: Add {C}." plus "{T}: Add one mana of any color. Spend this mana only to cast a Dragon creature spell."
+  if (r && !r.alts) {
+    const o1 = oracle(inst);
+    const rm = /(?:^|\n)\{T\}: Add \{C\}\.(?:\n|$)/.test(o1) && o1.match(/(?:^|\n)\{T\}: Add one mana of any color\. Spend this mana only to cast (?:an? )?([A-Z][\w-]+) (?:creature )?spells?\./);
+    if (rm) r = { colors: ['C'], amount: 1, alts: [{ colors: ['C', 'W', 'U', 'B', 'R', 'G'], amount: 1, onlyFor: rm[1] }] };
+  }
   // Aether Hub, Servant of the Conduit: "{T}, Pay {E}: Add one mana of any color." — only with energy to spend
   {
     const o0 = oracle(inst);

@@ -70,7 +70,7 @@ export function manaSources(pid, opts = {}) {
     if (!m) continue;
     // a second, bigger ability that only some spells may use (Shrine of the Forsaken Gods)
     const alt = (m.alts || []).filter((a) => restrictedOk(a.onlyFor, a.abilitiesOf, spell, opts)).sort((a, b) => b.amount - a.amount)[0];
-    if (alt && alt.amount > m.amount) m = { ...m, ...alt };
+    if (alt && (alt.amount > m.amount || (alt.amount === m.amount && alt.colors.length > m.colors.length))) m = { ...m, ...alt };
     if (!restrictedOk(m.onlyFor, m.abilitiesOf, spell, opts)) continue;
     // Nyx Lotus: one color, as much as your devotion — pick the color this spell actually needs
     if (m.byColor && spell && DB[spell.def]) {

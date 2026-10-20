@@ -1,5 +1,24 @@
 [
   {
+    "version": "1.3.95",
+    "title": "Temur Roar precon added + its cards fixed",
+    "notes": [
+      "New precon: Temur Roar (Ureni of the Unwritten) from Tarkir: Dragonstorm Commander is now in the precon list.",
+      "Eshki, Temur's Roar: the draw and damage for casting creature spells with power 4+ now happen.",
+      "Hellkite Courser: puts your commander onto the battlefield with haste and sends it back to the command zone at the next end step.",
+      "Territorial Hellkite: picks an opponent it didn't attack last combat; if there isn't one, it taps.",
+      "Stormbreath Dragon: becoming monstrous deals damage to each opponent equal to their hand size.",
+      "Scourge of the Throne: the 'attacking the player with the most life' check works.",
+      "Thunderbreak Regent: deals 3 damage when an opponent targets one of your Dragons.",
+      "Vengeful Ancestor: goaded creatures deal 1 damage to their controller when they attack.",
+      "Will of the Temur: the token copy is properly a 4/4 Dragon with flying; with a commander out you (and the AI) can choose both modes, and the draw mode counts all your permanents and targets yourself.",
+      "Nogi, Draco-Zealot: becomes a 5/5 flying Dragon when it attacks with three or more Dragons.",
+      "Opportunistic Dragon: steals a Human or artifact, which loses its abilities and can't attack or block until the Dragon leaves.",
+      "Haven of the Spirit Dragon: its any-color mana is only usable for Dragon creature spells ({C} for everything else).",
+      "Not yet supported: Selvala's Stampede (voting)."
+    ]
+  },
+  {
     "version": "1.3.94",
     "title": "Photon, Relic of Legends",
     "notes": [

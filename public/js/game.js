@@ -396,6 +396,14 @@ async function endStepThings(pid) {
     }
     const c = card(d.iid);
     if (!c) continue;
+    // Hellkite Courser: return the commander to the command zone
+    if (d.kind === 'toCommand') {
+      if (c.zone === 'battlefield') {
+        move(d.iid, 'command');
+        log(c.owner, `${nameTag(c)} returns to the command zone.`);
+      }
+      continue;
+    }
     // Gift of Immortality: return attached to the creature it enchanted
     if (d.kind === 'returnAttached' && c.zone === 'graveyard') {
       const host = d.host && card(d.host);
@@ -508,6 +516,7 @@ export async function playerNextStep() {
     setStep('combat');
     // beginning of combat: its triggers resolve before attackers are declared
     s.combat = { by: 'p', attackers: [], blocks: {}, targets: {}, stage: 'begin' };
+    bumpCombatNo('p');
     fire({ type: 'beginCombat', active: 'p' });
     hooks.render();
     run.beginning = true;
@@ -875,12 +884,23 @@ async function endCombat(pid) {
   void s;
 }
 
+// Territorial Hellkite: number each player's combats so "your last combat" can be found
+function bumpCombatNo(pid) {
+  G.s.combatNo = G.s.combatNo || {};
+  G.s.combatNo[pid] = (G.s.combatNo[pid] || 0) + 1;
+}
 // `defender` is the default (in 1v1 the only) defending player; in a pod each attacker's own target decides it.
 function fireAttacks(attackers, controller, defender) {
   const targets = (G.s.combat && G.s.combat.targets) || {};
   const defOf = (iid) => (multiplayer() ? playerOfTarget(targets[iid] || defender, controller) : defender);
   for (const iid of attackers) {
-    if (card(iid)) card(iid).attackedTurn = G.s.turn;
+    if (card(iid)) {
+      const a = card(iid);
+      a.attackedTurn = G.s.turn;
+      const n = (G.s.combatNo || {})[controller] || 0;
+      if (!a.attackLog || a.attackLog.n !== n) a.attackLog = { n, players: [] };
+      a.attackLog.players.push(defOf(iid));
+    }
     fire({ type: 'attacks', iid, controller, defender: defOf(iid), target: targets[iid] || defender });
   }
   if (attackers.length === 1) fire({ type: 'attacksAlone', iid: attackers[0], controller, defender: defOf(attackers[0]) });
@@ -1032,6 +1052,7 @@ async function aiCombat(pid = 'ai') {
   const s = G.s;
   const wait = (m = G.settings.aiSpeed) => hooks.wait(m);
   setStep('combat');
+  bumpCombatNo(pid);
   fire({ type: 'beginCombat', active: pid });
   await settle();
   if (G.s !== s || s.winner || !inGame(pid)) return;

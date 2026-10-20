@@ -1198,6 +1198,11 @@ export function stateBased() {
       const gone = !src || src.zone !== 'battlefield' || (c.controlWhile.youControl && src.controller !== c.controlWhile.by);
       if (gone) {
         const back = c.controlWhile.prev;
+        // Opportunistic Dragon: the stolen permanent gets its abilities back and can fight again
+        if (c.controlWhile.strip) {
+          delete c.lostAbilities;
+          if (c.pacifiedBy === c.controlWhile.src) c.pacifiedBy = null;
+        }
         delete c.controlWhile;
         if (back && back !== c.controller) {
           move(c.iid, 'battlefield', { controller: back });

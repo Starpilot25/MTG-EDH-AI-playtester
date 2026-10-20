@@ -672,13 +672,13 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   {
     // ("where X is the greatest …" arrives here without "the greatest")
     const gm0 = p.match(/^(?:the )?(?:greatest )?(power|toughness|mana value) among ((?:other )?(?:[\w-]+ ){0,2}?)(creatures|[\w-]+s) (you control|your opponents control|on the battlefield)$/);
-    const gm = gm0 && [gm0[0], gm0[1], gm0[2] + (gm0[3] === 'creatures' ? '' : gm0[3].replace(/s$/, '') + ' '), gm0[4]];
+    const gm = gm0 && [gm0[0], gm0[1], gm0[2] + (/^(?:creatures|permanents)$/.test(gm0[3]) ? '' : gm0[3].replace(/s$/, '') + ' '), gm0[4]];
     if (gm && G.s && helpers) {
       const who = gm[3] === 'you control' ? [pid] : gm[3] === 'on the battlefield' ? seats() : opponents(pid);
       const words = gm[2].trim();
       const f = filterFrom(words);
       const vals = who.flatMap((w) => G.s.players[w].zones.battlefield.map((i) => G.s.cards[i]))
-        .filter((c) => c && !c.phasedOut && helpers.isCreature(c) && (!/other/.test(words) || c.iid !== srcIid) && matchesFilter(c, f, helpers))
+        .filter((c) => c && !c.phasedOut && (gm0[3] !== "creatures" && gm[1] === "mana value" || helpers.isCreature(c)) && (!/other/.test(words) || c.iid !== srcIid) && matchesFilter(c, f, helpers))
         .map((c) => (gm[1] === 'power' ? helpers.power(c) : gm[1] === 'toughness' ? helpers.toughness(c) : DB[c.def].cmc || 0));
       return vals.length ? Math.max(0, ...vals) : 0;
     }

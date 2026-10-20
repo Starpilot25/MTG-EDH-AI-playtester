@@ -798,6 +798,25 @@ export function evalCond(cond, env) {
   if (/(?:this spell|~|it) was bargained/.test(c)) return !!env.bargained;
   if (/(?:this spell|~) was cast using teamwork/.test(c)) return !!env.teamwork;
   if (/^you were the monarch as the turn began$/.test(c)) return G.s.monarchAtStart === env.me;
+  // Eshki: "that spell's power is 4 or greater"
+  {
+    const sm = c.match(/^that spell's (power|toughness|mana value) is (\d+) or (greater|less)$/);
+    if (sm) {
+      const sp = env.it && env.it.iid && card(env.it.iid);
+      if (!sp) return false;
+      const f = DB[sp.def].faces[sp.castFace || sp.face || 0] || DB[sp.def].faces[0];
+      const v = sm[1] === 'mana value' ? DB[sp.def].cmc || 0 : parseInt(sm[1] === 'power' ? f.power : f.toughness, 10) || 0;
+      return sm[3] === 'greater' ? v >= +sm[2] : v <= +sm[2];
+    }
+  }
+  // Scourge of the Throne, dethrone-style: "it's attacking the player with the most life or tied for most life"
+  if (/^(?:it's|~ is) attacking the player with the most life or tied for most life$/.test(c)) {
+    const a = (env.it && env.it.iid && card(env.it.iid)) || (env.src && card(env.src.iid));
+    const tgt = a && G.s.combat && G.s.combat.targets && G.s.combat.targets[a.iid];
+    const def = typeof tgt === 'string' && G.s.players[tgt] ? tgt : env.thatPlayer || opp(env.me);
+    const most = Math.max(...seats().filter(inGame).map((p) => G.s.players[p].life));
+    return G.s.players[def] && G.s.players[def].life >= most;
+  }
   if (/the gift was promised|gift was promised/.test(c)) return !!env.gift;
   if (/the gift wasn't promised/.test(c)) return !env.gift;
   if (/(?:you cast it|~ was cast|this spell was cast|it was cast) from (?:a|your) graveyard/.test(c)) return env.castFrom === 'graveyard';
@@ -2118,6 +2137,25 @@ on(/^for each opponent, gain control of up to one target nonlegendary creature t
   if (card(pick) && env.src) card(pick).controlWhile = { src: env.src.iid, prev, by: env.me, youControl: false };
   env.did.push(`gains control of ${nameTag(card(pick))}`);
 }, { first: true });
+// Opportunistic Dragon
+on(/^choose target ([a-z]+) or ([a-z]+) an opponent controls\. for as long as ~ remains on the battlefield, gain control of that permanent, it loses all abilities, and it can't attack or block$/, async (m, env) => {
+  const fits = (x, w) => (/^[A-Z]/.test(capWords(w)) && ['artifact', 'creature', 'enchantment', 'land', 'planeswalker'].includes(w) ? isType(x, capWords(w)) : hasSubtype(x, capWords(w)));
+  const pool = opponents(env.me).flatMap((o) => cardsIn(o, 'battlefield')).filter((x) => (fits(x, m[1]) || fits(x, m[2])) && canTarget(x, env.me, env.src));
+  if (!pool.length) return env.did.push('finds no target');
+  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Choose target ${m[1]} or ${m[2]} an opponent controls`, cards: pool.map((x) => x.iid), min: 1, max: 1, purpose: 'steal', src: env.src, aiScore: (x) => cardValue(x) });
+  const c = pick && card(pick);
+  if (!c || c.zone !== 'battlefield') return env.did.push('finds no target');
+  const src = env.src && card(env.src.iid);
+  if (!src || src.zone !== 'battlefield') return env.did.push(`${nameTag(c)} stays put (the Dragon left)`);
+  const prev = c.controller;
+  move(c.iid, 'battlefield', { controller: env.me });
+  const k = card(c.iid);
+  if (!k) return;
+  k.controlWhile = { src: src.iid, prev, by: env.me, youControl: false, strip: true };
+  loseAllAbilities(k);
+  k.pacifiedBy = src.iid;
+  env.did.push(`gains control of ${nameTag(k)}; it loses all abilities and can't attack or block`);
+}, { first: true, multi: true });
 // Duskana: "draw a card for each creature you control with base power and toughness 2/2"
 on(/^(?:you )?draw (a|one|two|three) cards? for each (.+)$/, async (m, env) => {
   // Deadly Embrace: "draw a card for each creature that died this turn"
@@ -3931,10 +3969,13 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
     }
     // Ember Island Production: "it's a 4/4 Hero in addition to its other types" / "a 2/2 Coward"
     {
-      const pt = except.match(/(?:it's|they're) (?:an? )?(\d+)\/(\d+)(?: ([a-z][a-z -]*?))? in addition to its other types/i);
+      const pt = except.match(/(?:it's|they're) (?:an? )?(\d+)\/(\d+)(?: ([a-z][a-z -]*?))?( (?:artifact )?creatures?)?(?: with ([a-z ,]+?))? in addition to its other types/i);
       if (pt) {
         tk.setPT = { ts: nextStamp(), p: +pt[1], t: +pt[2] };
         if (pt[3]) tk.addTypes = ((tk.addTypes || '') + ' ' + pt[3].trim().split(/\s+/).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ')).trim();
+        // Will of the Temur: "a 4/4 Dragon creature with flying in addition to its other types"
+        if (pt[4] && !isCreature(tk)) addLayerFx(tk, { until: true, types: { add: 'Creature' } });
+        if (pt[5]) tk.grants = [...(tk.grants || []), ...kwList(pt[5])];
       }
     }
     if (/and attacking/.test(m[1]) && G.s.combat) {
@@ -4364,6 +4405,49 @@ on(/^choose an opponent at random$/, async (m, env) => {
   env.thatPlayer = os[Math.floor(Math.random() * os.length)];
   env.did.push(`randomly chooses ${who(env.thatPlayer)}`);
 }, { first: true });
+// Territorial Hellkite: "choose an opponent at random that ~ didn't attack during your last combat"
+on(/^choose an opponent at random that ~ didn't attack during your last combat$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const n = ((G.s.combatNo || {})[env.me] || 0) - 1;
+  const hit = me && me.attackLog && me.attackLog.n === n ? me.attackLog.players : [];
+  const os = opponents(env.me).filter(inGame).filter((p) => !hit.includes(p));
+  if (!os.length) { env.thatPlayer = null; env.noChoice = true; return env.did.push('no opponent can be chosen'); }
+  env.noChoice = false;
+  env.thatPlayer = os[Math.floor(Math.random() * os.length)];
+  env.did.push(`randomly chooses ${who(env.thatPlayer)}`);
+}, { first: true });
+on(/^if you can't choose an opponent this way, tap ~$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!env.noChoice || !me || me.zone !== 'battlefield') return;
+  tapPerm(me);
+  env.did.push(`taps ${nameTag(me)}`);
+}, { first: true });
+// Hellkite Courser
+on(/^(you may )?put a commander you own from the command zone onto the battlefield\. it gains haste\. return it to the command zone at the beginning of the next end step$/, async (m, env) => {
+  const cm = cardsIn(env.me, 'command').filter((c) => c.isCommander && c.owner === env.me && !isType(c, 'Instant') && !isType(c, 'Sorcery'));
+  if (!cm.length) return env.did.push('no commander in the command zone');
+  let pick = cm[0];
+  if (cm.length > 1) pick = cm.slice().sort((a, b) => cardValue(b) - cardValue(a))[0];
+  if (m[1] && !isAI(env.me) && !(await mayAsk(env, `put ${nameTag(pick)} onto the battlefield (returns at end step)`))) return;
+  toBattlefield(pick.iid, env.me);
+  const c = card(pick.iid);
+  if (!c) return;
+  c.grants = [...(c.grants || []), 'haste'];
+  env.it = { iid: c.iid };
+  G.s.delayed = G.s.delayed || [];
+  G.s.delayed.push({ at: 'endStep', kind: 'toCommand', iid: c.iid, pid: env.me, enteredTurn: G.s.turn });
+  env.did.push(`puts ${nameTag(c)} onto the battlefield with haste; it returns to the command zone at the next end step`);
+}, { first: true, multi: true });
+// Stormbreath Dragon
+on(/^(?:it|~) deals damage to each opponent equal to the number of cards in that player's hand$/, async (m, env) => {
+  const src = (env.src && card(env.src.iid)) || env.src;
+  for (const o of opponents(env.me).filter(inGame)) {
+    const k = cardsIn(o, 'hand').length;
+    if (!k) continue;
+    env.thatPlayer = o;
+    await dealDamage(env, src, k, 'that player');
+  }
+}, { first: true });
 // "~ attacks that player this combat if able"
 on(/^(?:~|it|that creature) attacks that player this combat if able$/, async (m, env) => {
   const c = /^~/.test(m[0]) ? env.src && card(env.src.iid) : env.it && env.it.iid && card(env.it.iid);
@@ -4700,7 +4784,7 @@ on(/^(.+?) gains? ([a-z, ]+?|protection from (?:the color of your choice|[a-z]+)
   if (objs.length) env.did.push(`${objs.length > 2 ? objs.length + ' creatures gain' : objs.map(nameTag).join(', ') + ' gain' + (objs.length === 1 ? 's' : '')} ${grants.join(', ')} until ${nextTurn ? 'your next turn' : 'end of turn'}`);
 });
 // Metamorphic Blast: "Until end of turn, target creature becomes a white Rabbit with base power and toughness 0/1."
-on(/^(?:until end of turn, )?(target creature|it|that creature) becomes an? ([a-z ]+?) with base power and toughness (\d+)\/(\d+)(?: until end of turn)?$/, async (m, env) => {
+on(/^(?:until end of turn, )?(target creature|it|that creature|~) becomes an? ([a-z ]+?) with base power and toughness (\d+)\/(\d+)(?: until end of turn)?(?: and gains ([a-z, ]+?))?$/, async (m, env) => {
   const objs = await objects(env, m[1], { harm: +m[3] < 3 });
   const words = m[2].trim().split(/\s+/);
   const col = COLOR_WORD[words[0]] !== undefined || words[0] === 'colorless' ? words.shift() : null;
@@ -4709,8 +4793,14 @@ on(/^(?:until end of turn, )?(target creature|it|that creature) becomes an? ([a-
     if (/until end of turn/.test(env.sentence)) c.setPTUntil = 'eot';
     // "becomes a white Rabbit": its color and creature type change too
     addLayerFx(c, { until: /until end of turn/.test(env.sentence) ? 'eot' : true, types: { subSet: capWords(words.join(' ')) }, ...(col ? { colors: { set: col === 'colorless' ? [] : [COLOR_WORD[col]] } } : {}) });
+    // Nogi: "… and gains flying"
+    if (m[5]) {
+      const kws = kwList(m[5]);
+      if (/until end of turn/.test(env.sentence)) c.eotGrants = [...(c.eotGrants || []), ...kws];
+      else c.grants = [...(c.grants || []), ...kws];
+    }
   }
-  env.did.push(`${objs.map(nameTag).join(', ')} becomes a ${m[3]}/${m[4]} ${m[2]}`);
+  env.did.push(`${objs.map(nameTag).join(', ')} becomes a ${m[3]}/${m[4]} ${m[2]}${m[5] ? ' with ' + m[5] : ''}`);
 }, { first: true });
 // Legion Warboss: "That token gains haste until end of turn and attacks this combat if able."
 on(/^(that token|those tokens|that creature|it|target creature(?: you control)?)( gains haste until end of turn and)? attacks? this combat if able$/, async (m, env) => {
@@ -7566,7 +7656,8 @@ async function playerSubject(s, env) {
   const low = text.toLowerCase();
   if (low === s.toLowerCase()) return false;
   if (!okText(low)) return false;
-  const pids = /^target (player|opponent)$/.test(subj) ? await playerTarget(env, subj) : playersOf(env, subj);
+  const good = /^you (?:draw|gain \d+ life|gain life|create|untap|scry|return|search)/i.test(withYou) && !/\bloses?\b|\bdiscards?\b|\bsacrifices?\b/i.test(withYou);
+  const pids = /^target (player|opponent)$/.test(subj) ? await playerTarget(env, subj, !good) : playersOf(env, subj);
   if (!pids || !pids.length) return false;
   for (const pid of pids) {
     const sub = Object.assign(Object.create(null), env, { me: pid, did: env.did, unknown: env.unknown });
@@ -7934,6 +8025,8 @@ export async function predictTargets(pid, c, face, choosers, x = 0, textOverride
       const harm = !blink && (!/(?:gets? \+|gains? (?!control)|untap|\+1\/\+1 counter|return [^.]* to the battlefield|hexproof|indestructible|protection)/.test(clause) || /destroy|exile|damage|sacrifice|loses? \d+ life|-\d/.test(clause));
       // Sign in Blood: "target player draws two cards and loses 2 life" — card draw for yourself, unless the life loss finishes an opponent
       let harm2 = harm;
+      // Will of the Temur: "Target player draws cards equal to …" — draw for yourself
+      if (/^[•\s]*target player draws? (?!.*\bloses?\b)/i.test(clause)) harm2 = false;
       const dl = clause.match(/^target player draws? (?:a|an|one|two|three|\d+) cards? and loses? (\d+) life/);
       if (dl) harm2 = opponents(pid).some((o) => inGame(o) && G.s.players[o].life <= +dl[1] && !playerHexproof(o, pid, c));
       let picks = [];
@@ -7974,7 +8067,7 @@ export function modeValue(t, env) {
   if (a.draw) v += 2 * a.draw;
   let m;
   // Return of the Wildspeaker: "Draw cards equal to the greatest power among non-Human creatures you control."
-  if ((m = low.match(/draw cards equal to ([^.]+)/))) {
+  if ((m = low.match(/draws? cards equal to ([^.]+)/))) {
     try {
       v += 2 * Math.max(0, xFrom(m[1], { ...env, me }) || 0);
     } catch (e) {
