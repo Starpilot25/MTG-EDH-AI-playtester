@@ -1418,7 +1418,7 @@ function tokenAdditions(defId, pid, n) {
   return { same, other };
 }
 
-export const TOKEN_CAP = 200;
+export const TOKEN_CAP = 1000;
 export function createToken(defId, pid, n = 1, opts = {}) {
   defId = canonicalToken(defId);
   // Divine Visitation: "If one or more creature tokens would be created under your control, that many 4/4 white Angel creature
@@ -1434,6 +1434,8 @@ export function createToken(defId, pid, n = 1, opts = {}) {
   }
   const made = [];
   let count = n;
+  // several identical triggers resolving as one batch (Scute Swarm ×500): make that many times as many
+  if (G.s && G.s.tokenMult > 1) count *= G.s.tokenMult;
   // "…plus an additional …" replacements first, then doublers (the order that gives you the most)
   const add = opts.noDouble || opts.noAdd ? { same: 0, other: [] } : tokenAdditions(defId, pid, n);
   count += add.same;

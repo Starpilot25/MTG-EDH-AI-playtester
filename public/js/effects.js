@@ -7458,6 +7458,7 @@ export function auraGrants(o) {
 }
 
 export function attachTo(src, t) {
+  if (G.s) G.s.bfv = (G.s.bfv || 0) + 1; // board changed (caches key on this)
   let o = oracle(src).replace(/\b(?:Enchanted|Equipped) creature/g, (x) => x);
   if (src.attachedTo && card(src.attachedTo)) {
     const old = card(src.attachedTo);

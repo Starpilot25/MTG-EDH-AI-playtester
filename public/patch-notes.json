@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.82",
+    "title": "Batched token triggers, 1000-token limit",
+    "notes": [
+      "Identical token-making triggers now resolve together: 500 Scute Swarm landfall triggers are one step that makes 500 tokens (the log shows \"Scute Swarm triggers ×500\"), instead of 500 separate steps.",
+      "The token limit is raised from 200 to 1000 per player.",
+      "Big boards are faster again: trigger checks are remembered per card instead of being re-read for every event. A land drop with ~200 Scute Swarms went from about 10 seconds to about 1."
+    ]
+  },
+  {
     "version": "1.3.81",
     "title": "Scute Swarm freeze fixed, faster big boards",
     "notes": [

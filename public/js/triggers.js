@@ -68,8 +68,20 @@ export function triggersOf(c, defOverride) {
   if (c.zone === 'command') text = text.split('\n').filter((l) => /^Eminence — /.test(l)).join('\n');
   text = text.replace(/(^|\n)Eminence — /g, '$1').replace(/, if ~ is in the command zone or on the battlefield,/gi, ',').replace(/(^|\n)As long as ~ is in the command zone or on the battlefield, /gi, '$1');
   text = text.replace(/\([^)]*\)/g, '').replace(/\n(?=•)/g, ' ¶');
-  const out = [];
   const speed = G.s && c.controller ? G.s.players[c.controller].speed : 0;
+  // the parse only depends on the text (and max speed): remember it (hundreds of identical tokens share one entry)
+  const pkey = text + '|' + (speed >= 4 ? 1 : 0);
+  let parsed = trigParseCache.get(pkey);
+  if (!parsed) {
+    parsed = parseTriggerText(text, speed);
+    if (trigParseCache.size > 5000) trigParseCache.clear();
+    trigParseCache.set(pkey, parsed);
+  }
+  return parsed.concat(keywordTriggers(c));
+}
+const trigParseCache = new Map();
+function parseTriggerText(text, speed) {
+  const out = [];
   for (let line of text.split('\n')) {
     line = line.trim();
     if (/^Max speed — /i.test(line)) {
@@ -455,11 +467,25 @@ export function triggersOf(c, defOverride) {
       out.push({ event: 'chapter', chapters, text: m[2], raw: line, self: true, optional: /^you may/i.test(m[2]) });
     }
   }
-  return out.concat(keywordTriggers(c));
+  return out;
 }
 
 // ------------------------------------------------------------ keyword triggers
+// Remembered per card until something relevant changes (the board, its grants, counters, face, the turn/step):
+// with hundreds of tokens every event used to re-check every keyword on every permanent.
+const kwTrigCache = new WeakMap();
 function keywordTriggers(c) {
+  if (!c || !G.s || G.s.cards[c.iid] !== c) return keywordTriggersRaw(c);
+  const key = [G.s.bfv || 0, G.s.turn, G.s.step, G.s.active, c.zone, c.controller, c.face || 0, c.faceDown ? 1 : 0, c.lostAbilities ? 1 : 0,
+    (c.grants || []).join(','), (c.eotGrants || []).join(','), JSON.stringify(c.counters || {}), c.extraText || '', (c.layerFx || []).length, c.attachedTo || '',
+    (G.s.players[c.controller] && (G.s.players[c.controller].emblems || []).length) || 0].join('|');
+  const hit = kwTrigCache.get(c);
+  if (hit && hit.key === key) return hit.out;
+  const out = keywordTriggersRaw(c);
+  kwTrigCache.set(c, { key, out });
+  return out;
+}
+function keywordTriggersRaw(c) {
   if (!c || c.faceDown || (c.zone === 'battlefield' ? abilitiesGone(c) : c.lostAbilities) || c.zone === 'command') return [];
   const out = [];
   const t = (event, text, extra = {}) => out.push({ event, text, raw: text, kw: true, ...extra });
@@ -1680,8 +1706,23 @@ export async function settle() {
       // the stack panel shows what's waiting (last to resolve at the bottom)
       const tText = (h) => String(h.trig.text || h.trig.raw || '').replace(/~/g, cardName(h.src).split(',')[0]);
       G.s.trigQueue = queue.map(({ hit }) => ({ iid: hit.src.iid, def: hit.src.def, face: hit.src.face || 0, name: cardName(hit.src), text: tText(hit), by: hit.controller || hit.src.controller }));
-      for (const { hit, ev } of queue) {
+      // Identical token-making triggers resolve together (500 Scute Swarms: one step that makes 500 tokens, not 500 steps)
+      const batchKey = (q) => {
+        const h = q.hit;
+        const txt = String(h.trig.text || h.trig.raw || '');
+        if (!/\bcreate\b/i.test(txt) || /\btarget\b|\byou may\b|\bchoose\b|\bsacrifice\b|\bexile\b|\breturn\b|\bdestroy\b|\bdamage\b|\bdraw\b|\bdiscard\b|\bpay\b|\bcounter\b|\bvote\b|\bthat many\b|\bthat much\b|\bx\b/i.test(txt)) return null;
+        return [h.controller || h.src.controller, h.src.def, h.src.face || 0, h.trig.raw, q.ev && q.ev.type].join('|');
+      };
+      for (let qi = 0; qi < queue.length; qi++) {
+        const { hit, ev } = queue[qi];
         const controller = hit.controller || hit.src.controller;
+        let batch = 1;
+        const bk = queue.length > 1 ? batchKey(queue[qi]) : null;
+        if (bk) while (qi + batch < queue.length && batchKey(queue[qi + batch]) === bk) batch++;
+        if (batch > 1) {
+          qi += batch - 1;
+          G.s.trigQueue = (G.s.trigQueue || []).slice(batch - 1);
+        }
         G.s.trigNow = (G.s.trigQueue || []).shift() || null;
         T.render();
         if (controller === 'p' && !G.settings.arenaMode) {
@@ -1711,10 +1752,13 @@ export async function settle() {
         }
         if (G.s !== s0) return;
         try {
+          G.s.tokenMult = batch;
+          G.s.trigBatch = batch;
           await resolveTrigger(hit, controller, ev);
         } catch (e) {
           if (!(e instanceof Cancelled)) console.error(e);
         } finally {
+          if (G.s) G.s.tokenMult = G.s.trigBatch = 0;
           // the targets announced for the AI's trigger are used up
           if (isAI(controller) && T.choosers && T.choosers[controller] && T.choosers[controller].plan) T.choosers[controller].plan = null;
         }
@@ -1924,7 +1968,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
     ctx.lastMay = true; // "you may discard a card. If you do, draw two cards."
   }
   const did = await resolveEffects(text, src, ctx);
-  if (did.length) log(controller, `${nameTag(src)} ${trig.event === 'chapter' ? 'chapter' : 'triggers'}: ${did.join('; ')}.`);
+  if (did.length) log(controller, `${nameTag(src)} ${trig.event === 'chapter' ? 'chapter' : 'triggers'}${G.s.trigBatch > 1 ? ` ×${G.s.trigBatch}` : ''}: ${did.join('; ')}.`);
   else if (!trig.kw && !did.skipped && knownEffect(text)) log(controller, `${nameTag(src)} triggers, but it does nothing${/\btarget\b/i.test(text) ? ' (no legal targets)' : ''}.`);
   else if (!trig.kw && !did.skipped) log(controller, `${nameTag(src)} triggers: <i>${esc(text.slice(0, 140))}</i> — apply it by hand.`);
   stateBased();
