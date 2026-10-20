@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.84",
+    "title": "Scouring Swarm",
+    "notes": [
+      "Scouring Swarm: sacrificing a land now makes only one token — a copy of Scouring Swarm if you have seven or more land cards in your graveyard, otherwise a 1/1 flying Insect. It used to make both every time. Conditions written as \"N or more … cards are in your graveyard\" work in general."
+    ]
+  },
+  {
     "version": "1.3.83",
     "title": "Step-by-step turns, Realms Uncharted, Deadly Rollick",
     "notes": [

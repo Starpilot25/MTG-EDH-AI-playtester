@@ -761,6 +761,8 @@ function turnHistoryCond(c, env) {
 }
 
 export function evalCond(cond, env) {
+  // Scouring Swarm: "seven or more land cards are in your graveyard" → "there are seven or more land cards in your graveyard"
+  cond = String(cond).replace(/^(\w+ or (?:more|fewer) (?:[a-z]+ )?cards?) (?:are|is) in (your|a|an opponent's|their) graveyard$/i, 'there are $1 in $2 graveyard');
   const c = cond.toLowerCase().replace(/^it's |^it is /, "it's ").trim();
   // In a pod, "an opponent …" holds when it's true of any opponent; "each opponent …" when true of all of them.
   if (multiplayer() && !env.them && /\b(?:an|each) opponent\b/.test(c) && opponents(env.me).length > 1) {
