@@ -331,7 +331,7 @@ export function log(who, html) {
 // ------------------------------------------------------------ zone movement
 const RESET = ['chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
-  'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
+  'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
   'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
@@ -392,7 +392,8 @@ export function move(iid, zone, opts = {}) {
   // "Its controller …" after it left (Path to Exile on a creature you'd stolen): remember who controlled it
   if (fromZone === 'battlefield' && zone !== 'battlefield') (s.lastCtl = s.lastCtl || {})[iid] = c.controller;
   // last known power and toughness, with counters and pumps (Swords to Plowshares: "life equal to its power")
-  if (fromZone === 'battlefield' && zone !== 'battlefield' && isCreature(c)) (s.lki = s.lki || {})[iid] = { p: power(c), t: toughness(c) };
+  if (fromZone === 'battlefield' && zone !== 'battlefield' && isCreature(c)) (s.lki = s.lki || {})[iid] = { p: power(c), t: toughness(c), wasLand: isLand(c) };
+  else if (fromZone === 'battlefield' && zone !== 'battlefield' && c.becameLand) (s.lki = s.lki || {})[iid] = { wasLand: true }; // Princess Yue dying as Moon
   // Gwen Stacy: "You may play that card for as long as you control this creature" ends when it leaves or changes control
   if (fromZone === 'battlefield' && (zone !== 'battlefield' || (opts.controller && opts.controller !== c.controller)))
     for (const x of Object.values(s.cards)) if (x.playWhileCtl === iid) {
@@ -435,6 +436,7 @@ export function move(iid, zone, opts = {}) {
   const leavingField = fromZone === 'battlefield' && zone !== 'battlefield';
   if (leavingField && c.origDef) endCopy(c);
   if (leavingField || (zone !== 'battlefield' && fromZone !== 'battlefield')) {
+    if (c.becameLand) delete c.nameOverride;
     for (const k of RESET) delete c[k];
     c.counters = {};
     c.grants = [];

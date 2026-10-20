@@ -1785,7 +1785,7 @@ export async function activateAbility(pid, c, ab, env) {
     }
   }
   // generic activated ability
-  if (ab.tap && (c.tapped || (isCreature(c) && c.sick && !hasKw(c, 'haste')))) return env.say(`${name} can't tap right now.`);
+  if (ab.tap && (c.tapped || (!ab.ignoreSick && isCreature(c) && c.sick && !hasKw(c, 'haste')))) return env.say(`${name} can't tap right now.`);
   if (ab.untap && !c.tapped) return env.say(`${name} must be tapped.`);
   if (ab.sorcery && !(s.active === pid && (s.step === 'main1' || s.step === 'main2'))) return env.say('Activate only as a sorcery.');
   c.usedAbilities = c.usedAbilities || {};

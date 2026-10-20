@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.80",
+    "title": "Princess Yue, Metalwork Colossus, Karn Living Legacy, All Is Dust",
+    "notes": [
+      "Princess Yue: when she dies she comes back tapped as a legendary land named Moon that taps for {C} (and keeps \"{T}: Scry 2\"). If Moon dies later she stays in the graveyard.",
+      "Metalwork Colossus: now costs {X} less, where X is the total mana value of your noncreature artifacts.",
+      "Karn, Living Legacy: −1 lets you pay any amount of mana and look at that many cards; the −7 emblem works — each untapped artifact you control can be tapped to deal 1 damage to any target (even summoning-sick artifact creatures).",
+      "All Is Dust: only colored permanents are sacrificed now (it was wiping lands and colorless artifacts too)."
+    ]
+  },
+  {
     "version": "1.3.79",
     "title": "Copying Auras, Sign in Blood",
     "notes": [

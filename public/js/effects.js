@@ -145,7 +145,20 @@ export function joinBullets(text) {
 export const unjoin = (t) => String(t || '').replace(/ ¶•/g, '\n•');
 export function activatedAbilities(c) {
   // it lost all abilities: none of its own activated abilities (Rooms' unlocking and prepared copies are game rules, not abilities)
-  const t = (c.lostAbilities || (c.zone === 'battlefield' && abilitiesGone(c))) && !c.becameTreasure ? '' : joinBullets(stripName(oracle(c), c).replace(/\([^)]*\)/g, ''));
+  let t = (c.lostAbilities || (c.zone === 'battlefield' && abilitiesGone(c))) && !c.becameTreasure ? '' : joinBullets(stripName(oracle(c), c).replace(/\([^)]*\)/g, ''));
+  // Karn, Living Legacy's emblem: "Tap an untapped artifact you control: This emblem deals 1 damage to any target." —
+  // offered on each of your untapped artifacts (tapping it is the cost, so summoning sickness doesn't matter)
+  const emblemLines = [];
+  if (c.zone === 'battlefield' && G.s && c.controller && isType(c, 'Artifact')) {
+    for (const e of G.s.players[c.controller].emblems || []) {
+      const em = e.match(/^Tap an untapped artifact you control: (.+)$/i);
+      if (em) {
+        const line = `{T}: ${em[1].replace(/^This emblem /i, '~ ')}`;
+        emblemLines.push(line);
+        t = (t ? t + '\n' : '') + line;
+      }
+    }
+  }
   const out = [];
   // Prepared (Secrets of Strixhaven): "While it's prepared, you may cast a copy of its spell. Doing so unprepares it."
   if (c.zone === 'battlefield' && c.prepared && DB[c.def].faces[1] && !/Room/.test(DB[c.def].faces[1].typeLine || '')) {
@@ -263,6 +276,7 @@ export function activatedAbilities(c) {
       if (k) ab.costText = ab.costText.replace(/^(?:\{[^}]+\})+/, ab.mana || '{0}');
     }
   }
+  for (const ab of out) if (emblemLines.includes(ab.raw)) { ab.ignoreSick = true; ab.fromEmblem = true; }
   return out;
 }
 
@@ -4257,6 +4271,19 @@ on(/^for each color, put a \+1\/\+1 counter on a dragon you control of that colo
     winGame(env.me, 'Call the Spirit Dragons — five Dragons got counters');
   }
 }, { first: true, multi: true });
+// Princess Yue: "When ~ dies, if she was a nonland creature, return this card to the battlefield tapped under your control. She's a land named Moon. She gains "{T}: Add {C}.""
+on(/^(?:if (?:she|he|it) was a nonland creature, )?return (?:this card|~) to the battlefield tapped under your control\. (?:she's|he's|it's) a land named ([a-z' ]+)\. (?:she|he|it) gains "\{t\}: add \{c\}\.?"(?: \((?:she's|he's|it's) still legendary\.?\))?$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  if (!c || c.zone !== 'graveyard') return env.did.push('is no longer in the graveyard');
+  // the intervening "if": it was a land already (died as Moon) → stays in the graveyard
+  if (G.s.lki && G.s.lki[c.iid] && G.s.lki[c.iid].wasLand) return env.did.push('was a land — stays in the graveyard');
+  toBattlefield(c.iid, env.me, { tapped: true });
+  const x = card(c.iid);
+  x.tapped = true;
+  x.becameLand = m[1].replace(/\b\w/g, (y) => y.toUpperCase());
+  x.nameOverride = x.becameLand;
+  env.did.push(`returns as a tapped land named ${x.becameLand}`);
+}, { first: true, multi: true });
 on(/^bolster (\w+)/, async (m, env) => {
   const cs = cardsIn(env.me, 'battlefield').filter(isCreature).sort((a, b) => toughness(a) - toughness(b));
   if (!cs.length) return;
@@ -4394,6 +4421,25 @@ on(/^(?:you may )?pay any amount of \{([wubrgc])\}$/, async (m, env) => {
   env.lastAmount = env.thatMuch = k;
   env.did.push(`pays {${col}}×${k}`);
 }, { first: true });
+// Karn, Living Legacy −1: "Pay any amount of mana. Look at that many cards from the top of your library, …"
+on(/^(?:you may )?pay any amount of mana$/, async (m, env) => {
+  env.lastMay = false;
+  if (!castMod) return;
+  let max = 0;
+  while (max < 30 && payCost(`{${max + 1}}`, castMod.manaSources(env.me))) max++;
+  if (!max) { env.lastAmount = env.thatMuch = 0; return env.did.push('has no mana to pay'); }
+  let k = await env.choosers[env.me].chooseNumber({ prompt: `${cardName(env.src)}: pay how much mana? (0–${max})`, min: 0, max, ai: Math.min(max, 6) });
+  k = Math.max(0, Math.min(max, +k || 0));
+  env.lastAmount = env.thatMuch = 0;
+  if (!k) return env.did.push('pays nothing');
+  const paid = T && T.payMana ? await T.payMana(env.me, `{${k}}`, cardName(env.src)) : false;
+  if (!paid) return env.did.push('pays nothing');
+  env.lastMay = true;
+  env.lastAmount = env.thatMuch = k;
+  env.did.push(`pays {${k}}`);
+}, { first: true });
+// the second half of "look at that many cards …, then put one of those cards into your hand and the rest on the bottom" (done by the look)
+on(/^put one of (?:those cards|them) into your hand and the rest on the bottom of your library in (?:a random|any) order$/, async () => {}, { first: true });
 // Hildibrand Manderville: "you may cast it from your graveyard as an Adventure until the end of your next turn"
 on(/^(?:you may )?cast (?:it|~) from your graveyard as an adventure until the end of your next turn$/, async (m, env) => {
   const c = env.src && card(env.src.iid);
@@ -4641,11 +4687,13 @@ on(/^exchange control of (.+)$/, async (m, env) => {
 on(/^(each opponent|target opponent|target player|each player|that player|defending player|you|its controller) sacrifices? (a|an|one|two|three|x|\d+|all|half the) ([^.]+?)(?: of (?:their|his or her) choice)?(?:\.|$| for each)/, async (m, env) => {
   const pids = await playerTarget(env, m[1]);
   for (const pid of pids) {
-    let kindPhrase = m[3].replace(/ they control$| you control$/, '').replace(/s$/, '');
+    // All Is Dust: "all permanents they control that are one or more colors"
+    const colored = / that are one or more colors$| that are colored$/.test(m[3]) ? 'colored' : / that are colorless$/.test(m[3]) ? 'colorless' : null;
+    let kindPhrase = m[3].replace(/ that are (?:one or more colors|colored|colorless)$/, '').replace(/ they control$| you control$/, '').replace(/s$/, '');
     // Consumed by Greed: "a creature with the greatest power among creatures they control"
     const ext = kindPhrase.match(/^(.+?) with the (greatest|highest|least|lowest) (power|toughness|mana value)(?: among [^.]+)?$/);
     if (ext) kindPhrase = ext[1];
-    let pool = cardsIn(pid, 'battlefield').filter((c) => matchesAny(c, kindPhrase || 'permanent'));
+    let pool = cardsIn(pid, 'battlefield').filter((c) => matchesAny(c, kindPhrase || 'permanent') && (!colored || (colored === 'colored' ? colorsOf(c).length > 0 : colorsOf(c).length === 0)));
     if (ext && pool.length) {
       const val = (c) => (ext[3] === 'power' ? power(c) : ext[3] === 'toughness' ? toughness(c) : DB[c.def].cmc || 0);
       const best = /greatest|highest/.test(ext[2]) ? Math.max(...pool.map(val)) : Math.min(...pool.map(val));
@@ -5496,7 +5544,7 @@ on(/^look at the top (\w+) cards? of (?:your|target player's) library(?:\. put (
   const bf = rest.match(/(?:you may )?put (a|an|one|two|up to (?:one|two|three)|any number of) ([^.]*?)cards? from among them onto the battlefield( tapped)?/);
   let mm = bf || rest.match(/(?:you may reveal|put) (a|an|one|two|up to (?:one|two|three)) ([^.]*?)cards? (?:from among them|of them)? ?(?:and put (?:it|them) )?into your hand/) || rest.match(/put (\w+) of them into your hand/);
   const take = mm ? (/any number/.test(mm[1]) ? k : n(mm[1].replace(/up to /, ''))) : 1;
-  const filter = mm && mm[2] ? mm[2].trim() : '';
+  const filter = mm && mm[2] && !/^of (?:those|them|these)\b/.test(mm[2].trim()) ? mm[2].trim() : '';
   const pool = ids.filter((i) => !filter || matchesFilter(card(i), filter.replace(/^(?:a|an) /, '')));
   const picks = pool.length ? await env.choosers[env.me].pickCards({
     prompt: `Look at the top ${k}: choose ${take > 1 ? 'up to ' + take : 'one'}${filter ? ' ' + filter : ''} to put ${bf ? 'onto the battlefield' : 'into your hand'}`, cards: pool, min: 0, max: Math.min(take, pool.length), purpose: bf ? 'cheat' : 'dig', src: env.src,
@@ -6847,6 +6895,11 @@ on(/^put the exiled card into its owner's hand$/, async (m, env) => {
 async function runSentence(sentence, env) {
   let s = sentence.trim().replace(/\s{2,}/g, ' ').replace(/ ([.,])/g, '$1').replace(/\.$/, '').replace(/^then,? /i, '');
   // Marvel/Spider-Man cards name their creature "he"/"she": "He gets +1/+0 until end of turn"
+  // Karn, Living Legacy: "Look at that many cards from the top of your library" after paying mana
+  if (/^look at that many cards\b/i.test(s) && env.lastAmount != null) {
+    if (!env.lastAmount) return env.did.push('looks at no cards');
+    s = s.replace(/^look at that many cards\b/i, `look at the top ${env.lastAmount} cards`).replace(/ from the top of your library/i, ' of your library');
+  }
   // energy paid earlier in this ability: "the amount of {E} paid this way", "{1} for each {E} paid this way"
   if (env.energyPaid != null && /\{e\} paid this way/i.test(s)) {
     const k = env.energyPaid;

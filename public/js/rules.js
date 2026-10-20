@@ -107,6 +107,7 @@ export function typeLine(inst) {
   if (inst.becameTreasure) return 'Artifact — Treasure'; // Vraska, Betrayal's Sting
   if (inst.bestowed && inst.zone === 'battlefield') return 'Enchantment — Aura'; // bestowed: an Aura, not a creature (702.103)
   let t = printedTypes(inst);
+  if (inst.becameLand && inst.zone === 'battlefield') t = /^Legendary/.test(t) ? 'Legendary Land' : 'Land'; // Princess Yue as Moon
   if (blighted(inst)) t = t.split(' — ')[0];
   if (inst.notLegendary) t = t.replace(/^Legendary /, '');
   // Layer 4, in timestamp order (each one sees the result of the ones before it: Opalescence after March of the Machines…)
@@ -180,6 +181,7 @@ export function isCreature(i) {
   if (!i) return false;
   if (i.faceDown) return true; // morph / manifest / disguise / cloak: a 2/2 creature
   if (i.bestowed && i.zone === 'battlefield') return false; // bestowed: an Aura until what it enchants leaves
+  if (i.becameLand && i.zone === 'battlefield') return false; // Princess Yue as Moon
   if (i.impending && (i.counters || {}).time > 0) return false;
   // layer 4: Opalescence, March of the Machines, Song of the Dryads, Darksteel Mutation… can make it a creature or stop it being one
   const layered = (i.layerFx && i.layerFx.some((e) => e.types)) || (i.zone === 'battlefield' && globalLayerFx().some((g) => g.k === 'opal' || g.k === 'march'));
@@ -721,6 +723,7 @@ function withExtraC(inst, r) {
   return r;
 }
 export function manaAbility(inst) {
+  if (inst.becameLand && inst.zone === 'battlefield') return inst.tapped || inst.phasedOut ? null : withExtraC(inst, { colors: ['C'], amount: 1 });
   if (blighted(inst)) return inst.tapped || inst.phasedOut ? null : withExtraC(inst, { colors: ['C'], amount: 1 });
   // an effect that gave it a mana ability (Imprisoned in the Moon: "{T}: Add {C}")
   for (const e of inst.layerFx || []) if (e.mana) return isCreature(inst) && inst.sick && !hasKw(inst, 'haste') ? null : { colors: e.mana, amount: 1 };

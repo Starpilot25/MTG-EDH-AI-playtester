@@ -586,6 +586,24 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
       return Object.values(G.s.cards).filter((c) => c.zone === 'battlefield' && c.attacking && (am[2] === 'creature' ? true : helpers.hasSubtype(c, am[2][0].toUpperCase() + am[2].slice(1))) && (!am[3] || c.controller === pid) && (!am[1] || c.iid !== srcIid)).length;
     }
   }
+  // Metalwork Colossus: "the total mana value of noncreature artifacts you control"
+  {
+    const tm = p.match(/^(?:the )?(?:total )?mana value of ((?:non)?[a-z]+(?: (?:non)?[a-z]+)?) (you control|on the battlefield)$/);
+    if (tm && G.s) {
+      const words = tm[1].replace(/s$/, '').split(' ');
+      const fits = (c) => {
+        const tl = helpers.typeLine(c).split('—')[0];
+        return words.every((w) => {
+          const neg = /^non/.test(w);
+          const t = (neg ? w.slice(3) : w).replace(/s$/, '');
+          if (t === 'permanent') return true;
+          const has = new RegExp('\\b' + t + '\\b', 'i').test(tl);
+          return neg ? !has : has;
+        });
+      };
+      return Object.values(G.s.cards).filter((c) => c.zone === 'battlefield' && !c.phasedOut && (tm[2] === 'on the battlefield' || c.controller === pid) && fits(c)).reduce((a, c) => a + (DB[c.def].cmc || 0), 0);
+    }
+  }
   // Nettlecyst, Cranial Plating-likes: "artifact and/or enchantment you control", "artifact or creature you control"
   {
     const om = p.match(/^((?:artifact|creature|enchantment|land|planeswalker|battle)s?)(?:, (artifact|creature|enchantment|land|planeswalker|battle)s?,?)? (?:and\/or|or) ((?:artifact|creature|enchantment|land|planeswalker|battle)s?) (you control|your opponents control|an opponent controls|on the battlefield)$/);
