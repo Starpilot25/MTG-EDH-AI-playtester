@@ -622,6 +622,8 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
       return Object.values(G.s.cards).filter((c) => c.zone === 'battlefield' && !c.phasedOut && (tm[2] === 'on the battlefield' || c.controller === pid) && fits(c)).reduce((a, c) => a + (DB[c.def].cmc || 0), 0);
     }
   }
+  // Celebrate the Harvest: "the number of different powers among creatures you control"
+  if (/^different powers among creatures you control$/.test(p) && G.s) return new Set(G.s.players[pid].zones.battlefield.map((i) => G.s.cards[i]).filter((c) => c && helpers.isCreature(c)).map((c) => helpers.power(c))).size;
   // Nettlecyst, Cranial Plating-likes: "artifact and/or enchantment you control", "artifact or creature you control"
   {
     const om = p.match(/^((?:artifact|creature|enchantment|land|planeswalker|battle)s?)(?:, (artifact|creature|enchantment|land|planeswalker|battle)s?,?)? (?:and\/or|or) ((?:artifact|creature|enchantment|land|planeswalker|battle)s?) (you control|your opponents control|an opponent controls|on the battlefield)$/);

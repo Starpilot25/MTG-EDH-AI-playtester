@@ -1007,6 +1007,7 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     });
     if (hitters.length && s.initiative === v) fire({ type: 'takeInitiative', pid: hitters[0] });
     if (hitters.length && s.monarch === v) {
+      if (s.monarch !== hitters[0]) queueEvent({ type: 'becameMonarch', pid: hitters[0] });
       s.monarch = hitters[0];
       log(hitters[0], `${hitters[0] === 'p' ? 'You become' : multiplayer() ? `${seatName(hitters[0])} becomes` : 'The AI becomes'} the monarch.`);
     }

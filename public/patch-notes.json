@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.3.92",
+    "title": "Precon scan, batch 2 (30 cards)",
+    "notes": [
+      "Amulet of Vigor now untaps your permanents that enter tapped (it was entering tapped itself and never triggering).",
+      "Mystic Sanctuary (enters untapped trigger), Dark Depths (Marit Lage when the last ice counter is gone), Darksteel Reactor (wins at 20 charge counters).",
+      "Custodi Lich (\"whenever you become the monarch\"), Captain Ripley Vance (third spell each turn), Alandra (fifth card drawn), Bob, Reluctant HYDRA Agent and Bilbo's Ring (\"attacks alone\").",
+      "Ever-Watching Threshold (an opponent attacks you), Duelist's Heritage (one or more creatures attack), Field of Souls, Boomer Scrapper (a token leaves), Cruel Celebrant, Azlask, Caldaia Guardian, Archon of Redemption, Campsite Cuisine, Fathom Mage.",
+      "Frontier Siege (Khans adds {G}{G} in each of your main phases). Crypt Ghast / Mirari's Wake / Caged Sun no longer show an unparsed trigger (their mana already worked).",
+      "Aether Snap, Bribery, Cavalier of Thorns, Clone Legion, Bladewing, Benevolent Offering, Bloodroot Apothecary, Determined Iteration, Devilish Valet, Endurance, Celebrate the Harvest.",
+      "\"If you do\" after a plain (not optional) action now continues — e.g. Bob returning to hand drains each opponent."
+    ]
+  },
+  {
     "version": "1.3.91",
     "title": "Precon scan, batch 1",
     "notes": [

@@ -140,6 +140,64 @@ function parseTriggerText(text, speed) {
     } else if ((m = line.match(/^Whenever (?:a player|an opponent|you) cycles? (?:a|another) card, (.+)$/i))) {
       add('cycle', m[1], { anyPlayer: /a player/i.test(line), oppOnly: /an opponent/i.test(line) });
     }
+    // ---- precon batch 2
+    // Amulet of Vigor: "Whenever a permanent you control enters tapped, untap it."
+    else if ((m = line.match(/^Whenever (?:a|another) (permanent|creature|land|artifact) you control enters tapped, (.+)$/i)))
+      add('enters', m[2], { mine: true, kind: m[1].toLowerCase() === 'permanent' ? '' : m[1].toLowerCase(), enteredTapped: true });
+    // Mystic Sanctuary & co.: "When ~ enters untapped"
+    else if ((m = line.match(/^When ~ enters untapped, (.+)$/i)))
+      add('enters', m[1], { self: true, untappedOnly: true });
+    // Dark Depths: "When ~ has no ice counters on it"; Darksteel Reactor: "When ~ has twenty or more charge counters on it"
+    else if ((m = line.match(/^When ~ has no ([a-z]+) counters on it, (.+)$/i)))
+      add('stateCounters', m[2], { self: true, kind: m[1].toLowerCase(), cmp: 'none' });
+    else if ((m = line.match(/^When ~ has (\w+) or more ([a-z+\/1-]+) counters on it, (.+)$/i)))
+      add('stateCounters', m[3], { self: true, kind: m[2].toLowerCase(), cmp: 'atLeast', n: { ten: 10, twenty: 20, five: 5, seven: 7, three: 3, four: 4, six: 6, eight: 8, nine: 9, fifteen: 15 }[m[1].toLowerCase()] || +m[1] || 1 });
+    // Custodi Lich: "Whenever you become the monarch"
+    else if ((m = line.match(/^Whenever you become the monarch, (.+)$/i)))
+      add('becameMonarch', m[1], {});
+    // Captain Ripley Vance: "Whenever you cast your third spell each turn"
+    else if ((m = line.match(/^Whenever you cast your (third|fourth|fifth) spell each turn, (.+)$/i)))
+      add('cast', m[2], { spell: '', mine: true, nth: { third: 3, fourth: 4, fifth: 5 }[m[1].toLowerCase()] });
+    // Alandra: "Whenever you draw your fifth card each turn"
+    else if ((m = line.match(/^Whenever you draw your (third|fourth|fifth|sixth|seventh) card each turn, (.+)$/i)))
+      add('draw', m[2], { who: 'you', nthDraw: { third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7 }[m[1].toLowerCase()] });
+    // Bob, Bilbo's Ring: "Whenever ~ attacks alone", "Whenever equipped creature attacks alone"
+    else if ((m = line.match(/^Whenever ~ attacks alone, (.+)$/i)))
+      add('attacksAlone', m[1], { self: true });
+    else if ((m = line.match(/^Whenever (?:equipped|enchanted) creature attacks alone, (.+)$/i)))
+      add('attacksAlone', m[1], { attachedTo: true });
+    // Ever-Watching Threshold: "Whenever an opponent attacks, if they attacked you and/or a planeswalker you control"
+    else if ((m = line.match(/^Whenever an opponent attacks(?:, if they attacked you and\/or a planeswalker you control| you(?: and\/or planeswalkers you control)?)?, (.+)$/i)))
+      add('youAttack', m[1], { defend: true });
+    // Duelist's Heritage: "Whenever one or more creatures attack"
+    else if ((m = line.match(/^Whenever one or more creatures attack, (.+)$/i)))
+      add('youAttack', m[1], { anyAttacker: true });
+    // Field of Souls: "Whenever a nontoken creature is put into your graveyard from the battlefield"
+    else if ((m = line.match(/^Whenever a (nontoken )?creature is put into your graveyard from the battlefield, (.+)$/i)))
+      add('dies', m[2], { mine: true, nontoken: !!m[1] });
+    // Boomer Scrapper: "Whenever a token you control leaves the battlefield"
+    else if ((m = line.match(/^Whenever a token you control leaves the battlefield, (.+)$/i)))
+      add('leaves', m[1], { mine: true, kind: 'token' });
+    // Cruel Celebrant, Azlask, Caldaia Guardian: "Whenever ~ or another creature or planeswalker / colorless creature / creature … with mana value 4 or greater … you control dies"
+    else if ((m = line.match(/^Whenever ~ or another (creature or planeswalker|colorless creature|creature) you control( with mana value \d+ or greater)? dies, (.+)$/i))) {
+      add('dies', m[3], { self: true });
+      add('dies', m[3], { other: true, mine: true, kind: m[1].toLowerCase() === 'creature' ? (m[2] ? 'creature' + m[2] : '') : m[1].toLowerCase(), noncreatureToo: /planeswalker/i.test(m[1]) });
+    }
+    // Archon of Redemption, Campsite Cuisine: "Whenever ~ or another creature you control with flying enters", "~ or a legendary creature you control enters"
+    else if ((m = line.match(/^Whenever ~ or (?:another|a|an) ((?:[\w-]+ )?creature) you control( with [a-z ]+?)? enters, (.+)$/i))) {
+      add('enters', m[3], { self: true });
+      add('enters', m[3], { other: true, mine: true, kind: (m[1] + (m[2] || '')).toLowerCase().trim() });
+    }
+    // Fathom Mage: "Whenever a +1/+1 counter is put on ~"
+    else if ((m = line.match(/^Whenever a (\+1\/\+1|[a-z]+) counter is put on ~, (.+)$/i)))
+      add('counterPut', m[2], { self: true, kind: m[1].toLowerCase() });
+    // Crypt Ghast, Mirari's Wake, Caged Sun: mana abilities handled when the mana is made (rules.js)
+    else if (/^Whenever (?:you tap|a player taps) (?:a|an) [^,]*for mana, add /i.test(line) || /^Whenever a land's ability causes you to add/i.test(line)) void 0;
+    // Frontier Siege (Khans): "At the beginning of each of your main phases, add {G}{G}."
+    else if ((m = line.match(/^At the beginning of each of your main phases, (.+)$/i))) {
+      add('mainPhase', m[1], { whose: 'your' });
+      add('main2', m[1], { whose: 'your' });
+    }
     else if ((m = line.match(/^When(?:ever)? ~ (?:enters?|enters? the battlefield)(?: or attacks| or dies| or deals combat damage to a player)?(?: under your control)?(?: from your graveyard| from exile)?, (.+)$/i))) {
       add('enters', m[1], { self: true });
       if (/or attacks/i.test(line)) add('attacks', m[1], { self: true });
@@ -488,6 +546,26 @@ function parseTriggerText(text, speed) {
     }
   }
   return out;
+}
+
+// "When ~ has no ice counters on it" / "… twenty or more charge counters on it": triggers once when it becomes true
+function stateTriggerCheck() {
+  if (!G.s) return;
+  for (const pid of seats()) for (const iid of G.s.players[pid].zones.battlefield) {
+    const c = G.s.cards[iid];
+    if (!c || c.phasedOut || !/ has (?:no|\w+ or more) [a-z+\/1-]+ counters on it/.test(oracle(c))) continue;
+    for (const trig of triggersOf(c)) {
+      if (trig.event !== 'stateCounters') continue;
+      const k = (c.counters || {})[trig.kind] || 0;
+      const on = trig.cmp === 'none' ? k === 0 && c.hadCtr && c.hadCtr[trig.kind] : k >= trig.n;
+      if (k > 0) (c.hadCtr = c.hadCtr || {})[trig.kind] = true;
+      c.stFired = c.stFired || {};
+      if (on && !c.stFired[trig.raw]) {
+        c.stFired[trig.raw] = true;
+        queueEvent({ type: 'stateCounters', iid: c.iid, raw: trig.raw });
+      } else if (!on) c.stFired[trig.raw] = false;
+    }
+  }
 }
 
 // ------------------------------------------------------------ keyword triggers
@@ -946,10 +1024,11 @@ function matches(ev) {
       const nc = card(ev.iid);
       if (!nc) break;
       // the permanent's own "when ~ enters"
-      if (!nc.faceDown) for (const trig of triggersOf(nc)) if (trig.event === 'enters' && trig.self) out.push({ src: nc, trig });
+      if (!nc.faceDown) for (const trig of triggersOf(nc)) if (trig.event === 'enters' && trig.self && !(trig.untappedOnly && nc.tapped)) out.push({ src: nc, trig });
       const seenOnce = new Set();
       each((c, trig) => {
         if (trig.event !== 'enters' || trig.self) return;
+        if (trig.enteredTapped && !nc.tapped) return; // Amulet of Vigor
         if (trig.other === true && c.iid === nc.iid && !trig.kw) return;
         if (c.iid === nc.iid && trig.kw) return;
         if (trig.mine && nc.controller !== c.controller) return;
@@ -1139,12 +1218,14 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'attacksAlone') return;
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender });
+        else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
         else if (trig.anyOfMine && c.controller === ev.controller) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
       });
       break;
     case 'youAttack':
       each((c, trig) => {
         if (trig.event !== 'youAttack') return;
+        if (trig.anyAttacker) { out.push({ src: c, trig, thatPlayer: ev.controller }); return; }
         if (trig.defend) {
           if (c.controller !== ev.defender || c.controller === ev.controller) return;
           if (trig.minCount && ((G.s.combat && G.s.combat.attackers) || []).filter((a) => ((G.s.combat.targets || {})[a] || ev.defender) === c.controller || (card((G.s.combat.targets || {})[a]) || {}).controller === c.controller).length < trig.minCount) return;
@@ -1275,6 +1356,7 @@ function matches(ev) {
         if (trig.first && (trig.spell ? nthOfKind() !== 1 : ts.spells !== 1)) return;
         if (trig.firstNotHand && (ts.spellsNotHand || 0) !== 1) return;
         if (trig.second && (trig.spell ? nthOfKind() !== 2 : ts.spells !== 2)) return;
+        if (trig.nth && ts.spells !== trig.nth) return; // Captain Ripley Vance: your third spell
         if (!spellMatches(trig.spell, d, sc)) return;
         // "a spell with mana value 4 or greater / 2 or less"
         if (trig.mvMin !== undefined && (d.cmc || 0) < trig.mvMin) return;
@@ -1302,7 +1384,7 @@ function matches(ev) {
       break;
     }
     case 'draw':
-      each((c, trig) => trig.event === 'draw' && whoOk(trig.who, c, ev.pid) && (!trig.second || ev.nth === 2) && out.push({ src: c, trig, thatPlayer: ev.pid }));
+      each((c, trig) => trig.event === 'draw' && whoOk(trig.who, c, ev.pid) && (!trig.second || ev.nth === 2) && (!trig.nthDraw || ev.nth === trig.nthDraw) && out.push({ src: c, trig, thatPlayer: ev.pid }));
       break;
     case 'discard':
       each((c, trig) => trig.event === 'discard' && whoOk(trig.who, c, ev.pid) && (!trig.kind || (card(ev.iid) && matchesFilter({ ...card(ev.iid), zone: 'battlefield' }, trig.kind.replace(/^non(\w)/, 'non$1')))) && out.push({ src: c, trig, thatPlayer: ev.pid, it: { iid: ev.iid } }));
@@ -1401,6 +1483,16 @@ function matches(ev) {
     case 'votingDone':
       each((c, trig) => trig.event === 'votingDone' && out.push({ src: c, trig }));
       break;
+    // Custodi Lich: "Whenever you become the monarch"
+    case 'becameMonarch':
+      each((c, trig) => trig.event === 'becameMonarch' && c.controller === ev.pid && out.push({ src: c, trig }));
+      break;
+    // Dark Depths, Darksteel Reactor: a state trigger noticed by settle()
+    case 'stateCounters': {
+      const sc = card(ev.iid);
+      if (sc && sc.zone === 'battlefield') for (const trig of triggersOf(sc)) if (trig.event === 'stateCounters' && trig.raw === ev.raw) out.push({ src: sc, trig });
+      break;
+    }
     case 'leftGraveyard':
       each((c, trig) => trig.event === 'leftGraveyard' && c.controller === ev.owner && (!trig.kind || (ev.defs || [ev.def]).some((df) => df && DB[df] && (trig.kind === 'nonland' ? !/\bLand\b/.test(DB[df].typeLine || '') : trig.kind === 'permanent' ? /Artifact|Creature|Enchantment|Land|Planeswalker|Battle/.test(DB[df].typeLine || '') : new RegExp(trig.kind.split(' ')[0], 'i').test(DB[df].typeLine || '')))) && out.push({ src: c, trig, amount: ev.n }));
       break;
@@ -1640,6 +1732,7 @@ export async function settle() {
   try {
     let guard = 0;
     let processed = 0; // runaway loops (Scute Swarm copying itself on every landfall…) stop after 400 events, as before
+    stateTriggerCheck();
     while (eventQueue.length && guard++ < 400 && processed < 400) {
       // everything that happened at once triggers together: collect the whole batch, then put it on the stack
       // (active player's first, so the other player's resolve first), letting you order your own

@@ -90,7 +90,7 @@ export function stripName(text, c) {
   const word = (x) => new RegExp('(?<![A-Za-z])' + esc_(x) + '(?![A-Za-z])', 'g');
   let t = String(text || '').replace(word(name), '~');
   const short = name.split(',')[0];
-  if (short.length > 3 && short !== name) t = t.replace(word(short), '~');
+  if ((short.length > 3 || (short.length === 3 && /^[A-Z][a-z]+$/.test(short) && c && DB[c.def] && /Legendary/.test(DB[c.def].typeLine || ''))) && short !== name) t = t.replace(word(short), '~'); // "Bob" too
   // "Gríma, Saruman's Footman" is written "Grima" in its own text
   const plain = (x) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (plain(short) !== short && short.length > 3) t = t.replace(word(plain(short)), '~').replace(word(plain(name)), '~');
@@ -4418,9 +4418,10 @@ on(/^for each (player|opponent), choose up to one target ([a-z ]+?) card in that
   env.it = picks[0] ? { iid: picks[0] } : null;
   env.did.push(picks.length ? `chooses ${picks.map((i) => nameTag(card(i))).join(', ')}` : 'chooses nothing');
 }, { first: true });
-on(/^(?:put|return) those cards onto the battlefield under your control$/, async (m, env) => {
+on(/^(?:put|return) those cards onto the battlefield( tapped)?(?: under your control)?$/, async (m, env) => {
   const ids = (env.them_ || []).filter((i) => card(i) && card(i).zone !== 'battlefield');
-  for (const i of ids) toBattlefield(i, env.me);
+  if (!ids.length) return env.them_ ? undefined : 'pass'; // already put there by the search (Celebrate the Harvest)
+  for (const i of ids) toBattlefield(i, env.me, { tapped: !!m[1] });
   env.did.push(ids.length ? `puts ${ids.map((i) => nameTag(card(i))).join(', ')} onto the battlefield` : 'puts nothing onto the battlefield');
 }, { first: true });
 on(/^they're ([a-z]+)s in addition to their other types$/, async (m, env) => {
@@ -4442,6 +4443,80 @@ on(/^(?:draw a card, then )?exile a card from your hand face down\. it becomes f
   Object.assign(c, { faceDown: true, foretold: true, foretoldTurn: G.s.turn, faceDownOwnerSees: true, foretellCost: mc.replace(/\{\d+\}/, red ? `{${red}}` : '') || '{0}' });
   env.did.push(`${who(env.me)} ${s_(env.me, 'foretell')} a card`);
 }, { first: true, multi: true });
+// ---- precon batch 2
+// Archon of Redemption: "you may gain life equal to that creature's power"
+on(/^gain life equal to (.+)$/, async (m, env) => {
+  const k = amountOf('equal to ' + m[1], env);
+  changeLife(env.me, k, false);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'gain')} ${k} life`);
+}, { first: true });
+// Aether Snap: "Remove all counters from all permanents and exile all tokens."
+on(/^remove all counters from all permanents and exile all tokens$/, async (m, env) => {
+  for (const c of seats().flatMap((k) => cardsIn(k, 'battlefield'))) c.counters = {};
+  const toks = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter((c) => c.token);
+  for (const t of toks) move(t.iid, 'exile');
+  env.did.push(`removes all counters and exiles ${toks.length} token${toks.length === 1 ? '' : 's'}`);
+}, { first: true });
+// Bribery: "Search target opponent's library for a creature card and put that card onto the battlefield under your control. Then that player shuffles."
+on(/^search target opponent's library for an? ([a-z ]+?) card and put that card onto the battlefield under your control(?:\. then that player shuffles)?$/, async (m, env) => {
+  const [o] = await playerTarget(env, 'target opponent');
+  if (!o) return;
+  const pool = zoneOf(o, 'library').map(card).filter((c) => c && matchesFilter(c, m[1]));
+  const [p] = pool.length ? await env.choosers[env.me].pickCards({ prompt: `Search ${seatName(o)}'s library for a ${m[1]} card`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'tutor', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 }) : [];
+  if (p) toBattlefield(p, env.me);
+  shuffle(o);
+  env.did.push(p ? `puts ${nameTag(card(p))} from ${whoseLib(o)} library onto the battlefield` : 'finds nothing');
+}, { first: true, multi: true });
+// Aspiring Champion & co.: "then shuffle the rest into your library"
+on(/^(?:then )?shuffle the rest into your library$/, async (m, env) => {
+  shuffle(env.me);
+}, { first: true });
+// Cavalier of Thorns: "put another target card from your graveyard on top of your library"
+on(/^put (?:another )?target card from your graveyard on top of your library$/, async (m, env) => {
+  const pool = cardsIn(env.me, 'graveyard').filter((c) => !env.src || c.iid !== env.src.iid);
+  if (!pool.length) return env.did.push('has no card to put back');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Put a card from your graveyard on top of your library', cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'recur', src: env.src, aiScore: (c) => (isLand(c) ? 0 : DB[c.def].cmc || 0) });
+  if (!p) return;
+  move(p, 'library');
+  env.did.push(`puts ${nameTag(card(p))} on top of the library`);
+}, { first: true });
+// Clone Legion: "For each creature target player controls, create a token that's a copy of that creature."
+on(/^for each creature target player controls, create a token that's a copy of that creature$/, async (m, env) => {
+  const [pid] = await playerTarget(env, 'target player', false);
+  if (!pid) return;
+  const made = [];
+  for (const c of cardsIn(pid, 'battlefield').filter(isCreature)) made.push(...createToken(c.def, env.me, 1));
+  env.them_ = made;
+  env.did.push(`creates ${made.length} token cop${made.length === 1 ? 'y' : 'ies'}`);
+}, { first: true });
+// Benevolent Offering, Bloodroot Apothecary: "You and that player each create …", "you and target opponent each create a Treasure token"
+on(/^you and (that player|target opponent|that opponent) each create (.+)$/, async (m, env) => {
+  const o = m[1] === 'target opponent' ? (await playerTarget(env, 'target opponent'))[0] : env.thatPlayer || opp(env.me);
+  await runSentence(`create ${m[2]}`, env);
+  if (o) await runSentence(`create ${m[2]}`, { ...env, me: o });
+}, { first: true });
+// Determined Iteration: "The token created this way gains haste."
+on(/^the tokens? created this way gains? haste$/, async (m, env) => {
+  const ids = (env.made || env.them_ || []).filter((i) => card(i));
+  for (const i of ids) card(i).eotGrants = [...(card(i).eotGrants || []), 'haste'];
+  if (/sacrifice it at the beginning of the next end step/i.test(env.text || '')) for (const i of ids) card(i).endOfTurn = 'sacrifice';
+}, { first: true });
+// Devilish Valet: "double ~'s power until end of turn"
+on(/^double (~'s|its|target creature's|that creature's) power until end of turn$/, async (m, env) => {
+  const c = /^~/.test(m[1]) ? env.src && card(env.src.iid) : /target/.test(m[1]) ? (await objects(env, 'target creature', { harm: false }))[0] : env.it && env.it.iid && card(env.it.iid);
+  if (!c || c.zone !== 'battlefield') return;
+  const p = Math.max(0, power(c));
+  pumpEOT(c, { p, t: 0 });
+  env.did.push(`${nameTag(c)}'s power doubles to ${p * 2}`);
+}, { first: true });
+// Endurance: "up to one target player puts all the cards from their graveyard on the bottom of their library in a random order"
+on(/^(?:up to one )?target player puts all the cards from their graveyard on the bottom of their library in a random order$/, async (m, env) => {
+  const [pid] = await playerTarget(env, 'target player');
+  if (!pid) return;
+  const ids = zoneOf(pid, 'graveyard').slice().sort(() => Math.random() - 0.5);
+  for (const i of ids) move(i, 'library', { to: 'bottom' });
+  env.did.push(`${who(pid)} ${s_(pid, 'put')} ${ids.length} card${ids.length === 1 ? '' : 's'} from the graveyard on the bottom of the library`);
+}, { first: true });
 on(/^bolster (\w+)/, async (m, env) => {
   const cs = cardsIn(env.me, 'battlefield').filter(isCreature).sort((a, b) => toughness(a) - toughness(b));
   if (!cs.length) return;
@@ -5997,6 +6072,7 @@ on(/^prevent all (?:combat )?damage that would be dealt (?:to and dealt )?by (.+
   env.did.push(`prevents damage from ${objs.map(nameTag).join(', ')}`);
 });
 on(/^(?:you )?become the monarch/, async (m, env) => {
+  if (G.s.monarch !== env.me) queueEvent({ type: 'becameMonarch', pid: env.me });
   G.s.monarch = env.me;
   env.did.push(`${who(env.me)} ${env.me === 'p' ? 'become' : 'becomes'} the monarch`);
 });
@@ -7092,9 +7168,10 @@ async function runSentence(sentence, env) {
     const k = env.energyPaid;
     s = s.replace(/\{1\} for each \{e\} paid this way/i, `{${k}}`).replace(/(?:to )?the amount of \{e\} paid this way/gi, (x) => (/^to /i.test(x) ? 'to ' : '') + k);
   }
+  s = s.replace(/^(return|exile|sacrifice|tap|untap|destroy) (?:him|her)\b/i, '$1 it').replace(/\b(?:his|her) owner's\b/gi, "its owner's"); // Bob: "return him to his owner's hand"
   s = s.replace(/^(?:he|she) (?=gets|gains|has|can't|connives|fights|explores|becomes|loses|attacks|blocks|isn't)/i, 'it ');
   // Brass's Bounty: "For each land you control, create a Treasure token." → "create a Treasure token for each land you control"
-  s = s.replace(/^for each ([^,]+), create (a|an|one|two|three) (.+? tokens?)$/i, 'create $2 $3 for each $1');
+  s = s.replace(/^for each ([^,]+), create (a|an|one|two|three) (.+? tokens?(?: with [a-z ,]+)?)$/i, 'create $2 $3 for each $1');
   // voting results: "For each evidence vote, investigate.", "… for each feather vote and draw a card for each quill vote",
   // "create a number of Treasure tokens equal to twice the number of profit votes", "draw cards equal to the number of truth votes"
   if (env.votes && env.votes.kind === 'words' && /\bvotes?\b/i.test(s) && !/gets more votes|each player (?:secretly )?votes for/i.test(s)) {
@@ -7194,7 +7271,8 @@ async function runSentence(sentence, env) {
     }
   }
   if ((m = low.match(/^if you do, (.+)$/))) {
-    if (!env.lastMay) return;
+    // after a "you may …" (or a cost that can fail) only if it was done; after a plain action ("Return him to his owner's hand. If you do, …") it was
+    if (env.lastMay === false || (env.lastMay === undefined && /\byou may\b/i.test(env.text || ''))) return;
     return runSentence(s.slice(s.toLowerCase().indexOf('if you do,') + 10).trim(), env);
   }
   if ((m = low.match(/^if you don't, (.+)$/))) {
@@ -7474,7 +7552,7 @@ async function fetchLands(t, me, choose, src, did, env) {
   const basic = /basic/.test(t);
   const types = (t.match(/search your library for [^.]*?card/) || [''])[0].match(/forest|island|swamp|mountain|plains/g) || [];
   const m = t.match(/up to (\w+) (?:basic )?land cards?|up to (\w+) basic|up to (\w+) cards?|up to (\w+) (?:forest|island|swamp|mountain|plains)(?:,? (?:and\/)?or (?:forest|island|swamp|mountain|plains))* cards?/);
-  const count = m ? n(m[1] || m[2] || m[3] || m[4]) : /two basic land|two land/.test(t) ? 2 : 1;
+  const count = m ? n(m[1] || m[2] || m[3] || m[4], env && env.x) : /two basic land|two land/.test(t) ? 2 : 1;
   const cands = lib.map(card).filter((c) => {
     if (!isLand(c)) return false;
     if (basic && !/Basic/.test(DB[c.def].typeLine)) return false;
@@ -7526,6 +7604,7 @@ async function fetchLands(t, me, choose, src, did, env) {
     else move(iid, 'hand');
   }
   if (env) env.it = picks[0] ? { iid: picks[0] } : null;
+  if (env) env.them_ = picks.slice();
   if (picks.length) did.push(`searches for ${picks.map((i) => nameTag(card(i))).join(' and ')}`);
 }
 

@@ -542,7 +542,8 @@ function permMatches(x, phrase) {
 export function entersTapped(c, o = oracle(c).replace(/\([^)]*\)/g, '')) {
   const s = G.s;
   const pid = c.controller;
-  const line = (o.match(/[^\n]*enters?(?: the battlefield)? tapped[^\n]*/i) || [])[0];
+  // its own "enters tapped" line — not a trigger about other permanents entering tapped (Amulet of Vigor) or a static for others
+  const line = o.split('\n').find((l) => /enters?(?: the battlefield)? tapped/i.test(l) && !/^\s*(?:When|Whenever|At)\b/i.test(l) && !/(?:you control|opponents? controls?|permanents|creatures|lands) enters? (?:the battlefield )?tapped/i.test(l));
   if (!line) return false;
   const others = cardsIn(pid, 'battlefield').filter((x) => x.iid !== c.iid);
   let m;
@@ -1047,6 +1048,7 @@ function leaveGame(pid) {
   // the monarch / initiative passes to the active player (or the next player, if it was their own turn)
   const heir = s.active && s.active !== pid && inGame(s.active) ? s.active : nextSeat(pid);
   if (s.monarch === pid) {
+    if (s.monarch !== heir) queueEvent({ type: 'becameMonarch', pid: heir });
     s.monarch = heir;
     log(heir, `${heir === 'p' ? 'You become' : s.players[heir].name + ' becomes'} the monarch.`);
   }
