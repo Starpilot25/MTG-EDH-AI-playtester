@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.81",
+    "title": "Scute Swarm freeze fixed, faster big boards",
+    "notes": [
+      "Scute Swarm: with six or more lands it was copying the land that entered instead of itself — each copied land triggered landfall again, so the game froze. It now copies Scute Swarm, as written.",
+      "Safety limit: each player can have at most 200 tokens. Anything beyond that isn't created (the log says so), so runaway token loops can't lock up the game.",
+      "Big boards are much faster: checks that used to rescan every permanent for every card are now cached, so 100+ creatures (e.g. a pile of Scute Swarms) no longer bogs the game down."
+    ]
+  },
+  {
     "version": "1.3.80",
     "title": "Princess Yue, Metalwork Colossus, Karn Living Legacy, All Is Dust",
     "notes": [

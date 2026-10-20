@@ -347,6 +347,7 @@ export function move(iid, zone, opts = {}) {
   const c = s.cards[iid];
   if (!c) return;
   const fromZone = c.zone;
+  if (fromZone === 'battlefield' || zone === 'battlefield') s.bfv = (s.bfv || 0) + 1; // board changed (rules.js caches by this)
   const fromCtl = fromZone === 'battlefield' ? c.controller : c.owner;
   let requested = zone;
   // replacements: finality counters, "exile it if it would leave", Rest in Peace and friends
@@ -1417,6 +1418,7 @@ function tokenAdditions(defId, pid, n) {
   return { same, other };
 }
 
+export const TOKEN_CAP = 200;
 export function createToken(defId, pid, n = 1, opts = {}) {
   defId = canonicalToken(defId);
   // Divine Visitation: "If one or more creature tokens would be created under your control, that many 4/4 white Angel creature
@@ -1437,6 +1439,16 @@ export function createToken(defId, pid, n = 1, opts = {}) {
   count += add.same;
   if (!opts.noDouble) for (let k = 0; k < repl('tokenDouble', pid); k++) count *= 2;
 
+  // safety valve: Scute Swarm doubling, token loops — stop at TOKEN_CAP tokens per player so the game can't grind to a halt
+  const have = G.s ? cardsIn(pid, 'battlefield').filter((c) => c.token).length : 0;
+  if (have + count > TOKEN_CAP) {
+    const allowed = Math.max(0, TOKEN_CAP - have);
+    if (G.s && G.s.tokenCapWarned !== G.s.turn) {
+      G.s.tokenCapWarned = G.s.turn;
+      log(pid, `Token limit reached: ${pid === 'p' ? 'you' : 'the AI'} can have at most ${TOKEN_CAP} tokens, so ${count - allowed} token${count - allowed === 1 ? ' wasn\'t' : "s weren't"} created.`);
+    }
+    count = allowed;
+  }
   for (let k = 0; k < count; k++) {
     const iid = makeCard(defId, pid, null, { token: true, ...(opts.extra || {}) });
     toBattlefield(iid, pid, { tapped: opts.tapped });

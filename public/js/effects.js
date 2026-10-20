@@ -3893,7 +3893,9 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
   const of = m[2];
   if (/target/.test(of)) [orig] = await objects(env, of, { harm: false });
   else if (/equipped|enchanted/.test(of)) orig = env.src.attachedTo ? card(env.src.attachedTo) : null;
-  else if (/^(?:~|it|that creature|that card|the exiled card|the discarded card|the sacrificed creature)/.test(of)) orig = env.it && env.it.iid ? card(env.it.iid) || null : env.src;
+  // "a copy of ~" is always this card (Scute Swarm on landfall: not the land that entered)
+  else if (/^~/.test(of)) orig = (env.src && card(env.src.iid)) || env.src;
+  else if (/^(?:it|that creature|that card|the exiled card|the discarded card|the sacrificed creature)/.test(of)) orig = env.it && env.it.iid ? card(env.it.iid) || null : env.src;
   if (!orig && /^(?:~|it)/.test(of)) orig = env.src;
   if (!orig) return env.did.push('has nothing to copy');
   const made = createToken(orig.def, env.me, count, { tapped: /tapped/.test(m[1]) });

@@ -326,22 +326,40 @@ export function emblemObjects(pid) {
 }
 
 // permanents (and emblems) that have anthem-style effects, with their parsed statics
+// short-lived caches (same game, same board version, same synchronous run) — big boards stay fast
+const tickCache = { s: null, v: -1, field: null, anthems: null };
+function tick() {
+  const v = (G.s && G.s.bfv) || 0;
+  if (tickCache.s !== G.s || tickCache.v !== v) {
+    if (tickCache.s === null) queueMicrotask(() => { tickCache.s = null; tickCache.field = tickCache.anthems = null; });
+    tickCache.s = G.s;
+    tickCache.v = v;
+    tickCache.field = tickCache.anthems = null;
+  }
+  return tickCache;
+}
 function anthemSources() {
   if (readCache.on && readCache.anthems) return readCache.anthems;
+  const tc = tick();
+  if (tc.anthems) return tc.anthems;
   const res = [];
   for (const src of field()) {
     const st = staticsOf(src);
     if (st.anthems.length) res.push([src, st]);
   }
   if (readCache.on) readCache.anthems = res;
+  tc.anthems = res;
   return res;
 }
 
 function field() {
   if (!G.s) return [];
   if (readCache.on && readCache.field) return readCache.field;
+  const tc = tick();
+  if (tc.field) return tc.field;
   const res = fieldRaw();
   if (readCache.on) readCache.field = res;
+  tc.field = res;
   return res;
 }
 function fieldRaw() {

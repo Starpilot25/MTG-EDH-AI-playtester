@@ -43,9 +43,21 @@ function layerFlags(def) {
   }
   return d._lf;
 }
+// Short-lived cache: valid for the same game, the same board version and the same synchronous run of code
+// (cleared on the next microtask), so a big board (Scute Swarm making 100+ copies) doesn't rescan every permanent
+// for every type check.
+let glfCache = null;
 export function globalLayerFx() {
   if (!G.s) return [];
   if (readCache.on && readCache.layerFx) return readCache.layerFx;
+  if (glfCache && glfCache.s === G.s && glfCache.v === (G.s.bfv || 0)) return glfCache.out;
+  const out = computeGlobalLayerFx();
+  glfCache = { s: G.s, v: G.s.bfv || 0, out };
+  queueMicrotask(() => { glfCache = null; });
+  if (readCache.on) readCache.layerFx = out;
+  return out;
+}
+function computeGlobalLayerFx() {
   const out = [];
   for (const pid of seats())
     for (const iid of G.s.players[pid].zones.battlefield) {
