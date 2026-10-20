@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.86",
+    "title": "Clearer step toggle",
+    "notes": [
+      "The step button is now a two-way switch right after the turn steps: \"Each step\" (your turn stops in untap, upkeep and draw) or \"Fast\" (straight to your main phase). The selected side is highlighted in gold to match the table."
+    ]
+  },
+  {
     "version": "1.3.85",
     "title": "Fast-forward toggle",
     "notes": [

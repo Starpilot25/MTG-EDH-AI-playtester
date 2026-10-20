@@ -177,7 +177,7 @@ button.big { padding: 11px 26px; font-size: 17px; }
 /* ============================================================ table */
 #table { height: 100%; display: flex; flex-direction: column; }
 .topbar {
-  display: flex; align-items: center; gap: 14px;
+  display: flex; align-items: center; gap: 12px;
   padding: 8px 14px;
   background: var(--felt);
   border-bottom: 1px solid var(--line);
@@ -192,7 +192,7 @@ button.big { padding: 11px 26px; font-size: 17px; }
 .steps { display: flex; list-style: none; margin: 0; padding: 0; gap: 2px; flex-wrap: wrap; }
 .steps li {
   font: 500 13px var(--f-display); letter-spacing: 0.05em;
-  padding: 3px 9px; border-radius: 999px; color: var(--muted);
+  padding: 3px 8px; border-radius: 999px; color: var(--muted);
 }
 .steps li.past { color: #6c8078; }
 .steps li.on { background: var(--brass); color: var(--brass-ink); font-weight: 700; }
@@ -899,5 +899,8 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .pool-pip .ms { font-size: 13px; }
 .pool-pip i { font-style: normal; font-weight: 700; font-size: 11px; }
 .pool-pip.only .ms { outline: 1.5px dashed var(--brass); outline-offset: 1px; }
-#btn-steps { white-space: nowrap; min-width: 36px; padding-left: 8px; padding-right: 8px; font-size: 15px; }
-#btn-steps.on { border-color: var(--brass); color: var(--brass); }
+/* Every step / Skip to main: a two-way switch next to Next step */
+#btn-steps.steps-toggle { display: inline-flex; padding: 3px; gap: 2px; white-space: nowrap; }
+#btn-steps .st-a, #btn-steps .st-b { padding: 3px 5px; border-radius: 6px; font-size: 11px; line-height: 1.2; opacity: 0.55; transition: background 0.15s, opacity 0.15s; }
+#btn-steps:not(.fast) .st-a, #btn-steps.fast .st-b { background: rgb(211 170 82 / 0.18); color: var(--brass); opacity: 1; font-weight: 600; }
+#btn-steps.steps-toggle { margin-left: -6px; flex: none; background: rgb(255 255 255 / 0.04); padding: 2px; }

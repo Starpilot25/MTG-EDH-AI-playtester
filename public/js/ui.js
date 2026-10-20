@@ -460,7 +460,7 @@ function renderTop() {
     const every = G.settings.everyStep !== false;
     const bs = $('#btn-steps');
     if (bs) {
-      bs.textContent = every ? '⏯' : '⏩';
+      bs.classList.toggle('fast', !every);
       bs.title = every ? 'Every step: your turn stops in untap, upkeep and draw. Click to fast-forward to your main phase instead.' : 'Fast: your turn goes straight to your main phase. Click to stop at every step.';
       bs.classList.toggle('on', !every);
     }
