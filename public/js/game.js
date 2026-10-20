@@ -949,7 +949,9 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
       dpl.poison += ev.amount;
       lines.push(`${nameTag(src)} gives ${ev.amount} poison`);
     } else {
+      G.s.damageNow = true;
       setLife(victim, dpl.life - ev.amount, false);
+      G.s.damageNow = false;
       toPlayer += ev.amount;
       toEach[victim] = (toEach[victim] || 0) + ev.amount;
       if (ev.commander) dpl.cmdDmg[ev.from] = (dpl.cmdDmg[ev.from] || 0) + ev.amount;

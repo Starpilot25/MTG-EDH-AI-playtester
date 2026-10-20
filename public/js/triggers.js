@@ -208,6 +208,15 @@ function parseTriggerText(text, speed) {
       add('combatDamagePlayer', m[1], { anyOfMine: true, enchanted: true });
     else if ((m = line.match(/^Whenever one or more (?:other )?cards? leave your graveyard, (.+)$/i)))
       add('leftGraveyard', m[1], { mine: true }); // Advanced Reconstruction (level 2)
+    // Cyan, Grim Reaper's Scythe: "Whenever one or more creature cards leave your graveyard"
+    else if ((m = line.match(/^Whenever one or more (creature|artifact|land|nonland|permanent|instant and\/or sorcery) cards leave your graveyard, (.+)$/i)))
+      add('leftGraveyard', m[2], { mine: true, kind: m[1].toLowerCase() });
+    // Mirelurk Queen: "Whenever one or more nonland cards are milled"
+    else if ((m = line.match(/^Whenever one or more (nonland |land |creature )?cards are milled, (.+)$/i)))
+      add('mill', m[2], { kind: (m[1] || '').trim(), anyPlayer: true });
+    // Darien, Sun Droplet: "Whenever you're dealt damage"
+    else if ((m = line.match(/^Whenever you're dealt damage, (.+)$/i)))
+      add('lifeLost', m[1], { who: 'you', byDamage: true });
     else if ((m = line.match(/^Whenever one or more (?:other )?cards? (?:are put into|leave) your graveyard(?: from anywhere)?, (.+)$/i)))
       add('putIntoGraveyard', m[1], { mine: true });
     // theft decks: Don Andres, Gonti, Brainstealer Dragon, Breeches, J. Jonah Jameson, Labyrinth Raptor
@@ -247,8 +256,13 @@ function parseTriggerText(text, speed) {
     else if ((m = line.match(/^Whenever you put one or more counters on another creature, (.+)$/i)))
       add('counterPut', m[1], { anyCreature: true, byMe: true, other: true, anyKind: true });
     // combat
-    else if ((m = line.match(/^Whenever ~ deals? (?:combat )?damage to (?:a player|an opponent|one or more players|a player or planeswalker|a player or battle)[^,]*, (.+)$/i)))
+    else if ((m = line.match(/^When(?:ever)? ~ deals? (?:combat )?damage to (?:a player|an opponent|one or more players|a player or planeswalker|a player or battle)[^,]*, (.+)$/i)))
       add('combatDamagePlayer', m[1], { self: true });
+    // Setzer, Brood Sliver, Black Widow: "Whenever a Vehicle/Sliver you control deals combat damage to a player", "a creature you control with deathtouch"
+    else if ((m = line.match(/^Whenever (?:a|an|another) ([A-Z][\w-]+) you control deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/)) || (m = line.match(/^Whenever (?:a|an|another) ([A-Z][\w-]+) deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/)))
+      add('combatDamagePlayer', m[2], line.includes('you control') ? { anyOfMine: true, kind: m[1].toLowerCase() } : { anyCreatureAny: true, kind: m[1].toLowerCase() });
+    else if ((m = line.match(/^Whenever (?:a|another) creature you control with (deathtouch|flying|trample|menace|lifelink|haste|first strike|double strike|vigilance|reach) deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)))
+      add('combatDamagePlayer', m[2], { anyOfMine: true, kind: 'creature with ' + m[1].toLowerCase() });
     else if ((m = line.match(/^Whenever (?:a|another) creature you control with (?:a|one or more) (\+1\/\+1 )?counters? on it deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)))
       add('combatDamagePlayer', m[2], { anyOfMine: true, withCounter: m[1] ? '+1/+1' : 'any' });
     else if ((m = line.match(/^Whenever (?:a|an|another) ((?:[\w-]+ ){0,2}?)creature you control deals combat damage to (?:a player|an opponent)[^,]*, (.+)$/i)))
@@ -358,7 +372,10 @@ function parseTriggerText(text, speed) {
     else if ((m = line.match(/^When(?:ever)? an opponent casts their second spell each turn, (.+)$/i)))
       add('cast', m[1], { spell: '', theirs: true, second: true });
     else if ((m = line.match(/^When(?:ever)? an opponent casts (?:a|an|their first) ([^,]*?)spell[^,]*, (.+)$/i)))
-      add('cast', m[2], { spell: m[1].toLowerCase().trim(), theirs: true });
+      add('cast', m[2], { spell: m[1].toLowerCase().trim(), theirs: true, first: /their first/i.test(line) });
+    // Pain Distributor: "Whenever a player casts their first spell each turn"
+    else if ((m = line.match(/^Whenever a player casts their first ([^,]*?)spell each turn, (.+)$/i)))
+      add('cast', m[2], { spell: m[1].toLowerCase().trim(), first: true });
     else if ((m = line.match(/^Whenever a player casts (?:a|an) ([^,]*?)spell[^,]*, (.+)$/i)))
       add('cast', m[2], { spell: m[1].toLowerCase().trim() });
     // cards and life
@@ -1075,6 +1092,11 @@ function matches(ev) {
           if (ev.player !== c.controller) out.push({ src: c, trig, thatPlayer: ev.player, amount: ev.amount, it: { iid: ev.iid } });
           return;
         }
+        // Brood Sliver: "Whenever a Sliver deals combat damage to a player" (anyone's)
+        if (trig.anyCreatureAny) {
+          if (atk && (!trig.kind || matchesFilter(atk, trig.kind))) out.push({ src: c, trig, controller: atk.controller, thatPlayer: ev.player, amount: ev.amount, it: { iid: ev.iid } });
+          return;
+        }
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, amount: ev.amount });
         else if (trig.anyOfMine && c.controller === ev.controller && !(trig.commander && !(atk && atk.isCommander)) && (!trig.kind || (atk && matchesFilter(atk, trig.kind))) && (!trig.faceUpTurn || (atk && atk.turnedUpTurn === G.s.turn)) && (!trig.enchanted || (atk && Object.values(G.s.cards).some((a) => a.attachedTo === atk.iid && a.zone === 'battlefield' && /Aura/.test(typeLine(a))))) && (!trig.withCounter || (atk && Object.entries(atk.counters || {}).some(([k, v]) => v > 0 && (trig.withCounter === 'any' || k === trig.withCounter))))) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid }, amount: ev.amount });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.player, it: { iid: ev.iid }, amount: ev.amount });
@@ -1293,7 +1315,7 @@ function matches(ev) {
     }
     case 'mill': {
       each((c, trig) => {
-        if (trig.event !== 'mill' || c.controller !== ev.pid) return;
+        if (trig.event !== 'mill' || (!trig.anyPlayer && c.controller !== ev.pid)) return;
         const ids = (ev.ids || []).filter((i) => card(i) && card(i).zone === 'graveyard' && (!trig.kind || (trig.kind === 'land' ? isLand(card(i)) : trig.kind === 'nonland' ? !isLand(card(i)) : trig.kind === 'creature' ? /Creature/.test(DB[card(i).def].typeLine || '') : /Artifact|Creature|Enchantment|Land|Planeswalker|Battle/.test(DB[card(i).def].typeLine || ''))));
         if (ids.length) out.push({ src: c, trig, them: ids, amount: ids.length });
       });
@@ -1304,7 +1326,7 @@ function matches(ev) {
       break;
     case 'lifeGained':
     case 'lifeLost':
-      each((c, trig) => trig.event === ev.type && whoOk(trig.who, c, ev.pid) && out.push({ src: c, trig, thatPlayer: ev.pid, amount: ev.amount }));
+      each((c, trig) => trig.event === ev.type && whoOk(trig.who, c, ev.pid) && !(trig.byDamage && !ev.byDamage) && out.push({ src: c, trig, thatPlayer: ev.pid, amount: ev.amount }));
       break;
     case 'loyaltyActivated':
       each((c, trig) => {
@@ -1380,7 +1402,7 @@ function matches(ev) {
       each((c, trig) => trig.event === 'votingDone' && out.push({ src: c, trig }));
       break;
     case 'leftGraveyard':
-      each((c, trig) => trig.event === 'leftGraveyard' && c.controller === ev.owner && out.push({ src: c, trig, amount: ev.n }));
+      each((c, trig) => trig.event === 'leftGraveyard' && c.controller === ev.owner && (!trig.kind || (ev.defs || [ev.def]).some((df) => df && DB[df] && (trig.kind === 'nonland' ? !/\bLand\b/.test(DB[df].typeLine || '') : trig.kind === 'permanent' ? /Artifact|Creature|Enchantment|Land|Planeswalker|Battle/.test(DB[df].typeLine || '') : new RegExp(trig.kind.split(' ')[0], 'i').test(DB[df].typeLine || '')))) && out.push({ src: c, trig, amount: ev.n }));
       break;
     case 'explored':
     case 'connived':

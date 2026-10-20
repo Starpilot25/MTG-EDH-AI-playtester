@@ -113,7 +113,7 @@ export function stripName(text, c) {
     .replace(/’/g, "'");
 }
 
-const KEYWORD_LINE = /^(Kicker|Multikicker|Flashback|Buyback|Cycling|\w+cycling|Escape|Overload|Entwine|Foretell|Madness|Retrace|Jump-start|Splice|Replicate|Conspire|Evoke|Dash|Blitz|Bestow|Mutate|Prototype|Disturb|Encore|Unearth|Embalm|Eternalize|Scavenge|Ninjutsu|Commander ninjutsu|Transmute|Forecast|Suspend|Morph|Megamorph|Disguise|Echo|Cumulative upkeep|Fading|Vanishing|Emerge|Surge|Spectacle|Prowl|Awaken|Aftermath|Fuse|Plot|Offspring|Gift|Bargain|Casualty|Squad|Cleave|Freerunning|Impending|Warp|Mayhem|Harmonize|Web-slinging|Sneak|Spree|Tiered|Escalate|Affinity|Convoke|Delve|Improvise|Assist|Undaunted|Split second|Storm|Cascade|Rebound|Ripple|Gravestorm|Epic|Cipher|Hideaway|Miracle|Channel|Bloodrush|Reinforce|Level up|Outlast|Reconfigure|Crew|Saddle|Station|Craft|Equip|Fortify|Ward|Companion|Partner|Choose a Background|Read ahead|More Than Meets the Eye|Living metal|Enlist|Training|Backup|Toxic|Squad|Devoid|Changeling|Ingest|Myriad|Melee|Skulk|Menace|Flash|Haste|Vigilance|Trample|Reach|Flying|Lifelink|Deathtouch|First strike|Double strike|Defender|Hexproof|Shroud|Indestructible|Infect|Wither|Prowess|Exalted|Persist|Undying|Afterlife|Riot|Decayed|Annihilator|Afflict|Bushido|Rampage|Flanking|Provoke|Renown|Dethrone|Evolve|Extort|Exploit|Fabricate|Devour|Modular|Graft|Soulshift|Bloodthirst|Amplify|Sunburst|Tribute|Unleash|Frenzy|Horsemanship|Shadow|Fear|Intimidate|Banding|Phasing|Mobilize|Exhaust|Max speed|Start your engines|Job select|Daybound|Nightbound|Compleated|Ravenous|For Mirrodin|Living weapon|Umbra armor|Totem armor|Poisonous|Absorb|Frenzy|Ascend|Mentor|Haunt|Champion|Changeling|Battle cry|Soulbond|Totem)\b/i;
+const KEYWORD_LINE = /^(Kicker|Multikicker|Flashback|Buyback|Cycling|(?:Basic )?\w+cycling|Teamwork|Escape|Overload|Entwine|Foretell|Madness|Retrace|Jump-start|Splice|Replicate|Conspire|Evoke|Dash|Blitz|Bestow|Mutate|Prototype|Disturb|Encore|Unearth|Embalm|Eternalize|Scavenge|Ninjutsu|Commander ninjutsu|Transmute|Forecast|Suspend|Morph|Megamorph|Disguise|Echo|Cumulative upkeep|Fading|Vanishing|Emerge|Surge|Spectacle|Prowl|Awaken|Aftermath|Fuse|Plot|Offspring|Gift|Bargain|Casualty|Squad|Cleave|Freerunning|Impending|Warp|Mayhem|Harmonize|Web-slinging|Sneak|Spree|Tiered|Escalate|Affinity|Convoke|Delve|Improvise|Assist|Undaunted|Split second|Storm|Cascade|Rebound|Ripple|Gravestorm|Epic|Cipher|Hideaway|Miracle|Channel|Bloodrush|Reinforce|Level up|Outlast|Reconfigure|Crew|Saddle|Station|Craft|Equip|Fortify|Ward|Companion|Partner|Choose a Background|Read ahead|More Than Meets the Eye|Living metal|Enlist|Training|Backup|Toxic|Squad|Devoid|Changeling|Ingest|Myriad|Melee|Skulk|Menace|Flash|Haste|Vigilance|Trample|Reach|Flying|Lifelink|Deathtouch|First strike|Double strike|Defender|Hexproof|Shroud|Indestructible|Infect|Wither|Prowess|Exalted|Persist|Undying|Afterlife|Riot|Decayed|Annihilator|Afflict|Bushido|Rampage|Flanking|Provoke|Renown|Dethrone|Evolve|Extort|Exploit|Fabricate|Devour|Modular|Graft|Soulshift|Bloodthirst|Amplify|Sunburst|Tribute|Unleash|Frenzy|Horsemanship|Shadow|Fear|Intimidate|Banding|Phasing|Mobilize|Exhaust|Max speed|Start your engines|Job select|Daybound|Nightbound|Compleated|Ravenous|For Mirrodin|Living weapon|Umbra armor|Totem armor|Poisonous|Absorb|Frenzy|Ascend|Mentor|Haunt|Champion|Changeling|Battle cry|Soulbond|Totem)\b/i;
 
 export function etbText(c) {
   const t = joinBullets(stripName(oracle(c), c).replace(/\([^)]*\)/g, ''));
@@ -796,6 +796,7 @@ export function evalCond(cond, env) {
   if (/(?:this spell|~|it) was kicked|kicker was paid/.test(c)) return !!env.kicked;
   if (/was kicked twice|kicked \w+ times/.test(c)) return (env.kicked || 0) >= 2;
   if (/(?:this spell|~|it) was bargained/.test(c)) return !!env.bargained;
+  if (/(?:this spell|~) was cast using teamwork/.test(c)) return !!env.teamwork;
   if (/the gift was promised|gift was promised/.test(c)) return !!env.gift;
   if (/the gift wasn't promised/.test(c)) return !env.gift;
   if (/(?:you cast it|~ was cast|this spell was cast|it was cast) from (?:a|your) graveyard/.test(c)) return env.castFrom === 'graveyard';
@@ -2495,6 +2496,11 @@ on(/^look at the top card of that player's library, then exile it face down\. yo
   grantPlay(ids, env.me, { anyMana: true, hidden: true });
   env.did.push(`${who(env.me)} ${s_(env.me, 'exile')} the top card of ${whoseLib(from)} library face down to play`);
 }, { first: true, multi: true });
+// Pain Distributor: "they create a Treasure token" (the player who triggered it)
+on(/^they create (.+)$/, async (m, env) => {
+  const pid = env.thatPlayer || env.me;
+  await runSentence(`create ${m[1]}`, { ...env, me: pid });
+}, { first: true });
 on(/^that player creates a treasure token$/, async (m, env) => {
   const pid = env.thatPlayer || env.me;
   createToken(genericTokenDef(0, 0, 'Treasure'), pid, 1);
@@ -3487,8 +3493,8 @@ on(/^create (.+?) tokens? named ([a-z~][a-z~' -]*?)(?: with (.+))?$/, async (m, 
   if (env.did.length) env.did[env.did.length - 1] = env.did[env.did.length - 1].replace(/creates (\d+) .+? tokens?$/, (x, k) => `creates ${k} ${nm} token${+k === 1 ? '' : 's'}`);
 }, { first: true });
 // Baral and Kari Zev: "create First Mate Ragavan, a legendary 2/1 red Monkey Pirate creature token"
-on(/^create (?!(?:a|an|one|two|three|four|five|x|that many|tokens?)\b)([a-z~][a-z~' -]+?), (?:a|an) (legendary )?([^,]+?) tokens?$/, async (m, env) => {
-  await runSentence(`create a ${m[3]} token named ${m[1]}`, env);
+on(/^create (?!(?:a|an|one|two|three|four|five|x|that many|tokens?)\b)([a-z~][a-z~' -]+?), (?:a|an) (legendary )?([^,]+?) tokens?( with .+)?$/, async (m, env) => {
+  await runSentence(`create a ${m[3]} token named ${m[1]}${m[4] || ''}`, env);
   if (m[2]) for (const i of env.them_ || []) {
     const c = card(i);
     const d = c && DB[c.def];
@@ -3725,7 +3731,9 @@ export function damagePlayer(env, source, pid, amount) {
     G.s.players[pid].poison += amount;
     env.did.push(`gives ${who(pid)} ${amount} poison counter${amount === 1 ? '' : 's'}`);
   } else {
+    G.s.damageNow = true;
     changeLife(pid, -amount, false);
+    G.s.damageNow = false;
     env.did.push(`deals ${amount} damage to ${who(pid)}`);
   }
   if (source && source.zone === 'battlefield' && hasKw(source, 'lifelink')) changeLife(ctl(source), amount, false);
@@ -4339,6 +4347,101 @@ on(/^put them onto the battlefield( tapped)?(?: under your control)?$/, async (m
   for (const i of ids) toBattlefield(i, env.me, { tapped: !!m[1] });
   env.did.push(`puts ${ids.map((i) => nameTag(card(i))).join(', ')} onto the battlefield${m[1] ? ' tapped' : ''}`);
 }, { first: true });
+// ---- precon batch 1
+// Nekusar, Kami of the Crescent Moon, Rites of Flourishing: "that player draws an additional card"
+on(/^(that player|that opponent|they) draws? an additional card$/, async (m, env) => {
+  const pid = env.thatPlayer || G.s.active;
+  draw(pid, 1, true);
+  env.did.push(`${who(pid)} ${s_(pid, 'draw')} an additional card`);
+}, { first: true });
+// Knight Rampager, Vial Smasher: "choose an opponent at random"
+on(/^choose an opponent at random$/, async (m, env) => {
+  const os = opponents(env.me).filter(inGame);
+  if (!os.length) return;
+  env.thatPlayer = os[Math.floor(Math.random() * os.length)];
+  env.did.push(`randomly chooses ${who(env.thatPlayer)}`);
+}, { first: true });
+// "~ attacks that player this combat if able"
+on(/^(?:~|it|that creature) attacks that player this combat if able$/, async (m, env) => {
+  const c = /^~/.test(m[0]) ? env.src && card(env.src.iid) : env.it && env.it.iid && card(env.it.iid);
+  if (!c) return;
+  c.mustAttackTurn = G.s.turn;
+  if (env.thatPlayer) c.mustAttackPlayer = env.thatPlayer;
+  env.did.push(`${nameTag(c)} must attack ${who(env.thatPlayer || opp(env.me))} this combat`);
+}, { first: true });
+// Sandstone Oracle, Slithermuse: "If that player has more cards in hand than you, draw cards equal to the difference."
+on(/^if that player has more cards in hand than you, draw cards equal to the difference$/, async (m, env) => {
+  const o = env.thatPlayer || opp(env.me);
+  const d = cardsIn(o, 'hand').length - cardsIn(env.me, 'hand').length;
+  if (d <= 0) return env.did.push('no difference to draw');
+  draw(env.me, d, true);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${d}`);
+}, { first: true });
+// Black Widow, Intellectual Offering: "you and that player each draw two cards" / "… that many cards"
+on(/^you and (that player|target opponent|that opponent) each draw (a|one|two|three|four|that many|x|\d+) cards?$/, async (m, env) => {
+  const k = m[2] === 'that many' ? env.lastAmount || 0 : m[2] === 'a' ? 1 : n(m[2], env.x);
+  const o = m[1] === 'target opponent' ? (await playerTarget(env, 'target opponent'))[0] : env.thatPlayer || opp(env.me);
+  if (!k) return;
+  draw(env.me, k, true);
+  if (o) draw(o, k, true);
+  env.did.push(`${who(env.me)} and ${o ? who(o) : 'nobody'} each draw ${k}`);
+}, { first: true });
+// Flawless Forgery, Renegade Bull, Wildfire Devils: "Copy that card. You may cast the copy without paying its mana cost."
+on(/^copy (that card|it)$/, async (m, env) => {
+  const c = env.it && env.it.iid && card(env.it.iid);
+  if (!c || !['exile', 'graveyard', 'hand', 'library'].includes(c.zone)) return 'pass';
+  if (G.s.stack && G.s.stack.iid === c.iid) return 'pass';
+  const cid = makeCard(c.def, env.me, 'exile');
+  const cc = card(cid);
+  cc.copyCard = true; // ceases to exist when it leaves the stack (state.js)
+  cc.face = c.face || 0;
+  env.copyCard = cid;
+  env.did.push(`copies ${nameTag(c)}`);
+}, { first: true });
+on(/^(?:you may )?cast the copy without paying its mana cost$/, async (m, env) => {
+  const cid = env.copyCard;
+  if (!cid || !card(cid)) return env.did.push('has no copy to cast');
+  const cast_ = await castFromPool(env, [cid], { free: true, max: 1, prompt: `Cast the copy of ${cardName(card(cid))} without paying its mana cost?` });
+  if (!cast_.length && card(cid)) { delete G.s.cards[cid]; const z = zoneOf(env.me, 'exile'); const i = z.indexOf(cid); if (i >= 0) z.splice(i, 1); }
+  env.copyCard = null;
+}, { first: true });
+// Afterlife from the Loam, Dredge the Mire: "For each player, choose up to one target creature card in that player's graveyard."
+on(/^for each (player|opponent), choose up to one target ([a-z ]+?) card in that player's graveyard$/, async (m, env) => {
+  const picks = [];
+  for (const pid of (m[1] === 'player' ? seats() : opponents(env.me)).filter(inGame)) {
+    const pool = cardsIn(pid, 'graveyard').filter((c) => matchesFilter(c, m[2]));
+    if (!pool.length) continue;
+    const [p] = await env.choosers[env.me].pickCards({ prompt: `Choose up to one ${m[2]} card in ${pid === 'p' ? 'your' : seatName(pid) + "'s"} graveyard`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'reanimate', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
+    if (p) picks.push(p);
+  }
+  env.them_ = picks;
+  env.it = picks[0] ? { iid: picks[0] } : null;
+  env.did.push(picks.length ? `chooses ${picks.map((i) => nameTag(card(i))).join(', ')}` : 'chooses nothing');
+}, { first: true });
+on(/^(?:put|return) those cards onto the battlefield under your control$/, async (m, env) => {
+  const ids = (env.them_ || []).filter((i) => card(i) && card(i).zone !== 'battlefield');
+  for (const i of ids) toBattlefield(i, env.me);
+  env.did.push(ids.length ? `puts ${ids.map((i) => nameTag(card(i))).join(', ')} onto the battlefield` : 'puts nothing onto the battlefield');
+}, { first: true });
+on(/^they're ([a-z]+)s in addition to their other types$/, async (m, env) => {
+  const t = m[1].replace(/^\w/, (x) => x.toUpperCase());
+  for (const i of env.them_ || []) if (card(i) && card(i).zone === 'battlefield') card(i).addTypes = ((card(i).addTypes || '') + ' ' + t).trim();
+}, { first: true });
+// Ethereal Valkyrie: "exile a card from your hand face down. It becomes foretold. Its foretell cost is its mana cost reduced by {2}."
+on(/^(?:draw a card, then )?exile a card from your hand face down\. it becomes foretold\. its foretell cost is its mana cost reduced by \{(\d+)\}$/, async (m, env) => {
+  if (/^draw a card/.test(m[0])) { draw(env.me, 1, true); env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} 1`); }
+  const hand = cardsIn(env.me, 'hand');
+  if (!hand.length) return env.did.push('has no card to foretell');
+  const [p] = await env.choosers[env.me].pickCards({ forced: true, prompt: 'Exile a card from your hand face down — it becomes foretold', cards: hand.map((c) => c.iid), min: 1, max: 1, purpose: 'foretell', src: env.src, aiScore: (c) => (isLand(c) ? -5 : DB[c.def].cmc || 0) });
+  if (!p) return;
+  move(p, 'exile');
+  const c = card(p);
+  const mc = DB[c.def].manaCost || DB[c.def].faces[0].manaCost || '';
+  const gen = (mc.match(/\{(\d+)\}/) || [0, 0])[1];
+  const red = Math.max(0, +gen - +m[1]);
+  Object.assign(c, { faceDown: true, foretold: true, foretoldTurn: G.s.turn, faceDownOwnerSees: true, foretellCost: mc.replace(/\{\d+\}/, red ? `{${red}}` : '') || '{0}' });
+  env.did.push(`${who(env.me)} ${s_(env.me, 'foretell')} a card`);
+}, { first: true, multi: true });
 on(/^bolster (\w+)/, async (m, env) => {
   const cs = cardsIn(env.me, 'battlefield').filter(isCreature).sort((a, b) => toughness(a) - toughness(b));
   if (!cs.length) return;
@@ -6977,7 +7080,7 @@ on(/^put the exiled card into its owner's hand$/, async (m, env) => {
 }, { first: true });
 
 async function runSentence(sentence, env) {
-  let s = sentence.trim().replace(/\s{2,}/g, ' ').replace(/ ([.,])/g, '$1').replace(/\.$/, '').replace(/^then,? /i, '');
+  let s = sentence.trim().replace(/\s{2,}/g, ' ').replace(/ ([.,])/g, '$1').replace(/\.$/, '').replace(/^then,? /i, '').replace(/^also,? /i, '');
   // Marvel/Spider-Man cards name their creature "he"/"she": "He gets +1/+0 until end of turn"
   // Karn, Living Legacy: "Look at that many cards from the top of your library" after paying mana
   if (/^look at that many cards\b/i.test(s) && env.lastAmount != null) {
@@ -7174,7 +7277,7 @@ async function runSentence(sentence, env) {
   }
   // "Discard a card and sacrifice a creature": two actions joined by "and"
   if (!coveredByOne(low)) {
-    const am = s.match(/^(.+?),? and (sacrifice|discard|draw|mill|scry|surveil|create|exile|destroy|return|put|tap|untap|shuffle|you gain|you lose|lose \d+ life|gain \d+ life|investigate|proliferate|you get|it can't|~ can't|it gains|~ gains|it gets|~ gets|it deals|~ deals|it becomes|~ becomes)\b(.*)$/i);
+    const am = s.match(/^(.+?),? and (sacrifice|discard|draw|mill|scry|surveil|create|exile|destroy|return|put|tap|untap|shuffle|you gain|you lose|lose \d+ life|gain \d+ life|investigate|proliferate|you get|copy it|it can't|~ can't|it gains|~ gains|it gets|~ gets|it deals|~ deals|it becomes|~ becomes)\b(.*)$/i);
     if (am && handled(am[1].toLowerCase()) && handled((am[2] + am[3]).toLowerCase())) {
       await runSentence(am[1], env);
       await runSentence(am[2] + am[3], env);

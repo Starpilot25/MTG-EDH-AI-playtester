@@ -387,8 +387,8 @@ export function move(iid, zone, opts = {}) {
     s.ts[c.owner].cardsLeftGy++;
     // "Whenever one or more cards leave your graveyard": one event per batch
     const lg = eventQueue.find((e) => e.type === 'leftGraveyard' && e.owner === c.owner);
-    if (lg) lg.n++;
-    else queueEvent({ type: 'leftGraveyard', owner: c.owner, n: 1 });
+    if (lg) { lg.n++; (lg.defs = lg.defs || []).push(c.def); }
+    else queueEvent({ type: 'leftGraveyard', owner: c.owner, n: 1, def: c.def, defs: [c.def] });
   }
   if (zone === 'graveyard' && fromZone !== 'graveyard' && !c.token) queueEvent({ type: 'toGraveyard', iid, def: c.def, owner: c.owner, from: fromZone, controller: fromZone === 'battlefield' ? c.controller : c.owner });
   // "Its controller …" after it left (Path to Exile on a creature you'd stolen): remember who controlled it
@@ -427,6 +427,14 @@ export function move(iid, zone, opts = {}) {
       mc.zone = null;
       if (mc.token && zone !== 'battlefield') delete s.cards[m];
       else move(m, zone === 'command' ? 'graveyard' : zone);
+    }
+  }
+  // a copy of a card (Flawless Forgery's cast copy): a token once it's a permanent, gone once it leaves the stack otherwise
+  if (c.copyCard && zone !== fromZone) {
+    if (zone === 'battlefield') { c.token = true; delete c.copyCard; }
+    else {
+      delete s.cards[iid];
+      return null;
     }
   }
   // tokens cease to exist outside the battlefield
@@ -890,7 +898,7 @@ export function setLife(pid, value, reason) {
       // in a pod, the player whose turn it is gets the credit (in 1v1, the other player)
       const by = multiplayer() ? (G.s.active && G.s.active !== pid ? G.s.active : null) : opp(pid);
       if (by && G.s.ts[by]) G.s.ts[by].damagedOpp = true;
-      queueEvent({ type: 'lifeLost', pid, amount: before - value });
+      queueEvent({ type: 'lifeLost', pid, amount: before - value, byDamage: !!G.s.damageNow });
       // Start your engines!: speed goes up once on your turn when an opponent loses life
       const o = by || opp(pid);
       const po = G.s.players[o];

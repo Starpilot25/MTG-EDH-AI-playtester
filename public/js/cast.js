@@ -378,7 +378,7 @@ export function castOptions(pid, c) {
   }
   if (zone === 'exile') {
     if (c.foretold && c.foretoldTurn < s.turn) {
-      const fc = altCost(o0, 'Foretell');
+      const fc = c.foretellCost || altCost(o0, 'Foretell'); // Ethereal Valkyrie gives a card a foretell cost
       if (fc) add({ mode: 'foretold', label: `Cast foretold (${fc})`, cost: fc });
     }
     if (c.plotted && c.plottedTurn < s.turn) add({ mode: 'plotted', label: 'Cast plotted card (free)', cost: '', free: true, sorcery: true });
@@ -615,6 +615,36 @@ export async function castSpell(pid, iid, opt, env) {
       }
     }
   }
+  // Teamwork N: "you may tap any number of creatures you control with total power N or more"
+  const tw = o.match(/(?:^|\n)Teamwork (\d+)/i);
+  if (tw && !env.free) {
+    const need = +tw[1];
+    const pool = cardsIn(pid, 'battlefield').filter((x) => isCreature(x) && !x.tapped && !(s.combat && s.combat.attackers && s.combat.attackers.includes(x.iid)));
+    const total = pool.reduce((a, x) => a + Math.max(0, power(x)), 0);
+    const aiOk = () => {
+      // the AI taps creatures that aren't going to do anything else this turn (not during its own pre-combat main phase)
+      return !(s.active === pid && s.step === 'main1');
+    };
+    if (total >= need && (isAI(pid) ? aiOk() : await ch.confirm(label, `Teamwork ${need}: tap creatures with total power ${need} or more for the bonus?`, {}))) {
+      const picks = await ch.pickCards({
+        prompt: `Teamwork ${need}: tap creatures with total power ${need} or more`, cards: pool.map((x) => x.iid), min: 1, max: pool.length, purpose: 'tap', src: c,
+        validate: (ids) => (ids.reduce((a, i) => a + Math.max(0, power(card(i))), 0) >= need ? '' : `Pick total power ${need} or more.`),
+        aiScore: (x) => power(x) - cardValue(x) / 3,
+      });
+      // the AI: just enough power
+      let chosen = picks;
+      if (isAI(pid)) {
+        chosen = [];
+        let sum = 0;
+        for (const i of pool.slice().sort((a, b) => cardValue(a) - cardValue(b)).map((x) => x.iid)) { if (sum >= need) break; chosen.push(i); sum += Math.max(0, power(card(i))); }
+      }
+      if (chosen.reduce((a, i) => a + Math.max(0, power(card(i))), 0) >= need) {
+        chosen.forEach((i) => tapPerm(card(i)));
+        info.teamwork = true;
+        log(pid, `Teamwork: ${chosen.map((i) => nameTag(card(i))).join(', ')} tap${chosen.length === 1 ? 's' : ''}.`);
+      }
+    }
+  }
   const cas = o.match(/(?:^|\n)Casualty (\d+|X)/i);
   if (cas) {
     const nn = cas[1] === 'X' ? 0 : +cas[1];
@@ -640,7 +670,7 @@ export async function castSpell(pid, iid, opt, env) {
     if (sacs.length) log(pid, `${pid === 'p' ? 'You sacrifice' : 'The AI sacrifices'} ${sacs.length} creature${sacs.length === 1 ? '' : 's'} to copy ${label} ${sacs.length} time${sacs.length === 1 ? '' : 's'}.`);
   }
   // --- additional costs printed as "As an additional cost to cast this spell, …"
-  const addl = info.plumb ? null : o.match(/As an additional cost to cast (?:this spell|~), ([^.]+)\./i);
+  const addl = info.plumb ? null : o.replace(/\([^)]*\)/g, '').match(/As an additional cost to cast (?:this spell|~), ([^.]+)\./i); // not reminder text (Teamwork)
   const wbm = addl && addl[1].match(/^(you may )?waterbend \{(\d+|X)\}$/i);
   if (wbm) {
     // waterbend: extra generic mana that your untapped artifacts and creatures can help pay
@@ -971,7 +1001,7 @@ async function resolveSpell(pid, c, opt, info, env) {
   const f = d.faces[fIdx] || d.faces[0];
   const ch = env.choosers[pid];
   const ctx = ctxFor(pid, env, {
-    kicked: info.kicked, x: info.x, modes: info.modes, entwined: info.entwined, gift: info.gift, bargained: info.bargained,
+    kicked: info.kicked, x: info.x, modes: info.modes, entwined: info.entwined, gift: info.gift, bargained: info.bargained, teamwork: !!info.teamwork,
     additionalPaid: info.additionalPaid, castFrom: c.castFrom, castMode: opt.mode,
   });
   // the gift goes to the opponent first

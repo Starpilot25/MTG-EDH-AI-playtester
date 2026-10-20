@@ -1,5 +1,21 @@
 [
   {
+    "version": "1.3.91",
+    "title": "Precon scan, batch 1",
+    "notes": [
+      "First batch of fixes from scanning every Commander precon since 2021 (about 3,900 cards).",
+      "Nekusar, Kami of the Crescent Moon, Rites of Flourishing: \"that player draws an additional card\" works.",
+      "Flawless Forgery, Renegade Bull, Wildfire Devils: copying a card from a graveyard and casting the copy for free works (the copy disappears afterwards).",
+      "Teamwork (Beast Mode, Heroic Teamwork…): you can tap creatures with enough total power as you cast it for the bonus.",
+      "Basic landcycling no longer shows up as a \"do it by hand\" line on the spell.",
+      "Knight Rampager & co.: \"choose an opponent at random\" and \"attacks that player this combat if able\".",
+      "Cyan, Grim Reaper's Scythe: \"whenever one or more creature cards leave your graveyard\". Mirelurk Queen: \"whenever one or more nonland cards are milled\". Darien, Sun Droplet: \"whenever you're dealt damage\". Pain Distributor: \"whenever a player casts their first spell each turn\".",
+      "Aspiring Champion and other \"When ~ deals combat damage to a player\" cards trigger (only \"Whenever\" did before). Setzer, Brood Sliver, Black Widow: \"whenever a Vehicle/Sliver/creature with deathtouch deals combat damage\" triggers work.",
+      "Afterlife from the Loam, Dredge the Mire: choose a creature card in each graveyard and put them onto the battlefield (as Zombies where it says so).",
+      "Sandstone Oracle, Slithermuse: draw cards equal to the difference. Black Widow, Intellectual Offering: you and that player each draw. Ethereal Valkyrie: the exiled card becomes foretold with the reduced cost. Setzer's Blackjack token gets its name."
+    ]
+  },
+  {
     "version": "1.3.90",
     "title": "AI uses retrace",
     "notes": [
