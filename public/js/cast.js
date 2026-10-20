@@ -18,7 +18,7 @@ import { tapPerm } from './state.js';
 import {
   resolveEffects, spellText, etbText, costOf, attachAura, attachTo, activatedAbilities, zoneAbilities, Cancelled,
   matchesFilter, analyze, stripName, spellFilterOk,
-  predictTargets, enterAsCopy,
+  predictTargets, enterAsCopy, attachLooseAuras,
 } from './effects.js';
 import { costDelta, countPhrase, repl } from './statics.js';
 import { helpers } from './rules.js';
@@ -1033,6 +1033,9 @@ async function resolveSpell(pid, c, opt, info, env) {
       if (x.enterExtra && x.enterExtra.loyalty) x.counters.loyalty = (x.counters.loyalty || 0) + x.enterExtra.loyalty;
       delete x.enterExtra;
       log(pid, `${nameTag(x)} enters as a copy of ${nameTag(copied)}.`);
+      // a copy of an Aura (Copy Enchantment, Estrid's Invocation copying Rancor): attach it to something
+      const ad = await attachLooseAuras([x.iid], pid, env.choosers);
+      if (ad.length) log(pid, ad.join('; ') + '.');
     }
     // Curses and other "Enchant player" Auras sit on the battlefield and remember whom they enchant
     const ep = hasSubtype(c, 'Aura') && oracle(c).match(/^Enchant (player|opponent)/m);

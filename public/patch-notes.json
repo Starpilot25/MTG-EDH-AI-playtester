@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.79",
+    "title": "Copying Auras, Sign in Blood",
+    "notes": [
+      "Copies of Auras now get attached: a token copy of an Aura, a clone of an Aura (Copy Enchantment, Estrid's Invocation, Mirrormade) and a copy of an Aura spell (Reflections of Littjara) let their controller pick something to enchant. Before, they entered attached to nothing and fell off.",
+      "Sign in Blood (and \"target player draws two cards and loses 2 life\" in general): the AI now targets itself for the cards, and only aims it at you when the life loss would finish you. The life loss also wasn't happening before; now it is."
+    ]
+  },
+  {
     "version": "1.3.78",
     "title": "Scion of Draco",
     "notes": [

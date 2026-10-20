@@ -3769,7 +3769,7 @@ on(/^(.+?) fights? (.+)$/, async (m, env) => {
 });
 
 // --- drawing, discarding, milling
-on(/^(you |target player |each player |that player |its controller |target opponent |each opponent )?draws? (a|an|one|two|three|four|five|six|seven|eight|x|\d+|cards? equal to [^,.]+?|that many) cards?(?: and (?:you )?lose (\d+|x|that much) life)?/, async (m, env) => {
+on(/^(you |target player |each player |that player |its controller |target opponent |each opponent )?draws? (a|an|one|two|three|four|five|six|seven|eight|x|\d+|cards? equal to [^,.]+?|that many) cards?(?: and (?:you )?loses? (\d+|x|that much) life)?/, async (m, env) => {
   const pids = m[1] ? await playerTarget(env, m[1].trim(), false) : [env.me];
   let k = /that many/.test(m[2]) ? env.lastAmount || 0 : /equal to/.test(m[2]) ? amountOf(m[2].replace(/^cards? /, ''), env) : n(m[2], env.x);
   for (const pid of pids) {
@@ -3918,6 +3918,7 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
   env.them_ = made;
   env.it = made[0] ? { iid: made[0] } : null;
   env.did.push(`creates ${count > 1 ? count + ' token copies' : 'a token copy'} of ${nameTag(orig)}`);
+  env.did.push(...(await attachLooseAuras(made, env.me, env.choosers)));
 });
 on(/^create (.+?) tokens?(?: (?:that are |that's )?(tapped(?: and attacking)?)(?: (?:that player|target opponent|the player|defending player|an opponent)(?: or (?:a|that) planeswalker (?:they control|it's attacking))?)?)?(?: with (.+?))?(?: attached to (.+?))?(?:, then .+)?$/, async (m, env) => {
   if (/that's a copy|that are copies/.test(m[1])) return;
@@ -5303,6 +5304,7 @@ on(/^copy (it|that spell|target (?:instant or sorcery |instant |sorcery )?spell(
     queueEvent({ type: 'copySpell', controller: env.me, iid: target.iid });
     if (env.src && card(env.src.iid) && /do this only once each turn/i.test(env.text || '')) card(env.src.iid).onceTurn = G.s.turn;
     env.did.push(`copies ${nameTag(target)} (${made.length} token${made.length === 1 ? '' : 's'})`);
+    env.did.push(...(await attachLooseAuras(made, env.me, env.choosers)));
     return;
   }
   if (env.src && card(env.src.iid) && /do this only once each turn/i.test(env.text || '')) card(env.src.iid).onceTurn = G.s.turn;
@@ -7332,6 +7334,18 @@ async function tutor(t, me, choose, src, did, env) {
 }
 
 // ------------------------------------------------------------ auras & equipment
+// A copy of an Aura that enters without being cast (token copies, clones of Auras, copies of an Aura spell):
+// its controller picks something it can enchant (not targeted, so hexproof and ward don't matter)
+export async function attachLooseAuras(ids, pid, choosers) {
+  const out = [];
+  for (const i of ids || []) {
+    const a = card(i);
+    if (!a || a.zone !== 'battlefield' || a.attachedTo || !hasSubtype(a, 'Aura') || a.enchantedPlayer) continue;
+    const r = await attachAura(a, pid, choosers[pid], { noTarget: true });
+    out.push(...r.map((x) => `${nameTag(a)} ${x}`));
+  }
+  return out;
+}
 export async function attachAura(aura, me, choose, opts = {}) {
   const o = oracle(aura);
   const em = o.match(/^Enchant ([^\n]+)/m);
@@ -7342,7 +7356,7 @@ export async function attachAura(aura, me, choose, opts = {}) {
   const buff = o.match(/Enchanted creature gets ([+-]\d+)\/([+-]\d+)/i);
   const lock = /Enchanted creature can't attack|Enchanted creature can't block|Enchanted creature doesn't untap|enchanted creature's activated abilities can't/i.test(o);
   const cands = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter(
-    (c) => canTarget(c, me, aura) && matchesFilter(c, what.replace(/ you control$/, '')) && (!/you control/.test(what) || c.controller === me) && (!/an opponent controls|you don't control/.test(what) || c.controller !== me)
+    (c) => (opts.noTarget ? c.iid !== aura.iid : canTarget(c, me, aura)) && matchesFilter(c, what.replace(/ you control$/, '')) && (!/you control/.test(what) || c.controller === me) && (!/an opponent controls|you don't control/.test(what) || c.controller !== me)
   );
   const pick = await choose.target({
     prompt: `Choose ${/^creature/.test(what) ? 'a creature' : 'a ' + what} to enchant with ${cardName(aura)}`, candidates: cands.map((c) => c.iid),
@@ -7350,7 +7364,7 @@ export async function attachAura(aura, me, choose, opts = {}) {
   });
   if (!pick || !pick.iid) return [];
   const t = card(pick.iid);
-  if (t.controller !== me && !(await payWard(me, t, choose, aura))) return [`is countered by ${nameTag(t)}'s ward`];
+  if (!opts.noTarget && t.controller !== me && !(await payWard(me, t, choose, aura))) return [`is countered by ${nameTag(t)}'s ward`];
   attachTo(aura, t);
   if (/^You control enchanted (?:creature|permanent|land|artifact)/m.test(o)) move(t.iid, 'battlefield', { controller: aura.controller });
   return [`enchants ${whose(t)} ${nameTag(t)}`];
@@ -7485,9 +7499,13 @@ export async function predictTargets(pid, c, face, choosers, x = 0, textOverride
       // judge good/bad from this target's own clause (Blood Artist: "target player loses 1 life and you gain 1 life")
       const clause = sentence.slice(0, mm.index) + sentence.slice(mm.index).split(/ and you | and its controller | and that player |, then /)[0];
       const harm = !blink && (!/(?:gets? \+|gains? (?!control)|untap|\+1\/\+1 counter|return [^.]* to the battlefield|hexproof|indestructible|protection)/.test(clause) || /destroy|exile|damage|sacrifice|loses? \d+ life|-\d/.test(clause));
+      // Sign in Blood: "target player draws two cards and loses 2 life" — card draw for yourself, unless the life loss finishes an opponent
+      let harm2 = harm;
+      const dl = clause.match(/^target player draws? (?:a|an|one|two|three|\d+) cards? and loses? (\d+) life/);
+      if (dl) harm2 = opponents(pid).some((o) => inGame(o) && G.s.players[o].life <= +dl[1] && !playerHexproof(o, pid, c));
       let picks = [];
       try {
-        picks = await pickTargets(env, phrase, { harm, noWard: true });
+        picks = await pickTargets(env, phrase, { harm: harm2, noWard: true });
       } catch (e) {
         picks = [];
       }
