@@ -375,7 +375,8 @@ export function wantsPair(d) {
 export function legendaryCandidates(deck) {
   return uniqueDefs(deck.cards).filter((d) => {
     const t = d.faces[0].typeLine;
-    return (/Legendary/.test(t) && /Creature/.test(t)) || /can be your commander/i.test(d.faces[0].oracle);
+    // legendary Vehicles / Spacecraft with a power/toughness box can lead too (2025 rules change)
+    return (/Legendary/.test(t) && (/Creature/.test(t) || (/\b(?:Vehicle|Spacecraft)\b/.test(t) && d.faces[0].power != null))) || /can be your commander/i.test(d.faces[0].oracle);
   });
 }
 

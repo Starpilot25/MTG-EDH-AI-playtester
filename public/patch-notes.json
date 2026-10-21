@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.100",
+    "title": "Vehicles as commander",
+    "notes": [
+      "Legendary Vehicles (and Spacecraft with power/toughness) now show up as commander choices when you load a deck without a commander listed. Listing one under \"Commander\" in your decklist already worked."
+    ]
+  },
+  {
     "version": "1.3.99",
     "title": "Teferi, Temporal Pilgrim",
     "notes": [
