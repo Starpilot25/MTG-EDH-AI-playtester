@@ -54,7 +54,7 @@ import { joinAttack } from './state.js';
 
 const WORDNUM = {
   a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
-  eleven: 11, twelve: 12, thirteen: 13, fifteen: 15, twenty: 20, once: 1, twice: 2, thrice: 3,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, twenty: 20, once: 1, twice: 2, thrice: 3,
 };
 export const n = (w, x = 0) => {
   if (w === undefined || w === null) return 1;
@@ -63,7 +63,7 @@ export const n = (w, x = 0) => {
   if (/^\d+$/.test(w)) return parseInt(w, 10);
   return WORDNUM[w] || 1;
 };
-const NUM = '(a|an|one|two|three|four|five|six|seven|eight|nine|ten|x|\\d+)';
+const NUM = '(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|twenty|x|\\d+)';
 
 export class Cancelled extends Error {}
 

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.104",
+    "title": "Army of the Damned",
+    "notes": [
+      "Army of the Damned (and other cards that make eleven to twenty tokens): now creates all thirteen Zombies instead of one."
+    ]
+  },
+  {
     "version": "1.3.103",
     "title": "Jegantha's mana",
     "notes": [
