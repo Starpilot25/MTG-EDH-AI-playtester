@@ -152,6 +152,14 @@ function parseStatics(text, selfName) {
         continue;
       }
     }
+    // trailing condition: "Creatures you control get +1/+0 and have vigilance as long as you control three or more creatures." (Jetmir)
+    if ((m = l.match(/^((?:other |all |each )?[\w -]*?(?:creatures|tokens|[\w-]+s) (?:you control |your opponents control )?(?:get|have) .+?) as long as (.+?)\.?$/))) {
+      const sub = parseStatics(m[1] + '.', selfName);
+      if (sub.anthems.length) {
+        for (const a of sub.anthems) pushAnthem({ ...a, cond: m[2] });
+        continue;
+      }
+    }
     // anthems: "Other Elf creatures you control get +1/+1 and have …"
     // Caged Sun, Gauntlet of Dominion-style: "Creatures you control of the chosen color get +1/+1."
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control of the chosen color get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?\.?$/))) {
