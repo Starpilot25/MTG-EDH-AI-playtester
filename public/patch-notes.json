@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.99",
+    "title": "Teferi, Temporal Pilgrim",
+    "notes": [
+      "Teferi, Temporal Pilgrim's −12 now works: the opponent picks one permanent to return to their hand, then every other nonland permanent they control is shuffled into its owner's library."
+    ]
+  },
+  {
     "version": "1.3.98",
     "title": "Deceptive Frostkite",
     "notes": [

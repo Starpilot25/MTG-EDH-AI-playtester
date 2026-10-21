@@ -6904,6 +6904,28 @@ on(/^for each creature with one or more votes, put that many stun counters on it
     env.did.push(`puts ${k} stun counter${k > 1 ? 's' : ''} on ${nameTag(c)} and taps it`);
   }
 }, { first: true });
+// Teferi, Temporal Pilgrim −12
+on(/^target opponent chooses a permanent they control and returns it to its owner's hand\. then they shuffle each nonland permanent they control into its owner's library$/, async (m, env) => {
+  const [o] = await playerTarget(env, 'target opponent');
+  if (!o) return;
+  const mine = cardsIn(o, 'battlefield').filter((c) => !c.phasedOut);
+  let saved = null;
+  if (mine.length) {
+    const [pick] = await env.choosers[o].pickCards({ prompt: 'Choose a permanent you control to return to your hand (everything else nonland gets shuffled away)', cards: mine.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'save', src: env.src, aiScore: (c) => cardValue(c) * (c.token ? 0.2 : 1) + (isLand(c) ? -5 : 0) });
+    if (pick && card(pick)) {
+      saved = nameTag(card(pick));
+      move(pick, 'hand');
+    }
+  }
+  const gone = cardsIn(o, 'battlefield').filter((c) => !isLand(c) && !c.phasedOut);
+  const owners = new Set();
+  for (const c of gone) {
+    owners.add(c.owner);
+    move(c.iid, 'library');
+  }
+  for (const w of owners) shuffle(w);
+  env.did.push(`${who(o)} ${s_(o, 'return')} ${saved || 'nothing'} to hand and ${s_(o, 'shuffle')} ${gone.length} nonland permanent${gone.length === 1 ? '' : 's'} into ${who(o) === 'you' ? 'your' : 'their'} library`);
+}, { first: true, multi: true });
 // Selvala's Stampede: "Reveal cards from the top of your library until you reveal a creature card for each wild vote. Put those creature cards onto the battlefield, then shuffle the rest into your library."
 on(/^reveal cards from the top of your library until you reveal a creature card for each (\w+) vote\. put those creature cards onto the battlefield, then shuffle the rest(?: of the revealed cards)? into your library$/, async (m, env) => {
   const k = (env.votes && env.votes.tally.get(m[1])) || 0;
