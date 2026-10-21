@@ -84,6 +84,8 @@ const ctl = (c) => (c.zone === 'battlefield' ? c.controller : c.owner);
 
 // ------------------------------------------------------------ text helpers
 export function stripName(text, c) {
+  // Sarkhan, Soul Aflame as a copy of Ureni: it keeps its own name, but the copied text still says "Ureni"
+  if (c && c.nameOverride && DB[c.def] && c.nameOverride !== DB[c.def].name) text = stripName(text, { ...c, nameOverride: null });
   const name = cardName(c);
   // whole words only: "Ginger" must not eat the start of "Gingerbrute"
   const esc_ = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

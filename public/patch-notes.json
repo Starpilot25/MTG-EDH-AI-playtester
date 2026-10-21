@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.96",
+    "title": "Copies that keep their own name",
+    "notes": [
+      "Sarkhan, Soul Aflame (and other copies that keep their own name): the copied card's triggered abilities now work — e.g. as a copy of Ureni of the Unwritten, attacking triggers it just like Ureni."
+    ]
+  },
+  {
     "version": "1.3.95",
     "title": "Temur Roar precon added + its cards fixed",
     "notes": [
