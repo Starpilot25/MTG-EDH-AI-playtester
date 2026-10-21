@@ -2051,7 +2051,7 @@ on(/^put your choice of an? ([+\-\d\/a-z]+) counter or (one|two|three|\w+) ([a-z
   const c = pick && card(pick);
   if (!c) return;
   const aiWant = wantsCharge(c) && !(isCreature(c) && !/^STATION/m.test(oracle(c))) ? 1 : 0;
-  const k = await env.choosers[env.me].choose({ prompt: `${nameTag(c)}: which counters?`, options: [{ label: `a ${m[1]} counter` }, { label: `${m[2]} ${m[3]} counters` }], aiPick: () => aiWant });
+  const k = await env.choosers[env.me].choose({ prompt: `${cardName(c)}: which counters?`, options: [{ label: `a ${m[1]} counter` }, { label: `${m[2]} ${m[3]} counters` }], aiPick: () => aiWant });
   if (k === 1) addCounters(c, m[3], n(m[2]));
   else addCounters(c, m[1], 1);
   env.did.push(`puts ${k === 1 ? `${m[2]} ${m[3]} counters` : `a ${m[1]} counter`} on ${nameTag(c)}`);
