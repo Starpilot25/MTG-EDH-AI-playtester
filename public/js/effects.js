@@ -7250,6 +7250,12 @@ async function runText(text, env) {
       const pre = mm[1].slice(0, ifm.index + ifm[1].length);
       if (pre.trim()) await runText(pre, env);
       if (!evalCond(ifm[2], env)) return;
+    } else if (/(^|[.\n]\s*)When you do,\s*$/i.test(mm[1])) {
+      // Caesar: "you may sacrifice another creature. When you do, choose two —" (a reflexive trigger)
+      const pre = mm[1].replace(/When you do,\s*$/i, '');
+      env.lastMay = undefined;
+      if (pre.trim()) await runText(pre, env);
+      if (env.lastMay === false || env.lastDone === false) return;
     } else if (mm[1].trim()) await runText(mm[1], env);
     let modes = mm[3].split('•').map((x) => x.trim()).filter(Boolean);
     const want = mm[2].toLowerCase();

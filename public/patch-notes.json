@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.106",
+    "title": "Caesar, Legion's Emperor",
+    "notes": [
+      "Caesar, Legion's Emperor: the two modes only happen if you actually sacrificed a creature, and the stray \"When you do\" note is gone from the log."
+    ]
+  },
+  {
     "version": "1.3.105",
     "title": "Casting from the top of your library",
     "notes": [
