@@ -3119,6 +3119,32 @@ on(/^(.+?) unless you waterbend \{(\d+)\}$/, async (m, env) => {
   if (paid) return env.did.push(`${who(env.me)} ${s_(env.me, 'waterbend')} {${k}}`);
   await runSentence(m[1], env);
 }, { first: true });
+// Command Bridge: "sacrifice it unless you tap an untapped permanent you control"
+on(/^sacrifice (?:it|~|this land) unless you tap an untapped (permanent|creature|artifact|land) you control$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!me || me.zone !== 'battlefield') return;
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => !c.tapped && !c.phasedOut && c.iid !== me.iid && (m[1] === 'permanent' || (m[1] === 'creature' ? isCreature(c) : isType(c, m[1][0].toUpperCase() + m[1].slice(1)))));
+  // the AI taps a land it already used / a creature that isn't needed; skips the summoning-sick-free ones last
+  const score = (c) => (isLand(c) ? 2 : 0) + (isCreature(c) ? -cardValue(c) / 4 : 0) - ((manaAbility(c) || { amount: 0 }).amount ? 1 : 0);
+  const [pick] = pool.length ? await env.choosers[env.me].pickCards({ prompt: `${cardName(me)}: tap an untapped ${m[1]} you control (or none to sacrifice it)`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'tapCost', src: env.src, aiScore: score }) : [];
+  if (pick && card(pick)) {
+    tapPerm(card(pick));
+    env.did.push(`taps ${nameTag(card(pick))} to keep ${nameTag(me)}`);
+  } else {
+    sacrifice(me.iid);
+    env.did.push(`sacrifices ${nameTag(me)}`);
+  }
+}, { first: true });
+// Tariel: "Choose a creature card at random from target opponent's graveyard. Put that card onto the battlefield under your control."
+on(/^choose an? ([a-z]+) card at random from target opponent's graveyard\. put that card onto the battlefield under your control$/, async (m, env) => {
+  const [o] = await playerTarget(env, 'target opponent');
+  if (!o) return;
+  const pool = cardsIn(o, 'graveyard').filter((c) => matchesAny(c, m[1]));
+  if (!pool.length) return env.did.push(`${who(o) === 'you' ? 'your' : "the AI's"} graveyard has no ${m[1]} cards`);
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  toBattlefield(pick.iid, env.me);
+  env.did.push(`randomly picks ${nameTag(card(pick.iid))} and puts it onto the battlefield`);
+}, { first: true, multi: true });
 // Bounce lands: "return a land you control to its owner's hand" / Coral Atoll: "sacrifice it unless you return an untapped Island you control to its owner's hand"
 async function bounceOwnLand(env, kind, untapped, optional) {
   const pool = cardsIn(env.me, 'battlefield').filter((c) => isLand(c) && (!untapped || !c.tapped) && (kind === 'land' || hasSubtype(c, kind) || matchesFilter(c, kind)));
@@ -5797,7 +5823,7 @@ on(/^earthbend (\d+|x)$/, async (m, env) => {
   env.did.push(`earthbends ${nameTag(l)} (${k} counters)`);
 });
 // --- copying a spell on the stack: "Copy it", "Copy target instant or sorcery spell"
-on(/^copy (it|that spell|target (?:instant or sorcery |instant |sorcery )?spell(?: you control)?)(?: (twice|thrice|\w+ times))?(?:\. you may choose new targets for the cop(?:y|ies))?$/, async (m, env) => {
+on(/^copy (it|that spell|target (?:instant or sorcery |instant |sorcery )?spell(?: you control)?)(?: (twice|thrice|\w+ times))?(?:, except the copy isn't legendary)?(?:\. you may choose new targets for the cop(?:y|ies))?$/, async (m, env) => {
   const target = env.it && env.it.iid && card(env.it.iid) ? card(env.it.iid) : env.stackTarget ? card(env.stackTarget) : (G.s.stack && card(G.s.stack.iid)) || (G.s.pstack && card(G.s.pstack.iid));
   if (!target) return env.did.push('nothing to copy');
   if (env.src && card(env.src.iid) && /do this only once each turn/i.test(env.text || '') && card(env.src.iid).onceTurn === G.s.turn) {
@@ -5809,6 +5835,8 @@ on(/^copy (it|that spell|target (?:instant or sorcery |instant |sorcery )?spell(
   if (isPermanentCard({ faces: [DB[target.def].faces[target.castFace || 0] || DB[target.def].faces[0]] })) {
     const made = createToken(target.def, env.me, times);
     for (const i of made) if (card(i)) card(i).face = target.castFace || 0;
+    // The Sixth Doctor: "except the copy isn't legendary"
+    if (/except the copy isn't legendary/.test(env.sentence)) for (const i of made) if (card(i)) card(i).notLegendary = true;
     // Spider-Verse: "If the copy is a permanent spell, it gains haste."
     if (/if the copy is a permanent spell, it gains haste/i.test(env.text || '')) for (const i of made) if (card(i)) card(i).grants = [...(card(i).grants || []), 'haste'];
     queueEvent({ type: 'copySpell', controller: env.me, iid: target.iid });
