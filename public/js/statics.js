@@ -403,7 +403,8 @@ function matchesFilter(c, f, helpers) {
   if (f.blocking && !c.blocking) return false;
   if (f.tapped && !c.tapped) return false;
   if (f.untapped && c.tapped) return false;
-  if (f.creature && !/\bCreature\b/.test(tl)) return false;
+  // a crewed Vehicle or a stationed Spacecraft is a creature without "Creature" on its type line
+  if (f.creature && !/\bCreature\b/.test(tl) && !(helpers.isCreature && helpers.isCreature(c))) return false;
   if (f.artifact && !/Artifact/.test(tl)) return false;
   if (f.enchantment && !/Enchantment/.test(tl)) return false;
   if (f.color && !d.colors.includes(f.color)) return false;
