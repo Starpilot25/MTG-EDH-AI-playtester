@@ -1,5 +1,34 @@
 [
   {
+    "version": "1.3.102",
+    "title": "Infinite Guideline Station deck check",
+    "notes": [
+      "Companion in the sideboard: decklists that put the companion under SIDEBOARD (Moxfield-style) now load it as your companion; other sideboard cards are still left out.",
+      "Wulfgar of Icewind Dale: attack triggers now trigger an additional time.",
+      "Franklin's Finality / Annie Joins Up: triggered abilities of your legendary creatures trigger an additional time.",
+      "Arthur, Marigold Knight: triggers when he attacks with another creature; the creature it finds comes in tapped and attacking and returns to your hand at end of combat.",
+      "Gonti, Canny Acquisitor: exiles the opponent's top card face down for you to play (it used to exile Gonti!).",
+      "Inquisitor Greyfax: the +1/+0 and vigilance for your other creatures now works.",
+      "Jetmir: the trample (6+ creatures) and double strike (9+ creatures) bonuses now apply.",
+      "Inspirit, Flagship Vessel: the combat counter (a +1/+1 or two charge counters on another artifact) works.",
+      "Mathas, Fiend Seeker: bountied creatures give each opponent a card and 2 life when they die.",
+      "Morska: two +1/+1 counters when you draw your second card each turn.",
+      "Mr. Foxglove: draws the difference in hand sizes, or lets you put a creature in.",
+      "Nahiri's Resolve: exile your artifacts/creatures at end step and they come back next upkeep (the AI blinks ones with enter abilities).",
+      "Omo, Queen of Vesuva: everything counters — the land taps for any color and counts as every land type; the creature is every creature type.",
+      "Ramos, Dragon Engine: counters for each color of the spell; its remove-five-counters mana ability now removes the counters.",
+      "Rashmi and Ragavan: exiles the opponent's top card, makes a Treasure, casts it free if cheap enough, otherwise you may cast it this turn.",
+      "Satya, Aetherflux Genius: the token copy is sacrificed at end step unless you pay energy equal to its mana value.",
+      "Tidus, Yuna's Guardian: moving a counter at beginning of combat, and the Cheer trigger (creatures with counters dealing combat damage).",
+      "Tifa, Martial Artist: the 'power 7 or greater' trigger untaps your creatures and adds the extra combat.",
+      "The Fourth Doctor: once each turn you can play a historic land or cast a historic spell from the top of your library, making a Food.",
+      "Aragorn, King of Gondor: as the monarch, no creatures can block this turn.",
+      "Alistair, the Brigadier: the pump counts your historic permanents.",
+      "Hazel of the Rootbloom: its mana ability now taps the tokens you choose and adds that much mana.",
+      "Timeless Lotus and Jegantha: add one mana of each color (not five of any); Jegantha's mana can't pay generic costs."
+    ]
+  },
+  {
     "version": "1.3.101",
     "title": "The Sixth Doctor, Command Bridge, Tariel",
     "notes": [

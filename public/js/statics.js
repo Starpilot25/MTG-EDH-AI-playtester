@@ -42,6 +42,8 @@ function filterFrom(words) {
     else if (w === 'artifact') f.artifact = true;
     else if (w === 'enchantment') f.enchantment = true;
     else if (w === 'multicolored') f.multicolored = true;
+    else if (w === 'historic') f.historic = true;
+    else if (w === 'permanent' || w === 'permanents') continue;
     else if (w === 'colorless') f.colorless = true;
     else if (COLOR_WORDS[w]) f.color = COLOR_WORDS[w];
     else if (/^non/.test(w)) f.not = (f.not || []).concat(w.slice(3).replace(/^-/, '')); // non-Human
@@ -311,6 +313,9 @@ function staticsOfRaw(c) {
   let text = textFn ? textFn(c) : (d.faces[c.face || 0] || d.faces[0]).oracle;
   if (c.zone === 'command') text = eminenceText(text, d.name);
   else text = text.replace(/(^|\n)Eminence — As long as [^,]+? is in the command zone or on the battlefield, /g, '$1');
+  // flavor ability words before a static line (Inquisitor Greyfax: "Unquestionable Wisdom — Other creatures you control get +1/+0 …")
+  text = text.replace(/(^|\n)(?!Max speed|Eminence|Lieutenant|Chapter|Station|Companion|Coven|Metalcraft|Threshold|Delirium|Ferocious|Domain|Hellbent|Spell mastery|Revolt|Raid|Morbid|Formidable|Undergrowth|Kinship|Imprint)[A-Z][A-Za-z' ,.!?-]{1,40} — (?=(?:Other |Creatures |Each |Spells |Artifacts |Lands |Enchantments |You |Your |Permanents |Equipped |Enchanted ))/g, '$1');
+  text = text.replace(/(^|\n)Creatures you control also get /g, '$1Creatures you control get '); // Jetmir
   const key = c.def + ':' + (c.face || 0) + ':' + c.zone + ':' + text.length + ':' + (c.chosenType || '');
   if (!parsedCache.has(key)) parsedCache.set(key, parseStatics(text, d.name));
   return parsedCache.get(key);
@@ -395,6 +400,7 @@ function matchesFilter(c, f, helpers) {
   if (f.enchantment && !/Enchantment/.test(tl)) return false;
   if (f.color && !d.colors.includes(f.color)) return false;
   if (f.multicolored && d.colors.length < 2) return false;
+  if (f.historic && !/Legendary|Artifact|Saga/.test(tl)) return false;
   if (f.colorless && d.colors.length) return false;
   if (f.not) for (const w of f.not) if (new RegExp('\\b' + w + '\\b', 'i').test(tl) || (COLOR_WORDS[w] && d.colors.includes(COLOR_WORDS[w]))) return false;
   if (f.subtypes && !f.subtypes.some((st) => helpers.hasSubtype(c, st))) return false;

@@ -168,7 +168,20 @@ export function isType(inst, t) {
   return re.test(typeLine(inst).split('—')[0]);
 }
 // Subtypes live after the dash: "Enchantment — Aura", "Artifact — Equipment". Changelings have them all.
+// Omo, Queen of Vesuva: "Each land with an everything counter on it is every land type … Each nonland creature with an everything counter on it is every creature type."
+function omoOut() {
+  if (!G.s) return false;
+  return Object.values(G.s.cards).some((x) => x.zone === 'battlefield' && !x.phasedOut && /with an everything counter on it is every (?:land|creature) type/i.test((DB[x.def].faces[x.face || 0] || {}).oracle || ''));
+}
+export function everythingCounter(inst) {
+  return !!(inst && inst.zone === 'battlefield' && inst.counters && inst.counters.everything > 0 && omoOut());
+}
+const LAND_TYPES = /^(plains|island|swamp|mountain|forest|desert|gate|cave|lair|locus|mine|power-plant|tower|urza's|sphere|town|cloud)$/i;
 export function hasSubtype(inst, t) {
+  if (everythingCounter(inst)) {
+    if (isLand(inst) && LAND_TYPES.test(t)) return true;
+    if (!isLand(inst) && isCreature(inst) && !/^(aura|equipment|vehicle|saga|class|case|room|food|treasure|clue)$/i.test(t) && !LAND_TYPES.test(t)) return true;
+  }
   const parts = typeLine(inst).split('—');
   if (parts.length > 1 && new RegExp('\\b' + t + 's?\\b', 'i').test(parts.slice(1).join(' '))) return true;
   // changeling (intrinsic only, so lords can't loop back into themselves)
@@ -779,6 +792,8 @@ export function manaAbility(inst) {
       }
     }
   }
+  // Omo: a land with an everything counter is every basic land type too
+  if (everythingCounter(inst) && isLand(inst) && !inst.tapped) r = { ...(r || { amount: 1 }), colors: [...new Set([...((r && r.colors) || []), 'W', 'U', 'B', 'R', 'G'])] };
   if (!r) return r;
   r = withExtraC(inst, r);
   // Goldspan Dragon: "Treasures you control have "{T}, Sacrifice this artifact: Add two mana of any one color.""
@@ -1086,7 +1101,10 @@ function manaAbilityPlain(inst, o, produced) {
     if (cm) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: { two: 2, three: 3, four: 4, five: 5 }[cm[1].toLowerCase()] };
     const syms = m[1].match(/\{[WUBRGC]\}/g);
     if (syms && !/\bor\b/.test(m[1]) && /^(\{[WUBRGC]\})+$/.test(m[1].replace(/\s/g, ''))) amount = syms.length;
-    return { colors: produced, amount };
+    // Timeless Lotus, Jegantha: "{T}: Add {W}{U}{B}{R}{G}." — one of each, not five of any
+    const noGeneric = /This mana can't be spent to pay generic mana costs/i.test(o) ? { noGeneric: true } : {};
+    if (amount > 1 && syms && new Set(syms).size > 1) return { colors: produced, amount, each: syms.map((x) => x[1]), ...noGeneric };
+    return { colors: produced, amount, ...noGeneric };
   }
   // Signets and filters: "{1}, {T}: Add {R}{G}." nets one extra mana of those colors
   if ((m = o.match(/\{1\}, \{T\}: Add (\{[WUBRGC]\})(\{[WUBRGC]\})/))) return { colors: produced, amount: 1 };
@@ -1182,8 +1200,8 @@ function payCostRaw(cost, sources, opts = {}) {
   const extra = opts.extraGeneric || 0;
   const units = [];
   for (const s of sources) {
-    if (s.each) for (const col of s.each) units.push({ iid: s.iid, colors: [col], sac: !!s.sac, kind: s.kind || '', act: !!s.activation, multi: true });
-    else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '', pain: s.pain || null, energy: s.energy || null, energyNeed: s.energyNeed || 0, multi: s.amount > 1, restricted: !!s.restricted });
+    if (s.each) for (const col of s.each) units.push({ iid: s.iid, colors: [col], sac: !!s.sac, kind: s.kind || '', act: !!s.activation, multi: true, noGeneric: !!s.noGeneric });
+    else for (let k = 0; k < s.amount; k++) units.push({ iid: s.iid, colors: s.colors, sac: !!s.sac, kind: s.kind || '', pain: s.pain || null, energy: s.energy || null, energyNeed: s.energyNeed || 0, multi: s.amount > 1, restricted: !!s.restricted, noGeneric: !!s.noGeneric });
   }
   // quick no: not enough mana at all, or a color nobody makes
   if (units.length < c.pips.length + c.generic + extra + (opts.minX || 0) * c.x) return null;
@@ -1309,6 +1327,7 @@ function payCostRaw(cost, sources, opts = {}) {
     let bv = Infinity;
     for (const k of remaining) {
       if (units[k].kind === 'waterbend' && wbLeft <= 0) continue;
+      if (units[k].noGeneric) continue; // Jegantha
       const v = genericCost(k);
       if (v < bv) {
         bv = v;
@@ -1390,6 +1409,7 @@ export function canBlock(blocker, attacker) {
   if (G.s && G.s.sectorBlockTurn === G.s.turn && attacker && blocker.sector !== attacker.sector) return false;
   if (G.s && blocker.noBlockUntil && blocker.noBlockUntil > G.s.turn) return false;
   if (blocker.cantBlockTurn === (G.s && G.s.turn)) return false;
+  if (G.s && G.s.noBlocksTurn === G.s.turn) return false;
   const bo = oracle(blocker);
   if ((/(?:^|\n|\. )(?:~|This creature|[A-Z][^.\n]*?) can't block\.?/.test(bo) && !/can't block (?:creatures with|unless|alone)/i.test(bo)) || hasKw(blocker, 'decayed') || blocker.suspected) return false;
   if ((blocker.grants || []).includes('unleashed') && (blocker.counters || {})['+1/+1']) return false;

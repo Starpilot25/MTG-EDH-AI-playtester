@@ -131,8 +131,11 @@ function parseTriggerText(text, speed) {
       add('dealsDamagePlayer', m[2], { attachedTo: true, oppOnly: /opponent/i.test(m[1]) });
     } else if ((m = line.match(/^Whenever ~ deals combat damage to a creature, (.+)$/i))) {
       add('combatDamageCreature', m[1], { self: true });
-    } else if ((m = line.match(/^Whenever ~ and at least (two|three|\d+) other creatures attack, (.+)$/i))) {
-      add('attacks', m[2], { self: true, minAttackers: 1 + ({ two: 2, three: 3 }[m[1].toLowerCase()] || +m[1]) });
+    } else if ((m = line.match(/^Whenever ~ and at least (one|two|three|\d+) other creatures? attack, (.+)$/i))) {
+      add('attacks', m[2], { self: true, minAttackers: 1 + ({ one: 1, two: 2, three: 3 }[m[1].toLowerCase()] || +m[1]) });
+    } else if ((m = line.match(/^Whenever one or more creatures you control with (counters on them|power (\d+) or greater) deal combat damage to a player, (.+)$/i))) {
+      // Tidus, Yuna's Guardian / Tifa, Martial Artist
+      add('combatDamageOnce', m[3], m[2] ? { minPower: +m[2] } : { withCounters: true });
     } else if ((m = line.match(/^At the beginning of (?:your second main phase|your postcombat main phase|each of your postcombat main phases|your second main phase each turn), (.+)$/i))) {
       add('main2', m[1], { whose: 'your' });
     } else if ((m = line.match(/^At the beginning of (?:the upkeep of enchanted creature's controller|enchanted creature's controller's upkeep|enchanted player's upkeep), (.+)$/i))) {
@@ -225,8 +228,8 @@ function parseTriggerText(text, speed) {
     else if ((m = line.match(/^Whenever you cast your (third|fourth|fifth) spell each turn, (.+)$/i)))
       add('cast', m[2], { spell: '', mine: true, nth: { third: 3, fourth: 4, fifth: 5 }[m[1].toLowerCase()] });
     // Alandra: "Whenever you draw your fifth card each turn"
-    else if ((m = line.match(/^Whenever you draw your (third|fourth|fifth|sixth|seventh) card each turn, (.+)$/i)))
-      add('draw', m[2], { who: 'you', nthDraw: { third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7 }[m[1].toLowerCase()] });
+    else if ((m = line.match(/^Whenever you draw your (second|third|fourth|fifth|sixth|seventh) card each turn, (.+)$/i)))
+      add('draw', m[2], { who: 'you', nthDraw: { second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7 }[m[1].toLowerCase()] });
     // Bob, Bilbo's Ring: "Whenever ~ attacks alone", "Whenever equipped creature attacks alone"
     else if ((m = line.match(/^Whenever ~ attacks alone, (.+)$/i)))
       add('attacksAlone', m[1], { self: true });
@@ -1271,7 +1274,9 @@ function matches(ev) {
       });
       each((c, trig) => {
         if (trig.event !== 'combatDamageOnce' || c.controller !== ev.controller) return;
-        const srcs = (ev.sources || []).filter((x) => !trig.kind || (card(x.iid) && matchesFilter(card(x.iid), trig.kind)));
+        const srcs = (ev.sources || []).filter((x) => !trig.kind || (card(x.iid) && matchesFilter(card(x.iid), trig.kind)))
+          .filter((x) => !trig.withCounters || (card(x.iid) && Object.values(card(x.iid).counters || {}).some((v) => v > 0)))
+          .filter((x) => !trig.minPower || (card(x.iid) && power(card(x.iid)) >= trig.minPower));
         if (ev.sources && !srcs.length) return;
         const amount = srcs.reduce((n, x) => n + x.amount, 0);
         out.push({ src: c, trig, thatPlayer: ev.player, amount, them: srcs.map((x) => x.iid) });
@@ -1882,7 +1887,7 @@ export async function settle() {
       // more "that ability triggers an additional time": Krang (a player drawing), Felix Five-Boots (combat damage to a
       // player), Dr. Beverly Crusher (you gaining life), Veyran (you casting an instant or sorcery), Gandalf the White
       // (a legendary permanent or an artifact entering or leaving)
-      if (hits.length && /^(?:draw|combatDamagePlayer|combatDamageOnce|lifeGained|cast|enters|leaves|dies)$/.test(ev.type)) {
+      if (hits.length && /^(?:draw|combatDamagePlayer|combatDamageOnce|lifeGained|cast|enters|leaves|dies|attacks|attacksAlone|youAttack)$/.test(ev.type)) {
         const extra = [];
         for (const h of hits) {
           const ctl = h.controller || h.src.controller;
@@ -1893,6 +1898,8 @@ export async function settle() {
             if (ev.type === 'draw' && /If a player drawing a card causes a triggered ability of a permanent you control to trigger/i.test(o)) n++;
             if ((ev.type === 'combatDamagePlayer' || ev.type === 'combatDamageOnce') && ev.controller === ctl && /If a creature you control dealing combat damage to a player causes a triggered ability/i.test(o)) n++;
             if (ev.type === 'lifeGained' && ev.pid === ctl && /If you gaining life causes a triggered ability/i.test(o)) n++;
+            // Wulfgar of Icewind Dale, Isshin: "If a creature you control attacking causes a triggered ability of a permanent you control to trigger"
+            if (/^(?:attacks|attacksAlone|youAttack)$/.test(ev.type) && ev.controller === ctl && /If a creature you control attacking causes a triggered ability/i.test(o)) n++;
             if (ev.type === 'cast' && ev.controller === ctl && /If you casting or copying an instant or sorcery spell causes a triggered ability/i.test(o)) {
               const sp = card(ev.iid);
               if (sp && /\b(?:Instant|Sorcery)\b/.test(DB[sp.def].faces[ev.copyFace || sp.face || 0].typeLine || DB[sp.def].typeLine || '')) n++;
@@ -1904,6 +1911,18 @@ export async function settle() {
             }
           }
           for (let k = 0; k < n; k++) extra.push(h);
+        }
+        hits = hits.concat(extra);
+      }
+      // Annie Joins Up: "If a triggered ability of a legendary creature you control triggers, that ability triggers an additional time."
+      if (hits.length) {
+        const extra = [];
+        for (const h of hits) {
+          const src = h.src && h.src.iid ? card(h.src.iid) || h.src : h.src;
+          if (!src || !src.iid || src.zone !== 'battlefield' || !isCreature(src) || !/\bLegendary\b/.test(typeLine(src))) continue;
+          const ctl = src.controller;
+          const k = cardsIn(ctl, 'battlefield').filter((x) => !x.phasedOut && /If a triggered ability of a legendary creature you control triggers, that ability triggers an additional time/i.test(oracle(x))).length;
+          for (let i = 0; i < k; i++) extra.push(h);
         }
         hits = hits.concat(extra);
       }

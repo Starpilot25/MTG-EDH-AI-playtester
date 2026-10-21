@@ -51,6 +51,7 @@ const COMPANION_SECTIONS = /^companions?\b/i;
 export function parseDecklist(text) {
   const commanders = [];
   const companions = [];
+  const sideboard = [];
   const main = [];
   let section = 'main';
   let sawBlankAfterMain = false;
@@ -65,7 +66,7 @@ export function parseDecklist(text) {
       const h = line.replace(/^\/\/\s*|^#+\s*/, '');
       if (CMD_SECTIONS.test(h)) section = 'cmd';
       else if (COMPANION_SECTIONS.test(h)) section = 'companion';
-      else if (SKIP_SECTIONS.test(h)) section = 'skip';
+      else if (SKIP_SECTIONS.test(h)) section = /^sideboard/i.test(h) ? 'sb' : 'skip';
       else if (MAIN_SECTIONS.test(h)) section = 'main';
       continue;
     }
@@ -73,7 +74,7 @@ export function parseDecklist(text) {
     if (!/^\d/.test(header) && header.split(' ').length <= 3) {
       if (CMD_SECTIONS.test(header)) { section = 'cmd'; continue; }
       if (COMPANION_SECTIONS.test(header)) { section = 'companion'; continue; }
-      if (SKIP_SECTIONS.test(header)) { section = 'skip'; continue; }
+      if (SKIP_SECTIONS.test(header)) { section = /^sideboard/i.test(header) ? 'sb' : 'skip'; continue; }
       if (MAIN_SECTIONS.test(header)) { section = 'main'; continue; }
     }
     if (/^SB:\s*/i.test(line)) {
@@ -87,12 +88,14 @@ export function parseDecklist(text) {
     const e = parseLine(line);
     if (!e) continue;
     if (section === 'skip') continue;
+    // a companion is often exported in the sideboard (Moxfield, Archidekt): kept if it turns out to have Companion
+    if (section === 'sb') { sideboard.push(e); continue; }
     if (isCmdTag || section === 'cmd') commanders.push(e);
     else if (section === 'companion') companions.push(e);
     else main.push(e);
   }
   void sawBlankAfterMain;
-  return { commanders, main, companions };
+  return { commanders, main, companions, sideboard };
 }
 
 function parseLine(line) {
@@ -302,6 +305,7 @@ export async function resolveDeck(parsed) {
   const all = [
     ...parsed.commanders.map((e) => ({ ...e, cmd: true })),
     ...(parsed.companions || []).map((e) => ({ ...e, companion: true })),
+    ...(parsed.sideboard || []).map((e) => ({ ...e, companion: true, sb: true })),
     ...parsed.main,
   ];
   const idents = all.map((e) =>
@@ -311,7 +315,8 @@ export async function resolveDeck(parsed) {
   const out = { name: parsed.name || 'Deck', commanders: [], companions: [], cards: [], missing: [] };
   all.forEach((e, i) => {
     const d = defs[i];
-    if (!d) return out.missing.push(e.name);
+    if (!d) return e.sb ? undefined : out.missing.push(e.name);
+    if (e.sb && !/(?:^|\n)Companion —/.test(d.faces[0].oracle || '')) return; // ordinary sideboard card: not in the deck
     if (e.cmd) out.commanders.push(d.id);
     else if (e.companion && /(?:^|\n)Companion —/.test(d.faces[0].oracle || '')) out.companions.push(d.id);
     else for (let k = 0; k < (e.qty || 1); k++) out.cards.push(d.id);

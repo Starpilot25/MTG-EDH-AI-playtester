@@ -317,6 +317,15 @@ async function upkeepKeywords(pid) {
   // delayed upkeep effects: rebound
   for (const d of s.delayed.filter((x) => x.at === 'upkeep' && x.turnOf === pid && x.after < s.turn)) {
     s.delayed.splice(s.delayed.indexOf(d), 1);
+    // Nahiri's Resolve: return the exiled cards
+    if (d.kind === 'returnExiled') {
+      const back = (d.ids || []).filter((i) => card(i) && card(i).zone === 'exile');
+      for (const i of back) toBattlefield(i, card(i).owner);
+      if (back.length) log(pid, `${back.map((i) => nameTag(card(i))).join(', ')} return${back.length === 1 ? 's' : ''} to the battlefield.`);
+      await settle();
+      if (G.s !== s) return;
+      continue;
+    }
     const c = card(d.iid);
     if (!c || c.zone !== 'exile') continue;
     const yes = isAI(pid) ? true : await T.confirm('Rebound', `Cast ${cardName(c)} from exile without paying its mana cost?`);
@@ -396,6 +405,23 @@ async function endStepThings(pid) {
     }
     const c = card(d.iid);
     if (!c) continue;
+    // Satya: "sacrifice that token unless you pay an amount of {E} equal to its mana value"
+    if (d.kind === 'sacUnlessEnergy') {
+      if (c.zone !== 'battlefield') continue;
+      const need = DB[c.def].cmc || 0;
+      const pl = G.s.players[d.pid];
+      const have = (pl.counters && pl.counters.energy) || 0;
+      let pay = have >= need;
+      if (pay && need > 0 && !isAI(d.pid)) pay = await T.confirm(cardName(c), `Pay ${need} energy to keep ${cardName(c)}? (you have ${have})`);
+      if (pay) {
+        pl.counters.energy = have - need;
+        log(d.pid, `${d.pid === 'p' ? 'You pay' : 'The AI pays'} ${need} energy to keep ${nameTag(c)}.`);
+      } else {
+        sacrifice(d.iid);
+        log(d.pid, `${nameTag(c)} is sacrificed.`);
+      }
+      continue;
+    }
     // Hellkite Courser: return the commander to the command zone
     if (d.kind === 'toCommand') {
       if (c.zone === 'battlefield') {
@@ -870,6 +896,12 @@ async function endCombat(pid) {
   const s = G.s;
   fire({ type: 'endCombat', active: pid });
   for (const c of seats().flatMap(allOnField)) {
+    if (c.endOfCombat === 'hand' && c.zone === 'battlefield') {
+      delete c.endOfCombat;
+      log(c.controller, `${nameTag(c)} returns to its owner's hand at end of combat.`);
+      move(c.iid, 'hand');
+      continue;
+    }
     if (c.endOfCombat === 'sacrifice' && c.zone === 'battlefield') {
       delete c.endOfCombat;
       log(c.controller, `${nameTag(c)} is sacrificed at end of combat.`);
@@ -888,6 +920,9 @@ async function endCombat(pid) {
 function bumpCombatNo(pid) {
   G.s.combatNo = G.s.combatNo || {};
   G.s.combatNo[pid] = (G.s.combatNo[pid] || 0) + 1;
+  // Tifa: "if it's the first combat phase of your turn"
+  if (!G.s.combatsThisTurn || G.s.combatsThisTurn.turn !== G.s.turn) G.s.combatsThisTurn = { turn: G.s.turn, n: 0 };
+  G.s.combatsThisTurn.n++;
 }
 // `defender` is the default (in 1v1 the only) defending player; in a pod each attacker's own target decides it.
 function fireAttacks(attackers, controller, defender) {

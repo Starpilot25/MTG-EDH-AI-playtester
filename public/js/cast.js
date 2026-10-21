@@ -79,7 +79,7 @@ export function manaSources(pid, opts = {}) {
       const best = Object.entries(m.byColor).sort((a, b) => Math.min(b[1], pips(b[0])) - Math.min(a[1], pips(a[0])) || b[1] - a[1])[0];
       if (best) m = { ...m, colors: [best[0]], amount: best[1] };
     }
-    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, filterAlt: m.filterAlt, energy: m.energy, energyNeed: m.energyNeed, activation: m.activation || 0, restricted: !!m.onlyFor });
+    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, filterAlt: m.filterAlt, energy: m.energy, energyNeed: m.energyNeed, activation: m.activation || 0, restricted: !!m.onlyFor, noGeneric: !!m.noGeneric });
   }
   // Relic of Legends: "Tap an untapped legendary creature you control: Add one mana of any color." — each such creature is a source
   {
@@ -231,12 +231,34 @@ export function topAccess(pid) {
       if (m[2] !== undefined) a.filters.push((m[2] || '').trim().toLowerCase());
     }
     if (/cast spells from the top of your library/i.test(o) && !a.filters.includes('')) a.filters.push('');
+    // The Fourth Doctor: "Once each turn, you may play a historic land or cast a historic spell from the top of your library."
+    if (/Once each turn, you may play a historic land or cast a historic spell from the top of your library/i.test(o) && c.topOnceTurn !== G.s.turn) {
+      a.filters.push('historic');
+      const t = zoneOf(pid, 'library');
+      const top = t.length && G.s.cards[t[t.length - 1]] ? G.s.cards[t[t.length - 1]] : null;
+      if (top && isHistoricDef(DB[top.def]) && /\bLand\b/.test(DB[top.def].faces[0].typeLine || '')) a.lands = true;
+    }
   }
   if (a.lands || a.filters.length) a.look = true; // you may look at a card you may play
   return a;
 }
+function isHistoricDef(d) {
+  const tl = (d.faces[0] || {}).typeLine || d.typeLine || '';
+  return /\b(?:Artifact|Legendary|Saga)\b/.test(tl);
+}
+// The Fourth Doctor: playing a historic card from the top uses it up for the turn, and makes a Food
+export async function fourthDoctorUsed(pid, c) {
+  if (!c || !isHistoricDef(DB[c.def])) return;
+  const doc = cardsIn(pid, 'battlefield').find((x) => !x.phasedOut && x.topOnceTurn !== G.s.turn && /Once each turn, you may play a historic land or cast a historic spell from the top of your library\. When you do, create a Food token/i.test(oracle(x)));
+  if (!doc) return;
+  doc.topOnceTurn = G.s.turn;
+  const { resolveEffects } = await import('./effects.js');
+  const did = await resolveEffects('Create a Food token.', doc, { me: pid, choosers: T.choosers, forced: true });
+  log(pid, `${nameTag(doc)}: ${did.join('; ') || 'creates a Food token'}.`);
+}
 function topFilterOk(f, d) {
   if (!f) return true;
+  if (f === 'historic') return isHistoricDef(d);
   // "creature @power>=4": a stat condition after the types
   const st = f.match(/@(power|mv)(>=|<=)(\d+)$/);
   if (st) {
@@ -798,6 +820,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (opt.mode === 'coram') s.coramSpell = { ...(s.coramSpell || {}), [pid]: s.turn };
   if (opt.mode === 'gyPermit') s.gyPermit = { ...(s.gyPermit || {}), [opt.permitSrc]: s.turn };
   Object.assign(c, { castMode: opt.mode === 'normal' ? null : opt.mode, kicked: info.kicked, xPaid: info.x, castFrom: fromZone, castFace: fIdx, bargained: !!info.bargained });
+  if (fromZone === 'library' && !opt.copy) await fourthDoctorUsed(pid, c);
   c.colorsSpent = new Set((f.manaCost || '').match(/[WUBRG]/g) || []).size;
   const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse|gyPermit|coram|freecast)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
   log(pid, tag);
@@ -1397,6 +1420,7 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
   G.s.landsPlayed = (G.s.landsPlayed || 0) + 1;
   G.s.landPlayed = G.s.landsPlayed >= landsAllowed(pid);
   G.s.ts[pid].landsPlayed++;
+  if (c.zone === 'library') fourthDoctorUsed(pid, c);
   G.s.lastLandPlay = { iid, from: c.zone, pid }; // Ghost-Spider: "whenever you play a land from exile"
   toBattlefield(iid, pid, pos);
   // Vesuva: "You may have ~ enter tapped as a copy of any land on the battlefield."
@@ -1844,7 +1868,7 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.payLife && s.players[pid].life < lifeCost) return env.say('Not enough life.');
   if (ab.payEnergy && s.players[pid].counters.energy < ab.payEnergy) return env.say('Not enough energy.');
   if (ab.removeCounters) {
-    const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
+    const k = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
     const have = ab.removeCounters[2] ? (c.counters || {})[ab.removeCounters[2].toLowerCase()] || 0 : Object.values(c.counters || {}).reduce((a, v) => a + (v > 0 ? v : 0), 0);
     if (have < k) return env.say('Not enough counters.');
   }
@@ -1888,7 +1912,7 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.payLife && lifeCost) changeLife(pid, -lifeCost);
   if (ab.payEnergy) { s.players[pid].counters.energy -= ab.payEnergy; if (s.ts && s.ts[pid]) s.ts[pid].energyPaid = (s.ts[pid].energyPaid || 0) + ab.payEnergy; }
   if (ab.removeCounters) {
-    const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
+    const k = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
     if (ab.removeCounters[2]) c.counters[ab.removeCounters[2].toLowerCase()] -= k;
     else {
       // any kind of counter: take from the most plentiful first
