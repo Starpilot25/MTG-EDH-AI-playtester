@@ -33,7 +33,7 @@ const instantFace = (f) => /\bInstant\b/.test((f.typeLine || '').split('—')[0]
 // Restricted mana ("Spend this mana only to cast an Angel spell", Orb of Dragonkind's "Dragon spells or abilities of Dragons"):
 // may it pay for this spell or ability?
 function restrictedOk(onlyFor, abilitiesOf, spell, opts) {
-  if (!onlyFor) return true;
+  if (!onlyFor || onlyFor === 'nogeneric') return true;
   if (onlyFor === 'abilities') return !!opts.ability; // The Enigma Jewel
   // (no spell being cast — ward, "unless you pay", abilities — is fine too)
   if (onlyFor === 'artifactOrAbility') return !!opts.ability || !spell || spell.zone === 'battlefield' || (/\bArtifact\b/.test((DB[spell.def].faces[spell.face || 0] || {}).typeLine || DB[spell.def].typeLine || '')); // Powerstone
@@ -53,6 +53,7 @@ export function poolSym(sym) {
   return { col, onlyFor, abilitiesOf: abil ? onlyFor : null };
 }
 export function tagPoolSym(col, m) {
+  if (m && m.noGeneric && !m.onlyFor) return `${col}@nogeneric`; // Jegantha
   return m && m.onlyFor ? `${col}@${m.onlyFor}${m.abilitiesOf ? '+' : ''}` : col;
 }
 
@@ -63,7 +64,7 @@ export function manaSources(pid, opts = {}) {
   pool.forEach((sym, k) => {
     const p = poolSym(sym);
     if (!restrictedOk(p.onlyFor, p.abilitiesOf, spell, opts)) return;
-    out.push({ iid: 'pool:' + k, colors: p.col === 'ANY' ? ['W', 'U', 'B', 'R', 'G', 'C'] : [p.col], amount: 1, kind: 'pool' });
+    out.push({ iid: 'pool:' + k, colors: p.col === 'ANY' ? ['W', 'U', 'B', 'R', 'G', 'C'] : [p.col], amount: 1, kind: 'pool', ...(p.onlyFor === 'nogeneric' ? { noGeneric: true } : {}) });
   });
   for (const c of cardsIn(pid, 'battlefield')) {
     let m = manaAbility(c);

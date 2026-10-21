@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.103",
+    "title": "Jegantha's mana",
+    "notes": [
+      "Jegantha, the Wellspring: its mana keeps the \"can't pay generic costs\" rule even when it's floating in your mana pool."
+    ]
+  },
+  {
     "version": "1.3.102",
     "title": "Infinite Guideline Station deck check",
     "notes": [

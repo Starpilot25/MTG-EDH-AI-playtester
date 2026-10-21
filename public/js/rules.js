@@ -1375,6 +1375,7 @@ function payCostRaw(cost, sources, opts = {}) {
   const usedSrc = new Set(payers);
   units.forEach((u, k) => {
     if (finalUsed[k] || u.kind || u.restricted || u.sac || !usedSrc.has(u.iid)) return;
+    if (u.noGeneric) return void leftover.push(u.colors[0] + '@nogeneric'); // Jegantha's mana keeps its restriction
     if (u.colors.length === 1) return void leftover.push(u.colors[0]);
     const spent = units.find((v, j) => finalUsed[j] && v.iid === u.iid);
     leftover.push(paidAs.get(u.iid) || (spent && spent.colors.length === 1 ? spent.colors[0] : 'ANY'));
