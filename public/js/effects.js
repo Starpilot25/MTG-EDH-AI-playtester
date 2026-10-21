@@ -6896,6 +6896,14 @@ on(/^for each creature with one or more votes, put that many stun counters on it
     env.did.push(`puts ${k} stun counter${k > 1 ? 's' : ''} on ${nameTag(c)} and taps it`);
   }
 }, { first: true });
+// Selvala's Stampede: "Reveal cards from the top of your library until you reveal a creature card for each wild vote. Put those creature cards onto the battlefield, then shuffle the rest into your library."
+on(/^reveal cards from the top of your library until you reveal a creature card for each (\w+) vote\. put those creature cards onto the battlefield, then shuffle the rest(?: of the revealed cards)? into your library$/, async (m, env) => {
+  const k = (env.votes && env.votes.tally.get(m[1])) || 0;
+  if (!k) return env.did.push(`no ${m[1]} votes`);
+  const got = revealCreaturesOnto(env.me, k);
+  env.them_ = got;
+  env.did.push(`${got.length} creature${got.length === 1 ? '' : 's'} onto the battlefield`);
+}, { first: true, multi: true });
 // Expropriate: "For each money vote, choose a permanent owned by the voter and gain control of it."
 on(/^for each (\w+) vote, choose a permanent owned by the voter and gain control of it$/, async (m, env) => {
   for (const voter of seats()) {
@@ -7374,7 +7382,7 @@ async function runSentence(sentence, env) {
   s = s.replace(/^for each ([^,]+), create (a|an|one|two|three) (.+? tokens?(?: with [a-z ,]+)?)$/i, 'create $2 $3 for each $1');
   // voting results: "For each evidence vote, investigate.", "… for each feather vote and draw a card for each quill vote",
   // "create a number of Treasure tokens equal to twice the number of profit votes", "draw cards equal to the number of truth votes"
-  if (env.votes && env.votes.kind === 'words' && /\bvotes?\b/i.test(s) && !/gets more votes|each player (?:secretly )?votes for/i.test(s)) {
+  if (env.votes && env.votes.kind === 'words' && /\bvotes?\b/i.test(s) && !/gets more votes|each player (?:secretly )?votes for|^reveal cards from the top of your library until you reveal a creature card for each/i.test(s)) {
     const cnt = (w) => env.votes.tally.get(w.trim().toLowerCase()) || 0;
     let vm = s.match(/^(.*?)\ba number of (.+?) equal to (twice )?the number of ([\w' ]+?) votes(.*)$/i);
     if (vm) {

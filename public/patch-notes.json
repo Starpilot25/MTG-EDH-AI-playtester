@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.97",
+    "title": "Selvala's Stampede",
+    "notes": [
+      "Selvala's Stampede: each wild vote now reveals a creature card from your library and puts it onto the battlefield (the rest get shuffled back); free votes still let you put permanents from your hand onto the battlefield."
+    ]
+  },
+  {
     "version": "1.3.96",
     "title": "Copies that keep their own name",
     "notes": [
