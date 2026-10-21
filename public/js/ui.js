@@ -2321,7 +2321,7 @@ function menuForCard(c, x, y) {
       items.push({ label: G.s.combat.attackers.includes(c.iid) ? 'Remove from attack' : 'Attack with this', fn: () => toggleAttacker(c.iid) });
     items.push('-');
   }
-  if ((mine || c.mayPlay === 'p' || c.mayPlayFree === 'p' || c.mayCastFromGy === 'p') && ['hand', 'command', 'graveyard', 'exile'].includes(c.zone) && G.settings.arenaMode) {
+  if ((mine || c.mayPlay === 'p' || c.mayPlayFree === 'p' || c.mayCastFromGy === 'p') && (['hand', 'command', 'graveyard', 'exile'].includes(c.zone) || (c.zone === 'library' && isLibraryTop('p', c))) && G.settings.arenaMode) {
     const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p')) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) || (c.zone === 'graveyard' && c.owner === 'p' && gyLandsOk('p')) ? landOptions('p', c) : [];
     for (const l of lands) items.push({ label: esc(l.label), fn: () => castByPlayer(c.iid, { option: { ...l, land: true } }) });
     for (const o of castOptions('p', c)) items.push({ label: `${esc(o.label)}${o.cost && !/\{/.test(o.label) ? ' ' + manaSymbols(displayCost('p', c, o)) : ''}`, fn: () => castByPlayer(c.iid, { option: o }) });
