@@ -1087,6 +1087,13 @@ export function untapAll(pid) {
     if (c.noUntapUntil && c.noUntapUntil > G.s.turn) continue;
     if (/doesn't untap during (?:your|its controller's) untap step/i.test(oracle(c)) && !/if/i.test(oracle(c).match(/[^.\n]*doesn't untap during[^.\n]*/i)[0])) continue;
     if (c.pacifiedBy && /doesn't untap/i.test(oracle(card(c.pacifiedBy) || c))) continue;
+    // Auras: "Enchanted creature doesn't untap during its controller's untap step [unless that player is the monarch]"
+    if (Object.values(G.s.cards).some((a) => {
+      if (a.zone !== 'battlefield' || a.attachedTo !== c.iid || a.phasedOut) return false;
+      const um = oracle(a).match(/Enchanted (?:creature|permanent) doesn't untap during its controller's untap step( unless that player is the monarch)?/i);
+      if (!um) return false;
+      return um[1] ? G.s.monarch !== c.controller : true;
+    })) continue;
     c.tapped = false;
   }
 }

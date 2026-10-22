@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.116",
+    "title": "Fall from Favor",
+    "notes": [
+      "Fall from Favor: taps the creature and makes you the monarch when it enters; the creature stays tapped unless its controller is the monarch (and it can still attack and block once untapped).",
+      "Auras that only stop a creature untapping (like Claustrophobia) no longer also stop it attacking or blocking."
+    ]
+  },
+  {
     "version": "1.3.115",
     "title": "Resolve all restyled",
     "notes": [

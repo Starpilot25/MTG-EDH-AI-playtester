@@ -7105,6 +7105,11 @@ on(/^for each creature with one or more votes, put that many stun counters on it
     env.did.push(`puts ${k} stun counter${k > 1 ? 's' : ''} on ${nameTag(c)} and taps it`);
   }
 }, { first: true });
+// Fall from Favor: "tap enchanted creature and you become the monarch"
+on(/^tap enchanted creature and you become the monarch$/, async (m, env) => {
+  await runSentence('tap enchanted creature', env);
+  await runSentence('you become the monarch', env);
+}, { first: true });
 // Teferi, Temporal Pilgrim −12
 on(/^target opponent chooses a permanent they control and returns it to its owner's hand\. then they shuffle each nonland permanent they control into its owner's library$/, async (m, env) => {
   const [o] = await playerTarget(env, 'target opponent');
@@ -8217,7 +8222,8 @@ export function attachTo(src, t) {
       ...(g.texts.length ? { text: g.texts.map((q) => q.replace(/^\[([+−-]?\d+)\]:/, '$1:')).join('\n') } : {}),
     };
   }
-  if (/Enchanted creature can't attack|Enchanted creature can't block|Enchanted creature doesn't untap/i.test(o)) t.pacifiedBy = src.iid;
+  // (an Aura that only stops untapping — Fall from Favor, Claustrophobia — is checked in the untap step instead)
+  if (/Enchanted creature can't attack|Enchanted creature can't block/i.test(o)) t.pacifiedBy = src.iid;
   if (/Enchanted creature has base power and toughness 1\/1|Cursed/i.test(o) && /base power and toughness 1\/1/i.test(o)) t.setPT = { ts: nextStamp(), p: 1, t: 1 };
   // Layered Auras: Frogify / Kenrith's Transformation, Darksteel Mutation, Deep Freeze, Song of the Dryads, Imprisoned in the Moon
   {
