@@ -1027,7 +1027,8 @@ async function pickTargets(env, phrase, opts = {}) {
   }
   const kind = p.replace(/^(?:up to \w+ |any number of |\w+ (?=target))?(?:other |another )?target /, '').replace(/^any number of target /, '');
   const results = [];
-  const anyTarget = /^any (?:other )?target|creature or player|player or planeswalker|creature or planeswalker|planeswalker or battle|creature, player, or planeswalker/.test(kind) || /any target/.test(p);
+  // "creature or planeswalker [an opponent controls]" (Annie Joins Up) is permanents only — no players
+  const anyTarget = /^any (?:other )?target|creature or player|player or planeswalker|creature, player, or planeswalker/.test(kind) || /any target/.test(p);
   const playerTarget = /^(?:player|opponent)s?\b/.test(kind) || anyTarget || /or player|player or/.test(kind);
   let cands;
   if (/^spell/.test(kind)) {

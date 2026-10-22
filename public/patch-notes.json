@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.113",
+    "title": "\"Creature or planeswalker\" targets",
+    "notes": [
+      "Annie Joins Up (Franklin's Finality) and other \"target creature or planeswalker\" effects no longer let you pick a player, and \"an opponent controls\" now only offers opponents' permanents."
+    ]
+  },
+  {
     "version": "1.3.112",
     "title": "Resolve all triggers",
     "notes": [
