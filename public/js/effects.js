@@ -7105,6 +7105,19 @@ on(/^for each creature with one or more votes, put that many stun counters on it
     env.did.push(`puts ${k} stun counter${k > 1 ? 's' : ''} on ${nameTag(c)} and taps it`);
   }
 }, { first: true });
+// Jean-Luc Picard, Luminary: "put a +1/+1 counter on up to one other target creature and two charge counters on up to one target Spacecraft"
+on(/^put an? ([+\-\d\/a-z]+) counter on up to one (other )?target creature(?: you control)? and (a|an|one|two|three) ([a-z]+) counters? on up to one target ([a-z]+)$/, async (m, env) => {
+  const out = [];
+  const crs = cardsIn(env.me, 'battlefield').concat(...opponents(env.me).map((o) => cardsIn(o, 'battlefield')))
+    .filter((c) => isCreature(c) && (!m[2] || !env.src || c.iid !== env.src.iid) && canTarget(c, env.me, env.src));
+  const [a] = crs.length ? await env.choosers[env.me].pickCards({ prompt: `Put a ${m[1]} counter on up to one ${m[2] || ''}creature`, cards: crs.map((c) => c.iid), min: 0, max: 1, purpose: 'counters', src: env.src, aiScore: (c) => (c.controller === env.me ? cardValue(c) : -100) }) : [];
+  if (a && card(a) && (!isAI(env.me) || card(a).controller === env.me)) { addCounters(card(a), m[1], 1); out.push(`a ${m[1]} counter on ${nameTag(card(a))}`); }
+  const kind = m[5].replace(/s$/, '');
+  const pool = seats().flatMap((p) => cardsIn(p, 'battlefield')).filter((c) => (hasSubtype(c, capWords(kind)) || isType(c, capWords(kind))) && canTarget(c, env.me, env.src));
+  const [b] = pool.length ? await env.choosers[env.me].pickCards({ prompt: `Put ${m[3]} ${m[4]} counters on up to one ${kind}`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'counters', src: env.src, aiScore: (c) => (c.controller === env.me ? 10 : -100) }) : [];
+  if (b && card(b) && (!isAI(env.me) || card(b).controller === env.me)) { addCounters(card(b), m[4], n(m[3])); out.push(`${n(m[3])} ${m[4]} counters on ${nameTag(card(b))}`); }
+  env.did.push(out.length ? `puts ${out.join(' and ')}` : 'puts no counters');
+}, { first: true });
 // Fall from Favor: "tap enchanted creature and you become the monarch"
 on(/^tap enchanted creature and you become the monarch$/, async (m, env) => {
   await runSentence('tap enchanted creature', env);
