@@ -1262,7 +1262,7 @@ export const playerChooser = {
     return new Promise((resolve) => {
       const dlg = openDialog(`<h3>${esc(req.prompt)}</h3>
         <div class="choices">${req.options
-          .map((o, k) => `<button class="choice" data-k="${k}"><b>${esc(o.label)}</b>${o.detail ? `<span>${esc(o.detail)}</span>` : ''}</button>`)
+          .map((o, k) => `<button class="choice${o.cls ? ' ' + esc(o.cls) : ''}" data-k="${k}"><b>${esc(o.label)}</b>${o.detail ? `<span>${esc(o.detail)}</span>` : ''}</button>`)
           .join('')}</div>`, { noClose: true });
       dlg.addEventListener('click', (e) => {
         const b = e.target.closest('.choice');

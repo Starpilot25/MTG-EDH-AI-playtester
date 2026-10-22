@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.115",
+    "title": "Resolve all restyled",
+    "notes": [
+      "The Resolve all option in the trigger-order window now matches the app's look (brass outline, no emoji)."
+    ]
+  },
+  {
     "version": "1.3.114",
     "title": "Duplicant",
     "notes": [

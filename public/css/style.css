@@ -681,6 +681,9 @@ body.target-mode .life { cursor: crosshair; }
 .choices { display: grid; gap: 8px; }
 .choice { display: grid; gap: 3px; text-align: left; padding: 10px 12px; }
 .choice span { color: var(--muted); font-size: 13px; }
+.choice.resolve-all { margin-top: 6px; text-align: center; justify-items: center; background: transparent; border-color: var(--brass); }
+.choice.resolve-all b { color: var(--brass); letter-spacing: .02em; }
+.choice.resolve-all:hover:not(:disabled) { background: rgb(212 168 77 / 0.10); border-color: var(--brass); }
 ol.rooms { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; }
 ol.rooms li small { display: block; color: var(--muted); }
 ol.rooms li.here { color: var(--brass); }

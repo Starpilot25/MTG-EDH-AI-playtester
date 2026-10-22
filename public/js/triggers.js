@@ -2124,7 +2124,7 @@ async function orderTriggers(list) {
   while (left.length > 1 && new Set(left.map(label)).size > 1) {
     const k = await T.choosers.p.choose({
       prompt: out.length ? `Which of your triggers resolves next? (${left.length} left)` : `${left.length} of your abilities triggered at the same time. Which resolves first?`,
-      options: [...left.map((x) => ({ label: label(x) })), { label: "⏩ Resolve all (the rest in the order shown)" }],
+      options: [...left.map((x) => ({ label: label(x) })), { label: 'Resolve all', detail: 'The rest resolve in the order shown above', cls: 'resolve-all' }],
       aiPick: () => 0,
     });
     if (k === left.length) break; // "Resolve all": keep the listed order
