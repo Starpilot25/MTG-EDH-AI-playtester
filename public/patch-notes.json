@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.110",
+    "title": "Chromatic Lantern",
+    "notes": [
+      "Chromatic Lantern: your lands now tap for any color while it's out (auto-pay and tapping by hand)."
+    ]
+  },
+  {
     "version": "1.3.109",
     "title": "Anthems on Spacecraft and Vehicles",
     "notes": [

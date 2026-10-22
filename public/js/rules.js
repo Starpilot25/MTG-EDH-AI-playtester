@@ -177,6 +177,18 @@ export function everythingCounter(inst) {
   return !!(inst && inst.zone === 'battlefield' && inst.counters && inst.counters.everything > 0 && omoOut());
 }
 const LAND_TYPES = /^(plains|island|swamp|mountain|forest|desert|gate|cave|lair|locus|mine|power-plant|tower|urza's|sphere|town|cloud)$/i;
+const lanternCache = { v: -1, s: null, m: {} };
+function landsAnyColor(pid) {
+  if (!G.s || !pid || !G.s.players[pid]) return false;
+  if (lanternCache.s !== G.s || lanternCache.v !== G.s.bfv) Object.assign(lanternCache, { s: G.s, v: G.s.bfv, m: {} });
+  if (lanternCache.m[pid] === undefined) {
+    lanternCache.m[pid] = G.s.players[pid].zones.battlefield.some((i) => {
+      const x = G.s.cards[i];
+      return x && !x.phasedOut && /Lands you control have "\{T\}: Add one mana of any color\."/.test((DB[x.def].faces[x.face || 0] || {}).oracle || '') && !abilitiesGone(x);
+    });
+  }
+  return lanternCache.m[pid];
+}
 export function hasSubtype(inst, t) {
   if (everythingCounter(inst)) {
     if (isLand(inst) && LAND_TYPES.test(t)) return true;
@@ -792,6 +804,8 @@ export function manaAbility(inst) {
       }
     }
   }
+  // Chromatic Lantern: 'Lands you control have "{T}: Add one mana of any color."'
+  if (isLand(inst) && inst.zone === 'battlefield' && !inst.tapped && !inst.phasedOut && landsAnyColor(inst.controller)) r = { ...(r || { amount: 1 }), colors: [...new Set([...((r && r.colors) || []), 'W', 'U', 'B', 'R', 'G'])] };
   // Omo: a land with an everything counter is every basic land type too
   if (everythingCounter(inst) && isLand(inst) && !inst.tapped) r = { ...(r || { amount: 1 }), colors: [...new Set([...((r && r.colors) || []), 'W', 'U', 'B', 'R', 'G'])] };
   if (!r) return r;
