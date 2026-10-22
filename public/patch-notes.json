@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.112",
+    "title": "Resolve all triggers",
+    "notes": [
+      "When several of your abilities trigger at once, the \"which resolves first?\" window now has a ⏩ Resolve all button that resolves the rest in the order shown, so you don't have to pick them one by one."
+    ]
+  },
+  {
     "version": "1.3.111",
     "title": "Phyrexian mana",
     "notes": [
