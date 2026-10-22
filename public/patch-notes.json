@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.114",
+    "title": "Duplicant",
+    "notes": [
+      "Duplicant: now takes the power, toughness and creature types of the creature it exiles (it stayed 2/4 with the current card wording)."
+    ]
+  },
+  {
     "version": "1.3.113",
     "title": "\"Creature or planeswalker\" targets",
     "notes": [

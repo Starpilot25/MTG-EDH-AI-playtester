@@ -2992,7 +2992,7 @@ on(/^exile (.+?)(?: until ~ leaves the battlefield)?$/, async (m, env) => {
   // creature card exiled with ~."
   const dsrc = env.src && card(env.src.iid);
   const lastCreature = objs.filter((c) => card(c.iid) && card(c.iid).zone === 'exile' && /Creature/.test(DB[c.def].faces[0].typeLine || '')).pop();
-  if (dsrc && dsrc.zone === 'battlefield' && lastCreature && /has the power, toughness, and creature types of the last creature card exiled with ~/i.test(stripName(oracle(dsrc), dsrc))) {
+  if (dsrc && dsrc.zone === 'battlefield' && lastCreature && /has the power, toughness, and creature types of the last creature card exiled with (?:~|it|this creature)/i.test(stripName(oracle(dsrc), dsrc))) {
     const f = DB[lastCreature.def].faces[0];
     const subs = ((f.typeLine || '').split('—')[1] || '').trim();
     // "*" (Tarmogoyf, Psychosis Crawler): its characteristic-defining ability still works in exile
