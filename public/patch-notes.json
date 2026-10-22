@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.111",
+    "title": "Phyrexian mana",
+    "notes": [
+      "Phyrexian mana ({U/P} and friends) can now be paid with 2 life. If you can't make the colored mana, auto-pay uses life; if you can, you're asked whether to pay 2 life or the mana. The AI pays life when it lacks the color."
+    ]
+  },
+  {
     "version": "1.3.110",
     "title": "Chromatic Lantern",
     "notes": [

@@ -107,6 +107,10 @@ export function manaLifeGain(c) {
 // Tap / sacrifice / exile what paid for a cost.
 export function applyPayment(pid, pay) {
   if (!pay) return;
+  if (pay.phyLife) {
+    changeLife(pid, -pay.phyLife, false);
+    log(pid, `${pid === 'p' ? 'You pay' : 'The AI pays'} ${pay.phyLife} life for Phyrexian mana.`);
+  }
   const usedPool = [];
   for (const iid of new Set(pay.payers || [])) {
     const g = !String(iid).startsWith('pool:') && card(iid) && !card(iid).tapped ? manaLifeGain(card(iid)) : 0;

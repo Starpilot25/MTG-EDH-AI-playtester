@@ -1187,7 +1187,27 @@ function signetChainOk(on, genericUnits) {
   }
   return true;
 }
+// Phyrexian mana ({U/P}): paid with mana when possible, otherwise with 2 life each (cheapest first)
 export function payCost(cost, sources, opts = {}) {
+  const r = payCostMana(cost, sources, opts);
+  const phy = String(cost || '').match(/\{[WUBRGC]\/P\}|\{P\/[WUBRGC]\}/gi) || [];
+  if (r || !phy.length || opts.noPhyLife) return r;
+  let life = opts.life;
+  if (life === undefined && G.s) {
+    const owner = sources.map((s) => (s.iid && !String(s.iid).startsWith('pool:') ? G.s.cards[s.iid] : null)).find(Boolean);
+    const pid = opts.pid || (owner && owner.controller);
+    if (pid && G.s.players[pid]) life = G.s.players[pid].life;
+  }
+  for (let k = 1; k <= phy.length; k++) {
+    if (life !== undefined && life - 2 * k < 1) break; // never pay yourself to 0
+    let rest = String(cost);
+    for (let i = 0; i < k; i++) rest = rest.replace(phy[i], '');
+    const rr = payCostMana(rest, sources, opts);
+    if (rr) return { ...rr, phyLife: 2 * k };
+  }
+  return null;
+}
+function payCostMana(cost, sources, opts = {}) {
   const filters = sources.filter((s) => s.activation || s.filterAlt).map((s) => (s.filterAlt ? { ...s, ...s.filterAlt, filterAlt: undefined, kind: '' } : s));
   const plain = sources.filter((s) => !s.activation);
   let best = payCostRaw(cost, plain, opts);

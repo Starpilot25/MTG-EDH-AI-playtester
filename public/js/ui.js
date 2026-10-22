@@ -1640,7 +1640,23 @@ async function playerPay(pid, cost, label, opts = {}) {
       x = v;
     }
     pay = payCostKeep(cost.replace(/\{X\}/g, ''), src, { extraGeneric: extra + x * xs, waterbend: opts.waterbend || 0, self: opts.self }, 'p');
-  } else pay = payCostKeep(cost, src, { extraGeneric: extra, waterbend: opts.waterbend || 0, self: opts.self }, 'p');
+  } else {
+    // Phyrexian mana you could pay with mana: ask whether to pay 2 life instead
+    let phyLife = 0;
+    const phy = cost.match(/\{[WUBRGC]\/P\}|\{P\/[WUBRGC]\}/gi) || [];
+    if (phy.length && payCost(cost, src, { extraGeneric: extra, waterbend: opts.waterbend || 0, noPhyLife: true })) {
+      for (const sym of phy) {
+        if (G.s.players.p.life - phyLife - 2 < 1) break;
+        const col = sym.replace(/[{}\/P]/gi, '');
+        const life = await confirmDialog({ title: label, body: `Pay {${col}/P} with 2 life instead of {${col}}?` }, 'Pay 2 life', `Pay {${col}}`);
+        if (!life) continue;
+        cost = cost.replace(sym, '');
+        phyLife += 2;
+      }
+    }
+    pay = payCostKeep(cost, src, { extraGeneric: extra, waterbend: opts.waterbend || 0, self: opts.self }, 'p');
+    if (pay && phyLife) pay = { ...pay, phyLife: (pay.phyLife || 0) + phyLife };
+  }
   if (!pay) {
     const shown = (cost.replace(/[{}]/g, '') || '0') + (extra > 0 ? ` + ${extra}` : extra < 0 ? ` − ${-extra}` : '');
     const ok = await confirmDialog(
