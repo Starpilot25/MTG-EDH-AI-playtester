@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.118",
+    "title": "The Borg Queen, Gylwain",
+    "notes": [
+      "The Borg Queen: the enter/attack trigger now assimilates the opponent's creature — it comes onto the battlefield under your control as a Borg artifact creature with a +1/+1 counter, and the other exiled cards go to the bottom of their library.",
+      "Gylwain, Casting Director: when Gylwain itself enters, the Role token is now attached to Gylwain (it used to be left unattached)."
+    ]
+  },
+  {
     "version": "1.3.117",
     "title": "Jean-Luc Picard, Luminary",
     "notes": [

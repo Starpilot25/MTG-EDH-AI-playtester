@@ -4290,7 +4290,9 @@ async function makeTokens(env, desc, attachPhrase) {
   if (/sacrifice (?:it|that token|them|those tokens) at the beginning of the next end step/.test(env.text)) made.forEach((i) => (card(i).endOfTurn = 'sacrifice'));
   if (/exile (?:it|that token|them|those tokens) at the beginning of the next end step/.test(env.text)) made.forEach((i) => (card(i).endOfTurn = 'exile'));
   if (attachPhrase || /role/.test(d)) {
-    const [t] = await objects(env, attachPhrase || 'target creature', { harm: /cursed/.test(d) });
+    // Gylwain: "Whenever Gylwain or another nontoken creature you control enters … attached to that creature" — Gylwain itself
+    const selfHost = /^(?:that creature|it)$/.test(attachPhrase || '') && !(env.it && env.it.iid && card(env.it.iid) && card(env.it.iid).zone === 'battlefield') && env.src && card(env.src.iid) && card(env.src.iid).zone === 'battlefield';
+    const [t] = selfHost ? [card(env.src.iid)] : await objects(env, attachPhrase || 'target creature', { harm: /cursed/.test(d) });
     for (const i of made) if (t) attachTo(card(i), t);
   }
   env.them_ = made;
@@ -7123,6 +7125,31 @@ on(/^tap enchanted creature and you become the monarch$/, async (m, env) => {
   await runSentence('tap enchanted creature', env);
   await runSentence('you become the monarch', env);
 }, { first: true });
+// The Borg Queen: "target opponent exiles cards from the top of their library until they exile a creature card. Assimilate that card. They put the rest on the bottom in a random order."
+on(/^target opponent exiles cards from the top of their library until they exile an? ([a-z ]+?) card\. assimilate that card\. they put the rest on the bottom(?: of their library)? in a random order$/, async (m, env) => {
+  const [o] = await playerTarget(env, 'target opponent');
+  const who_ = o || opp(env.me);
+  const exiled = [];
+  let hit = null;
+  while (zoneOf(who_, 'library').length) {
+    const [top] = libTop(who_, 1);
+    move(top, 'exile');
+    exiled.push(top);
+    if (matchesFilter(card(top), m[1])) { hit = top; break; }
+  }
+  if (hit) {
+    toBattlefield(hit, env.me);
+    const c = card(hit);
+    if (c) {
+      addCounters(c, '+1/+1', 1);
+      addLayerFx(c, { until: true, types: { add: 'Artifact', subSet: 'Borg' } });
+      if (!isCreature(c)) addLayerFx(c, { until: true, types: { add: 'Creature' } });
+    }
+  }
+  const rest = exiled.filter((i) => i !== hit && card(i) && card(i).zone === 'exile').sort(() => Math.random() - 0.5);
+  rest.forEach((i) => move(i, 'library', { to: 'bottom' }));
+  env.did.push(`${who(who_)} ${s_(who_, 'exile')} ${exiled.length} card${exiled.length === 1 ? '' : 's'}${hit ? `; assimilates ${nameTag(card(hit))}` : ', finding no creature'}`);
+}, { first: true, multi: true });
 // Teferi, Temporal Pilgrim −12
 on(/^target opponent chooses a permanent they control and returns it to its owner's hand\. then they shuffle each nonland permanent they control into its owner's library$/, async (m, env) => {
   const [o] = await playerTarget(env, 'target opponent');
