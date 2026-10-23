@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.125",
+    "title": "Card sweep, batch 6",
+    "notes": [
+      "Last batch's leftovers fixed: Berserker's Frenzy (forced blocks — on 15+ you also pick which attacker each one blocks), Bill Potts (copies an instant/sorcery that targeted only Bill), Bloodlord of Vaasgoth, Bygone Marvels (Descend 8 copies), Cass, Hand of Vengeance, Celes, Rune Knight.",
+      "Fixed: Champions of Minas Tirith, Change of Plans, Chaos Defiler, Chaos Dragon, Chaos Mutation, Chaos Shrine's Black Crystal, Chiss-Goria, Chrome Courier, Clavileño, Clockspinning, Cloud's Limit Break (Tiered), Cloud, Ex-SOLDIER, Coercive Recruiter, Collision of Realms, Colossal Grave-Reaver, Combustible Gearhulk, Communal Brewing, Conspiracy Theorist, Consuming Aberration, Contaminated Drink, Contest of Claws, Contractual Safeguard, Convert to Slime, Cosmic Intervention, Counterpoint, Courageous Resolve, Court of Locthwain, Court of Vantress.",
+      "Not yet: Comeuppance (damage reflection) and Commandeer (stealing a spell on the stack)."
+    ]
+  },
+  {
     "version": "1.3.124",
     "title": "Card sweep, batch 5",
     "notes": [

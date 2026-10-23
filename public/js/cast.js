@@ -1173,6 +1173,19 @@ async function resolveSpell(pid, c, opt, info, env) {
   }
   const did = await resolveEffects(text, { ...c, face: fIdx }, ctx);
   log(pid, did.length ? `${nameTag({ ...c, face: fIdx })} resolves: ${did.join('; ')}.` : `${nameTag({ ...c, face: fIdx })} resolves — its effect isn't automated, apply it by hand.`);
+  // Bill Potts: "Whenever you cast an instant or sorcery spell that targets only Bill Potts …, copy that spell"
+  {
+    const picked = did.picked || [];
+    const bill = picked.length && /\b(?:Instant|Sorcery)\b/.test(d.faces[fIdx].typeLine || '') && !opt.copy
+      ? cardsIn(pid, 'battlefield').find((x) => !x.phasedOut && x.billTurn !== s.turn && /spell that targets only ~ or activate an ability that targets only ~, copy that spell or ability/i.test(stripName(oracle(x), x)) && picked.every((i) => i === x.iid))
+      : null;
+    if (bill && G.s === s) {
+      bill.billTurn = s.turn;
+      const keep = (ch2) => ({ ...ch2, target: async (req) => ((req.candidates || []).some((x) => (x.iid || x) === bill.iid) ? { iid: bill.iid } : ch2.target(req)) });
+      const did2 = await resolveEffects(text, { ...c, face: fIdx }, { ...ctx, choosers: Object.fromEntries(Object.entries(ctx.choosers || env.choosers).map(([k, v]) => [k, k === pid ? keep(v) : v])) });
+      log(pid, `${nameTag(bill)} copies ${nameTag({ ...c, face: fIdx })}${did2.length ? ': ' + did2.join('; ') : ''}.`);
+    }
+  }
   if (G.s !== s || !card(c.iid)) return;
   // where it goes now
   const o = oracle({ ...c, face: fIdx });

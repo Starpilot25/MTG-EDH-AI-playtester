@@ -200,6 +200,14 @@ export function planBlocks(defender, attackerIds, opts = {}) {
       used.add(b.iid);
     }
   }
+  // Berserker's Frenzy: creatures that must block this turn (and, if the caster chose, which attacker)
+  for (const b of pool) {
+    if (used.has(b.iid) || b.mustBlockTurn !== s.turn) continue;
+    const a = (b.forcedBlockOn && atk.find((x) => x.iid === b.forcedBlockOn && ok(b, x))) || atk.find((x) => ok(b, x));
+    if (!a) continue;
+    blocks[a.iid] = [...(blocks[a.iid] || []), b.iid];
+    used.add(b.iid);
+  }
   const order = [...atk].sort((x, y) => threat(y) - threat(x));
   const dmgCost = (a, through) => {
     if (!atMe(a)) return through * 0.3; // hitting a planeswalker/battle

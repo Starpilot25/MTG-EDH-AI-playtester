@@ -427,9 +427,17 @@ export function move(iid, zone, opts = {}) {
   if (fromZone === 'battlefield' || zone === 'battlefield') s.bfv = (s.bfv || 0) + 1; // board changed (rules.js caches by this)
   const fromCtl = fromZone === 'battlefield' ? c.controller : c.owner;
   let requested = zone;
+  // Cass, Hand of Vengeance: remember what was attached as it left
+  if (fromZone === 'battlefield' && zone !== 'battlefield') c.lastAttached = Object.values(s.cards).filter((x) => x.attachedTo === iid && x.zone === 'battlefield').map((x) => x.iid);
   // replacements: finality counters, "exile it if it would leave", Rest in Peace and friends
   if (fromZone === 'battlefield' && zone !== 'battlefield') {
     if ((c.counters || {}).finality && zone === 'graveyard') zone = 'exile';
+    // Cosmic Intervention: "If a permanent you control would be put into a graveyard from the battlefield this turn, exile it instead. Return it … at the beginning of the next end step."
+    if (zone === 'graveyard' && !c.token && (s.cosmic || []).some((x) => x.turn === s.turn && x.pid === c.controller)) {
+      zone = requested = 'exile';
+      s.delayed = s.delayed || [];
+      s.delayed.push({ at: 'endStep', kind: 'returnFromExile', iid, pid: c.owner });
+    }
     if (c.exileIfLeaves) zone = 'exile';
     if (c.exileIfDiesTurn === s.turn && zone === 'graveyard') zone = requested = 'exile'; // The War Doctor: "would die this turn, exile it instead" (it doesn't die)
   }
@@ -973,6 +981,7 @@ export function setLife(pid, value, reason) {
   const before = pl.life;
   if (value > before && playerFlag(pid, 'noLifeGain')) value = before;
   if (pl.lifeLocked && G.s.turn < pl.lifeLocked) value = before; // Teferi's Protection
+  if (value < before && pl.noLifeLossTurn === G.s.turn) value = before; // Courageous Resolve (fateful hour)
   pl.life = value;
   const ts = G.s.ts && G.s.ts[pid];
   if (ts) {
@@ -1065,6 +1074,7 @@ export function checkLoss(pid) {
   else if (Object.values(pl.cmdDmg).some((v) => v >= 21)) loseGame(pid, '21 commander damage');
 }
 function hasLoseImmunity(pid) {
+  if (G.s.players[pid] && G.s.players[pid].cantLoseTurn === G.s.turn) return true;
   return cardsIn(pid, 'battlefield').some((c) => /You can't lose the game/i.test(oracle(c)));
 }
 

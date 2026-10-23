@@ -656,7 +656,7 @@ const kwTrigCache = new WeakMap();
 function keywordTriggers(c) {
   if (!c || !G.s || G.s.cards[c.iid] !== c) return keywordTriggersRaw(c);
   const key = [G.s.bfv || 0, G.s.turn, G.s.step, G.s.active, c.zone, c.controller, c.face || 0, c.faceDown ? 1 : 0, c.lostAbilities ? 1 : 0,
-    (c.grants || []).join(','), (c.eotGrants || []).join(','), JSON.stringify(c.counters || {}), c.extraText || '', (c.layerFx || []).length, c.attachedTo || '',
+    (c.grants || []).join(','), (c.eotGrants || []).join(','), JSON.stringify(c.counters || {}), c.extraText || '', (c.layerFx || []).length, c.attachedTo || '', c.bloodthirstGrant || 0,
     (G.s.players[c.controller] && (G.s.players[c.controller].emblems || []).length) || 0].join('|');
   const hit = kwTrigCache.get(c);
   if (hit && hit.key === key) return hit.out;
@@ -937,9 +937,11 @@ function keywordTriggersRaw(c) {
     return [`backs up ${nameTag(tgt)}`];
   }, 'Backup', { self: true });
   if (/\bLiving weapon\b/.test(o)) void 0; // handled on 'germ'
-  if (kwNum(c, 'Bloodthirst')) f('enters', async () => {
+  if (kwNum(c, 'Bloodthirst') || c.bloodthirstGrant) f('enters', async () => {
+    const bt = kwNum(c, 'Bloodthirst') || c.bloodthirstGrant || 0;
+    delete c.bloodthirstGrant;
     if (opponents(c.controller).some((o) => (G.s.ts[o] || {}).lifeLost > 0)) {
-      addCounters(c, '+1/+1', kwNum(c, 'Bloodthirst'));
+      addCounters(c, '+1/+1', bt);
       return ['bloodthirst'];
     }
     return [];
