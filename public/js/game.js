@@ -886,7 +886,28 @@ function declareAttack(cb, pid) {
     if (isPlayer(t)) return multiplayer() ? ` → ${seatName(t)}` : '';
     return ` → ${nameTag(card(t))}`;
   };
-  log(pid, `${pid === 'p' ? 'You attack' : `${aiName(pid)} attacks`} with ${cb.attackers.map((i) => nameTag(card(i)) + at(i)).join(', ')}.`);
+  if (!multiplayer()) {
+    log(pid, `${pid === 'p' ? 'You attack' : `${aiName(pid)} attacks`} with ${cb.attackers.map((i) => nameTag(card(i)) + at(i)).join(', ')}.`);
+    return;
+  }
+  // pods: one line per thing being attacked — "AI 3 attacks AI 1 with …", "… attacks AI 2's Teferi with …"
+  const groups = new Map();
+  for (const i of cb.attackers) {
+    const t = cb.targets[i] || opp(pid);
+    if (!groups.has(t)) groups.set(t, []);
+    groups.get(t).push(i);
+  }
+  const order = seats();
+  const who = (t) => {
+    if (isPlayer(t)) return seatName(t);
+    const tc = card(t);
+    const owner = playerOfTarget(t, pid);
+    return tc ? `${owner === 'p' ? 'your' : `${seatName(owner)}'s`} ${nameTag(tc)}` : '?';
+  };
+  const lines = [...groups.entries()]
+    .sort((x, y) => order.indexOf(playerOfTarget(x[0], pid)) - order.indexOf(playerOfTarget(y[0], pid)))
+    .map(([t, ids]) => `${pid === 'p' ? 'You attack' : `${aiName(pid)} attacks`} ${who(t)} with ${ids.map((i) => nameTag(card(i))).join(', ')}.`);
+  log(pid, lines.join(' '));
 }
 
 export async function resolvePlayerCombat() {

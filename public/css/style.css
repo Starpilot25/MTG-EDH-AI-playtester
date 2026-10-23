@@ -930,7 +930,7 @@ body.pod-setup .opp-slots .in-paste { min-height: 120px; }
 /* the table: the top half becomes one column per opponent */
 #pod-opps[hidden] { display: none; }
 body.pod #opp-panel, body.pod #opp-field { display: none; }
-body.pod .board {
+body.pod:not(.popout-body) .board {
   grid-template-rows: minmax(250px, 1.15fr) minmax(220px, 1fr) 150px;
   grid-template-areas:
     "pod pod rail"
@@ -970,13 +970,8 @@ body.pod .board {
 .out-note { color: var(--muted); font-style: italic; font-size: 13px; }
 .seat-panel.stack-target-player { box-shadow: inset 0 0 0 2px var(--danger); }
 /* pop-out window with all the opponents */
-.board.popout-board #pod-opps { grid-row: 1; grid-column: 1 / -1; border-bottom: 0; }
-.board.popout-board .seat-field.field.opp { --cw: 92px; --ch: 128px; }
-.board.popout-board .seat-panel { max-height: 220px; }
-body.pod.opp-popped:not(.popout-body) .board { grid-template-rows: 44px minmax(250px, 1fr) 156px; }
-body.pod .pop-ph { grid-area: pod; }
 @media (max-width: 1100px) {
-  body.pod .board { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pod" "me" "myf" "hand" "rail"; grid-template-rows: minmax(300px, auto) auto minmax(260px, auto) 150px minmax(240px, auto); }
+  body.pod:not(.popout-body) .board { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pod" "me" "myf" "hand" "rail"; grid-template-rows: minmax(300px, auto) auto minmax(260px, auto) 150px minmax(240px, auto); }
 }
 @media (max-width: 760px) {
   .opp-slots { grid-template-columns: minmax(0, 1fr); }
@@ -991,8 +986,36 @@ body.pod-setup .opp-slots .sum-head h3 { font-size: 15px; }
 body.pod-setup .opp-slots .sum-cmds img, body.pod-setup .opp-slots .sum-cmds .img-missing { width: 64px; }
 .seat-zones .piles { grid-template-columns: repeat(4, minmax(0, 40px)); }
 @media (max-height: 820px) {
-  body.pod .board { grid-template-rows: minmax(240px, 1.3fr) minmax(190px, 0.9fr) 132px; }
+  body.pod:not(.popout-body) .board { grid-template-rows: minmax(240px, 1.3fr) minmax(190px, 0.9fr) 132px; }
   .seat-zones .piles { grid-template-columns: repeat(4, minmax(0, 32px)); }
   .seat-life .life .lval { font-size: 22px; }
   .seat-life .lbtn { width: 26px; height: 26px; font-size: 16px; }
 }
+
+/* pod grids: the main window's #pod-opps and pop-out windows (columns x rows are set by the layout code) */
+.pod-grid { display: grid; min-height: 0; min-width: 0; grid-auto-rows: minmax(0, 1fr); }
+.pod-grid > .seat { border-bottom: 1px solid var(--line); }
+.pod-grid.pod-win { grid-row: 1; grid-column: 1 / -1; height: 100%; }
+.board.popout-board:has(.pod-win) { grid-template-columns: minmax(0, 1fr); grid-template-areas: none; }
+.pod-win .seat-panel { max-height: 240px; }
+/* a seat with a wide, short space: its panel sits beside the battlefield */
+.seat.wide { grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.seat.wide .seat-panel { max-height: none; border-bottom: 0; border-right: 1px solid var(--line); }
+.seat.wide .seat-top { grid-template-columns: minmax(0, 1fr); }
+/* opponents that are in their own windows leave a tab in the main window */
+.pod-ph { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 6px 12px; background: var(--felt); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.pod-away { display: inline-flex; align-items: center; gap: 6px; }
+.pod-away .popout-btn { margin-left: 2px; padding: 1px 7px; }
+body.pod.pod-all-away:not(.popout-body) .board { grid-template-rows: auto minmax(250px, 1fr) 156px; }
+body.pod.pod-all-away #pod-opps { border-bottom: 2px solid var(--line); }
+#game-menu .pod-only { display: none; }
+body.pod #game-menu .pod-only { display: block; }
+/* out of the game: a one-line bar at the top of its grid */
+.pod-grid > .pod-ph { order: -2; }
+.pod-grid > .seat.out { order: -1; grid-column: 1 / -1; grid-template-rows: auto; grid-template-columns: minmax(0, 1fr); border-right: 0; }
+.seat.out .seat-field { display: none; }
+.seat.out .seat-panel { flex-direction: row; align-items: center; gap: 12px; max-height: none; padding: 4px 10px; border-bottom: 0; }
+.seat.out .out-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thinking.attacking { color: var(--ink); border-color: var(--danger); }
+/* pop-out seat panels: never squash the life total and zones */
+.seat-panel > * { flex-shrink: 0; }

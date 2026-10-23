@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.123",
+    "title": "Pop out each opponent, boards that fill the window",
+    "notes": [
+      "Each opponent has its own pop-out button (⧉), so you can put each AI in its own window — one per screen if you like. Press ⇲ in that window, or just close it, to bring the opponent back.",
+      "The game menu (☰) has \"Pop out all opponents\" (every opponent in one window) and \"Bring all opponents back\".",
+      "Opponent boards now use the space they have: cards grow in a big window and shrink in a small one, and opponents are arranged in columns or rows to suit the window's shape. An opponent with a wide, short space gets its life and zones beside its battlefield instead of above it.",
+      "Opponents you've popped out leave a slim tab in the main window, so the rest (and your own board) get the room. Players who are out of the game shrink to a one-line bar.",
+      "When an AI attacks another AI, it's clear who's attacking whom: the log says \"AI 3 attacks AI 1 with …\", the banner says \"AI 3 is attacking AI 1\", and each attacking creature's tag names the player it's attacking.",
+      "1v1 looks and plays exactly as before."
+    ]
+  },
+  {
     "version": "1.3.122",
     "title": "Swan Song + card sweep, batch 4",
     "notes": [

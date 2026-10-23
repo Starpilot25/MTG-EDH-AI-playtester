@@ -191,7 +191,7 @@ function cardHTML(c, opts = {}) {
       const tg = (cb.targets || {})[c.iid];
       const tc = tg && !isPlayer(tg) ? card(tg) : null;
       const defender = tc ? null : tg || opp(c.controller);
-      const label = tc ? cardName(tc) : defender === 'p' ? 'You' : 'AI';
+      const label = tc ? cardName(tc) : defender === 'p' ? 'You' : multiplayer() ? seatName(defender) : 'AI';
       badges.push(`<span class="tag atk ${tc ? 'atk-pw' : 'atk-player'}" title="Attacking ${esc(tc ? cardName(tc) : seatName(defender))}">⚔ ${ai + 1} → ${esc(label.length > 12 ? label.split(/[ ,]/)[0] : label)}</span>`);
     }
     // a planeswalker or battle being attacked
@@ -438,7 +438,7 @@ function renderAll() {
   document.body.classList.toggle('target-mode', !!pendingTarget);
   document.body.classList.toggle('block-mode', !!(s.combat && isAI(s.combat.by) && pendingBlocks));
   document.body.classList.toggle('attack-mode', !!(s.combat && s.combat.by === 'p' && s.combat.stage === 'declare'));
-  document.body.classList.toggle('opp-popped', popouts.has('ai') || popouts.has('pod'));
+  document.body.classList.toggle('opp-popped', popouts.has('ai'));
   document.body.classList.toggle('pod', multiplayer());
   { const rb = $('#btn-reveal'); if (rb) rb.textContent = multiplayer() ? 'AI hands' : 'AI hand'; }
   for (const d of popDocs()) d.body.className = document.body.className + ' popout-body';
@@ -760,6 +760,55 @@ function handRow(pid) {
 }
 
 // ------------------------------------------------------------ pods: one column per opponent
+// Each opponent's seat (panel + battlefield) lives in the main window's #pod-opps, or in a pop-out window
+// (its own, or one shared "all opponents" window). Every grid of seats picks the arrangement that gives the
+// biggest cards for its size, and each battlefield starts from a card size that fits the space it has.
+const seatEl = (pid) => $(`.seat[data-seat="${pid}"]`);
+const seatInWindow = (pid) => { const el = seatEl(pid); return !!el && el.ownerDocument !== document; };
+function podGrids() {
+  const main = $('#pod-opps');
+  return [main, ...popDocs().map((d) => d.querySelector('.pod-grid.pod-win'))].filter(Boolean);
+}
+// columns x rows for n seats in a W x H box: whichever gives the largest cards
+function bestGrid(n, W, H) {
+  let best = { c: n, r: 1, score: -1 };
+  for (let c = 1; c <= n; c++) {
+    const r = Math.ceil(n / c);
+    const w = W / c;
+    const h = H / r;
+    const wide = w / Math.max(1, h) > 2.2; // panel beside the battlefield instead of above it
+    const fieldW = wide ? w - 250 : w;
+    const fieldH = wide ? h : h - 120;
+    const score = Math.min(fieldH / 2.9, (fieldW - 20) / (6 * 0.72)) - (c * r - n) * 4; // empty cells cost a little
+    if (score > best.score + 0.5) best = { c, r, score };
+  }
+  return best;
+}
+function layoutGrid(grid) {
+  const kids = [...grid.querySelectorAll(':scope > .seat')];
+  const order = seats();
+  kids.sort((a, b) => order.indexOf(a.dataset.seat) - order.indexOf(b.dataset.seat)).forEach((el) => grid.appendChild(el)); // seating order
+  const ph = grid.querySelector(':scope > .pod-ph');
+  // players who are out shrink to a one-line bar at the top; the rest share the space
+  const live = kids.filter((el) => !el.classList.contains('out'));
+  const outs = kids.filter((el) => el.classList.contains('out'));
+  const W = grid.clientWidth;
+  const H = grid.clientHeight - (ph ? ph.offsetHeight : 0) - outs.length * 34;
+  const n = live.length;
+  const g = n ? bestGrid(n, W, H) : { c: 1, r: 0 };
+  grid.style.gridTemplateColumns = `repeat(${g.c}, minmax(0, 1fr))`;
+  grid.style.gridTemplateRows = `${ph ? 'auto ' : ''}${outs.map(() => 'auto ').join('')}repeat(${Math.max(1, g.r)}, minmax(0, 1fr))`;
+  for (const el of outs) el.classList.remove('wide');
+  for (const el of live) el.classList.toggle('wide', W / g.c / Math.max(1, H / g.r) > 2.2);
+}
+// the starting card size for a battlefield: three lanes (creatures, other permanents, lands) filling its height
+function sizeField(field) {
+  const H = field.clientHeight - 16;
+  if (H <= 0) return;
+  const ch = Math.max(56, Math.min(200, Math.floor(H / 2.9)));
+  field.style.setProperty('--ch', `${ch}px`);
+  field.style.setProperty('--cw', `${Math.round(ch * 0.716)}px`);
+}
 function renderPod() {
   const s = G.s;
   let wrap = $('#pod-opps');
@@ -770,26 +819,43 @@ function renderPod() {
     $('#opp-field').after(wrap);
   }
   wrap.hidden = false;
+  wrap.classList.add('pod-grid');
   const list = seats().filter(isAI);
-  wrap.style.setProperty('--seats', list.length);
-  const key = list.join(',');
-  if (wrap.dataset.key !== key) {
-    wrap.dataset.key = key;
-    wrap.innerHTML = list.map((pid) => `<section class="seat seat-${pid}" data-seat="${pid}">
-      <div class="seat-panel panel opp" data-seat-panel="${pid}"></div>
-      <div class="seat-field field opp organized" data-seat-field="${pid}" aria-label="${esc(seatName(pid))}'s battlefield"></div></section>`).join('');
+  if (wrap.dataset.game !== String(s.seats.join(','))) {
+    // a new game: start with every seat in the main window
+    wrap.dataset.game = s.seats.join(',');
+    for (const [key] of [...popouts]) if (key === 'pod' || key.startsWith('seat:')) popIn(key, false, true);
+    wrap.innerHTML = '';
   }
+  for (const pid of list) {
+    if (seatEl(pid)) continue;
+    const sec = document.createElement('section');
+    sec.className = `seat seat-${pid}`;
+    sec.dataset.seat = pid;
+    sec.innerHTML = `<div class="seat-panel panel opp" data-seat-panel="${pid}"></div>
+      <div class="seat-field field opp organized" data-seat-field="${pid}" aria-label="${esc(seatName(pid))}'s battlefield"></div>`;
+    wrap.appendChild(sec);
+  }
+  // seats in their own windows leave a tab here
+  const away = list.filter(seatInWindow);
+  let ph = wrap.querySelector(':scope > .pod-ph');
+  if (away.length) {
+    if (!ph) { ph = document.createElement('div'); ph.className = 'pod-ph'; wrap.prepend(ph); }
+    const html = away.map((pid) => `<span class="pod-away"><span class="dot ${pid}"></span>${esc(seatName(pid))} is in its own window <button class="popout-btn" data-act="popin" data-pid="seat:${pid}" title="Put ${esc(seatName(pid))} back in this window">⇲</button></span>`).join('');
+    if (ph.innerHTML !== html) ph.innerHTML = html;
+  } else if (ph) ph.remove();
+  document.body.classList.toggle('pod-all-away', list.every(seatInWindow));
   const cb = s.combat;
-  const popped = popouts.has('pod');
-  list.forEach((pid, k) => {
-    const sec = $(`.seat[data-seat="${pid}"]`, wrap);
+  for (const pid of list) {
+    const sec = seatEl(pid);
     const pl = s.players[pid];
     const out = !!pl.lost;
     sec.classList.toggle('active', s.active === pid && !out);
     sec.classList.toggle('out', out);
     const attacked = cb && cb.by && cb.by !== pid ? (cb.attackers || []).filter((a) => targetPlayer((cb.targets || {})[a] || opp(cb.by)) === pid).length : 0;
     sec.classList.toggle('under-attack', !!attacked);
-    const popBtn = k === 0 ? `<button class="popout-btn" data-act="${popped ? 'popin' : 'popout'}" data-pid="pod" title="${popped ? 'Put the opponents back in the main window' : 'Pop the opponents out into their own window (for a second screen)'}">${popped ? '⇲' : '⧉'}</button>` : '';
+    const inWin = sec.ownerDocument !== document;
+    const popBtn = `<button class="popout-btn" data-act="${inWin ? 'popin' : 'popout'}" data-pid="seat:${pid}" title="${inWin ? `Put ${esc(pl.name)} back in the main window` : `Pop ${esc(pl.name)} out into its own window (for a second screen)`}">${inWin ? '⇲' : '⧉'}</button>`;
     const head = `<div class="pname"><span class="dot ${pid}"></span>${esc(pl.name)} <small>${esc(s.decks[pid].name)}</small>${s.active === pid && !out ? '<span class="turn-tag">Turn</span>' : ''}${popBtn}</div>`;
     const panel = sec.querySelector('.seat-panel');
     panel.innerHTML = out
@@ -800,16 +866,25 @@ function renderPod() {
           <div class="hand-row"><span class="lbl">Hand</span>${handRow(pid)}</div></div></div>
       ${exileReady(pid)}${libraryTop(pid)}${graveyardReady(pid)}
       ${handControl('p', pid) ? `<p class="hint sl-hint">Sen Triplets: double-click ${esc(pl.name)}'s cards to play or cast them with your mana.</p>` : ''}`;
+  }
+  for (const grid of podGrids()) layoutGrid(grid);
+  for (const pid of list) {
+    const sec = seatEl(pid);
     const field = sec.querySelector('.seat-field');
-    field.innerHTML = out ? '<div class="field-hint">Out of the game</div>' : boardLanes(pid);
-    if (!out) fitLanes(field);
-  });
+    if (s.players[pid].lost) {
+      field.innerHTML = '<div class="field-hint">Out of the game</div>';
+      continue;
+    }
+    field.innerHTML = boardLanes(pid);
+    sizeField(field);
+    fitLanes(field);
+  }
 }
 
 function renderOpp() {
   const s = G.s;
   if (multiplayer()) return renderPod();
-  { const w = $('#pod-opps'); if (w && !w.hidden) { w.hidden = true; w.innerHTML = ''; delete w.dataset.key; } }
+  { const w = $('#pod-opps'); if (w && !w.hidden) { w.hidden = true; w.innerHTML = ''; delete w.dataset.key; delete w.dataset.game; } }
   const hand = zoneOf('ai', 'hand');
   const shown = revealAiHand || aiSlaved() || handControl('p', 'ai') || (s.handRevealed && s.handRevealed.pid === 'ai' && s.handRevealed.turn === s.turn);
   const backs = shown
@@ -1083,7 +1158,20 @@ function renderBanner() {
       Unblocked damage: <b>${total}</b>${total >= G.s.players.p.life ? ' — <b class="lethal">lethal</b>' : ''}. You can also cast instants or activate abilities before you block.</p>
       <div class="btns"><button class="primary" data-act="blocks">${Object.values(cb.blocks).some((b) => b.length) ? 'Confirm blocks' : 'No blocks'} <kbd>Enter</kbd></button></div></div>`;
   } else if (run.aiBusy) {
-    html = `<div class="thinking"><span class="spinner"></span>${s.active === 'p' ? `${multiplayer() ? 'The AIs are' : 'AI is'} deciding whether to respond…` : multiplayer() ? `${esc(seatName(s.active))} is taking its turn…` : 'AI is taking its turn…'}</div>`;
+    // pods: an AI attacking other players — say who it's going after
+    const cb = s.combat;
+    let fight = '';
+    if (multiplayer() && cb && isAI(cb.by) && (cb.attackers || []).length) {
+      const per = new Map();
+      for (const a of cb.attackers) {
+        const tp = targetPlayer((cb.targets || {})[a] || opp(cb.by));
+        if (tp) per.set(tp, (per.get(tp) || 0) + 1);
+      }
+      fight = [...per.entries()].map(([k, n]) => `${k === 'p' ? 'you' : esc(seatName(k))} (${n} creature${n > 1 ? 's' : ''})`).join(' and ');
+    }
+    html = fight
+      ? `<div class="thinking attacking"><span class="spinner"></span>${esc(seatName(cb.by))} is attacking ${fight}…</div>`
+      : `<div class="thinking"><span class="spinner"></span>${s.active === 'p' ? `${multiplayer() ? 'The AIs are' : 'AI is'} deciding whether to respond…` : multiplayer() ? `${esc(seatName(s.active))} is taking its turn…` : 'AI is taking its turn…'}</div>`;
   }
   el.innerHTML = html;
   el.hidden = !html;
@@ -1290,7 +1378,7 @@ export function teardownTable() {
   hoverIid = null;
   drag = null;
   closeMenu();
-  for (const pid of [...popouts.keys()]) try { popIn(pid); } catch (e) { void e; }
+  for (const pid of [...popouts.keys()]) try { popIn(pid, false, true); } catch (e) { void e; }
   for (const id of ['block-lines']) { const el = document.getElementById(id); if (el) el.remove(); }
   document.querySelectorAll('.card.ghost').forEach((g) => g.remove());
   const b = $('#banner');
@@ -1302,8 +1390,8 @@ export function teardownTable() {
   $('#toast').classList.remove('show');
   $('#preview').innerHTML = '';
   for (const id of ['my-panel', 'opp-panel']) { const el = document.getElementById(id); if (el) el.classList.remove('stack-target-player'); }
-  { const w = document.getElementById('pod-opps'); if (w) { w.hidden = true; w.innerHTML = ''; delete w.dataset.key; } }
-  document.body.classList.remove('pod');
+  { const w = document.getElementById('pod-opps'); if (w) { w.hidden = true; w.innerHTML = ''; delete w.dataset.key; delete w.dataset.game; } }
+  document.body.classList.remove('pod', 'pod-all-away');
 }
 
 function flash(text, sub = '') {
@@ -2869,6 +2957,14 @@ export function bindEvents() {
     if (!a) return;
     if (a === 'popout') return popOut(b.dataset.pid);
     if (a === 'popin') return popIn(b.dataset.pid);
+    if (a === 'popall' || a === 'popinall') {
+      const gm = document.getElementById('game-menu');
+      if (gm) gm.hidden = true;
+      if (a === 'popall') return popOut('pod');
+      for (const [k] of [...popouts]) if (k === 'pod' || k.startsWith('seat:')) popIn(k, false, true);
+      for (const pid of seats().filter(isAI)) popIn('seat:' + pid, false, true);
+      return render();
+    }
     if (a === 'resolve' || a === 'counter') {
       const r = pendingRespond;
       pendingRespond = null;
@@ -3014,26 +3110,35 @@ function onHoverOut(e) {
 
 // ------------------------------------------------------------ pop-out boards (second screen)
 let bindDoc = () => {};
-function popOut(pid) {
-  if (popouts.has(pid)) return;
-  const name = pid === 'pod' ? 'Opponents' : pid === 'ai' ? 'AI' : 'Your';
-  const w = window.open('', 'edh-board-' + pid, 'width=1200,height=720');
+// A pop-out window with an empty board in it (null if the window couldn't open)
+function openBoardWindow(key, title) {
+  const w = window.open('', 'edh-board-' + key.replace(':', '-'), 'width=1200,height=720');
   if (!w || !w.document) {
     toast('Couldn\'t open a new window. In the desktop app this needs version 1.1 or newer — download the latest installer from the Releases page.');
-    return;
+    return null;
   }
   const doc = w.document;
   doc.open();
-  doc.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>EDH Playtester — ${name} board</title>
+  doc.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>EDH Playtester — ${esc(title)}</title>
     <link rel="stylesheet" href="${location.origin}/css/style.css"></head>
     <body class="popout-body"><div class="board popout-board"></div><div id="menu" class="pop" hidden></div></body></html>`);
   doc.close();
-  const holder = doc.querySelector('.popout-board');
-  const ids = pid === 'pod' ? ['#pod-opps'] : pid === 'ai' ? ['#opp-panel', '#opp-field'] : ['#my-panel', '#my-field'];
+  return { w, doc, holder: doc.querySelector('.popout-board') };
+}
+// pid: 'ai' (1v1 board), 'p' (your board), 'pod' (every opponent still in the main window, in one window)
+// or 'seat:ai2' (one opponent in its own window)
+function popOut(pid) {
+  if (popouts.has(pid)) return;
+  if (pid === 'pod' || pid.startsWith('seat:')) return popOutSeats(pid);
+  const name = pid === 'ai' ? 'AI' : 'Your';
+  const win = openBoardWindow(pid, `${name} board`);
+  if (!win) return;
+  const { w, doc, holder } = win;
+  const ids = pid === 'ai' ? ['#opp-panel', '#opp-field'] : ['#my-panel', '#my-field'];
   const ph = document.createElement('div');
   ph.className = 'pop-ph';
   ph.id = 'pop-ph-' + pid;
-  ph.innerHTML = `<span>${pid === 'pod' ? "The opponents' boards are" : pid === 'ai' ? "The AI's board is" : 'Your board is'} in its own window.</span><button class="popout-btn" data-act="popin" data-pid="${pid}">⇲ Bring it back</button>`;
+  ph.innerHTML = `<span>${pid === 'ai' ? "The AI's board is" : 'Your board is'} in its own window.</span><button class="popout-btn" data-act="popin" data-pid="${pid}">⇲ Bring it back</button>`;
   document.querySelector(ids[ids.length - 1]).before(ph);
   for (const sel of ids) holder.appendChild(doc.adoptNode(document.querySelector(sel)));
   popouts.set(pid, { win: w, doc, ids });
@@ -3042,18 +3147,62 @@ function popOut(pid) {
   w.addEventListener('pagehide', () => popIn(pid, true));
   render();
 }
-function popIn(pid, closing) {
+function popOutSeats(key) {
+  const pids = key === 'pod' ? seats().filter((k) => isAI(k) && seatEl(k) && !seatInWindow(k)) : [key.slice(5)];
+  if (!pids.length || !G.s) return;
+  // a seat already in another window leaves it first
+  for (const pid of pids) if (seatInWindow(pid)) popIn('seat:' + pid, false, true);
+  const title = key === 'pod' ? 'Opponents' : seatName(pids[0]);
+  const win = openBoardWindow(key, title);
+  if (!win) return;
+  const { w, doc, holder } = win;
+  const grid = doc.createElement('section');
+  grid.className = 'pod-grid pod-win';
+  holder.appendChild(grid);
+  for (const pid of pids) grid.appendChild(doc.adoptNode(seatEl(pid)));
+  popouts.set(key, { win: w, doc, ids: [] });
+  bindDoc(doc);
+  w.addEventListener('resize', () => G.s && render());
+  w.addEventListener('pagehide', () => popIn(key, true));
+  render();
+}
+function popIn(pid, closing, quiet) {
+  // one seat: bring it back from whichever window it's in
+  if (pid.startsWith('seat:')) {
+    const seat = pid.slice(5);
+    const el = seatEl(seat);
+    const wrap = document.getElementById('pod-opps');
+    if (el && wrap && el.ownerDocument !== document) {
+      const fromDoc = el.ownerDocument;
+      wrap.appendChild(document.adoptNode(el));
+      // close a window that's now empty
+      for (const [k, pop] of [...popouts]) {
+        if (pop.doc !== fromDoc || pop.doc.querySelector('.seat')) continue;
+        popouts.delete(k);
+        try { pop.win.close(); } catch (e) { void e; }
+      }
+    }
+    if (popouts.has(pid) && closing) popouts.delete(pid);
+    if (!quiet) render();
+    return;
+  }
   const pop = popouts.get(pid);
   if (!pop) return;
   popouts.delete(pid);
-  const ph = document.getElementById('pop-ph-' + pid);
-  for (const sel of pop.ids) {
-    const el = pop.doc.querySelector(sel);
-    if (el && ph) ph.before(document.adoptNode(el));
+  if (pid === 'pod' || pop.ids.length === 0) {
+    // a seats window: every seat in it goes back to the main window
+    const wrap = document.getElementById('pod-opps');
+    for (const el of [...pop.doc.querySelectorAll('.seat')]) if (wrap) wrap.appendChild(document.adoptNode(el));
+  } else {
+    const ph = document.getElementById('pop-ph-' + pid);
+    for (const sel of pop.ids) {
+      const el = pop.doc.querySelector(sel);
+      if (el && ph) ph.before(document.adoptNode(el));
+    }
+    if (ph) ph.remove();
   }
-  if (ph) ph.remove();
   if (!closing) try { pop.win.close(); } catch (e) { void e; }
-  render();
+  if (!quiet) render();
 }
 window.addEventListener('beforeunload', () => popDocs().forEach((d) => d.defaultView.close()));
 
