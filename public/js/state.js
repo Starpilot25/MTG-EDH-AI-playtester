@@ -280,6 +280,64 @@ export function joinAttack(iid, srcIid) {
   const c = G.s.cards[iid];
   cb.targets[iid] = best ? best[0] : opp(c ? c.controller : 'p');
 }
+// The player to your left takes the next turn (turn order passes to the left); the player to your right had
+// the turn before yours. In 1v1 both are your opponent.
+export const leftOf = (pid) => nextSeat(pid, 1);
+export const rightOf = (pid) => nextSeat(pid, -1);
+// Turn order starting with pid (the players still in the game), for "starting with you, each player …"
+export function turnOrderFrom(pid) {
+  const order = seats().filter((k) => k === pid || inGame(k));
+  const k = Math.max(0, order.indexOf(pid));
+  return [...order.slice(k), ...order.slice(0, k)];
+}
+// ------------------------------------------------------------ goad
+// Goad (rule 701.15): until the goading player's next turn the creature attacks each combat if able, and attacks
+// a player other than the goading player if able. Several players can goad the same creature; each goad
+// lasts until that player's next turn. `until` is the last turn number the goad is in effect.
+export function goadUntil(by) {
+  return multiplayer() ? nextTurnNumber(by) - 1 : G.s.turn + 1;
+}
+export function goad(c, by, until = goadUntil(by)) {
+  if (!c) return;
+  const g = c.goaded || {};
+  const from = { ...(g.from || (g.by ? { [g.by]: g.until } : {})) };
+  from[by] = Math.max(from[by] || 0, until);
+  c.goaded = { by, until: Math.max(...Object.values(from)), from };
+}
+// is it goaded right now?
+export function isGoaded(c) {
+  return !!(c && c.goaded && (!c.goaded.until || G.s.turn <= c.goaded.until));
+}
+// the players who goaded it (whose goad is still in effect)
+export function goadersOf(c) {
+  if (!isGoaded(c)) return [];
+  const from = c.goaded.from || { [c.goaded.by]: c.goaded.until };
+  return Object.entries(from).filter(([, u]) => !u || G.s.turn <= u).map(([k]) => k);
+}
+// End of turn: drop goads that have run out (each goader separately).
+export function expireGoads() {
+  const s = G.s;
+  for (const c of Object.values(s.cards)) {
+    if (!c.goaded) continue;
+    if (c.goaded.from) {
+      const left = Object.entries(c.goaded.from).filter(([, u]) => !u || u > s.turn);
+      if (!left.length) delete c.goaded;
+      else {
+        const from = Object.fromEntries(left);
+        const [by, until] = left.sort((a, b) => b[1] - a[1])[0];
+        c.goaded = { by, until, from };
+      }
+    } else if (c.goaded.until && c.goaded.until <= s.turn) delete c.goaded;
+  }
+}
+// The legal attack targets for a goaded creature: players (and their permanents) other than its goaders.
+// If every opponent goaded it, any of them will do.
+export function goadOk(c, targetPlayer) {
+  const g = goadersOf(c);
+  if (!g.length || !multiplayer()) return true;
+  const others = opponents(c.controller).filter((o) => !g.includes(o));
+  return !others.length || !g.includes(targetPlayer);
+}
 // every permanent on the battlefield, seat by seat (phased-out ones excluded, like cardsIn)
 export function allBattlefields() {
   return seats().flatMap((k) => cardsIn(k, 'battlefield'));
@@ -1058,7 +1116,11 @@ function leaveGame(pid) {
     s.monarch = heir;
     log(heir, `${heir === 'p' ? 'You become' : s.players[heir].name + ' becomes'} the monarch.`);
   }
-  if (s.initiative === pid) s.initiative = heir;
+  if (s.initiative === pid) {
+    // the new holder takes the initiative properly (and ventures into the Undercity)
+    s.initiative = null;
+    queueEvent({ type: 'takeInitiative', pid: heir });
+  }
   s.delayed = (s.delayed || []).filter((d) => d.pid !== pid && d.controller !== pid);
   s.pool[pid] = [];
 }

@@ -25,6 +25,7 @@ import { helpers } from './rules.js';
 import { fire, settle, T } from './triggers.js';
 import { seats, opponents, isAI, multiplayer, allBattlefields, seatName } from './state.js';
 import { nextTurnNumber } from './state.js';
+import { goad } from './state.js';
 
 const isLandFace = (f) => /\bLand\b/.test((f.typeLine || '').split('—')[0]);
 const instantFace = (f) => /\bInstant\b/.test((f.typeLine || '').split('—')[0]);
@@ -1616,7 +1617,8 @@ export async function useZoneAbility(pid, iid, ab, env) {
       if (!(await payM(ab.mana))) return false;
       move(iid, 'exile');
       const [tok] = createToken(c.def, pid, 1);
-      Object.assign(card(tok), { endOfTurn: 'sacrifice', goaded: { by: pid, until: s.turn + 1 } });
+      Object.assign(card(tok), { endOfTurn: 'sacrifice' });
+      goad(card(tok), pid);
       card(tok).grants = ['haste'];
       log(pid, `Encore: a hasty token copy of ${nameTag(c)} that must attack.`);
       return true;

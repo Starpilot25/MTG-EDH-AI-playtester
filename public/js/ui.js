@@ -25,6 +25,7 @@ import {
 import { payCost, totalMana, sculptors, SECTORS, SECTOR_SIGN, manaAbility } from './rules.js';
 import { seats, isAI } from './state.js';
 import { isPlayer, multiplayer, seatName } from './state.js';
+import { opponents, goadersOf } from './state.js';
 
 // Boards can be popped out into their own windows; lookups search those windows too.
 const popouts = new Map(); // pid -> { win, doc }
@@ -66,6 +67,8 @@ function manaSymbols(cost) {
 
 // cards exiled face down by the AI (Expensive Taste, Gonti, Black Cat…) stay hidden from you
 const hiddenFromMe = (c) => c && c.zone === 'exile' && c.hiddenExile && c.hiddenExile !== 'p';
+// who goaded it, for the badge ("you", "the AI", "AI 2 and AI 3")
+const goaderNames = (c) => ((multiplayer() ? goadersOf(c) : [c.goaded.by]).map((k) => (k === 'p' ? 'you' : multiplayer() ? seatName(k) : 'the AI')).join(' and ') || 'nobody');
 function cardHTML(c, opts = {}) {
   if (hiddenFromMe(c)) c = { ...c, faceDown: true };
   const d = DB[c.def];
@@ -126,7 +129,7 @@ function cardHTML(c, opts = {}) {
     }
   }
   if (c.pacifiedBy) badges.push('<span class="badge lock" title="Can\'t attack or block">⛓</span>');
-  if (c.zone === 'battlefield' && c.goaded && isCreature(c)) badges.push(`<span class="badge goad" title="Goaded by ${c.goaded.by === 'p' ? 'you' : 'the AI'}: attacks each combat if able, and attacks a player other than ${c.goaded.by === 'p' ? 'you' : 'the AI'} if able. Lasts until ${c.goaded.until > 9999 ? 'the end of the game' : c.goaded.by === 'p' ? 'your next turn' : "the AI's next turn"}.">⚑ Goaded</span>`);
+  if (c.zone === 'battlefield' && c.goaded && isCreature(c)) badges.push(`<span class="badge goad" title="Goaded by ${goaderNames(c)}: attacks each combat if able, and attacks a player other than ${goaderNames(c)} if able. Lasts until ${c.goaded.until > 9999 ? 'the end of the game' : c.goaded.by === 'p' ? 'your next turn' : "the AI's next turn"}.">⚑ Goaded</span>`);
   // Auras and Equipment: what they're attached to; a creature: what's attached to it
   if (c.zone === 'battlefield' && G.s) {
     const host = c.attachedTo && card(c.attachedTo);
@@ -579,7 +582,7 @@ function lifeBlock(pid) {
   const pl = G.s.players[pid];
   // Commander damage rows: creature commanders, any commander that's a creature right now (an animated Background), and any row with damage.
   const foes = Object.values(G.s.cards).filter(
-    (c) => c.isCommander && c.owner === opp(pid) && (/Creature/.test(DB[c.def].typeLine) || (c.zone === 'battlefield' && isCreature(c)) || pl.cmdDmg[c.iid])
+    (c) => c.isCommander && c.owner !== pid && (multiplayer() ? true : c.owner === opp(pid)) && (/Creature/.test(DB[c.def].typeLine) || (c.zone === 'battlefield' && isCreature(c)) || pl.cmdDmg[c.iid])
   );
   const cmd = foes
     .map((c) => {
@@ -2797,7 +2800,7 @@ export function bindEvents() {
     if (a === 'skip-combat') {
       // goaded creatures can't just stay home
       const must = cardsIn('p', 'battlefield').filter((c) => mustAttack(c) && canAttack(c));
-      if (must.length && !cardsIn('ai', 'battlefield').some(attackTaxOf)) return toast(`${must.map((c) => cardName(c)).join(', ')} must attack this combat${must.some((c) => c.goaded) ? ' (goaded)' : ''}.`);
+      if (must.length && !opponents('p').some((o) => cardsIn(o, 'battlefield').some(attackTaxOf))) return toast(`${must.map((c) => cardName(c)).join(', ')} must attack this combat${must.some((c) => c.goaded) ? ' (goaded)' : ''}.`);
       G.s.combat = null;
       G.s.step = 'main2';
       return render();

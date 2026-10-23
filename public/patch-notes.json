@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.120",
+    "title": "Multiplayer rules: goad, monarch, voting",
+    "notes": [
+      "Goad works the multiplayer way: a goaded creature must attack someone other than the player who goaded it, if it can, and stays goaded until that player's next turn. Several players can goad the same creature, and each goad wears off on its own.",
+      "When the monarch or the player with the initiative leaves a multiplayer game, it passes to the player whose turn it is (or the next player, if it was their own turn), who ventures into the Undercity as usual.",
+      "Votes go around the table in turn order starting with the caster, and the AIs vote with their own seat in mind. Grudge Keeper, Model of Unity and Erestor of the Council count every opponent who voted with or against you.",
+      "Fix: the cards that care about how players voted (and Messenger Jays) worked only after a vote had already happened in that session; they now work from the start.",
+      "\"The player to your left/right\" (Hithlain Rope) follows the seating order. Commander damage is counted separately for each commander and each player it hits.",
+      "Multiplayer still has no table or setup screen in the app; that's the next update. 1v1 games play exactly as before."
+    ]
+  },
+  {
     "version": "1.3.119",
     "title": "Gylwain ignores tokens",
     "notes": [

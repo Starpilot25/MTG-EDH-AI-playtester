@@ -29,6 +29,7 @@ function interveningIfFails(hit, ev) {
 }
 import { venture, takeInitiative } from './dungeon.js';
 import { seats, opponents, isAI, isPlayer, multiplayer } from './state.js';
+import { isGoaded } from './state.js';
 
 // Filled in by ui.js: choosers for both players, a yes/no prompt, render, and casting hooks.
 // The player an attacking creature is attacking (or who controls the planeswalker/battle it attacks).
@@ -1266,7 +1267,7 @@ function matches(ev) {
     case 'combatDamageOnce':
       each((c, trig) => {
         if (trig.event !== 'goadedDamage' || ev.player === c.controller) return;
-        const goaded = (ev.sources || []).filter((x) => { const a = card(x.iid); return a && a.goaded && (!a.goaded.until || G.s.turn < a.goaded.until); });
+        const goaded = (ev.sources || []).filter((x) => isGoaded(card(x.iid)));
         if (goaded.length) out.push({ src: c, trig, thatPlayer: ev.player, them: goaded.map((x) => x.iid) });
       });
       each((c, trig) => {
@@ -1294,7 +1295,7 @@ function matches(ev) {
         else if (trig.theirAttacker && c.controller !== ev.controller) out.push({ src: c, trig, it: { iid: ev.iid } });
         else if (trig.goadedAttacker) {
           const a = card(ev.iid);
-          if (a && a.goaded && (!a.goaded.until || G.s.turn < a.goaded.until)) out.push({ src: c, trig, thatPlayer: a.controller, it: { iid: ev.iid } });
+          if (isGoaded(a)) out.push({ src: c, trig, thatPlayer: a.controller, it: { iid: ev.iid } });
         }
       });
       break;

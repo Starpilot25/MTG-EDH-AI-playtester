@@ -4,6 +4,7 @@ import { DB, fetchCards } from './data.js';
 import { G, log, esc, cardsIn } from './state.js';
 import { oracle, isCreature } from './rules.js';
 import { resolveEffects } from './effects.js';
+import { multiplayer, seatName } from './state.js';
 
 export const DUNGEON_NAMES = ['Lost Mine of Phandelver', 'Dungeon of the Mad Mage', 'Tomb of Annihilation', 'Undercity'];
 export const DUNGEONS = {}; // name -> {id, name, rooms: {roomName: {name, text, next:[]}}, first, order:[]}
@@ -108,7 +109,7 @@ export async function venture(pid, ctx, opts = {}) {
   if (DUNGEON_NAMES.some((n) => !DUNGEONS[n])) await loadDungeons();
   const pl = G.s.players[pid];
   const chooser = ctx.choosers[pid];
-  const who = pid === 'p' ? 'You venture' : 'The AI ventures';
+  const who = pid === 'p' ? 'You venture' : `${multiplayer() ? seatName(pid) : 'The AI'} ventures`;
   // already in a dungeon? the initiative advances that one instead of starting Undercity
   let dg;
   if (!pl.dungeon) {
@@ -162,7 +163,7 @@ export async function venture(pid, ctx, opts = {}) {
     // the last room: the dungeon is completed (Safana, Acererak and friends count these)
     if (!room.next.length && pl.dungeon && pl.dungeon.name === dg.name) {
       pl.dungeonsCompleted = (pl.dungeonsCompleted || 0) + 1;
-      log(pid, `${pid === 'p' ? 'You complete' : 'The AI completes'} ${esc(dg.name)}.`);
+      log(pid, `${pid === 'p' ? 'You complete' : `${multiplayer() ? seatName(pid) : 'The AI'} completes`} ${esc(dg.name)}.`);
       pl.dungeon = null;
     }
   }
@@ -187,7 +188,7 @@ export function roomExtraTriggers(pid) {
 export async function takeInitiative(pid, ctx) {
   const had = G.s.initiative;
   G.s.initiative = pid;
-  if (had !== pid) log(pid, `${pid === 'p' ? 'You take' : 'The AI takes'} the initiative.`);
+  if (had !== pid) log(pid, `${pid === 'p' ? 'You take' : `${multiplayer() ? seatName(pid) : 'The AI'} takes`} the initiative.`);
   await venture(pid, ctx, { undercity: true });
 }
 

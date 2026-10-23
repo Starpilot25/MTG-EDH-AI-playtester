@@ -51,6 +51,8 @@ import { venture, takeInitiative } from './dungeon.js';
 import { seats, opponents, isAI, isPlayer, multiplayer, livingSeats, inGame, seatName } from './state.js';
 import { nextTurnNumber } from './state.js';
 import { joinAttack } from './state.js';
+import { goad, goadUntil } from './state.js';
+import { leftOf, rightOf, turnOrderFrom } from './state.js';
 
 const WORDNUM = {
   a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -1324,6 +1326,8 @@ function playersOf(env, phrase) {
   if (/^target opponent$/.test(p)) return opponents(me).length > 1 ? null : [opp(me)];
   if (/^an opponent$/.test(p)) return [opp(me)];
   if (/^(?:each player|all players|everyone)$/.test(p)) return [me, ...opponents(me)];
+  if (/^(?:the )?player to your left$/.test(p)) return [leftOf(me)];
+  if (/^(?:the )?player to your right$/.test(p)) return [rightOf(me)];
   if (/^(?:that player|its controller|its owner|their controller|that creature's controller|that permanent's controller|that spell's controller)$/.test(p)) {
     if (env.it && env.it.player) return [env.it.player];
     // "that player" is the player the trigger is about (Komainu: the damaged player), not the controller of "it"
@@ -2766,7 +2770,7 @@ on(/^that player exiles the top card of their library$/, async (m, env) => {
 // Bident of Thassa: "Creatures your opponents control attack this turn if able."
 on(/^creatures your opponents control attack this turn if able$/, async (m, env) => {
   const objs = cardsIn(opp(env.me), 'battlefield').filter(isCreature);
-  for (const c of objs) c.goaded = { by: env.me, until: G.s.turn + 1 };
+  for (const c of objs) goad(c, env.me);
   env.did.push(`${objs.length} creature${objs.length === 1 ? '' : 's'} must attack this turn`);
 }, { first: true });
 // Gix: "its controller may pay 1 life. If they do, they draw a card."
@@ -2847,13 +2851,16 @@ on(/^target opponent reveals cards from the top of their library until they reve
 }, { first: true, multi: true });
 // Dack Fayden, Helping Hand (1 opponent): reveal until a creature card, it enters goaded and the opponent gains control of it
 on(/^reveal cards from the top of your library until you reveal x creature cards, where x is the number of opponents you have\. put those creature cards onto the battlefield, then shuffle\. they're goaded for the rest of the game\. for each of those permanents, choose a different opponent\. each opponent gains control of the permanent for which they were chosen$/, async (m, env) => {
-  const got = revealCreaturesOnto(env.me, 1);
-  for (const i of got) {
-    const c = card(i);
-    move(i, 'battlefield', { controller: opp(env.me) });
-    if (card(i)) card(i).goaded = { by: env.me, until: 99999 };
-  }
-  env.did.push(got.length ? `${nameTag(card(got[0]))} enters goaded under ${opp(env.me) === 'p' ? 'your' : "the AI's"} control` : 'finds no creature');
+  const opps = opponents(env.me);
+  const got = revealCreaturesOnto(env.me, opps.length);
+  const lines = [];
+  got.forEach((i, k) => {
+    const to = opps[k] || opp(env.me);
+    move(i, 'battlefield', { controller: to });
+    if (card(i)) goad(card(i), env.me, 99999);
+    if (card(i)) lines.push(`${nameTag(card(i))} enters goaded under ${to === 'p' ? 'your' : multiplayer() ? `${seatName(to)}'s` : "the AI's"} control`);
+  });
+  env.did.push(lines.length ? lines.join('; ') : 'finds no creature');
 }, { first: true, multi: true });
 // Scarlet Witch, Chaotic Avenger
 on(/^look at the top two cards of your library, then exile them face down\. then you may cast a hero or noncreature spell from among cards exiled with ~ without paying its mana cost$/, async (m, env) => {
@@ -5219,7 +5226,7 @@ on(/^detain (.+)$/, async (m, env) => {
 });
 on(/^goad (.+)$/, async (m, env) => {
   const objs = await objects(env, m[1]);
-  objs.forEach((c) => (c.goaded = { by: env.me, until: nextTurnNumber(env.me) }));
+  objs.forEach((c) => goad(c, env.me, multiplayer() ? goadUntil(env.me) : nextTurnNumber(env.me)));
   if (objs.length) env.did.push(`goads ${objs.map(nameTag).join(', ')}`);
 });
 on(/^suspect (.+)$/, async (m, env) => {
@@ -5307,7 +5314,7 @@ on(/^gain control of (.+?)(?: until end of turn| until your next turn)?(?:\. unt
 on(/^the player to your (?:right|left) gains control of (~|it|this [a-z]+)$/, async (m, env) => {
   const c = env.src && card(env.src.iid);
   if (!c || c.zone !== 'battlefield') return;
-  const to = opp(c.controller);
+  const to = /left/.test(m[0]) ? leftOf(c.controller) : rightOf(c.controller); // in 1v1 both are the opponent
   move(c.iid, 'battlefield', { controller: to });
   c.zone = 'battlefield';
   env.did.push(`${who(to)} ${s_(to, 'gain')} control of ${nameTag(c)}`);
@@ -6025,7 +6032,7 @@ on(/^(it|they|that token|those tokens|the tokens?) (?:has|have) "(.+)"$/, async 
 // "Target creature attacks this turn if able"
 on(/^(target creature|that creature|it|each creature (?:target|your) opponents? controls?) attacks this turn if able$/, async (m, env) => {
   const objs = await objects(env, m[1], { harm: true });
-  for (const c of objs) c.goaded = { by: env.me, until: G.s.turn + 1 };
+  for (const c of objs) goad(c, env.me);
   if (objs.length) env.did.push(`${objs.map(nameTag).join(', ')} must attack this turn`);
 });
 // "You may have ~ become a copy of it until end of turn, except its name is ~ and it's legendary"
@@ -6897,22 +6904,24 @@ function extraVotes(pid) {
 function voteOutcomeValue(text, me) {
   const t = String(text || '').toLowerCase();
   const them = opp(me);
+  const foes = opponents(me);
   const creatures = (pid) => cardsIn(pid, 'battlefield').filter(isCreature);
+  const all = (f) => foes.flatMap(f); // across every opponent
   const worth = (cs) => cs.reduce((a, c) => a + cardValue(c), 0);
   let v = 0;
   if (/take an extra turn/.test(t)) v += 7;
   const dr = t.match(/draws? (a|one|two|three|four|\w+) cards?/);
   if (dr && !/each opponent draws|each player draws/.test(t)) v += 1.4 * n(dr[1]);
-  if (/destroy all (?:other )?creatures|destroy all creatures other than/.test(t)) v += worth(creatures(them)) - worth(creatures(me).filter((c) => !env_src_is(c)));
-  if (/destroy all nonland permanents/.test(t)) v += worth(cardsIn(them, 'battlefield').filter((c) => !isLand(c))) - worth(cardsIn(me, 'battlefield').filter((c) => !isLand(c)));
-  if (/each player returns each creature card from their graveyard to the battlefield/.test(t)) v += worth(cardsIn(me, 'graveyard').filter((c) => isType(c, 'Creature'))) - worth(cardsIn(them, 'graveyard').filter((c) => isType(c, 'Creature')));
+  if (/destroy all (?:other )?creatures|destroy all creatures other than/.test(t)) v += worth(all(creatures)) - worth(creatures(me).filter((c) => !env_src_is(c)));
+  if (/destroy all nonland permanents/.test(t)) v += worth(all((k) => cardsIn(k, 'battlefield')).filter((c) => !isLand(c))) - worth(cardsIn(me, 'battlefield').filter((c) => !isLand(c)));
+  if (/each player returns each creature card from their graveyard to the battlefield/.test(t)) v += worth(cardsIn(me, 'graveyard').filter((c) => isType(c, 'Creature'))) - worth(all((k) => cardsIn(k, 'graveyard')).filter((c) => isType(c, 'Creature')));
   const lose = t.match(/each opponent loses (\w+) life/);
-  if (lose) v += n(lose[1]) * (G.s.players[them].life <= n(lose[1]) ? 10 : 0.7);
-  if (/each opponent sacrifices a creature/.test(t)) v += creatures(them).length ? Math.min(...creatures(them).map(cardValue)) + 1 : 0;
+  if (lose) v += foes.reduce((a, f) => a + n(lose[1]) * (G.s.players[f].life <= n(lose[1]) ? 10 : 0.7), 0);
+  if (/each opponent sacrifices a creature/.test(t)) v += foes.reduce((a, f) => a + (creatures(f).length ? Math.min(...creatures(f).map(cardValue)) + 1 : 0), 0);
   const shrink = t.match(/creatures your opponents control get -(\d+)\/-(\d+)/);
-  if (shrink) v += worth(creatures(them).filter((c) => toughness(c) - (c.damage || 0) <= +shrink[2])) + 0.5;
+  if (shrink) v += worth(all(creatures).filter((c) => toughness(c) - (c.damage || 0) <= +shrink[2])) + 0.5;
   const disc = t.match(/each opponent discards (\w+) cards?/);
-  if (disc) v += Math.min(n(disc[1]), cardsIn(them, 'hand').length) * 1.1;
+  if (disc) v += foes.reduce((a, f) => a + Math.min(n(disc[1]), cardsIn(f, 'hand').length) * 1.1, 0);
   if (/\+1\/\+1 counters? on/.test(t)) v += 1.6;
   if (/create (?:a|one|two|\w+) [^.]*treasure|treasure tokens?/.test(t)) v += 1.4;
   if (/create (?:a|an|one|two|\w+) 1\/1 [^.]*creature token/.test(t)) v += 1.3;
@@ -6926,9 +6935,25 @@ function voteOutcomeValue(text, me) {
   return v;
   function env_src_is(c) { return /other than/.test(t) && voteOutcomeValue.src && c.iid === voteOutcomeValue.src; }
 }
+// Pods: what an outcome does to a voter who isn't the caster ("each opponent loses 2 life" includes them)
+function ownOutcome(text, caster, voter) {
+  const t = String(text || '').toLowerCase();
+  let v = 0;
+  const pl = G.s.players[voter];
+  const lose = t.match(/each opponent loses (\w+) life/);
+  if (lose) v -= n(lose[1]) * (pl.life <= n(lose[1]) ? 10 : 0.7);
+  if (/each opponent sacrifices a creature/.test(t)) v -= 2;
+  const disc = t.match(/each opponent discards (\w+) cards?/);
+  if (disc) v -= Math.min(n(disc[1]), cardsIn(voter, 'hand').length) * 1.1;
+  const creatures = cardsIn(voter, 'battlefield').filter(isCreature);
+  if (/destroy all (?:other )?creatures|destroy all creatures other than/.test(t)) v -= creatures.reduce((a, c) => a + cardValue(c), 0);
+  if (/destroy all nonland permanents/.test(t)) v -= cardsIn(voter, 'battlefield').filter((c) => !isLand(c)).reduce((a, c) => a + cardValue(c), 0);
+  if (/each player draws|each opponent draws/.test(t)) v += 1;
+  return v;
+}
 async function holdVote(env, spec) {
   const caster = env.me;
-  const order = [caster, ...opponents(caster)];
+  const order = multiplayer() ? turnOrderFrom(caster) : [caster, ...opponents(caster)]; // starting with the caster, in turn order
   const tally = new Map();
   const byVoter = Object.fromEntries(seats().map((k) => [k, []]));
   const words = spec.kind === 'words';
@@ -6941,56 +6966,14 @@ async function holdVote(env, spec) {
   };
   const tieOpt = words ? spec.options.find((o) => new RegExp(`if ${o.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} gets more votes or the vote is tied`).test(text)) : null;
   voteOutcomeValue.src = env.src && env.src.iid;
-  const ctl = G.s.voteControl && G.s.voteControl.turn === G.s.turn ? G.s.voteControl.pid : null; // Messenger Jays: "For each card drawn this way, discard a card."
-on(/^for each card drawn this way, discard a card$/, async (m, env) => {
-  const k = Math.min(env.voteDrawn || 0, cardsIn(env.me, 'hand').length);
-  if (!k) return;
-  const picks = await env.choosers[env.me].pickCards({ forced: true, prompt: `Discard ${k} card${k > 1 ? 's' : ''}`, cards: cardsIn(env.me, 'hand').map((c) => c.iid), min: k, max: k, purpose: 'discard', src: env.src, aiScore: (c) => (isLand(c) ? 3 : -(DB[c.def].cmc || 0)) });
-  for (const i of picks) discardCard(i);
-  env.did.push(`discards ${picks.length}`);
-}, { first: true });
-// Truth or Consequences: "Then choose an opponent at random." (there is only one)
-on(/^choose an opponent at random$/, async (m, env) => {
-  env.thatPlayer = opp(env.me);
-  env.it = { player: opp(env.me) };
-}, { first: true });
-// "Whenever players finish voting": who agreed with you (the votes ride on the event)
-function agreeing(env) {
-  const bv = (env.event && env.event.byVoter) || Object.fromEntries(seats().map((k) => [k, []]));
-  const mine = new Set(bv[env.me] || []);
-  const them = opp(env.me);
-  const theirs = bv[them] || [];
-  return { same: theirs.some((v) => mine.has(v)), different: theirs.some((v) => !mine.has(v)), them };
-}
-// Grudge Keeper
-on(/^each opponent who voted for a choice you didn't vote for loses (\w+) life$/, async (m, env) => {
-  const a = agreeing(env);
-  if (a.different) changeLife(a.them, -n(m[1]));
-  env.did.push(a.different ? `${who(a.them)} ${s_(a.them, 'lose')} ${n(m[1])} life` : 'no one voted differently');
-}, { first: true });
-// Model of Unity
-on(/^you and each opponent who voted for a choice you voted for may scry (\w+)$/, async (m, env) => {
-  const a = agreeing(env);
-  for (const pid of [env.me, ...(a.same ? [a.them] : [])]) await runSentence(`scry ${m[1]}`, { ...env, me: pid });
-}, { first: true });
-// Erestor of the Council
-on(/^each opponent who voted for a choice you voted for creates a treasure token$/, async (m, env) => {
-  const a = agreeing(env);
-  if (a.same) {
-    createToken(genericTokenDef(0, 0, 'Treasure'), a.them, 1);
-    env.did.push(`${who(a.them)} ${s_(a.them, 'create')} a Treasure`);
-  }
-}, { first: true });
-on(/^you scry x, where x is the number of opponents who voted for a choice you didn't vote for$/, async (m, env) => {
-  if (agreeing(env).different) await runSentence('scry 1', env);
-}, { first: true });
-// Illusion of Choice
+  const ctl = G.s.voteControl && G.s.voteControl.turn === G.s.turn ? G.s.voteControl.pid : null;
   for (const voter of order) {
     const times = 1 + extraVotes(voter);
     const decider = ctl || voter;
     for (let k = 0; k < times; k++) {
       const nth = times > 1 ? ` (vote ${k + 1} of ${times})` : '';
-      const whose = decider === voter ? (voter === 'p' ? 'Your vote' : "The AI's vote") : `${voter === 'p' ? 'Your' : "The AI's"} vote (you choose it)`;
+      const vname = (v) => (v === 'p' ? 'Your' : multiplayer() ? `${seatName(v)}'s` : "The AI's");
+      const whose = decider === voter ? `${vname(voter)} vote` : `${vname(voter)} vote (you choose it)`;
       let pick = null;
       if (words) {
         const vals = spec.options.map((o) => voteOutcomeValue(outcome(o), caster));
@@ -6998,24 +6981,28 @@ on(/^you scry x, where x is the number of opponents who voted for a choice you d
         const persp = (t) => (decider === 'p' && caster !== 'p'
           ? t.replace(/\byour\b/g, '\u0001').replace(/\byou\b/g, 'the AI').replace(/\u0001/g, "the AI's").replace(/\b(?:each|target) opponent (\w+?)s\b/g, 'you $1').replace(/\beach opponent\b|\btarget opponent\b/g, 'you')
           : t);
-        const sofar = order.flatMap((v) => byVoter[v].map((x) => `${v === 'p' ? 'You' : 'The AI'} voted ${x}`)).join('. ');
+        const sofar = order.flatMap((v) => byVoter[v].map((x) => `${v === 'p' ? 'You' : multiplayer() ? seatName(v) : 'The AI'} voted ${x}`)).join('. ');
         const k2 = await env.choosers[decider].choose({
           prompt: `${env.src ? cardName(env.src) + ' — ' : ''}${whose}${nth}${sofar ? ` (${sofar})` : ''}`,
           options: spec.options.map((o) => ({ label: o[0].toUpperCase() + o.slice(1), detail: persp(outcome(o)) + (o === tieOpt ? ' (also wins a tie)' : '') })),
           aiPick: () => {
-            // voting for yourself (or the caster's side): the best outcome for the caster; against: the worst
+            // voting for yourself (or the caster's side): the best outcome for the caster; against: the worst.
+            // In a pod a voter weighs the outcomes from its own seat too ("each opponent loses 2 life" hits it).
             const forCaster = decider === caster;
+            const own = multiplayer() && !forCaster ? spec.options.map((o) => ownOutcome(outcome(o), caster, decider)) : null;
+            const score = (i) => (forCaster ? vals[i] : own ? own[i] - vals[i] * 0.5 : -vals[i]);
             let best = 0;
-            for (let i = 1; i < vals.length; i++) if (forCaster ? vals[i] > vals[best] : vals[i] < vals[best]) best = i;
+            for (let i = 1; i < vals.length; i++) if (score(i) > score(best)) best = i;
             return best;
           },
         });
         pick = spec.options[k2];
       } else if (spec.kind === 'players') {
-        const cands = spec.another ? [opp(voter)] : [voter, ...opponents(voter)];
+        // an AI votes for itself when it may, otherwise for the opponent it's focused on
+        const cands = spec.another ? (multiplayer() ? opponents(voter).sort((a, b) => (b === opp(voter)) - (a === opp(voter))) : [opp(voter)]) : [voter, ...opponents(voter)];
         if (cands.length === 1) pick = cands[0];
         else {
-          const k2 = await env.choosers[decider].choose({ prompt: `${env.src ? cardName(env.src) + ' — ' : ''}${whose}${nth}: vote for a player`, options: cands.map((x) => ({ label: x === 'p' ? 'You' : 'The AI' })), aiPick: () => 0 });
+          const k2 = await env.choosers[decider].choose({ prompt: `${env.src ? cardName(env.src) + ' — ' : ''}${whose}${nth}: vote for a player`, options: cands.map((x) => ({ label: x === 'p' ? 'You' : multiplayer() ? seatName(x) : 'The AI' })), aiPick: () => 0 });
           pick = cands[k2];
         }
       } else {
@@ -7036,9 +7023,52 @@ on(/^you scry x, where x is the number of opponents who voted for a choice you d
   }
   const label = (x) => (words ? x : x === 'p' ? 'you' : isAI(x) && G.s.players[x] ? seatName(x) : card(x) ? nameTag(card(x)) : x);
   env.votes = { tally, byVoter, kind: spec.kind, options: spec.options || [] };
-  env.did.push(`vote: ${order.map((v) => `${v === 'p' ? 'you' : 'the AI'} — ${byVoter[v].map(label).join(', ') || 'nothing'}`).join('; ')}`);
+  env.did.push(`vote: ${order.map((v) => `${v === 'p' ? 'you' : multiplayer() ? seatName(v) : 'the AI'} — ${byVoter[v].map(label).join(', ') || 'nothing'}`).join('; ')}`);
   queueEvent({ type: 'votingDone', controller: caster, byVoter });
 }
+// Messenger Jays: "For each card drawn this way, discard a card."
+on(/^for each card drawn this way, discard a card$/, async (m, env) => {
+  const k = Math.min(env.voteDrawn || 0, cardsIn(env.me, 'hand').length);
+  if (!k) return;
+  const picks = await env.choosers[env.me].pickCards({ forced: true, prompt: `Discard ${k} card${k > 1 ? 's' : ''}`, cards: cardsIn(env.me, 'hand').map((c) => c.iid), min: k, max: k, purpose: 'discard', src: env.src, aiScore: (c) => (isLand(c) ? 3 : -(DB[c.def].cmc || 0)) });
+  for (const i of picks) discardCard(i);
+  env.did.push(`discards ${picks.length}`);
+}, { first: true });
+// "Whenever players finish voting": who agreed with you (the votes ride on the event)
+// sameList / diffList: the opponents who voted for something you voted for / something you didn't
+function agreeing(env) {
+  const bv = (env.event && env.event.byVoter) || Object.fromEntries(seats().map((k) => [k, []]));
+  const mine = new Set(bv[env.me] || []);
+  const them = opp(env.me);
+  const theirs = bv[them] || [];
+  const opps = multiplayer() ? opponents(env.me) : [them];
+  const sameList = opps.filter((o) => (bv[o] || []).some((v) => mine.has(v)));
+  const diffList = opps.filter((o) => (bv[o] || []).some((v) => !mine.has(v)));
+  return { same: theirs.some((v) => mine.has(v)), different: theirs.some((v) => !mine.has(v)), them, sameList, diffList };
+}
+// Grudge Keeper
+on(/^each opponent who voted for a choice you didn't vote for loses (\w+) life$/, async (m, env) => {
+  const a = agreeing(env);
+  for (const o of a.diffList) changeLife(o, -n(m[1]));
+  env.did.push(a.diffList.length ? a.diffList.map((o) => `${who(o)} ${s_(o, 'lose')} ${n(m[1])} life`).join('; ') : 'no one voted differently');
+}, { first: true });
+// Model of Unity
+on(/^you and each opponent who voted for a choice you voted for may scry (\w+)$/, async (m, env) => {
+  const a = agreeing(env);
+  for (const pid of [env.me, ...a.sameList]) await runSentence(`scry ${m[1]}`, { ...env, me: pid });
+}, { first: true });
+// Erestor of the Council
+on(/^each opponent who voted for a choice you voted for creates a treasure token$/, async (m, env) => {
+  const a = agreeing(env);
+  for (const o of a.sameList) {
+    createToken(genericTokenDef(0, 0, 'Treasure'), o, 1);
+    env.did.push(`${who(o)} ${s_(o, 'create')} a Treasure`);
+  }
+}, { first: true });
+on(/^you scry x, where x is the number of opponents who voted for a choice you didn't vote for$/, async (m, env) => {
+  const k = agreeing(env).diffList.length;
+  if (k) await runSentence(`scry ${k}`, env);
+}, { first: true });
 const mostVoted = (env) => {
   const t = env.votes ? env.votes.tally : new Map();
   const top = Math.max(0, ...t.values());

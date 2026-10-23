@@ -19,6 +19,7 @@ import {
 } from './ai.js';
 import { emptyPools, castFree, applyPayment } from './cast.js';
 import { seats, opponents, isAI, isPlayer, multiplayer, nextSeat, inGame, seatName } from './state.js';
+import { isGoaded, goadersOf, expireGoads, goadOk } from './state.js';
 
 // UI hooks, filled in by ui.js
 export const hooks = {
@@ -466,9 +467,7 @@ function cleanupStep() {
       log(d.pid, `${nameTag(c)} returns to its controller.`);
     }
   }
-  for (const c of Object.values(s.cards)) {
-    if (c.goaded && c.goaded.until && c.goaded.until <= s.turn) delete c.goaded;
-  }
+  expireGoads();
   cleanupDamage();
   emptyPools(true);
 }
@@ -520,6 +519,33 @@ function playerOfTarget(t, attackerPid) {
   const c = t && card(t);
   if (!c) return opp(attackerPid);
   return isType(c, 'Battle') ? c.protector || opp(c.controller) : c.controller;
+}
+// Goad (pods): a goaded creature attacking the player who goaded it (or that player's planeswalker/battle) is
+// moved to another opponent when there is one. Returns the log lines for what changed.
+function fixGoadTargets(cb, attackerPid) {
+  if (!multiplayer()) return [];
+  const lines = [];
+  cb.targets = cb.targets || {};
+  for (const iid of cb.attackers) {
+    const c = card(iid);
+    if (!c || !isGoaded(c)) continue;
+    const t = cb.targets[iid] || opp(attackerPid);
+    const who = playerOfTarget(t, attackerPid);
+    if (goadOk(c, who)) continue;
+    const g = goadersOf(c);
+    const allowed = opponents(attackerPid).filter((o) => !g.includes(o));
+    // join the others if they're going after an allowed player; otherwise this player's focus, if allowed
+    const counts = {};
+    for (const a of cb.attackers) {
+      const p = playerOfTarget(cb.targets[a] || opp(attackerPid), attackerPid);
+      if (allowed.includes(p)) counts[p] = (counts[p] || 0) + 1;
+    }
+    const busiest = Object.entries(counts).sort((x, y) => y[1] - x[1])[0];
+    const to = busiest ? busiest[0] : allowed.includes(opp(attackerPid)) ? opp(attackerPid) : allowed[0];
+    cb.targets[iid] = to;
+    lines.push(`${nameTag(c)} is goaded by ${g.map(seatName).join(' and ')}, so it attacks ${seatName(to)} instead`);
+  }
+  return lines;
 }
 // which players are being attacked (by at least one creature), in turn order
 function defendersOf(cb, attackerPid) {
@@ -785,6 +811,7 @@ export async function confirmAttacks() {
     }
   } else cb.targets = Object.fromEntries(cb.attackers.map((i) => [i, opp('p')]));
   attackLimits(cb, 'p');
+  for (const line of fixGoadTargets(cb, 'p')) log('p', line + '.');
   {
     const tax = attackTax(cb.attackers, cb.targets, 'p');
     if (tax > 0) {
@@ -1105,6 +1132,7 @@ async function aiCombat(pid = 'ai') {
   s.combat = { by: pid, attackers, blocks: {}, targets: {}, stage: 'blocks', selected: null };
   s.combat.targets = slaved ? picked.targets : aiAttackTargets(attackers);
   attackLimits(s.combat, pid);
+  fixGoadTargets(s.combat, pid); // the AI just sends them elsewhere (no need to log its own planning)
   {
     // the AI pays attack taxes, dropping its weakest attackers until it can afford them
     let tax = attackTax(attackers, s.combat.targets, pid);
@@ -1253,3 +1281,4 @@ export async function runAiTurn(pid = 'ai') {
 }
 
 export { isLand, DB, face, toBattlefield, dayNight, upkeepKeywords, endStepThings, cleanupStep, applyCombat };
+export { fixGoadTargets as _fixGoadTargets }; // for tests
