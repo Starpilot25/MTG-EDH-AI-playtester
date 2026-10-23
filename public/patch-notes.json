@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.122",
+    "title": "Swan Song + card sweep, batch 4",
+    "notes": [
+      "Swan Song (and other counterspells the AI casts): the rest of the spell now happens too — you get your Bird, Arcane Denial's draws happen, and so on. Swan Song can also now counter instants and sorceries (its \"enchantment, instant, or sorcery\" list wasn't read properly).",
+      "New sweep using the current official card wording. Fixed: Abstract Performance, Abundant Harvest, Acolyte Hybrid, Aerial Extortionist, Aetherspouts, Agent's Toolkit, Aid from the Cowl, Alex Wilder, Aminatou's Augury, Amy Pond, Ancient Cellarspawn, Angel of Serenity, Angelic Aberration, Animate Dead (and similar reanimation Auras), Animist's Awakening, Anrakyr the Traveller, Apex of Power, Arcane Bombardment, Arcane Endeavor, Archfiend of Depravity, Armory Automaton, Ashling the Limitless, Audacious Swap, Augusta, Aunt May, Aven Courier.",
+      "Not yet: Angel of Salvation's divided damage prevention, Aradesh's enlist check, Asgardian Inspiration's graveyard trigger."
+    ]
+  },
+  {
     "version": "1.3.121",
     "title": "Multiplayer pods are playable",
     "notes": [

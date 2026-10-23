@@ -103,6 +103,8 @@ function parseTriggerText(text, speed) {
       const fromGy = !extra.self && !extra.attachedTo && /\b(?:return|put) (?:~|this card) from your graveyard\b|\bif (?:~|this card) is in your graveyard\b/i.test(t) && !/return it to the battlefield tapped and attacking/i.test(t);
       out.push({ event, text: t, optional: /^you may\b/i.test(t), raw: line, oncePerTurn, ...(/Do this only once each turn/i.test(effect) ? { doOnce: true } : {}), ...(fromGy ? { fromGy } : {}), ...extra });
     };
+    // Animate Dead: the leaves part is written inside the enters paragraph
+    if (/^When ~ enters/.test(line) && /When ~ leaves the battlefield, that creature's controller sacrifices it\./.test(line)) add('leaves', "that creature's controller sacrifices it.", { self: true });
     // enters
     if ((m = line.match(/^When(?:ever)? ~ enters(?: the battlefield)? or leaves the battlefield, (.+)$/i))) {
       add('enters', m[1], { self: true });

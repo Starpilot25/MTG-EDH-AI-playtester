@@ -441,6 +441,19 @@ async function maybeCounterOne(spell, h, caster) {
       return false;
     }
     log(AI, `${nameTag(c)} counters ${yourOr(caster)} ${nameTag(spell)}.`);
+    // the rest of the counterspell still happens (Swan Song's Bird, Arcane Denial's draws, Dovin's Veto…)
+    {
+      const rest = spellText(c).replace(/(?:^|\n)[^\n]*?Counter target [^.]*\.\s*/i, '\n').trim();
+      if (rest && !/^(?:This spell can't be countered\.?)$/i.test(rest)) {
+        try {
+          const { resolveEffects } = await import('./effects.js');
+          const did = await resolveEffects(rest, c, { ...aiEnv(h), me: AI, stackTarget: spell.iid, it: { iid: spell.iid }, thatPlayer: caster, forced: true });
+          if (did.length) log(AI, `${nameTag(c)}: ${did.join('; ')}.`);
+        } catch (e) {
+          /* the counter already happened */
+        }
+      }
+    }
     return true;
   }
   return false;

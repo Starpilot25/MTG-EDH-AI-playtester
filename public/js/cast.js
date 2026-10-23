@@ -809,6 +809,9 @@ export async function castSpell(pid, iid, opt, env) {
     }
   }
   applyPayment(pid, pay);
+  // Ancient Cellarspawn / Alex Wilder: what was paid, and when
+  c.castTurn = s.turn;
+  c.manaSpent = env.free || opt.free ? 0 : ((pay.payers || []).length + (pay.special || []).filter((x) => x.kind === 'pool' || x.kind === 'convoke').length);
   if (opt.removeCounters) removeCountersAmong(pid, opt.removeCounters, c);
   c.convokedBy = (pay.special || []).filter((x) => x.kind === 'convoke').map((x) => x.iid); // Lethal Scheme: "each creature that convoked it"
   if (c.lockeGroup) for (const x of Object.values(s.cards)) if (x.lockeGroup === c.lockeGroup) delete x.mayCastFromGy;
