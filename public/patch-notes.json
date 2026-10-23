@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.124",
+    "title": "Card sweep, batch 5",
+    "notes": [
+      "Fixed: Avenging Huntbonder, Baleful Mastery (alternative cost + the opponent's draw), Barret, Battle at the Helvault, Battle for Bretagard, Benthic Anomaly, Betor, Bilbo (Unexpected Adventurer), Biomass Mutation, Blightwing Bandit, Bloodthirsty Adversary, Boreas Charger, Bottle-Cap Blast (excess-damage Treasures), Bribe Taker, Bright-Palm, Brudiclad, Cacophony Unleashed, Cait, Call Forth the Tempest, Call for Aid, Call the Coppercoats, Canopy Gargantuan, Celestial Judgment, Chalice of the Void.",
+      "Not yet: Berserker's Frenzy, Bill Potts, Bloodlord of Vaasgoth's granted bloodthirst, Bygone Marvels' descend copies, Cass, Celes's second ability."
+    ]
+  },
+  {
     "version": "1.3.123",
     "title": "Pop out each opponent, boards that fill the window",
     "notes": [

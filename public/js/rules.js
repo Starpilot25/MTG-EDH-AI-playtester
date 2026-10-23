@@ -1504,6 +1504,8 @@ export function canBlock(blocker, attacker) {
 
 export function canAttack(inst) {
   if (!isCreature(inst) || inst.tapped || inst.pacifiedBy || inst.phasedOut) return false;
+  // Call for Aid: "You can't attack that player this turn" (with one opponent, that's no attacks at all)
+  if (G.s && (G.s.cantAttack || []).some((x) => x.turn === G.s.turn && x.by === inst.controller) && seats().filter((p) => p !== inst.controller && G.s.players[p] && !G.s.players[p].lost).every((p) => (G.s.cantAttack || []).some((x) => x.turn === G.s.turn && x.by === inst.controller && x.player === p))) return false;
   if (G.s && inst.detainedUntil && inst.detainedUntil > G.s.turn) return false;
   if (G.s && inst.noAttackUntil && inst.noAttackUntil > G.s.turn) return false;
   if (hasKw(inst, 'defender') && !/can attack as though it didn't have defender/i.test(oracle(inst))) return false;
