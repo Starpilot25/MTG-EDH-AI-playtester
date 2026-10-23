@@ -1,12 +1,12 @@
 # EDH Playtester
 
-Play 1v1 Commander against an AI opponent to test your decks. It's a free-form tabletop in the style of the Moxfield playtester, with Arena-style rules automation on top: mana is paid for you, targets light up, and spells, triggers and combat resolve on their own.
+Play Commander against AI opponents to test your decks: 1v1, or a 3–4 player pod with each AI playing its own deck. It's a free-form tabletop in the style of the Moxfield playtester, with Arena-style rules automation on top: mana is paid for you, targets light up, and spells, triggers and combat resolve on their own.
 
 - **Import any deck.** Paste a plain-text list (Moxfield and Archidekt text exports work as-is).
-- **Built-in AI opponent.** It runs locally, with no account or API key. It simulates combat, holds up counterspells and plays at instant speed.
+- **Built-in AI opponents.** They run locally, with no account or API key. They simulate combat, hold up counterspells and play at instant speed. In a pod each AI sizes up the table to decide who to attack.
 - **Real rules.** The engine reads each card's rules text and covers keyword mechanics from across Magic's history.
 - **Built-in decks** from Bracket 1 to cEDH, plus saved decks.
-- **Second screen:** pop the AI's board out into its own window.
+- **Second screen:** pop the AI's board (or, in a pod, all the opponents) out into its own window.
 - **Desktop app** for Windows, Mac and Linux that updates itself from this repository.
 
 ## Download

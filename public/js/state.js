@@ -290,6 +290,19 @@ export function turnOrderFrom(pid) {
   const k = Math.max(0, order.indexOf(pid));
   return [...order.slice(k), ...order.slice(0, k)];
 }
+// Replace "the AI" / "AI" in the text parts of an html line (not inside tags) with this seat's name.
+// "AI 2" style names are left alone.
+export function seatWords(html, pid) {
+  const name = (G.s.players[pid] && G.s.players[pid].name) || pid;
+  return html.split(/(<[^>]*>)/).map((part) => {
+    if (part.startsWith('<')) return part;
+    return part
+      .replace(/\b[Tt]he AI's\b/g, `${name}'s`)
+      .replace(/\b[Tt]he AI\b(?! \d)/g, name)
+      .replace(/\bAI's\b/g, `${name}'s`)
+      .replace(/\bAI\b(?! \d)(?!')/g, name);
+  }).join('');
+}
 // ------------------------------------------------------------ goad
 // Goad (rule 701.15): until the goading player's next turn the creature attacks each combat if able, and attacks
 // a player other than the goading player if able. Several players can goad the same creature; each goad
@@ -348,6 +361,9 @@ export function seatName(pid) {
   if (!multiplayer()) return 'the AI';
   return (G.s.players[pid] && G.s.players[pid].name) || pid;
 }
+// "You" / "The AI" / "AI 2", and "your" / "the AI's" / "AI 2's"
+export const seatNameCap = (pid) => (pid === 'p' ? 'You' : multiplayer() ? seatName(pid) : 'The AI');
+export const seatPoss = (pid) => (pid === 'p' ? 'your' : multiplayer() ? `${seatName(pid)}'s` : "the AI's");
 
 export function cardName(inst) {
   if (!inst) return '?';
@@ -383,6 +399,8 @@ export function tappedHook(c) {
   log(c.controller, `${nameTag(cap)}: ${nameTag(c)} untaps.`);
 }
 export function log(who, html) {
+  // pods: lines an AI seat logs about itself say "The AI …" in places; name the seat instead ("AI 2 …")
+  if (multiplayer() && isAI(who) && typeof html === 'string') html = seatWords(html, who);
   G.s.log.push({ who, html, turn: G.s.turn });
   if (G.s.log.length > 500) G.s.log.shift();
 }
@@ -970,7 +988,7 @@ export function setLife(pid, value, reason) {
       if (G.s.active === o && po.speed > 0 && po.speed < 4 && !G.s.ts[o].speedUp) {
         po.speed++;
         G.s.ts[o].speedUp = true;
-        log(o, `${o === 'p' ? 'Your' : "The AI's"} speed increases to ${po.speed}${po.speed === 4 ? ' (max speed)' : ''}.`);
+        log(o, `${(o === 'p' ? 'Your' : seatNameCap(o) + "'s")} speed increases to ${po.speed}${po.speed === 4 ? ' (max speed)' : ''}.`);
       }
     } else if (value > before) {
       ts.lifeGained += value - before;
@@ -1276,7 +1294,7 @@ export function stateBased() {
         if (back && back !== c.controller) {
           move(c.iid, 'battlefield', { controller: back });
           c.zone = 'battlefield';
-          log(back, `${nameTag(c)} returns to ${back === 'p' ? 'your' : "the AI's"} control.`);
+          log(back, `${nameTag(c)} returns to ${seatPoss(back)} control.`);
           changed = true;
         }
       }
@@ -1538,7 +1556,7 @@ export function createToken(defId, pid, n = 1, opts = {}) {
     const allowed = Math.max(0, TOKEN_CAP - have);
     if (G.s && G.s.tokenCapWarned !== G.s.turn) {
       G.s.tokenCapWarned = G.s.turn;
-      log(pid, `Token limit reached: ${pid === 'p' ? 'you' : 'the AI'} can have at most ${TOKEN_CAP} tokens, so ${count - allowed} token${count - allowed === 1 ? ' wasn\'t' : "s weren't"} created.`);
+      log(pid, `Token limit reached: ${seatName(pid)} can have at most ${TOKEN_CAP} tokens, so ${count - allowed} token${count - allowed === 1 ? ' wasn\'t' : "s weren't"} created.`);
     }
     count = allowed;
   }

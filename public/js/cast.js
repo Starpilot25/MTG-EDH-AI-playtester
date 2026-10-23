@@ -26,6 +26,7 @@ import { fire, settle, T } from './triggers.js';
 import { seats, opponents, isAI, multiplayer, allBattlefields, seatName } from './state.js';
 import { nextTurnNumber } from './state.js';
 import { goad } from './state.js';
+import { seatNameCap } from './state.js';
 
 const isLandFace = (f) => /\bLand\b/.test((f.typeLine || '').split('—')[0]);
 const instantFace = (f) => /\bInstant\b/.test((f.typeLine || '').split('—')[0]);
@@ -158,7 +159,7 @@ export function applyPayment(pid, pay) {
   const hurt = (pay.pains || []).filter((i) => card(i));
   if (hurt.length) {
     changeLife(pid, -hurt.length, false);
-    log(pid, `${hurt.map((i) => nameTag(card(i))).join(', ')} ${hurt.length === 1 ? 'costs' : 'cost'} ${pid === 'p' ? 'you' : 'the AI'} ${hurt.length} life.`);
+    log(pid, `${hurt.map((i) => nameTag(card(i))).join(', ')} ${hurt.length === 1 ? 'costs' : 'cost'} ${seatName(pid)} ${hurt.length} life.`);
   }
 }
 
@@ -1049,7 +1050,7 @@ async function resolveSpell(pid, c, opt, info, env) {
     else if (/Fish/i.test(gm)) createToken(genericTokenDef(1, 1, 'Fish', ['U']), o2, 1, { tapped: /tapped/i.test(gm) });
     else if (/Octopus/i.test(gm)) createToken(genericTokenDef(8, 8, 'Octopus', ['U']), o2, 1);
     else if (/extra turn/i.test(gm)) s.extraTurns[o2]++;
-    log(pid, `The gift (${esc(gm.trim())}) goes to ${o2 === 'p' ? 'you' : 'the AI'}.`);
+    log(pid, `The gift (${esc(gm.trim())}) goes to ${seatName(o2)}.`);
   }
   const permanent = isPermanentCard({ faces: [f] }) && opt.mode !== 'adventure' && opt.mode !== 'fuse' && opt.mode !== 'omen';
   if (permanent) {
@@ -1127,7 +1128,7 @@ async function resolveSpell(pid, c, opt, info, env) {
         const k = await env.choosers[pid].choose({ prompt: `${cardName(c)}: enchant which player?`, options: opts, aiPick: () => 0 });
         c.enchantedPlayer = k >= others.length ? 'p' : others[k] || others[0];
       }
-      log(pid, `${nameTag(c)} enchants ${c.enchantedPlayer === 'p' ? 'you' : 'the AI'}.`);
+      log(pid, `${nameTag(c)} enchants ${seatName(c.enchantedPlayer)}.`);
     }
     if (opt.mode === 'impending') addCounters(c, 'time', opt.impending, { silent: true });
     if (opt.mode === 'dash') {
@@ -1513,7 +1514,7 @@ export async function useZoneAbility(pid, iid, ab, env) {
         const [pick] = await ch.pickCards({ prompt: `${ab.label}: search for a ${typ} card`, cards: lib.map((x) => x.iid), min: 0, max: 1, purpose: 'tutor', src: c, aiScore: () => 0 });
         shuffle(pid);
         if (pick) move(pick, 'hand');
-        log(pid, `${pid === 'p' ? 'You' : 'The AI'} ${typ}cycle${isAI(pid) ? 's' : ''} ${nameTag(c)}${pick ? ' and find' + (isAI(pid) ? 's' : '') + ' a card' : ''}.`);
+        log(pid, `${seatNameCap(pid)} ${typ}cycle${isAI(pid) ? 's' : ''} ${nameTag(c)}${pick ? ' and find' + (isAI(pid) ? 's' : '') + ' a card' : ''}.`);
       } else {
         draw(pid, 1, true);
         log(pid, `${pid === 'p' ? 'You cycle' : 'The AI cycles'} ${nameTag(c)}.`);
@@ -1762,7 +1763,7 @@ export async function activateAbility(pid, c, ab, env) {
       if (!(await payM(ab.mana))) throw new Cancelled();
       attachTo(c, card(pick.iid));
       if (ab.kind === 'reconfigure') c.reconfigured = true;
-      log(pid, `${pid === 'p' ? 'You' : 'The AI'} ${ab.kind === 'equip' ? 'equip' : 'attach'}${isAI(pid) ? 's' : ''} ${nameTag(c)} to ${nameTag(card(pick.iid))}.`);
+      log(pid, `${seatNameCap(pid)} ${ab.kind === 'equip' ? 'equip' : 'attach'}${isAI(pid) ? 's' : ''} ${nameTag(c)} to ${nameTag(card(pick.iid))}.`);
       return true;
     }
     case 'crew':
@@ -2066,5 +2067,5 @@ export function identityColors(pid) {
   return cols.size;
 }
 function who_(pid) {
-  return pid === 'p' ? 'You' : 'The AI';
+  return seatNameCap(pid);
 }

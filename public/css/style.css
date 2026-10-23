@@ -908,3 +908,91 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 #btn-steps:not(.fast) .st-a, #btn-steps.fast .st-b { background: rgb(211 170 82 / 0.18); color: var(--brass); opacity: 1; font-weight: 600; }
 #btn-steps.steps-toggle { margin-left: -6px; flex: none; background: rgb(255 255 255 / 0.04); padding: 2px; }
 .status-row .st.gylands { border-color: rgb(211 170 82 / 0.5); color: var(--brass); }
+
+/* ============================== multiplayer pods ============================== */
+:root { --ai2: #a98be0; --ai3: #5fc49a; }
+.dot.ai2 { background: var(--ai2); }
+.dot.ai3 { background: var(--ai3); }
+.who.ai2 { color: var(--ai2); }
+.who.ai3 { color: var(--ai3); }
+#log li.ai2 { border-left-color: var(--ai2); }
+#log li.ai3 { border-left-color: var(--ai3); }
+
+/* setup: opponent count, one deck slot per AI */
+.pod-pick { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; }
+.pod-lbl { font: 700 14px var(--f-display); color: var(--brass); letter-spacing: 0.06em; text-transform: uppercase; }
+.pod-seg button { min-width: 38px; }
+.opp-slots { --opps: 1; display: grid; grid-template-columns: repeat(var(--opps), minmax(0, 1fr)); gap: 14px; align-items: start; min-width: 0; }
+.opp-slots > .deck-slot[hidden] { display: none; }
+body.pod-setup .slots { grid-template-columns: minmax(280px, 0.9fr) auto minmax(0, 2.4fr); }
+body.pod-setup .opp-slots .in-paste { min-height: 120px; }
+
+/* the table: the top half becomes one column per opponent */
+#pod-opps[hidden] { display: none; }
+body.pod #opp-panel, body.pod #opp-field { display: none; }
+body.pod .board {
+  grid-template-rows: minmax(250px, 1.15fr) minmax(220px, 1fr) 150px;
+  grid-template-areas:
+    "pod pod rail"
+    "me  myf rail"
+    "hand hand rail";
+}
+#pod-opps {
+  --seats: 2;
+  grid-area: pod; min-height: 0; min-width: 0;
+  display: grid; grid-template-columns: repeat(var(--seats), minmax(0, 1fr));
+  border-bottom: 2px solid var(--line);
+}
+.seat { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; border-right: 1px solid var(--line); position: relative; }
+.seat:last-child { border-right: 0; }
+.seat-panel { border-right: 0; border-bottom: 1px solid var(--line); padding: 6px 10px; gap: 5px; max-height: 172px; overflow-y: auto; }
+.seat-panel .pname { font-size: 14px; }
+.seat-panel .pname .popout-btn { padding: 1px 6px; }
+.turn-tag { font: 700 10px var(--f-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--felt); background: var(--brass); border-radius: 4px; padding: 1px 6px; }
+.seat-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 8px; align-items: start; }
+.seat-life { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.seat-life .life .lval { font-size: 26px; }
+.seat-life .subcounters { font-size: 12px; }
+.seat-zones { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.seat-zones .piles { gap: 4px; }
+.seat-zones .pile-label { font-size: 10px; }
+.seat-field.field.opp { --cw: 60px; --ch: 84px; padding: 6px 8px; border-bottom: 0; }
+@media (max-height: 820px) {
+  .seat-field.field.opp { --cw: 50px; --ch: 70px; }
+  .seat-panel { max-height: 140px; }
+}
+.seat-field .field-hint { position: static; padding: 20px; }
+/* whose turn it is; who's being attacked; who's out */
+.seat.active .seat-panel { box-shadow: inset 0 3px 0 var(--brass); }
+.seat.active .pname { color: var(--brass); }
+.seat.under-attack .seat-panel { box-shadow: inset 0 0 0 2px var(--danger), 0 0 18px rgb(228 87 63 / 0.3); }
+.seat.out { opacity: 0.45; }
+.out-note { color: var(--muted); font-style: italic; font-size: 13px; }
+.seat-panel.stack-target-player { box-shadow: inset 0 0 0 2px var(--danger); }
+/* pop-out window with all the opponents */
+.board.popout-board #pod-opps { grid-row: 1; grid-column: 1 / -1; border-bottom: 0; }
+.board.popout-board .seat-field.field.opp { --cw: 92px; --ch: 128px; }
+.board.popout-board .seat-panel { max-height: 220px; }
+body.pod.opp-popped:not(.popout-body) .board { grid-template-rows: 44px minmax(250px, 1fr) 156px; }
+body.pod .pop-ph { grid-area: pod; }
+@media (max-width: 1100px) {
+  body.pod .board { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pod" "me" "myf" "hand" "rail"; grid-template-rows: minmax(300px, auto) auto minmax(260px, auto) 150px minmax(240px, auto); }
+}
+@media (max-width: 760px) {
+  .opp-slots { grid-template-columns: minmax(0, 1fr); }
+  body.pod-setup .slots { grid-template-columns: 1fr; }
+  #pod-opps { grid-template-columns: minmax(0, 1fr); }
+  .seat { border-right: 0; border-bottom: 1px solid var(--line); min-height: 260px; }
+}
+.seat-panel .pname { white-space: nowrap; }
+.seat-panel .pname small { flex: 1; min-width: 0; }
+body.pod-setup .opp-slots .sum-head { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; }
+body.pod-setup .opp-slots .sum-head h3 { font-size: 15px; }
+body.pod-setup .opp-slots .sum-cmds img, body.pod-setup .opp-slots .sum-cmds .img-missing { width: 64px; }
+.seat-zones .piles { grid-template-columns: repeat(4, minmax(0, 40px)); }
+@media (max-height: 820px) {
+  body.pod .board { grid-template-rows: minmax(240px, 1.3fr) minmax(190px, 0.9fr) 132px; }
+  .seat-zones .piles { grid-template-columns: repeat(4, minmax(0, 32px)); }
+  .seat-life .life .lval { font-size: 22px; }
+  .seat-life .lbtn { width: 26px; height: 26px; font-size: 16px; }
+}

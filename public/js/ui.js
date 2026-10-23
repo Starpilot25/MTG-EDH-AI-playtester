@@ -26,6 +26,8 @@ import { payCost, totalMana, sculptors, SECTORS, SECTOR_SIGN, manaAbility } from
 import { seats, isAI } from './state.js';
 import { isPlayer, multiplayer, seatName } from './state.js';
 import { opponents, goadersOf } from './state.js';
+import { livingSeats, nextSeat } from './state.js';
+import { seatNameCap, seatPoss } from './state.js';
 
 // Boards can be popped out into their own windows; lookups search those windows too.
 const popouts = new Map(); // pid -> { win, doc }
@@ -116,7 +118,7 @@ function cardHTML(c, opts = {}) {
   }
   if (c.zone === 'battlefield') {
     const tx = attackTaxOf(c);
-    if (tx) badges.push(`<span class="badge tax" title="Attacking ${c.controller === 'p' ? 'you' : 'the AI'}${tx.andPws ? ' or ' + (c.controller === 'p' ? 'your' : 'its') + ' planeswalkers' : ''} costs {${tx.per}} per creature">⚔ {${tx.per}} each</span>`);
+    if (tx) badges.push(`<span class="badge tax" title="Attacking ${seatName(c.controller)}${tx.andPws ? ' or ' + (c.controller === 'p' ? 'your' : 'its') + ' planeswalkers' : ''} costs {${tx.per}} per creature">⚔ {${tx.per}} each</span>`);
   }
   // a spell in your hand or command zone whose cost is changed right now (Goreclaw, cost reducers, taxes): show what you'd pay
   if (c.zone === 'hand' && c.owner === 'p' && G.s && !opts.small) {
@@ -190,7 +192,7 @@ function cardHTML(c, opts = {}) {
       const tc = tg && !isPlayer(tg) ? card(tg) : null;
       const defender = tc ? null : tg || opp(c.controller);
       const label = tc ? cardName(tc) : defender === 'p' ? 'You' : 'AI';
-      badges.push(`<span class="tag atk ${tc ? 'atk-pw' : 'atk-player'}" title="Attacking ${esc(tc ? cardName(tc) : defender === 'p' ? 'you' : 'the AI')}">⚔ ${ai + 1} → ${esc(label.length > 12 ? label.split(/[ ,]/)[0] : label)}</span>`);
+      badges.push(`<span class="tag atk ${tc ? 'atk-pw' : 'atk-player'}" title="Attacking ${esc(tc ? cardName(tc) : seatName(defender))}">⚔ ${ai + 1} → ${esc(label.length > 12 ? label.split(/[ ,]/)[0] : label)}</span>`);
     }
     // a planeswalker or battle being attacked
     const hitBy = cb.attackers.map((a, k) => ((cb.targets || {})[a] === c.iid ? k + 1 : 0)).filter(Boolean);
@@ -221,6 +223,7 @@ export function render() {
       const el = document.getElementById(id);
       if (el) el.classList.toggle('stack-target-player', tg.some((t) => t.player === pid));
     }
+    for (const el of $$('[data-seat-panel]')) el.classList.toggle('stack-target-player', tg.some((t) => t.player === el.dataset.seatPanel));
   }
   drawBlockLines();
   showStealNotes();
@@ -232,7 +235,7 @@ export function render() {
 const ZONE_WORD = { graveyard: 'in graveyard', exile: 'in exile', hand: 'in hand', library: 'in library' };
 function targetWords(targets) {
   return (targets || []).map((t) => {
-    if (t.player) return t.player === 'p' ? 'you' : 'the AI';
+    if (t.player) return seatName(t.player);
     const c = card(t.iid);
     if (!c) return '';
     const whose = (c.zone === 'battlefield' ? c.controller : c.owner) === 'p' ? 'your' : "the AI's";
@@ -246,7 +249,7 @@ function renderStackView() {
   if (!el) return;
   const s = G.s;
   const items = [];
-  const who_ = (pid) => (pid === 'p' ? 'You' : 'AI');
+  const who_ = (pid) => (pid === 'p' ? 'You' : multiplayer() ? seatName(pid) : 'AI');
   const spellRow = (st, label) => {
     const c = card(st.iid);
     if (!c) return;
@@ -385,9 +388,9 @@ function ringStatusHTML(pid) {
   const rb = pl.ringBearer && card(pl.ringBearer);
   const bearer = rb && rb.zone === 'battlefield' && rb.controller === pid ? rb : null;
   const lvl = pl.ring || 0;
-  return `<span class="eyebrow">The Ring tempts ${pid === 'p' ? 'you' : 'the AI'}</span>
+  return `<span class="eyebrow">The Ring tempts ${seatName(pid)}</span>
     <h3>💍 Level ${lvl} of 4${pl.ringTimes > lvl ? ` <small>(tempted ${pl.ringTimes} times)</small>` : ''}</h3>
-    ${bearer ? `<div class="ring-bearer">${cardHTML({ ...bearer, tapped: false }, { small: true })}<p><b>${esc(cardName(bearer))}</b> is ${pid === 'p' ? 'your' : "the AI's"} Ring-bearer: ${power(bearer)}/${toughness(bearer)}${bearer.tapped ? ', tapped' : ''}${bearer.attacking ? ', attacking' : ''}. It's legendary${lvl >= 1 ? " and can't be blocked by creatures with greater power" : ''}.</p></div>` : `<p class="hint">No Ring-bearer right now${pid === 'p' ? ' — you choose one the next time the Ring tempts you while you control a creature' : ''}.</p>`}
+    ${bearer ? `<div class="ring-bearer">${cardHTML({ ...bearer, tapped: false }, { small: true })}<p><b>${esc(cardName(bearer))}</b> is ${seatPoss(pid)} Ring-bearer: ${power(bearer)}/${toughness(bearer)}${bearer.tapped ? ', tapped' : ''}${bearer.attacking ? ', attacking' : ''}. It's legendary${lvl >= 1 ? " and can't be blocked by creatures with greater power" : ''}.</p></div>` : `<p class="hint">No Ring-bearer right now${pid === 'p' ? ' — you choose one the next time the Ring tempts you while you control a creature' : ''}.</p>`}
     <ol class="ring-stages">${RING_TEXT.map((t, k) => `<li class="${k < lvl ? 'on' : ''}"><span>${k < lvl ? '✓' : k + 1}</span>${esc(t)}</li>`).join('')}</ol>
     <div class="btns"><button class="primary" id="ring-ok">OK</button></div>`;
 }
@@ -415,7 +418,7 @@ function renderAll() {
     // (an older cached index.html may not have the box yet: add it to the side rail)
     let dz = $('#dungeons');
     if (!dz && $('#log')) { dz = document.createElement('div'); dz.id = 'dungeons'; $('#log').after(dz); }
-    if (dz) { const h = dungeonMap('p') + dungeonMap('ai'); if (dz.innerHTML !== h) dz.innerHTML = h; }
+    if (dz) { const h = seats().map(dungeonMap).join(''); if (dz.innerHTML !== h) dz.innerHTML = h; }
   }
   renderHand();
   renderBanner();
@@ -427,7 +430,7 @@ function renderAll() {
     for (const [pid, sel] of [['p', '#my-panel'], ['ai', '#opp-panel']]) {
       const el = $(sel);
       if (!el) continue;
-      const n = cb && cb.by ? (cb.attackers || []).filter((a) => ((cb.targets || {})[a] || opp(cb.by)) === pid).length : 0;
+      const n = cb && cb.by ? (cb.attackers || []).filter((a) => (multiplayer() ? targetPlayer((cb.targets || {})[a] || opp(cb.by)) : (cb.targets || {})[a] || opp(cb.by)) === pid).length : 0;
       el.classList.toggle('under-attack', !!n);
     }
   }
@@ -435,7 +438,9 @@ function renderAll() {
   document.body.classList.toggle('target-mode', !!pendingTarget);
   document.body.classList.toggle('block-mode', !!(s.combat && isAI(s.combat.by) && pendingBlocks));
   document.body.classList.toggle('attack-mode', !!(s.combat && s.combat.by === 'p' && s.combat.stage === 'declare'));
-  document.body.classList.toggle('opp-popped', popouts.has('ai'));
+  document.body.classList.toggle('opp-popped', popouts.has('ai') || popouts.has('pod'));
+  document.body.classList.toggle('pod', multiplayer());
+  { const rb = $('#btn-reveal'); if (rb) rb.textContent = multiplayer() ? 'AI hands' : 'AI hand'; }
   for (const d of popDocs()) d.body.className = document.body.className + ' popout-body';
 }
 
@@ -444,7 +449,7 @@ function renderTop() {
   const steps = STEPS.map(
     (k) => `<li class="${s.step === k ? 'on' : ''} ${STEPS.indexOf(k) < STEPS.indexOf(s.step) ? 'past' : ''}">${STEP_LABEL[k]}</li>`
   ).join('');
-  const who = s.phase !== 'play' ? 'Mulligans' : s.active === 'p' ? 'Your turn' : "AI's turn";
+  const who = s.phase !== 'play' ? 'Mulligans' : s.active === 'p' ? 'Your turn' : multiplayer() ? `${seatName(s.active)}'s turn` : "AI's turn";
   let next = 'Next step';
   if (s.step === 'main1') next = 'To combat';
   if (s.step === 'combat' && s.combat && s.combat.by === 'p') {
@@ -453,8 +458,8 @@ function renderTop() {
   if (s.step === 'main2') next = 'To end step';
   if (s.step === 'end') next = 'Pass turn';
   const mine = s.active === 'p' && !run.aiBusy && s.phase === 'play';
-  if (!mine) next = s.phase === 'play' ? "AI's turn" : 'Mulligans';
-  $('#turninfo').innerHTML = `<span class="tnum" title="Your turns: ${(s.turns || {}).p || 0} · AI turns: ${(s.turns || {}).ai || 0}">T${((s.turns || {})[s.active]) || s.turn || 0}</span><span class="who ${s.active === 'ai' ? 'ai' : 'you'}">${who}</span>`;
+  if (!mine) next = s.phase === 'play' ? (s.active === 'p' ? 'AI responding' : multiplayer() ? `${seatName(s.active)}'s turn` : "AI's turn") : 'Mulligans';
+  $('#turninfo').innerHTML = `<span class="tnum" title="Your turns: ${(s.turns || {}).p || 0} · AI turns: ${(s.turns || {}).ai || 0}">T${((s.turns || {})[s.active]) || s.turn || 0}</span><span class="who ${isAI(s.active) ? s.active : 'you'}">${who}</span>`;
   $('#steps').innerHTML = steps;
   $('#btn-next').textContent = next;
   $('#btn-next').disabled = !mine;
@@ -521,7 +526,7 @@ function dungeonDialog(pid) {
   const pl = G.s.players[pid];
   if (!pl.dungeon) return;
   const dg = DUNGEONS[pl.dungeon.name];
-  openDialog(`<span class="eyebrow">${pid === 'p' ? 'Your' : "The AI's"} dungeon</span><h3>${esc(dg.name)}</h3>
+  openDialog(`<span class="eyebrow">${(pid === 'p' ? 'Your' : seatNameCap(pid) + "'s")} dungeon</span><h3>${esc(dg.name)}</h3>
     <ol class="rooms">${dg.order
       .map((n) => {
         const r = dg.rooms[n];
@@ -538,7 +543,7 @@ function statusLine(pid) {
   const bits = [];
   if (s.monarch === pid) bits.push('<span class="st monarch" title="Draws a card at the beginning of their end step; combat damage to them steals it">♛ Monarch</span>');
   if (pl.cityBlessing) bits.push('<span class="st" title="City\'s blessing">City\'s blessing</span>');
-  if (gyLandsOk(pid)) bits.push(`<span class="st gylands" title="${pid === 'p' ? 'You' : 'The AI'} may play lands from ${pid === 'p' ? 'your' : 'its'} graveyard (Crucible of Worlds, Ramunap Excavator, Mole Man…). ${pid === 'p' ? 'Double-click a land in the “From graveyard” panel, or right-click it in your graveyard.' : ''}">Lands from graveyard</span>`);
+  if (gyLandsOk(pid)) bits.push(`<span class="st gylands" title="${seatNameCap(pid)} may play lands from ${pid === 'p' ? 'your' : 'its'} graveyard (Crucible of Worlds, Ramunap Excavator, Mole Man…). ${pid === 'p' ? 'Double-click a land in the “From graveyard” panel, or right-click it in your graveyard.' : ''}">Lands from graveyard</span>`);
   if (pl.speed) bits.push(`<span class="st" title="Speed">Speed ${pl.speed}${pl.speed >= 4 ? ' (max)' : ''}</span>`);
   {
     const xt = (G.s.extraTurns || {})[pid] || 0;
@@ -548,7 +553,7 @@ function statusLine(pid) {
   for (const e of pl.emblems || []) bits.push(`<span class="st" title="${esc(e)}">Emblem: ${esc(e.length > 28 ? e.slice(0, 26) + '…' : e)}</span>`);
   if (pl.ring) {
     const rb = pl.ringBearer && card(pl.ringBearer);
-    const tip = `The Ring has tempted ${pid === 'p' ? 'you' : 'the AI'} ${pl.ringTimes || pl.ring} time(s). Ring-bearer: ${rb && rb.zone === 'battlefield' && rb.controller === pid ? cardName(rb) : 'none'}\n` + RING_TEXT.map((t, k) => `${k < pl.ring ? '✓' : '·'} ${k + 1}. ${t}`).join('\n');
+    const tip = `The Ring has tempted ${seatName(pid)} ${pl.ringTimes || pl.ring} time(s). Ring-bearer: ${rb && rb.zone === 'battlefield' && rb.controller === pid ? cardName(rb) : 'none'}\n` + RING_TEXT.map((t, k) => `${k < pl.ring ? '✓' : '·'} ${k + 1}. ${t}`).join('\n');
     bits.push(`<span class="st ring" data-ring="${pid}" role="button" title="${esc(tip)}\n(Click for details)">💍 Ring ${pl.ring}/4${rb && rb.zone === 'battlefield' && rb.controller === pid ? ' · ' + esc(cardName(rb).split(',')[0]) : ''}</span>`);
   }
   const names = { energy: 'Energy', experience: 'Experience', rad: 'Rad', ticket: 'Tickets' };
@@ -578,13 +583,15 @@ function statusLine(pid) {
   return bits.length ? `<div class="status-row">${bits.join('')}</div>` : '';
 }
 
-function lifeBlock(pid) {
+// compact (pod opponent columns): poison and commander damage rows only once they're above 0
+function lifeBlock(pid, compact = false) {
   const pl = G.s.players[pid];
   // Commander damage rows: creature commanders, any commander that's a creature right now (an animated Background), and any row with damage.
   const foes = Object.values(G.s.cards).filter(
     (c) => c.isCommander && c.owner !== pid && (multiplayer() ? true : c.owner === opp(pid)) && (/Creature/.test(DB[c.def].typeLine) || (c.zone === 'battlefield' && isCreature(c)) || pl.cmdDmg[c.iid])
   );
   const cmd = foes
+    .filter((c) => !compact || (pl.cmdDmg[c.iid] || 0) > 0)
     .map((c) => {
       const v = pl.cmdDmg[c.iid] || 0;
       return `<div class="cmd-dmg ${v >= 15 ? 'warn' : ''}" title="Commander damage from ${esc(cardName(c))}">
@@ -602,9 +609,9 @@ function lifeBlock(pid) {
     ${dungeonLine(pid)}
     ${statusLine(pid)}
     <div class="subcounters">
-      <div class="poison" title="Poison counters"><span class="lbl">poison</span>
+      ${compact && !pl.poison ? '' : `<div class="poison" title="Poison counters"><span class="lbl">poison</span>
         <button class="mini" data-poison="${pid}:-1" aria-label="Less poison">−</button><b>${pl.poison}</b><small>/10</small>
-        <button class="mini" data-poison="${pid}:1" aria-label="More poison">+</button></div>
+        <button class="mini" data-poison="${pid}:1" aria-label="More poison">+</button></div>`}
       ${cmd}
     </div>`;
 }
@@ -645,7 +652,7 @@ function exileReady(pid) {
   if (!items.length) return '';
   const order = { Foretold: 0, Plotted: 1, Adventure: 2, Free: 3, 'This turn': 4, 'Until next turn': 5, Warp: 6 };
   items.sort((a, b) => (order[a.tag] ?? 9) - (order[b.tag] ?? 9));
-  return `<div class="exile-ready" title="Cards ${pid === 'p' ? 'you' : 'the AI'} can cast from exile">
+  return `<div class="exile-ready" title="Cards ${seatName(pid)} can cast from exile">
     <div class="er-title">From exile <b>${items.length}</b></div>
     <div class="er-cards">${items.map(({ c, tag, ready, hidden }) => `<div class="er-item ${ready ? 'ready' : 'waiting'}">${hidden ? '<div class="card small facedown"></div>' : cardHTML(c, { small: true })}<span class="er-tag">${esc(tag)}</span></div>`).join('')}</div>
   </div>`;
@@ -713,7 +720,7 @@ function graveyardReady(pid) {
   }
   if (!items.length) return '';
   items.sort((a, b) => b.ready - a.ready);
-  return `<div class="exile-ready gy-ready" title="Cards ${pid === 'p' ? 'you' : 'the AI'} can use from the graveyard${pid === 'p' ? ' — double-click or right-click one for its options' : ''}">
+  return `<div class="exile-ready gy-ready" title="Cards ${seatName(pid)} can use from the graveyard${pid === 'p' ? ' — double-click or right-click one for its options' : ''}">
     <div class="er-title">From graveyard <b>${items.length}</b></div>
     <div class="er-cards">${items.map(({ c, tag, title, ready }) => `<div class="er-item ${ready ? 'ready' : 'waiting'}" title="${esc(title)}${ready ? '' : ' (triggers on its own)'}">${cardHTML(c, { small: true })}<span class="er-tag">${esc(tag)}</span></div>`).join('')}</div>
   </div>`;
@@ -738,8 +745,71 @@ function commandZone(pid) {
     <div class="pile-face">${inner}</div><div class="pile-label">Command</div></div>`;
 }
 
+// what to call a seat in the UI: "You", "The AI" (1v1) or "AI 2" (pods)
+const seatLabel = (pid) => (pid === 'p' ? 'You' : multiplayer() ? seatName(pid) : 'The AI');
+// the player an attack target belongs to (a player, or the controller of a planeswalker/battle)
+const targetPlayer = (t) => (isPlayer(t) ? t : card(t) ? (isType(card(t), 'Battle') ? card(t).protector || card(t).controller : card(t).controller) : null);
+
+function handRow(pid) {
+  const s = G.s;
+  const hand = zoneOf(pid, 'hand');
+  const shown = revealAiHand || (aiSlaved() && s.slaved.of === pid) || handControl('p', pid) || (s.handRevealed && s.handRevealed.pid === pid && s.handRevealed.turn === s.turn);
+  return shown
+    ? `<div class="ai-hand-reveal">${hand.map((i) => cardHTML(card(i), { small: true })).join('')}</div>`
+    : `<div class="ai-hand" title="${esc(seatLabel(pid))} hand">${hand.map(() => '<i></i>').join('')}<b>${hand.length}</b></div>`;
+}
+
+// ------------------------------------------------------------ pods: one column per opponent
+function renderPod() {
+  const s = G.s;
+  let wrap = $('#pod-opps');
+  if (!wrap) {
+    // (an older cached index.html may not have the area yet)
+    wrap = document.createElement('section');
+    wrap.id = 'pod-opps';
+    $('#opp-field').after(wrap);
+  }
+  wrap.hidden = false;
+  const list = seats().filter(isAI);
+  wrap.style.setProperty('--seats', list.length);
+  const key = list.join(',');
+  if (wrap.dataset.key !== key) {
+    wrap.dataset.key = key;
+    wrap.innerHTML = list.map((pid) => `<section class="seat seat-${pid}" data-seat="${pid}">
+      <div class="seat-panel panel opp" data-seat-panel="${pid}"></div>
+      <div class="seat-field field opp organized" data-seat-field="${pid}" aria-label="${esc(seatName(pid))}'s battlefield"></div></section>`).join('');
+  }
+  const cb = s.combat;
+  const popped = popouts.has('pod');
+  list.forEach((pid, k) => {
+    const sec = $(`.seat[data-seat="${pid}"]`, wrap);
+    const pl = s.players[pid];
+    const out = !!pl.lost;
+    sec.classList.toggle('active', s.active === pid && !out);
+    sec.classList.toggle('out', out);
+    const attacked = cb && cb.by && cb.by !== pid ? (cb.attackers || []).filter((a) => targetPlayer((cb.targets || {})[a] || opp(cb.by)) === pid).length : 0;
+    sec.classList.toggle('under-attack', !!attacked);
+    const popBtn = k === 0 ? `<button class="popout-btn" data-act="${popped ? 'popin' : 'popout'}" data-pid="pod" title="${popped ? 'Put the opponents back in the main window' : 'Pop the opponents out into their own window (for a second screen)'}">${popped ? '⇲' : '⧉'}</button>` : '';
+    const head = `<div class="pname"><span class="dot ${pid}"></span>${esc(pl.name)} <small>${esc(s.decks[pid].name)}</small>${s.active === pid && !out ? '<span class="turn-tag">Turn</span>' : ''}${popBtn}</div>`;
+    const panel = sec.querySelector('.seat-panel');
+    panel.innerHTML = out
+      ? `${head}<div class="out-note">Out of the game — ${esc(pl.lost)}</div>`
+      : `${head}
+      <div class="seat-top"><div class="seat-life">${lifeBlock(pid, true)}</div>
+        <div class="seat-zones"><div class="piles">${pile(pid, 'library', 'Library')}${pile(pid, 'graveyard', 'Grave')}${pile(pid, 'exile', 'Exile')}${commandZone(pid)}</div>
+          <div class="hand-row"><span class="lbl">Hand</span>${handRow(pid)}</div></div></div>
+      ${exileReady(pid)}${libraryTop(pid)}${graveyardReady(pid)}
+      ${handControl('p', pid) ? `<p class="hint sl-hint">Sen Triplets: double-click ${esc(pl.name)}'s cards to play or cast them with your mana.</p>` : ''}`;
+    const field = sec.querySelector('.seat-field');
+    field.innerHTML = out ? '<div class="field-hint">Out of the game</div>' : boardLanes(pid);
+    if (!out) fitLanes(field);
+  });
+}
+
 function renderOpp() {
   const s = G.s;
+  if (multiplayer()) return renderPod();
+  { const w = $('#pod-opps'); if (w && !w.hidden) { w.hidden = true; w.innerHTML = ''; delete w.dataset.key; } }
   const hand = zoneOf('ai', 'hand');
   const shown = revealAiHand || aiSlaved() || handControl('p', 'ai') || (s.handRevealed && s.handRevealed.pid === 'ai' && s.handRevealed.turn === s.turn);
   const backs = shown
@@ -937,7 +1007,16 @@ function renderBanner() {
   const el = $('#banner');
   let html = '';
   const over = s.winner && !s.continueAfterWin;
-  if (over) {
+  if (over && multiplayer()) {
+    // pods: you win, you're out (the AIs can play on), or an AI won the table
+    const left = livingSeats();
+    const youOut = !!s.players.p.lost;
+    const head = s.winner === 'p' ? 'You win' : youOut && left.length > 1 ? "You're out" : `${seatName(s.winner)} wins`;
+    const why = youOut ? s.players.p.lost : s.lastLoss || '';
+    html = `<div class="combat-bar ${s.winner === 'p' ? 'win' : 'danger'}"><span class="eyebrow">${youOut && left.length > 1 ? `${left.length} players left` : 'Game over'}</span>
+      <h3>${esc(head)}</h3><p>${esc(why)}</p>
+      <div class="btns"><button class="primary" data-act="rematch">Rematch</button>${youOut && left.length > 1 ? '<button data-act="watch">Watch the rest</button>' : ''}<button data-act="newdecks">Change decks</button></div></div>`;
+  } else if (over) {
     html = `<div class="combat-bar ${s.winner === 'p' ? 'win' : 'danger'}"><span class="eyebrow">Game over</span>
       <h3>${s.winner === 'p' ? 'You win' : 'The AI wins'}</h3><p>${esc(s.players[opp(s.winner)].lost || '')}</p>
       <div class="btns"><button class="primary" data-act="rematch">Rematch</button><button data-act="continue">Keep playing</button><button data-act="newdecks">Change decks</button></div></div>`;
@@ -960,7 +1039,7 @@ function renderBanner() {
     const responses = arena ? cardsIn('p', 'hand').concat(cardsIn('p', 'command')).filter(respondable).length : 0;
     html = `<div class="stack">
       <div class="stack-card">${cardHTML(c)}</div>
-      <div class="stack-copy"><span class="eyebrow">${s.stack.trigger ? "AI's ability triggers" : s.stack.ability ? 'AI is activating an ability' : s.stack.copyFace ? 'AI is casting a copy of' : 'AI is casting'}</span><h3>${esc(cardName(c))}</h3>
+      <div class="stack-copy"><span class="eyebrow">${(() => { const w = multiplayer() && isAI(s.stack.by) ? seatName(s.stack.by) : 'AI'; return s.stack.trigger ? `${w}'s ability triggers` : s.stack.ability ? `${w} is activating an ability` : s.stack.copyFace ? `${w} is casting a copy of` : `${w} is casting`; })()}</span><h3>${esc(cardName(c))}</h3>
       <p>${esc(s.stack.ability || oracle(c)).replace(/~/g, esc(cardName(c))).replace(/\n/g, '<br>')}</p>
       ${(s.stack.targets || []).length ? `<p class="stack-targets">🎯 Targeting: ${targetWords(s.stack.targets).map((w) => `<b>${esc(w)}</b>`).join(', ')} <small>(highlighted in red)</small></p>` : ''}
       ${arena ? `<p class="hint">${responses ? `You have ${responses} instant-speed card${responses > 1 ? 's' : ''} you can afford (glowing in your hand) — double-click one to respond, or let it resolve.` : 'You have nothing you can cast in response.'}</p>` : ''}
@@ -968,12 +1047,12 @@ function renderBanner() {
       ${arena ? '' : '<button data-act="counter" title="Tabletop mode: counter it by hand">Counter it</button>'}</div></div></div>`;
   } else if (pendingCombat && s.combat) {
     const k = pendingCombat.kind;
-    const head = k === 'afterBlocks' ? 'Blockers declared' : k === 'aiAttack' ? 'The AI attacks you' : 'Attackers declared';
+    const head = k === 'afterBlocks' ? 'Blockers declared' : k === 'aiAttack' ? `${multiplayer() && s.combat && isAI(s.combat.by) ? seatName(s.combat.by) : 'The AI'} attacks${multiplayer() ? '' : ' you'}` : 'Attackers declared';
     const what = k === 'afterBlocks'
       ? 'Before damage: cast instants or activate abilities now. If you sacrifice a blocker, the attacker it blocked stays blocked (no damage to you unless it has trample).'
       : k === 'aiAttack'
         ? "You can't block, but you can respond: cast instants or activate abilities before damage."
-        : 'Attack triggers have resolved. Before the AI blocks, you can cast instants or activate abilities.';
+        : `Attack triggers have resolved. Before ${multiplayer() ? 'the defending players block' : 'the AI blocks'}, you can cast instants or activate abilities.`;
     html = `<div class="combat-bar ${k === 'beforeBlocks' ? '' : 'danger'}"><span class="eyebrow">${head}</span>
       <p>${what}</p>
       <div class="btns"><button class="primary" data-act="combat-go">${k === 'beforeBlocks' ? 'Continue to blocks' : 'Deal damage'} <kbd>Enter</kbd></button></div></div>`;
@@ -981,28 +1060,30 @@ function renderBanner() {
     const cb = s.combat;
     if (cb.stage === 'declare') {
       const pw = cb.attackers.reduce((a, i) => a + Math.max(0, power(card(i))), 0);
-      const perTax = cardsIn('ai', 'battlefield').map(attackTaxOf).filter(Boolean).reduce((a, t) => a + t.per, 0);
+      const perTax = Math.max(0, ...opponents('p').map((o) => cardsIn(o, 'battlefield').map(attackTaxOf).filter(Boolean).reduce((a, t) => a + t.per, 0)));
       const taxNow = cb.attackers.length ? attackTax(cb.attackers, cb.targets || {}, 'p') : 0;
       const taxLine = perTax ? ` <span class="taxline">Attack tax: {${perTax}} per attacker${taxNow ? ` — <b>{${taxNow}}</b> for these` : ''}.</span>` : '';
       html = `<div class="combat-bar"><span class="eyebrow">Declare attackers</span>
-        <p>Click your untapped creatures to attack the AI. ${cb.attackers.length ? `<b>${cb.attackers.length}</b> attacking for <b>${pw}</b>.` : ''}${taxLine}</p>
+        <p>Click your untapped creatures to attack${multiplayer() ? ' (you choose which player each one attacks next)' : ' the AI'}. ${cb.attackers.length ? `<b>${cb.attackers.length}</b> attacking for <b>${pw}</b>.` : ''}${taxLine}</p>
         <div class="btns"><button class="primary" data-act="attack" ${cb.attackers.length ? '' : 'disabled'}>Attack</button>
         <button data-act="all-attack">Select all</button><button data-act="skip-combat">Skip combat</button></div></div>`;
     } else if (cb.stage === 'damage') {
       const bl = Object.keys(cb.blocks).length;
       html = `<div class="combat-bar"><span class="eyebrow">Blocks declared</span>
-        <p>${bl ? `The AI blocked ${bl} attacker${bl > 1 ? 's' : ''}. Numbered tags show who blocks whom.` : 'The AI did not block.'} Use tricks now by hand, then deal damage.</p>
+        <p>${bl ? `${multiplayer() ? 'They' : 'The AI'} blocked ${bl} attacker${bl > 1 ? 's' : ''}. Numbered tags show who blocks whom.` : multiplayer() ? 'No one blocked.' : 'The AI did not block.'} Use tricks now by hand, then deal damage.</p>
         <div class="btns"><button class="primary" data-act="damage">Deal damage <kbd>Enter</kbd></button></div></div>`;
     }
   } else if (s.combat && isAI(s.combat.by) && pendingBlocks) {
     const cb = s.combat;
-    const total = cb.attackers.filter((a) => !(cb.blocks[a] || []).length).reduce((a, i) => a + Math.max(0, power(card(i))), 0);
-    html = `<div class="combat-bar danger"><span class="eyebrow">The AI attacks you</span>
+    // pods: only the creatures attacking you (or your planeswalkers and battles) count, and only those can be blocked
+    const atMe = (a) => !multiplayer() || targetPlayer((cb.targets || {})[a] || 'p') === 'p';
+    const total = cb.attackers.filter((a) => atMe(a) && !(cb.blocks[a] || []).length).reduce((a, i) => a + Math.max(0, power(card(i))), 0);
+    html = `<div class="combat-bar danger"><span class="eyebrow">${multiplayer() ? `${esc(seatName(cb.by))} attacks you` : 'The AI attacks you'}</span>
       <p>${cb.selected ? `Now click the attacker that <b>${esc(cardName(card(cb.selected)))}</b> should block.` : 'Click one of your untapped creatures, then the attacker it blocks. Click a blocker again to remove it.'}
       Unblocked damage: <b>${total}</b>${total >= G.s.players.p.life ? ' — <b class="lethal">lethal</b>' : ''}. You can also cast instants or activate abilities before you block.</p>
       <div class="btns"><button class="primary" data-act="blocks">${Object.values(cb.blocks).some((b) => b.length) ? 'Confirm blocks' : 'No blocks'} <kbd>Enter</kbd></button></div></div>`;
   } else if (run.aiBusy) {
-    html = `<div class="thinking"><span class="spinner"></span>${s.active === 'p' ? 'AI is deciding whether to respond…' : 'AI is taking its turn…'}</div>`;
+    html = `<div class="thinking"><span class="spinner"></span>${s.active === 'p' ? `${multiplayer() ? 'The AIs are' : 'AI is'} deciding whether to respond…` : multiplayer() ? `${esc(seatName(s.active))} is taking its turn…` : 'AI is taking its turn…'}</div>`;
   }
   el.innerHTML = html;
   el.hidden = !html;
@@ -1010,7 +1091,7 @@ function renderBanner() {
   const on = !!html;
   if (document.body.classList.contains('banner-on') !== on) {
     document.body.classList.toggle('banner-on', on);
-    for (const f of [$('#opp-field'), $('#my-field')]) if (f && f.classList.contains('organized')) fitLanes(f);
+    for (const f of [$('#opp-field'), $('#my-field'), ...$$('.seat-field')]) if (f && f.classList.contains('organized')) fitLanes(f);
   }
 }
 
@@ -1221,6 +1302,8 @@ export function teardownTable() {
   $('#toast').classList.remove('show');
   $('#preview').innerHTML = '';
   for (const id of ['my-panel', 'opp-panel']) { const el = document.getElementById(id); if (el) el.classList.remove('stack-target-player'); }
+  { const w = document.getElementById('pod-opps'); if (w) { w.hidden = true; w.innerHTML = ''; delete w.dataset.key; } }
+  document.body.classList.remove('pod');
 }
 
 function flash(text, sub = '') {
@@ -2591,6 +2674,7 @@ function blockClick(c) {
     return render();
   }
   if (cb.attackers.includes(c.iid)) {
+    if (multiplayer() && targetPlayer((cb.targets || {})[c.iid] || 'p') !== 'p') return toast(`${cardName(c)} isn't attacking you, so you can't block it.`);
     if (!cb.selected) return toast('First click one of your creatures, then this attacker.');
     const b = card(cb.selected);
     if (!canBlock(b, c)) {
@@ -2648,10 +2732,11 @@ export function bindEvents() {
         e.stopPropagation();
         return finishTarget({ iid: el.dataset.iid });
       }
-      const lifePanel = e.target.closest('#opp-panel .life, #my-panel .life');
+      const lifePanel = e.target.closest('#opp-panel .life, #my-panel .life, [data-seat-panel] .life');
       const players = pendingTarget.req.players || [];
       if (lifePanel) {
-        const pid = lifePanel.closest('#opp-panel') ? 'ai' : 'p';
+        const sp = lifePanel.closest('[data-seat-panel]');
+        const pid = sp ? sp.dataset.seatPanel : lifePanel.closest('#opp-panel') ? 'ai' : 'p';
         if (players.includes(pid)) {
           e.stopPropagation();
           return finishTarget({ player: pid });
@@ -2728,7 +2813,7 @@ export function bindEvents() {
     menuDoc = e.target.ownerDocument;
     const t = e.target;
     // blocking: after picking your creature, click the AI's attacker it blocks
-    const oppCard = t.closest('#opp-field .card[data-iid]');
+    const oppCard = t.closest('#opp-field .card[data-iid], .seat-field .card[data-iid]');
     if (oppCard && G.s && G.s.combat && isAI(G.s.combat.by) && pendingBlocks) {
       const c = card(oppCard.dataset.iid);
       if (c) return blockClick(c);
@@ -2760,7 +2845,7 @@ export function bindEvents() {
     }
     if (b.dataset.setlife) {
       const pid = b.dataset.setlife;
-      return askNumber(`Set ${pid === 'p' ? 'your' : "the AI's"} life`, G.s.players[pid].life).then((v) => {
+      return askNumber(`Set ${seatPoss(pid)} life`, G.s.players[pid].life).then((v) => {
         if (v !== null) act(() => setLife(pid, v));
       });
     }
@@ -2814,6 +2899,14 @@ export function bindEvents() {
         log('p', 'You shuffle your library.');
       });
       return closeDialog(true);
+    }
+    if (a === 'watch') {
+      // pods: you're out; the AIs play the game out (the next winner ends it)
+      G.s.winner = null;
+      G.s.spectating = true;
+      render();
+      if (!run.aiBusy) beginTurn(nextSeat(G.s.active));
+      return;
     }
     if (a === 'continue') {
       G.s.continueAfterWin = true;
@@ -2923,7 +3016,7 @@ function onHoverOut(e) {
 let bindDoc = () => {};
 function popOut(pid) {
   if (popouts.has(pid)) return;
-  const name = pid === 'ai' ? "AI" : 'Your';
+  const name = pid === 'pod' ? 'Opponents' : pid === 'ai' ? 'AI' : 'Your';
   const w = window.open('', 'edh-board-' + pid, 'width=1200,height=720');
   if (!w || !w.document) {
     toast('Couldn\'t open a new window. In the desktop app this needs version 1.1 or newer — download the latest installer from the Releases page.');
@@ -2936,12 +3029,12 @@ function popOut(pid) {
     <body class="popout-body"><div class="board popout-board"></div><div id="menu" class="pop" hidden></div></body></html>`);
   doc.close();
   const holder = doc.querySelector('.popout-board');
-  const ids = pid === 'ai' ? ['#opp-panel', '#opp-field'] : ['#my-panel', '#my-field'];
+  const ids = pid === 'pod' ? ['#pod-opps'] : pid === 'ai' ? ['#opp-panel', '#opp-field'] : ['#my-panel', '#my-field'];
   const ph = document.createElement('div');
   ph.className = 'pop-ph';
   ph.id = 'pop-ph-' + pid;
-  ph.innerHTML = `<span>${pid === 'ai' ? "The AI's board" : 'Your board'} is in its own window.</span><button class="popout-btn" data-act="popin" data-pid="${pid}">⇲ Bring it back</button>`;
-  document.querySelector(ids[1]).before(ph);
+  ph.innerHTML = `<span>${pid === 'pod' ? "The opponents' boards are" : pid === 'ai' ? "The AI's board is" : 'Your board is'} in its own window.</span><button class="popout-btn" data-act="popin" data-pid="${pid}">⇲ Bring it back</button>`;
+  document.querySelector(ids[ids.length - 1]).before(ph);
   for (const sel of ids) holder.appendChild(doc.adoptNode(document.querySelector(sel)));
   popouts.set(pid, { win: w, doc, ids });
   bindDoc(doc);

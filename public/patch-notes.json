@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.121",
+    "title": "Multiplayer pods are playable",
+    "notes": [
+      "Play a 3- or 4-player Commander pod: on the start screen, set Opponents to 2 or 3 and load a deck for each AI (pasted, saved, built-in, precon, or a mirror of yours).",
+      "The table shows each opponent in its own column with their life, commander damage, poison, zones, hand size and battlefield. The player whose turn it is is marked, and a player being attacked lights up red.",
+      "When you attack, choose which opponent (or which of their planeswalkers or battles) each creature goes after. When an AI attacks, you can only block the creatures coming at you.",
+      "The log, the stack and your prompts name each AI (AI 1, AI 2, AI 3), and each one has its own colour.",
+      "If you're knocked out, you can watch the AIs play the game out, start a rematch, or change decks.",
+      "The pop-out window shows all the opponents at once. 1v1 looks and plays exactly as before."
+    ]
+  },
+  {
     "version": "1.3.120",
     "title": "Multiplayer rules: goad, monarch, voting",
     "notes": [

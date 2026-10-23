@@ -34,7 +34,12 @@ const cardImg = (d) =>
     ? `<img src="${d.faces[0].img}" alt="${esc(d.name)}">`
     : `<div class="img-missing">${esc(d.name)}</div>`;
 
-const slots = { p: { deck: null, mode: 'paste' }, ai: { deck: null, mode: 'sample' } };
+const slots = { p: { deck: null, mode: 'paste' }, ai: { deck: null, mode: 'sample' }, ai2: { deck: null, mode: 'sample' }, ai3: { deck: null, mode: 'sample' } };
+// How many AI opponents (1 = 1v1, 2–3 = a pod). The extra AI slots are copies of the AI slot.
+let opponentsN = 1;
+const SLOT_IDS = ['p', 'ai', 'ai2', 'ai3'];
+const aiSlots = () => ['ai', 'ai2', 'ai3'].slice(0, opponentsN);
+const activeSlots = () => ['p', ...aiSlots()];
 // test hook: the deck loaded in a setup slot (used with window.__podDecks to seat a pod)
 if (typeof window !== 'undefined') window.__slotDeck = (pid) => slots[pid] && slots[pid].deck;
 let savedDecks = [];
@@ -46,8 +51,9 @@ async function refreshSaved(selectId) {
   } catch (e) {
     savedDecks = [];
   }
-  for (const pid of ['p', 'ai']) {
+  for (const pid of SLOT_IDS) {
     const el = slotEl(pid);
+    if (!el) continue;
     const sel = $('.in-saved', el);
     const keep = selectId || sel.value || store.get(pid + ':saved', '');
     sel.innerHTML = savedDecks.length
@@ -109,8 +115,8 @@ async function loadSlot(pid) {
     let parsed;
     if (mode === 'mirror') {
       if (!slots.p.deck) throw new Error('Load your deck first.');
-      slots.ai.deck = JSON.parse(JSON.stringify(slots.p.deck));
-      slots.ai.deck.name = slots.p.deck.name + ' (mirror)';
+      slots[pid].deck = JSON.parse(JSON.stringify(slots.p.deck));
+      slots[pid].deck.name = slots.p.deck.name + ' (mirror)';
       showSummary(pid);
       return;
     }
@@ -281,9 +287,51 @@ function mix(deck) {
 }
 
 function updateStart() {
-  const ok = slots.p.deck && slots.ai.deck;
+  const list = activeSlots();
+  const ok = list.every((k) => slots[k].deck);
   $('#start').disabled = !ok;
-  $('#start-hint').textContent = ok ? 'Both decks are ready.' : 'Load both decks to start.';
+  const missing = list.filter((k) => !slots[k].deck).length;
+  $('#start-hint').textContent = opponentsN === 1
+    ? (ok ? 'Both decks are ready.' : 'Load both decks to start.')
+    : ok ? `All ${list.length} decks are ready.` : `Load all ${list.length} decks to start (${missing} to go).`;
+}
+
+// The opponent count switch: shows one AI slot per opponent. The extra slots are built from the AI slot.
+function slotHeading(pid) {
+  if (pid === 'p') return 'Your deck';
+  return opponentsN === 1 ? "AI's deck" : `AI ${aiSlots().indexOf(pid) + 1}'s deck`;
+}
+function buildExtraSlots() {
+  const base = slotEl('ai');
+  for (const pid of ['ai2', 'ai3']) {
+    if (slotEl(pid)) continue;
+    const el = base.cloneNode(true);
+    el.dataset.pid = pid;
+    el.querySelectorAll('[id]').forEach((x) => (x.id = x.id.replace(/^ai-/, pid + '-')));
+    el.querySelectorAll('label[for]').forEach((x) => (x.htmlFor = x.htmlFor.replace(/^ai-/, pid + '-')));
+    $('.status', el).textContent = '';
+    $('.status', el).className = 'status';
+    $('.summary', el).hidden = true;
+    $('.summary', el).innerHTML = '';
+    base.parentNode.appendChild(el);
+  }
+}
+function setOpponents(n) {
+  opponentsN = Math.max(1, Math.min(3, +n || 1));
+  store.set('opponents', opponentsN);
+  for (const pid of ['ai', 'ai2', 'ai3']) {
+    const el = slotEl(pid);
+    if (!el) continue;
+    el.hidden = !aiSlots().includes(pid);
+    $('.slot-head h2', el).textContent = slotHeading(pid);
+  }
+  $$('.pod-seg button').forEach((b) => b.classList.toggle('on', +b.dataset.opps === opponentsN));
+  const hint = $('.pod-hint');
+  if (hint) hint.textContent = opponentsN === 1 ? '1v1' : `${opponentsN + 1}-player pod: you and ${opponentsN} AIs, turns go around the table`;
+  const wrap = $('.opp-slots');
+  if (wrap) wrap.style.setProperty('--opps', opponentsN);
+  document.body.classList.toggle('pod-setup', opponentsN > 1);
+  updateStart();
 }
 
 function readSettings() {
@@ -314,7 +362,8 @@ function readSettings() {
 }
 
 function initSetup() {
-  for (const pid of ['p', 'ai']) {
+  buildExtraSlots();
+  for (const pid of SLOT_IDS) {
     const el = slotEl(pid);
     const BRACKETS = { 1: 'Bracket 1 · Exhibition', 2: 'Bracket 2 · Core', 3: 'Bracket 3 · Upgraded', 4: 'Bracket 4 · Optimized', 5: 'Bracket 5 · cEDH' };
     $('.in-sample', el).innerHTML = [1, 2, 3, 4, 5]
@@ -324,7 +373,8 @@ function initSetup() {
       })
       .join('');
     $('.in-paste', el).value = store.get(pid + ':paste', '');
-    $('.in-sample', el).value = store.get(pid + ':sample', pid === 'p' ? 'gruul' : 'golgari');
+    $('.in-sample', el).value = store.get(pid + ':sample', { p: 'gruul', ai: 'golgari', ai2: 'izzet', ai3: 'korvold' }[pid]);
+    if (!$('.in-sample', el).value) $('.in-sample', el).selectedIndex = 0;
     const precons = Object.entries(PRECON_DECKS);
     const sets = [...new Set(precons.map(([, v]) => v.set || 'Other'))];
     $('.in-precon', el).innerHTML = sets
@@ -350,6 +400,8 @@ function initSetup() {
       }
     });
   }
+  $$('.pod-seg button').forEach((b) => b.addEventListener('click', () => setOpponents(b.dataset.opps)));
+  setOpponents(store.get('opponents', 1));
   refreshSaved();
   fetch('/api/version')
     .then((r) => r.json())
@@ -382,7 +434,7 @@ function initSetup() {
   $('#set-life').value = st.startingLife ?? 40;
   $('#start').addEventListener('click', () => {
     readSettings();
-    lastDecks = { p: slots.p.deck, ai: slots.ai.deck };
+    lastDecks = { p: slots.p.deck, ai: slots.ai.deck, extra: aiSlots().slice(1).map((k) => slots[k].deck) };
     beginGame();
   });
   updateStart();
@@ -408,10 +460,8 @@ async function beginGame() {
   cancelPending();
   closeDialog(true);
   run.aiBusy = false;
-  // Pods: extra AI opponents (the setup screen for these comes later; for now a test hook can add them:
-  // window.__podDecks = [deck, deck] seats 'ai2' and 'ai3')
-  const extra = (typeof window !== 'undefined' && Array.isArray(window.__podDecks) ? window.__podDecks : []).slice(0, 2);
-  newGame(lastDecks.p, lastDecks.ai, ...extra);
+  // pods: the extra AI decks sit in seats 'ai2' and 'ai3'
+  newGame(lastDecks.p, lastDecks.ai, ...(lastDecks.extra || []));
   showTable();
   render();
   aiMulligans();

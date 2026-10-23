@@ -1099,7 +1099,7 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
   const atkr = multiplayer() ? (s.combat && s.combat.by) || s.active : opp(defender);
   const toText = multiplayer()
     ? Object.entries(toEach).map(([k, n]) => `${n} to ${seatName(k)}`).join(', ')
-    : `${toPlayer} to ${defender === 'p' ? 'you' : 'the AI'}`;
+    : `${toPlayer} to ${seatName(defender)}`;
   if (lines.length) log(atkr, `Combat damage: ${lines.join(', ')}${toPlayer ? ` (${toText})` : ''}.`);
   if (lifelinkTotal) log(atkr, `Lifelink: ${atkr === 'p' ? 'you gain' : `${aiName(atkr)} gains`} ${lifelinkTotal}.`);
   stateBased();

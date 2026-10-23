@@ -53,6 +53,7 @@ import { nextTurnNumber } from './state.js';
 import { joinAttack } from './state.js';
 import { goad, goadUntil } from './state.js';
 import { leftOf, rightOf, turnOrderFrom } from './state.js';
+import { seatNameCap, seatPoss } from './state.js';
 
 const WORDNUM = {
   a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -1520,7 +1521,7 @@ on(/^(?:you may )?(?:play lands and )?cast spells from (?:that player's|target o
   const of = env.chosenPlayer || (env.it && env.it.player) || opp(env.me);
   G.s.handControl = { by: env.me, of, turn: G.s.turn, lands: /play lands/.test(env.sentence) };
   G.s.handRevealed = { pid: of, turn: G.s.turn };
-  env.did.push(`${who(env.me)} may play lands and cast spells from ${of === 'p' ? 'your' : "the AI's"} hand this turn`);
+  env.did.push(`${who(env.me)} may play lands and cast spells from ${seatPoss(of)} hand this turn`);
 }, { first: true });
 // "Choose target opponent." (sets up "that player" for the next sentence)
 on(/^choose target (opponent|player)$/, async (m, env) => {
@@ -1535,7 +1536,7 @@ on(/^(?:you )?(?:gain )?control (?:of )?(target (?:player|opponent)) during that
   if (of === env.me) return env.did.push('controls their own next turn (nothing changes)');
   G.s.slaveNext = { by: env.me, of };
   env.it = { player: of };
-  env.did.push(`${who(env.me)} will control ${of === 'p' ? 'you' : 'the AI'} during ${of === 'p' ? 'your' : 'its'} next turn`);
+  env.did.push(`${who(env.me)} will control ${seatName(of)} during ${of === 'p' ? 'your' : 'its'} next turn`);
 }, { first: true });
 // Emrakul, the Promised End: "After that turn, that player takes an extra turn."
 on(/^after that turn, that player takes an extra turn$/, async (m, env) => {
@@ -1668,7 +1669,7 @@ on(/^choose target creature you control\. until end of turn, all damage that wou
   const t = pk && card(pk.iid);
   if (!t) return;
   G.s.redirect = { pid: env.me, iid: t.iid, turn: G.s.turn, onDie: true };
-  env.did.push(`all damage to ${env.me === 'p' ? 'you' : 'the AI'} and ${env.me === 'p' ? 'your' : 'its'} creatures is dealt to ${nameTag(t)} this turn`);
+  env.did.push(`all damage to ${seatName(env.me)} and ${env.me === 'p' ? 'your' : 'its'} creatures is dealt to ${nameTag(t)} this turn`);
 }, { first: true, multi: true });
 // Captain Marvel: "you may put the same number and kind of counters on ~"
 on(/^(?:you may )?put the same number and kind of counters on ~$/, async (m, env) => {
@@ -1907,7 +1908,7 @@ on(/^put target creature on the bottom of its owner's library\. that creature's 
   const ctl_ = t.controller;
   const owner = t.owner;
   move(t.iid, 'library', { to: 'bottom' });
-  env.did.push(`puts ${nameTag(t)} on the bottom of ${owner === 'p' ? 'your' : "the AI's"} library`);
+  env.did.push(`puts ${nameTag(t)} on the bottom of ${seatPoss(owner)} library`);
   const lib = zoneOf(ctl_, 'library');
   const rest = [];
   let hit = null;
@@ -1939,7 +1940,7 @@ on(/^(?:then )?(?:you may )?exile (?:a|an|up to one) ([a-z ]+?) card from each g
   for (const pid of [...opponents(env.me), env.me]) {
     const pool = cardsIn(pid, 'graveyard').filter((c) => kinds.some((k) => matchesAny(c, k)));
     if (!pool.length) continue;
-    const [pick] = await env.choosers[env.me].pickCards({ prompt: `You may exile a ${m[1]} card from ${pid === 'p' ? 'your' : "the AI's"} graveyard`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'gy-exile', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
+    const [pick] = await env.choosers[env.me].pickCards({ prompt: `You may exile a ${m[1]} card from ${seatPoss(pid)} graveyard`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'gy-exile', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
     if (!pick) continue;
     move(pick, 'exile');
     if (card(pick) && env.src) card(pick).exiledWith = env.src.iid;
@@ -2045,7 +2046,7 @@ async function castFromPool(env, ids, o = {}) {
   }
   return cast_;
 }
-const whoseLib = (pid) => (pid === 'p' ? 'your' : "the AI's");
+const whoseLib = (pid) => (seatPoss(pid));
 
 // Inspirit, Flagship Vessel: "put your choice of a +1/+1 counter or two charge counters on up to one other target artifact"
 on(/^put your choice of an? ([+\-\d\/a-z]+) counter or (one|two|three|\w+) ([a-z]+) counters on up to one other target artifact(?: you control)?$/, async (m, env) => {
@@ -2236,7 +2237,7 @@ on(/^for each player, choose a creature or planeswalker card in that player's gr
   for (const pid of [env.me, ...opponents(env.me)]) {
     const pool = cardsIn(pid, 'graveyard').filter((c) => /Creature|Planeswalker/.test(DB[c.def].typeLine || ''));
     if (!pool.length) continue;
-    const [pick] = await env.choosers[env.me].pickCards({ prompt: `Choose a creature or planeswalker card in ${pid === 'p' ? 'your' : "the AI's"} graveyard`, cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'reanimate', src: env.src, aiScore: (c) => cardValue(c) });
+    const [pick] = await env.choosers[env.me].pickCards({ prompt: `Choose a creature or planeswalker card in ${seatPoss(pid)} graveyard`, cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'reanimate', src: env.src, aiScore: (c) => cardValue(c) });
     if (pick) got.push(pick);
   }
   for (const i of got) toBattlefield(i, env.me);
@@ -2271,7 +2272,7 @@ on(/^(?:you may )?cast target nonland permanent card from that player's graveyar
   const pid = env.thatPlayer || opp(env.me);
   const pool = cardsIn(pid, 'graveyard').filter((c) => isPermanentCard(DB[c.def]) && !isLandFace_(c));
   if (!pool.length) return env.did.push('finds no permanent card');
-  await castFromPool(env, pool.map((c) => c.iid), { max: 1, anyMana: true, prompt: `Cast a nonland permanent card from ${pid === 'p' ? 'your' : "the AI's"} graveyard?` });
+  await castFromPool(env, pool.map((c) => c.iid), { max: 1, anyMana: true, prompt: `Cast a nonland permanent card from ${seatPoss(pid)} graveyard?` });
 }, { first: true });
 // The Horus Heresy
 on(/^for each opponent, gain control of up to one target nonlegendary creature that player controls for as long as ~ remains on the battlefield$/, async (m, env) => {
@@ -2485,7 +2486,7 @@ on(/^exile all creature cards from target player's graveyard\. you may cast spel
 on(/^look at defending player's hand\. you may put a creature card from it onto the battlefield under your control tapped and attacking that player or a planeswalker they control\. return that creature to its owner's hand at the beginning of the next end step$/, async (m, env) => {
   const o = env.thatPlayer || opp(env.me);
   const pool = cardsIn(o, 'hand').filter((c) => /Creature/.test(DB[c.def].typeLine || ''));
-  env.did.push(`looks at ${o === 'p' ? 'your' : "the AI's"} hand${env.me === 'p' ? ': ' + (cardsIn(o, 'hand').map(nameTag).join(', ') || 'empty') : ''}`);
+  env.did.push(`looks at ${seatPoss(o)} hand${env.me === 'p' ? ': ' + (cardsIn(o, 'hand').map(nameTag).join(', ') || 'empty') : ''}`);
   if (!pool.length) return;
   const [pick] = await env.choosers[env.me].pickCards({ prompt: 'Put a creature card from their hand onto the battlefield attacking', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'steal', src: env.src, aiScore: (c) => cardValue(c) });
   if (!pick) return;
@@ -2793,7 +2794,7 @@ on(/^exile (?:all cards from )?(?:all opponents'|each opponent's|all of your opp
   const ids = zoneOf(o, 'graveyard').slice();
   ids.forEach((i) => move(i, 'exile'));
   env.them_ = ids;
-  env.did.push(`exiles ${ids.length} card${ids.length === 1 ? '' : 's'} from ${o === 'p' ? 'your' : "the AI's"} graveyard`);
+  env.did.push(`exiles ${ids.length} card${ids.length === 1 ? '' : 's'} from ${seatPoss(o)} graveyard`);
 }, { first: true });
 // "Choose a nonland card exiled this way." (works sentence by sentence when a card's wording differs)
 on(/^choose a (nonland |creature |instant or sorcery |)card exiled this way$/, async (m, env) => {
@@ -2847,7 +2848,7 @@ on(/^target opponent reveals cards from the top of their library until they reve
     changeLife(env.me, -(DB[card(hit).def].cmc || 0));
   }
   for (const i of rest.sort(() => Math.random() - 0.5)) move(i, 'library', { to: 'bottom' });
-  env.did.push(hit ? `takes ${nameTag(card(hit))} from ${t === 'p' ? 'your' : "the AI's"} library and loses ${DB[card(hit).def].cmc || 0} life` : 'finds no historic permanent');
+  env.did.push(hit ? `takes ${nameTag(card(hit))} from ${seatPoss(t)} library and loses ${DB[card(hit).def].cmc || 0} life` : 'finds no historic permanent');
 }, { first: true, multi: true });
 // Dack Fayden, Helping Hand (1 opponent): reveal until a creature card, it enters goaded and the opponent gains control of it
 on(/^reveal cards from the top of your library until you reveal x creature cards, where x is the number of opponents you have\. put those creature cards onto the battlefield, then shuffle\. they're goaded for the rest of the game\. for each of those permanents, choose a different opponent\. each opponent gains control of the permanent for which they were chosen$/, async (m, env) => {
@@ -3371,7 +3372,7 @@ on(/^at the beginning of your next end step, ~ deals (\w+) damage to each oppone
   const ids = (env.them_ || env.revealed || []).filter((i) => card(i) && card(i).zone === 'exile');
   if (!ids.length || !env.src) return env.did.push('nothing exiled');
   G.s.delayed.push({ at: 'endStep', whoseEnd: env.me, kind: 'exiledDamage', ids, src: env.src.iid, per: n(m[1]), pid: env.me });
-  env.did.push(`at ${env.me === 'p' ? 'your' : "the AI's"} next end step, ${n(m[1])} damage to ${env.me === 'p' ? 'the AI' : 'you'} for each of those cards still in exile`);
+  env.did.push(`at ${seatPoss(env.me)} next end step, ${n(m[1])} damage to ${env.me === 'p' ? 'the AI' : 'you'} for each of those cards still in exile`);
 }, { first: true });
 // Gatewatch Beacon: "you may move a loyalty counter from ~ onto that planeswalker"
 on(/^(you may )?move (a|an|one|two|three|\d+|all) ([a-z+\/0-9-]+) counters? from ~ onto (that planeswalker|that creature|it|target [a-z ]+)$/, async (m, env) => {
@@ -3479,9 +3480,9 @@ on(/^look at the top card of (target player's|your|each player's|target opponent
   const good = !isLand(c) || cardsIn(who_, 'battlefield').filter(isLand).length < 5;
   // the AI bottoms good cards from your library and bad cards from its own
   const aiPick = () => (who_ === env.me ? !good : good);
-  const yes = isAI(env.me) ? aiPick() : await env.choosers[env.me].confirm(cardName(c), `Top of ${who_ === 'p' ? 'your' : "the AI's"} library: ${cardName(c)}. Put it on the bottom?`, {});
+  const yes = isAI(env.me) ? aiPick() : await env.choosers[env.me].confirm(cardName(c), `Top of ${seatPoss(who_)} library: ${cardName(c)}. Put it on the bottom?`, {});
   if (yes) move(top, 'library', { to: 'bottom' });
-  env.did.push(`looks at the top card of ${who_ === env.me ? 'its own' : (who_ === 'p' ? 'your' : "the AI's")} library${yes ? ' and puts it on the bottom' : ' and leaves it'}`);
+  env.did.push(`looks at the top card of ${who_ === env.me ? 'its own' : (seatPoss(who_))} library${yes ? ' and puts it on the bottom' : ' and leaves it'}`);
 }, { first: true, multi: true });
 // Jace, the Mind Sculptor −12
 on(/^exile all cards from (target player's|target opponent's|each opponent's) library, then that player shuffles (?:their|his or her) hand into (?:their|his or her) library$/, async (m, env) => {
@@ -3491,7 +3492,7 @@ on(/^exile all cards from (target player's|target opponent's|each opponent's) li
   lib.forEach((i) => move(i, 'exile'));
   zoneOf(t, 'hand').slice().forEach((i) => move(i, 'library'));
   shuffle(t);
-  env.did.push(`exiles ${t === 'p' ? 'your' : "the AI's"} library (${lib.length} cards); ${t === 'p' ? 'you shuffle your' : 'the AI shuffles its'} hand into ${t === 'p' ? 'your' : 'its'} library`);
+  env.did.push(`exiles ${seatPoss(t)} library (${lib.length} cards); ${t === 'p' ? 'you shuffle your' : 'the AI shuffles its'} hand into ${t === 'p' ? 'your' : 'its'} library`);
 }, { first: true });
 // Thassa's Oracle
 on(/^look at the top x cards of your library, where x is your devotion to blue\. put up to one of them on top of your library and the rest on the bottom of your library in a random order\. if x is greater than or equal to the number of cards in your library, you win the game$/, async (m, env) => {
@@ -3516,7 +3517,7 @@ on(/^for each player, search that player's library for a nonland card and exile 
   for (const pid of seats()) {
     const pool = cardsIn(pid, 'library').filter((c) => !isLand(c));
     if (!pool.length) continue;
-    const [pick] = await env.choosers[env.me].pickCards({ prompt: `Exile a nonland card from ${pid === 'p' ? 'your' : "the AI's"} library`, cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'tutor', src: env.src, aiScore: (c) => DB[c.def].cmc });
+    const [pick] = await env.choosers[env.me].pickCards({ prompt: `Exile a nonland card from ${seatPoss(pid)} library`, cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'tutor', src: env.src, aiScore: (c) => DB[c.def].cmc });
     if (pick) {
       move(pick, 'exile');
       env.them_.push(pick);
@@ -3891,7 +3892,7 @@ on(/^(target opponent|each opponent) creates (.+?) tokens?(?: and you draw (a|on
 on(/^until your next turn, your life total can't change and you gain protection from everything$/, async (m, env) => {
   G.s.players[env.me].lifeLocked = nextTurnNumber(env.me);
   G.s.players[env.me].protectedUntil = nextTurnNumber(env.me);
-  env.did.push(`${env.me === 'p' ? 'your' : "the AI's"} life total can't change and ${env.me === 'p' ? 'you have' : 'it has'} protection until ${env.me === 'p' ? 'your' : 'its'} next turn`);
+  env.did.push(`${seatPoss(env.me)} life total can't change and ${env.me === 'p' ? 'you have' : 'it has'} protection until ${env.me === 'p' ? 'your' : 'its'} next turn`);
 }, { first: true });
 // Living Death, split into its three steps
 on(/^each player exiles all creature cards from their graveyard$/, async (m, env) => {
@@ -4378,7 +4379,7 @@ on(/^proliferate(?: (twice|thrice|\w+ times))?/, async (m, env) => {
     const perms = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter((c) => Object.values(c.counters || {}).some((v) => v > 0));
     const players = seats().filter((pid) => Object.keys(pCounters(pid)).length).map((pid) => ({
       key: 'player:' + pid,
-      label: pid === 'p' ? 'You' : 'The AI',
+      label: seatNameCap(pid),
       sub: Object.entries(pCounters(pid)).map(([k, v]) => `${v} ${PNAME[k]}`).join('\n'),
     }));
     const total = perms.length + players.length;
@@ -5559,7 +5560,7 @@ on(/^until your next turn, whenever (?:any of those creatures|that creature|thos
   const objs = (await objects(env, 'those creatures')).filter((c) => c && c.zone === 'battlefield');
   const until = G.s.turn + (G.s.active === env.me ? 2 : 1);
   for (const c of objs) c.dmgDraw = [...(c.dmgDraw || []), { pid: env.me, src: env.src && env.src.iid, until, text: 'Draw a card.' }];
-  if (objs.length) env.did.push(`until ${env.me === 'p' ? 'your' : "the AI's"} next turn, ${who(env.me)} ${s_(env.me, 'draw')} a card whenever ${objs.map(nameTag).join(' or ')} deals combat damage to a player`);
+  if (objs.length) env.did.push(`until ${seatPoss(env.me)} next turn, ${who(env.me)} ${s_(env.me, 'draw')} a card whenever ${objs.map(nameTag).join(' or ')} deals combat damage to a player`);
 }, { first: true });
 // Syphon Mind (two players: "each other player" is your opponent)
 on(/^each other player (.+)$/, async (m, env) => runSentence(`each opponent ${m[1]}`, env));
@@ -5706,7 +5707,7 @@ on(/^(?:you )?(?:may )?(?:choose|look at it and choose) (?:a|an|one|up to one|up
   if (!pool.length) return env.did.push(`finds no ${kind} card`);
   const k = /two/.test(env.sentence.split(' card')[0]) ? 2 : 1;
   const picks = await env.choosers[env.me].pickCards({
-    forced: !/up to/.test(env.sentence), prompt: `Choose ${k === 1 ? 'a' : k} ${kind} card${k === 1 ? '' : 's'} from ${pid === 'p' ? 'your' : "the AI's"} hand`, cards: pool.map((c) => c.iid),
+    forced: !/up to/.test(env.sentence), prompt: `Choose ${k === 1 ? 'a' : k} ${kind} card${k === 1 ? '' : 's'} from ${seatPoss(pid)} hand`, cards: pool.map((c) => c.iid),
     min: /up to/.test(env.sentence) ? 0 : Math.min(k, pool.length), max: Math.min(k, pool.length), purpose: 'handChoice', src: env.src,
     aiScore: (c) => DB[c.def].cmc + (isCreature(c) ? 1 : 0),
   });
@@ -6689,10 +6690,10 @@ on(/^(?:you may )?attach (?:this aura|~) to (that player|target player|target op
   const pl = m[1] === 'you' ? env.me : m[1] === 'that player' ? env.thatPlayer || opp(env.me) : opp(env.me);
   if (!env.src || !pl) return;
   if (env.src.enchantedPlayer === pl) return;
-  if (/^you may/.test(env.sentence || '') && !(await mayAsk(env, `attach ${cardName(env.src)} to ${pl === 'p' ? 'you' : 'the AI'}`))) return;
+  if (/^you may/.test(env.sentence || '') && !(await mayAsk(env, `attach ${cardName(env.src)} to ${seatName(pl)}`))) return;
   env.src.enchantedPlayer = pl;
   delete env.src.attachedTo;
-  env.did.push(`now enchants ${pl === 'p' ? 'you' : 'the AI'}`);
+  env.did.push(`now enchants ${seatName(pl)}`);
 });
 on(/^attach (~|it|target [^.]+?) to (.+?)(?:\.|$)/, async (m, env) => {
   const [what] = await objects(env, m[1], { harm: false });
@@ -7672,7 +7673,7 @@ on(/^put the exiled card into its owner's hand$/, async (m, env) => {
     delete c.hiddenExile;
     move(c.iid, 'hand');
   }
-  env.did.push(hidden.length ? `puts ${hidden.map(nameTag).join(', ')} into ${hidden[0].owner === 'p' ? 'your' : "the AI's"} hand` : 'has no card hidden away');
+  env.did.push(hidden.length ? `puts ${hidden.map(nameTag).join(', ')} into ${hidden[0].seatPoss(owner)} hand` : 'has no card hidden away');
 }, { first: true });
 
 async function runSentence(sentence, env) {

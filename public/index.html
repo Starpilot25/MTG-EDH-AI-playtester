@@ -18,9 +18,15 @@
     <div class="mark" aria-hidden="true"><i></i><i></i></div>
     <div>
       <h1>EDH Playtester</h1>
-      <p>Goldfish your Commander deck against an AI opponent. Load your deck, give the AI a deck, and play a 1v1 game on a free-form table.</p>
+      <p>Goldfish your Commander deck against AI opponents. Load your deck, give each AI a deck, and play 1v1 or a 3–4 player pod on a free-form table.</p>
     </div>
   </header>
+
+  <div class="pod-pick" role="radiogroup" aria-label="Number of AI opponents">
+    <span class="pod-lbl">Opponents</span>
+    <div class="seg pod-seg"><button type="button" data-opps="1" title="1v1">1</button><button type="button" data-opps="2" title="3-player pod">2</button><button type="button" data-opps="3" title="4-player pod">3</button></div>
+    <span class="pod-hint hint"></span>
+  </div>
 
   <div class="slots">
     <article class="deck-slot" data-pid="p">
@@ -56,6 +62,7 @@
 
     <div class="versus" aria-hidden="true">vs</div>
 
+    <div class="opp-slots">
     <article class="deck-slot" data-pid="ai">
       <div class="slot-head"><span class="dot ai"></span><h2>AI's deck</h2></div>
       <div class="seg" role="tablist">
@@ -88,6 +95,7 @@
       <div class="status" aria-live="polite"></div>
       <div class="summary" hidden></div>
     </article>
+    </div>
   </div>
 
   <footer class="setup-foot">
@@ -167,6 +175,7 @@
   <div class="board">
     <aside id="opp-panel" class="panel opp"></aside>
     <section id="opp-field" class="field opp" aria-label="AI battlefield"></section>
+    <section id="pod-opps" aria-label="Opponents" hidden></section>
     <aside id="my-panel" class="panel me"></aside>
     <section id="my-field" class="field me" data-drop="battlefield" aria-label="Your battlefield"></section>
     <section class="hand-wrap">

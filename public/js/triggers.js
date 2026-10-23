@@ -30,6 +30,7 @@ function interveningIfFails(hit, ev) {
 import { venture, takeInitiative } from './dungeon.js';
 import { seats, opponents, isAI, isPlayer, multiplayer } from './state.js';
 import { isGoaded } from './state.js';
+import { seatName } from './state.js';
 
 // Filled in by ui.js: choosers for both players, a yes/no prompt, render, and casting hooks.
 // The player an attacking creature is attacking (or who controls the planeswalker/battle it attacks).
@@ -1819,7 +1820,7 @@ async function specialEvent(ev) {
   }
   return false;
 }
-const who = (pid) => (pid === 'p' ? 'you' : 'the AI');
+const who = (pid) => (seatName(pid));
 
 function loreUp(c) {
   c.counters.lore = (c.counters.lore || 0) + 1;
