@@ -255,7 +255,9 @@ function parseTriggerText(text, speed) {
     // Archon of Redemption, Campsite Cuisine: "Whenever ~ or another creature you control with flying enters", "~ or a legendary creature you control enters"
     else if ((m = line.match(/^Whenever ~ or (?:another|a|an) ((?:[\w-]+ )?creature) you control( with [a-z ]+?)? enters, (.+)$/i))) {
       add('enters', m[3], { self: true });
-      add('enters', m[3], { other: true, mine: true, kind: (m[1] + (m[2] || '')).toLowerCase().trim() });
+      // Gylwain: "~ or another nontoken creature you control enters" — tokens don't count
+      const kd = (m[1] + (m[2] || '')).toLowerCase().trim();
+      add('enters', m[3], { other: true, mine: true, kind: kd.replace(/^nontoken /, ''), nontoken: /^nontoken /.test(kd) });
     }
     // Fathom Mage: "Whenever a +1/+1 counter is put on ~"
     else if ((m = line.match(/^Whenever a (\+1\/\+1|[a-z]+) counter is put on ~, (.+)$/i)))
