@@ -189,25 +189,23 @@ export function newGame(pDeck, ...aiDecks) {
     s.rolls = [{ [s.first]: hi, [s.first === 'p' ? 'ai' : 'p']: lo }];
     log('sys', `Dice for turn order: you roll ${s.rolls[0].p}, the AI rolls ${s.rolls[0].ai}. <b>${s.first === 'p' ? 'You go' : 'The AI goes'} first</b>.`);
   } else {
-    // pods: the rolls set the whole turn order, highest first (ties are broken by rolling again)
+    // pods: the highest roll goes first, then play passes around the table in seating order.
+    // Only players tied for the highest roll roll again.
     s.rolls = [];
-    const groups = [list.slice()];
-    const order = [];
+    let rolling = list.slice();
     const scores = {};
-    while (groups.length) {
-      const g = groups.shift();
-      if (g.length === 1) { order.push(g[0]); continue; }
+    while (rolling.length > 1) {
       const round = {};
-      for (const k of g) round[k] = 1 + Math.floor(Math.random() * 20);
+      for (const k of rolling) round[k] = 1 + Math.floor(Math.random() * 20);
       s.rolls.push(round);
-      for (const k of g) scores[k] = (scores[k] || []).concat(round[k]);
-      const vals = [...new Set(g.map((k) => round[k]))].sort((a, b) => b - a);
-      groups.unshift(...vals.map((v) => g.filter((k) => round[k] === v)));
+      for (const k of rolling) scores[k] = (scores[k] || []).concat(round[k]);
+      const top = Math.max(...rolling.map((k) => round[k]));
+      rolling = rolling.filter((k) => round[k] === top);
     }
-    list.splice(0, list.length, ...order);
-    s.seats = list;
-    s.first = list[0];
-    log('sys', `Dice for turn order: ${order.map((k) => `${name(k)} ${scores[k].join(' then ')}`).join(', ')}. <b>${s.first === 'p' ? 'You go' : s.players[s.first].name + ' goes'} first</b>. Turn order: ${list.map(name).join(' → ')}.`);
+    s.first = rolling[0];
+    const from = list.indexOf(s.first);
+    const order = [...list.slice(from), ...list.slice(0, from)];
+    log('sys', `Dice for turn order: ${list.map((k) => `${name(k)} ${scores[k].join(' then ')}`).join(', ')}. <b>${s.first === 'p' ? 'You go' : s.players[s.first].name + ' goes'} first</b>. Turn order: ${order.map(name).join(' → ')}.`);
   }
   for (const k of list) draw(k, 7, true);
   return s;

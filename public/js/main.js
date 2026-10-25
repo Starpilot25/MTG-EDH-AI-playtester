@@ -484,7 +484,7 @@ function diceDialog() {
   const fast = (G.settings.aiSpeed || 650) <= 300;
   return new Promise((resolve) => {
     const dlg = openDialog(`<span class="eyebrow">Turn order</span><h3>Roll for turn order</h3>
-      <p class="hint">Everyone rolls a d20. Highest goes first${order.length > 2 ? ', then the next highest, and so on' : ''}. Ties roll again.</p>
+      <p class="hint">Everyone rolls a d20. Highest goes first${order.length > 2 ? ', then play passes around the table' : ''}. A tie for the highest roll is rolled again.</p>
       <div class="dice-rounds"></div>
       <p class="dice-result"></p>
       <div class="btns"><button class="primary" id="dice-ok">Skip</button></div>`, { noClose: true });
@@ -498,13 +498,15 @@ function diceDialog() {
       done = true;
       clearInterval(timer);
       box.innerHTML = rounds.map((r, i) => roundHTML(r, i, true)).join('');
-      res.innerHTML = `<b>${who(s.first)} ${s.first === 'p' ? 'go' : 'goes'} first.</b>${order.length > 2 ? ` Turn order: ${order.map(who).join(' → ')}.` : ''}`;
+      const from = order.indexOf(s.first);
+      const turns = [...order.slice(from), ...order.slice(0, from)];
+      res.innerHTML = `<b>${who(s.first)} ${s.first === 'p' ? 'go' : 'goes'} first.</b>${order.length > 2 ? ` Turn order: ${turns.map(who).join(' → ')}.` : ''}`;
       ok.textContent = 'Continue';
     };
-    const roundHTML = (r, i, settled, shown = {}) => `<div class="dice-round">${i ? '<span class="dice-tie">Tie — roll again</span>' : ''}
+    const roundHTML = (r, i, settled, shown = {}) => `<div class="dice-round">${i ? `<span class="dice-tie">Tie for the highest roll — ${Object.keys(r).map(who).join(' and ')} roll again</span>` : ''}
       <div class="dice-row">${Object.keys(r).sort((a, b) => order.indexOf(a) - order.indexOf(b)).map((k) => {
         const v = settled || shown[k] ? r[k] : flick();
-        const top = settled && r[k] === Math.max(...Object.values(r));
+        const top = settled && r[k] === Math.max(...Object.values(r)) && (i === rounds.length - 1 || Object.keys(r).length > 1 && Object.values(r).filter((v) => v === r[k]).length === 1);
         return `<div class="die-wrap ${top ? 'top' : ''}"><div class="d20 ${settled || shown[k] ? '' : 'rolling'} seat-${k}"><b>${v}</b></div><span>${esc(who(k))}</span></div>`;
       }).join('')}</div></div>`;
     // animate one round at a time: the dice tumble, then land one after another

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.132",
+    "title": "Turn-order roll: highest goes first, then around the table",
+    "notes": [
+      "The turn-order roll now works like it does at a real table: the highest roll goes first, and play then passes around the table in seating order. Only players tied for the highest roll roll again; ties lower down don't matter."
+    ]
+  },
+  {
     "version": "1.3.131",
     "title": "Mana limits, Unlucky Witness, Finale of Promise",
     "notes": [
