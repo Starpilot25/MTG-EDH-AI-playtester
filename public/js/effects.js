@@ -6725,7 +6725,10 @@ on(/^add (x|\d+|one|two|three|four|five) mana in any combination of colors/, asy
     picks.forEach((i) => card(i) && tapPerm(card(i)));
     k = picks.length;
   }
-  addMana(env.me, Array.from({ length: k }, () => 'ANY'));
+  const syms = Array.from({ length: k }, () => 'ANY');
+  addMana(env.me, syms);
+  env.lastAdded = syms;
+  env.lastManaAdded = { list: syms };
   env.did.push(`adds ${k} mana`);
 });
 on(/^for each color among permanents you control, add one mana of that color/, async (m, env) => {
@@ -8709,7 +8712,9 @@ async function castOneFree(env, pool, o = {}) {
   if (!pick || !T.castFree) return null;
   const c = card(pick);
   if (o.exileInstead) G.s.exileOnResolve = { ...(G.s.exileOnResolve || {}), [pick]: true };
+  if (o.copies) G.s.copyCast = { ...(G.s.copyCast || {}), [pick]: o.copies };
   const ok = await T.castFree(env.me, pick, {});
+  if (G.s.copyCast) delete G.s.copyCast[pick];
   env.did.push(ok ? `casts ${nameTag(c)} for free` : `doesn't cast ${nameTag(c)}`);
   return ok ? pick : null;
 }
@@ -8789,14 +8794,7 @@ on(/^(?:you may )?cast up to one target instant card and\/or up to one target so
   const k = env.x || 0;
   for (const kind of ['Instant', 'Sorcery']) {
     const pool = cardsIn(env.me, 'graveyard').filter((c) => c.iid !== (env.src && env.src.iid) && new RegExp('\\b' + kind + '\\b').test(DB[c.def].faces[0].typeLine || '') && (DB[c.def].cmc || 0) <= k);
-    const got = await castOneFree(env, pool, { exileInstead: true, prompt: `Cast up to one ${kind.toLowerCase()} card from your graveyard for free?` });
-    if (got && k >= 10) {
-      const c = card(got);
-      for (let t = 0; t < 2; t++) {
-        const did = await resolveEffects(spellText(c), { ...c, controller: env.me }, { me: env.me, choosers: env.choosers, castFree: env.castFree });
-        env.did.push(`copies ${nameTag(c)}${did.length ? ': ' + did.join('; ') : ''}`);
-      }
-    }
+    await castOneFree(env, pool, { exileInstead: true, copies: k >= 10 ? 2 : 0, prompt: `Cast up to one ${kind.toLowerCase()} card from your graveyard for free?${k >= 10 ? ' (It will be copied twice.)' : ''}` });
   }
 }, { first: true, multi: true });
 // Echoing Assault
@@ -9007,7 +9005,20 @@ on(/^until your next turn, creatures your opponents control attack each combat i
   env.did.push("opponents' creatures are goaded until your next turn");
 }, { first: true });
 // Karolina Dean / Klauth: spending restrictions are noted, not enforced
-on(/^(?:this mana can't be spent to cast spells from your hand|spend this mana only to cast spells)$/, async () => {}, { first: true });
+on(/^(?:this mana can't be spent to cast spells from your hand|spend this mana only to cast spells)$/, async (m, env) => {
+  // tag the mana just added with its restriction (it stays in the pool marked that way)
+  const tag = /from your hand/.test(m[0]) ? 'notHand' : 'spells';
+  const added = env.lastAdded || (env.lastManaAdded && env.lastManaAdded.list) || [];
+  const pool = (G.s.pool && G.s.pool[env.me]) || [];
+  const tagged = [];
+  for (const sym of added) {
+    for (let i = pool.length - 1; i >= 0; i--) if (pool[i] === sym) { pool[i] = `${sym}@${tag}`; break; }
+    tagged.push(`${sym}@${tag}`);
+  }
+  if (env.lastManaAdded) env.lastManaAdded = { list: tagged };
+  env.lastAdded = tagged;
+  if (tagged.length) env.did.push(tag === 'spells' ? 'that mana can only be spent on spells' : "that mana can't be spent on spells from your hand");
+}, { first: true });
 // King Solomon's Frogs
 on(/^for each permanent exiled this way, its controller draws a card$/, async (m, env) => {
   for (const i of env.them_ || (env.it && env.it.iid ? [env.it.iid] : [])) {
@@ -10303,6 +10314,8 @@ function whereX(env) {
   else if (/^(?:the number of )?times (?:~|he|she|it|this spell) was kicked$/.test(ph)) v = typeof env.kicked === 'number' ? env.kicked : env.kicked ? 1 : 0;
   else if (/^counters on (?:~|it|this [a-z]+)$/.test(ph)) v = Object.values((src && src.counters) || {}).reduce((a, k) => a + (k > 0 ? k : 0), 0);
   else if (/^permanents you(?:'ve| have) sacrificed this turn$/.test(ph)) v = ts.sacrificed || 0;
+  // Klauth: "where X is the total power of attacking creatures"
+  else if (/^(?:the )?total power of attacking creatures(?: you control)?$/.test(ph)) v = ((G.s.combat && G.s.combat.attackers) || []).map(card).filter((c) => c && c.zone === 'battlefield' && (!/you control/.test(ph) || c.controller === me)).reduce((a, c) => a + Math.max(0, power(c)), 0);
   else v = countPhrase(me, ph, helpers, env.src && env.src.iid);
   if (v !== null) env.x = xm[1] === 'half ' ? (xm[3] === 'up' ? Math.ceil(v / 2) : Math.floor(v / 2)) : xm[1] === 'twice ' ? v * 2 : v;
 }

@@ -37,6 +37,8 @@ const instantFace = (f) => /\bInstant\b/.test((f.typeLine || '').split('—')[0]
 function restrictedOk(onlyFor, abilitiesOf, spell, opts) {
   if (!onlyFor || onlyFor === 'nogeneric') return true;
   if (onlyFor === 'abilities') return !!opts.ability; // The Enigma Jewel
+  if (onlyFor === 'spells') return !opts.ability && !!spell && spell.zone !== 'battlefield'; // Klauth: "Spend this mana only to cast spells."
+  if (onlyFor === 'notHand') return !!opts.ability || !spell || spell.zone !== 'hand'; // Karolina Dean: "can't be spent to cast spells from your hand"
   // (no spell being cast — ward, "unless you pay", abilities — is fine too)
   if (onlyFor === 'artifactOrAbility') return !!opts.ability || !spell || spell.zone === 'battlefield' || (/\bArtifact\b/.test((DB[spell.def].faces[spell.face || 0] || {}).typeLine || DB[spell.def].typeLine || '')); // Powerstone
   if (onlyFor === 'fromExile') return !!spell && spell.zone === 'exile' && !opts.ability;
@@ -826,7 +828,7 @@ export async function castSpell(pid, iid, opt, env) {
   // Desecrate Reality (adamant): colorless mana from sources that only make {C}
   c.colorlessSpent = (pay.payers || []).filter((i) => !String(i).startsWith('pool:') && card(i) && /Add \{C\}/.test(oracle(card(i))) && !/Add \{[WUBRG]\}|any color/i.test(oracle(card(i)))).reduce((a, i) => a + ((oracle(card(i)).match(/Add ((?:\{C\})+)/) || ['', '{C}'])[1].length / 3), 0);
   // Unlucky Witness: "you may play one of those cards"
-  if (c.playOneOf) { for (const i of c.playOneOf.split(',')) if (i !== c.iid && card(i)) Object.assign(card(i), { mayPlay: null, playOneOf: null }); c.playOneOf = null; }
+  useOneOf(c);
   // Xander's Pact: pay life equal to its mana value instead
   if (c.lifeOnCast && opt.mode === 'hideaway') { const lv = DB[c.def].cmc || 0; changeLife(pid, -lv, false); log(pid, `${pid === 'p' ? 'You pay' : 'The AI pays'} ${lv} life for ${nameTag(c)}.`); c.lifeOnCast = null; }
   applyPayment(pid, pay);
@@ -874,6 +876,12 @@ export async function castSpell(pid, iid, opt, env) {
   }
   // storm / gravestorm / replicate / casualty copies, cascade
   let copies = (hasKw(c, 'storm') ? ts.spells - 1 + seats().filter((k) => k !== pid).reduce((a, k) => a + ((s.ts[k] || {}).spells || 0), 0) : 0) + info.replicate + (info.casualty ? 1 : 0);
+  // Finale of Promise: "If X is 10 or more, copy each of those spells twice."
+  if (s.copyCast && s.copyCast[iid] && !opt.copy) {
+    copies += s.copyCast[iid];
+    log(pid, `${nameTag(c)} is copied ${s.copyCast[iid] === 2 ? 'twice' : s.copyCast[iid] + ' times'}.`);
+    delete s.copyCast[iid];
+  }
   // Way of the Cryomancer: "When you next cast an instant or sorcery spell this turn, copy that spell."
   // Jace Reawakened −6: copy every spell this turn
   if (s.copyAll && s.copyAll.pid === pid && s.copyAll.turn === s.turn && !opt.copy) {
@@ -1468,7 +1476,13 @@ export function landsAllowed(pid) {
   for (const c of allBattlefields()) if (!c.phasedOut && /Each player may play an additional land on each of their turns/i.test(oracle(c))) k++;
   return k;
 }
+function useOneOf(c) {
+  if (!c || !c.playOneOf) return;
+  for (const i of c.playOneOf.split(',')) if (i !== c.iid && card(i)) Object.assign(card(i), { mayPlay: null, playOneOf: null });
+  c.playOneOf = null;
+}
 export function playLand(pid, iid, faceIdx = 0, pos = {}) {
+  if (card(iid) && card(iid).zone === 'exile') useOneOf(card(iid)); // Unlucky Witness: one of those cards
   const c = card(iid);
   if (!c) return false;
   c.face = faceIdx;

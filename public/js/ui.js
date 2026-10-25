@@ -562,7 +562,7 @@ function statusLine(pid) {
   const pool = (s.pool && s.pool[pid]) || [];
   if (pool.length) {
     const lim = pool.map(poolSym).filter((p) => p.onlyFor);
-    const tip = `Floating mana (empties between steps)${lim.length ? ` — ${lim.length} restricted: only for ${[...new Set(lim.map((p) => (p.onlyFor === 'abilities' ? 'abilities' : p.onlyFor === 'artifactOrAbility' ? 'artifact spells and abilities' : p.onlyFor === 'fromExile' ? 'spells from exile' : p.onlyFor + ' spells')))].join(', ')}` : ''}`;
+    const tip = `Floating mana (empties between steps)${lim.length ? ` — ${lim.length} restricted: only for ${[...new Set(lim.map((p) => (p.onlyFor === 'abilities' ? 'abilities' : p.onlyFor === 'artifactOrAbility' ? 'artifact spells and abilities' : p.onlyFor === 'fromExile' ? 'spells from exile' : p.onlyFor === 'spells' ? 'spells (not abilities)' : p.onlyFor === 'notHand' ? 'abilities and spells not cast from your hand' : p.onlyFor + ' spells')))].join(', ')}` : ''}`;
     // grouped by color with a count: {C}×3 {G}×2 — restricted mana shown separately with a dashed ring
     const groups = new Map();
     for (const x of pool) {
@@ -575,7 +575,7 @@ function statusLine(pid) {
     const order = ['W', 'U', 'B', 'R', 'G', 'C', 'ANY'];
     const pips = [...groups.values()].sort((a, b) => !!a.only - !!b.only || order.indexOf(a.col) - order.indexOf(b.col)).map((g) => {
       const label = g.col === 'ANY' ? '✦' : g.col;
-      const only = g.only ? ` — only for ${g.only === 'abilities' ? 'abilities' : g.only === 'artifactOrAbility' ? 'artifact spells and abilities' : g.only === 'fromExile' ? 'spells from exile' : g.only + ' spells'}` : '';
+      const only = g.only ? ` — only for ${g.only === 'abilities' ? 'abilities' : g.only === 'artifactOrAbility' ? 'artifact spells and abilities' : g.only === 'fromExile' ? 'spells from exile' : g.only === 'spells' ? 'spells (not abilities)' : g.only === 'notHand' ? 'abilities and spells not cast from your hand' : g.only + ' spells'}` : '';
       return `<span class="pool-pip${g.only ? ' only' : ''}" title="${esc(`${g.n} ${g.col === 'ANY' ? 'mana of any color' : '{' + g.col + '}'}${only}`)}"><span class="ms ms-${g.col.toLowerCase()}">${label}</span>${g.n > 1 ? `<i>×${g.n}</i>` : ''}</span>`;
     }).join('');
     bits.push(`<span class="st pool" title="${esc(tip)}"><b>Floating ${pool.length}</b>${pips}</span>`);
