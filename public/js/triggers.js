@@ -118,6 +118,8 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever you put one or more ([+\-\d\/]+) counters on one or more other ([A-Z][\w-]+) you control, (.+)$/))) { add('counterPut', q[3], { anyKind: true, other: true, counterKindOnly: q[1], kindF: kindWords(q[2]), oncePerEvent: true }); continue; }
       // Giggling Skitterspike
       if ((q = line.match(/^Whenever ~ attacks, blocks, or becomes the target of a spell, (.+)$/i))) { add('attacks', q[1], { self: true }); add('blocks', q[1], { self: true }); add('becomesTarget', q[1], { self: true, spellOnly: true }); continue; }
+      // Trouble in Pairs
+      if ((q = line.match(/^Whenever an opponent attacks you with two or more creatures, draws their second card each turn, or casts their second spell each turn, (.+)$/i))) { add('youAttack', q[1], { oppAttacksMe: 2 }); add('draw', q[1], { who: 'an opponent', nthDraw: 2 }); add('cast', q[1], { spell: '', theirs: true, second: true }); continue; }
       // Daredevil, Fearless Fighter
       if ((q = line.match(/^Whenever a source you control deals damage to you, (.+)$/i))) { add('dealsDamage', q[1], { anySourceMine: true, toSelf: true }); continue; }
       // Marvo, Deep Operative
@@ -695,7 +697,7 @@ function parseTriggerText(text, speed) {
     // saga chapters
     else if ((m = line.match(/^((?:[IVX]+)(?:, [IVX]+)*) — (.+)$/))) {
       const chapters = m[1].split(/, /).map((r) => ROMAN[r] || 0);
-      out.push({ event: 'chapter', chapters, text: m[2], raw: line, self: true, optional: /^you may/i.test(m[2]) });
+      out.push({ event: 'chapter', chapters, text: m[2].replace(/ ¶•/g, '\n•'), raw: line, self: true, optional: /^you may/i.test(m[2]) });
     }
   }
   return out;
@@ -1206,6 +1208,8 @@ function matches(ev) {
     case 'enters': {
       const nc = card(ev.iid);
       if (!nc) break;
+      // Theoretical Duplication: a token copy of each nontoken creature an opponent gets this turn
+      if (!nc.token && isCreature(nc)) for (const e of (G.s.theoDup || []).filter((x) => x.turn === G.s.turn && x.pid !== nc.controller)) out.push({ src: card(e.src) || nc, controller: e.pid, trig: { event: 'enters', raw: 'Theoretical Duplication', fn: async () => { const [t] = createToken(nc.def, e.pid, 1); return t ? [`creates a token copy of ${nameTag(nc)}`] : []; } } });
       // the permanent's own "when ~ enters"
       if (!nc.faceDown) for (const trig of triggersOf(nc)) if (trig.event === 'enters' && trig.self && !(trig.untappedOnly && nc.tapped)) out.push({ src: nc, trig });
       const seenOnce = new Set();
@@ -1344,6 +1348,10 @@ function matches(ev) {
         if (!dealer || dealer.controller !== c.controller || (trig.yourTurn && G.s.active !== c.controller) || !(ev.amount > 0)) return;
         out.push({ src: c, trig, amount: ev.amount, it: { iid: ev.iid } });
       });
+      // Surge to Victory: copy the exiled card and cast the copy
+      { const h = card(ev.iid); for (const e of (G.s.surge || []).filter((x) => x.turn === G.s.turn && h && h.controller === x.pid && card(x.iid) && card(x.iid).zone === 'exile')) out.push({ src: card(e.src) || h, controller: e.pid, trig: { event: 'combatDamagePlayer', raw: 'Surge to Victory: copy the exiled card', text: 'Copy the exiled card. You may cast the copy without paying its mana cost.', optional: false }, it: { iid: e.iid } }); }
+      // The Sea Devils III
+      { const h = card(ev.iid); for (const e of (G.s.seaDevils || []).filter((x) => x.turn === G.s.turn && h && hasSubtype(h, x.type))) out.push({ src: h, controller: e.pid, trig: { event: 'combatDamagePlayer', raw: 'The Sea Devils: deal that much damage to a creature', text: `~ deals ${ev.amount} damage to target creature that player controls.`, optional: false }, thatPlayer: ev.player, amount: ev.amount }); }
       // Kang Dynasty: "Until your next turn, whenever any of those creatures deals combat damage to a player, draw a card."
       const hitter = card(ev.iid);
       for (const e of (hitter && hitter.dmgDraw) || []) {
@@ -1420,6 +1428,13 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'youAttack') return;
         if (trig.anyAttacker) { out.push({ src: c, trig, thatPlayer: ev.controller }); return; }
+        if (trig.oppAttacksMe) {
+          if (ev.controller === c.controller) return;
+          const cb = G.s.combat || {};
+          const k = (cb.attackers || []).filter((a) => ((cb.targets || {})[a] || ev.defender) === c.controller).length;
+          if (k >= trig.oppAttacksMe) out.push({ src: c, trig, thatPlayer: ev.controller });
+          return;
+        }
         // Squall: per opponent attacked, if an attacker there has power or toughness equal to the chosen number
         if (trig.chosenNumberAtk) {
           if (c.controller !== ev.controller || c.chosenNumber === undefined) return;

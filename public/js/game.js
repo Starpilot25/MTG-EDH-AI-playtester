@@ -99,6 +99,7 @@ export async function beginTurn(pid) {
   s.turns = s.turns || Object.fromEntries(seats().map((k) => [k, 0]));
   s.turns[pid] = (s.turns[pid] || 0) + 1;
   s.active = pid;
+  s.lastTurnOf = { ...(s.lastTurnOf || {}), [pid]: s.turn }; // O-Kagachi: "during their last turn"
   s.landPlayed = false;
   s.landsPlayed = 0;
   s.extraLandThisTurn = 0;
@@ -165,6 +166,15 @@ async function beginMain1(pid) {
   const s = G.s;
   setStep('main1');
   hooks.render();
+  // Plasm Capture: "At the beginning of your next first main phase, add X mana in any combination of colors"
+  for (const d of (s.delayed || []).filter((x) => x.at === 'mainPhase' && x.pid === pid && x.after < s.turn)) {
+    s.delayed.splice(s.delayed.indexOf(d), 1);
+    if (d.kind === 'addAny') {
+      s.pool = s.pool || Object.fromEntries(seats().map((k) => [k, []]));
+      s.pool[pid].push(...Array.from({ length: d.n }, () => 'ANY'));
+      log(pid, `${d.why}: ${pid === 'p' ? 'you add' : 'adds'} ${d.n} mana of any colors.`);
+    }
+  }
   fire({ type: 'mainPhase', active: pid });
   await settle();
   if (G.s !== s) return;
@@ -1010,6 +1020,8 @@ function fireAttacks(attackers, controller, defender) {
     if (card(iid)) {
       const a = card(iid);
       a.attackedTurn = G.s.turn;
+      if (a.token && G.s.ts[controller]) G.s.ts[controller].tokenAttacked = true; // Neyali
+      { const al = (G.s.attackLog = G.s.attackLog || {}); if (!al[controller] || al[controller].turn !== G.s.turn) al[controller] = { turn: G.s.turn, targets: [] }; if (!al[controller].targets.includes(defOf(iid))) al[controller].targets.push(defOf(iid)); } // O-Kagachi
       const n = (G.s.combatNo || {})[controller] || 0;
       if (!a.attackLog || a.attackLog.n !== n) a.attackLog = { n, players: [] };
       a.attackLog.players.push(defOf(iid));

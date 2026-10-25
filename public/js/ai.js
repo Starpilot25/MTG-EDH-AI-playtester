@@ -867,7 +867,7 @@ function playLand(h) {
   if ((s.landsPlayed || 0) >= landsAllowed(AI)) return false;
   const lands = cardsIn(AI, 'hand').filter((c) => landOptions(AI, c).length);
   // lands from the top of the library or exile the AI may play
-  for (const c of [...cardsIn(AI, 'exile'), ...FOES().flatMap((o) => cardsIn(o, 'exile'))]) if (c.mayPlay === AI && (c.mayPlayUntil || 0) >= s.turn && isLand(c) && !c.castOnly && (!c.myTurnOnly || s.active === AI)) lands.push(c);
+  for (const c of [...cardsIn(AI, 'exile'), ...FOES().flatMap((o) => cardsIn(o, 'exile'))]) if (c.mayPlay === AI && (c.mayPlayUntil || 0) >= s.turn && isLand(c) && !c.castOnly && (!c.myTurnOnly || s.active === AI) && (!c.playIfTokenAttacked || (s.ts[AI] || {}).tokenAttacked)) lands.push(c);
   // Courser of Kruphix & co.: a land on top of its library
   { const t = libTop(AI, 1)[0]; if (t && isLand(card(t)) && topAccess(AI).lands) lands.push(card(t)); }
   // Crucible of Worlds, Ramunap Excavator, Mole Man: lands from its graveyard (played before the ones in hand)

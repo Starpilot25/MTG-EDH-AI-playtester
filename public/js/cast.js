@@ -436,7 +436,8 @@ export function castOptions(pid, c) {
     const anyMana = c.anyColorMana || (c.owner !== pid && cardsIn(pid, 'battlefield').some((x) => /You may spend mana as though it were mana of any color to cast spells you don't own/i.test(oracle(x))));
     // Ian Malcolm: only while he's on the battlefield, and one spell each turn
     const ianOk = !c.ianSrc || (card(c.ianSrc) && card(c.ianSrc).zone === 'battlefield' && (s.ianUsed || {})[pid + ':' + c.ianSrc] !== s.turn);
-    if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn && !isLandFace(f0) && (!c.myTurnOnly || s.active === pid) && ianOk) add({ mode: 'impulse', label: anyMana ? 'Cast from exile (mana of any color)' : 'Cast from exile', cost: anyMana ? anyColorCost(f0.manaCost || d.manaCost) : f0.manaCost || d.manaCost });
+    const neyaliOk = !c.playIfTokenAttacked || !!(s.ts[pid] || {}).tokenAttacked;
+    if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn && !isLandFace(f0) && (!c.myTurnOnly || s.active === pid) && ianOk && neyaliOk) add({ mode: 'impulse', label: anyMana ? 'Cast from exile (mana of any color)' : 'Cast from exile', cost: anyMana ? anyColorCost(f0.manaCost || d.manaCost) : f0.manaCost || d.manaCost });
     if (c.mayPlayFree === pid && (c.mayPlayFreeUntil ?? 1e9) >= s.turn && !isLandFace(f0)) add({ mode: 'hideaway', label: c.lifeOnCast ? `Cast for ${d.cmc || 0} life` : 'Cast for free', cost: '', free: true });
     if (c.warped) add({ mode: 'normal', label: 'Cast (warped earlier)', cost: f0.manaCost });
   }
@@ -487,6 +488,8 @@ function genericAdjust(pid, c, opt) {
     else if (/it targets/i.test(m[2])) delta -= +m[1];
   }
   if ((m = o.match(/Affinity for ([^\n(]+)/i))) delta -= countPhrase(pid, m[1].trim() + ' you control', helpers, c.iid) || 0;
+  // Mutated Cultist: "The next spell you cast this turn costs {1} less for each counter removed this way."
+  if (G.s.nextSpellLess && G.s.nextSpellLess[pid] && G.s.nextSpellLess[pid].turn === G.s.turn) delta -= G.s.nextSpellLess[pid].n;
   // Don & Raph: "the next noncreature spell you cast this turn has affinity for artifacts"
   else if (G.s.affinityNext && G.s.affinityNext[pid] === G.s.turn && !/\bCreature\b/.test((f.typeLine || d.typeLine || '').split('—')[0]) && !/\bLand\b/.test(f.typeLine || d.typeLine || '')) delta -= cardsIn(pid, 'battlefield').filter((x) => isType(x, 'Artifact')).length;
   if (/\bUndaunted\b/.test(o)) delta -= 1;
@@ -835,6 +838,7 @@ export async function castSpell(pid, iid, opt, env) {
   // Ancient Cellarspawn / Alex Wilder: what was paid, and when
   c.castTurn = s.turn;
   if (s.affinityNext && s.affinityNext[pid] === s.turn && !isCreature(c)) delete s.affinityNext[pid];
+  if (s.nextSpellLess && s.nextSpellLess[pid] && !opt.copy) delete s.nextSpellLess[pid];
   c.manaSpent = env.free || opt.free ? 0 : ((pay.payers || []).length + (pay.special || []).filter((x) => x.kind === 'pool' || x.kind === 'convoke').length);
   if (opt.removeCounters) removeCountersAmong(pid, opt.removeCounters, c);
   c.convokedBy = (pay.special || []).filter((x) => x.kind === 'convoke').map((x) => x.iid); // Lethal Scheme: "each creature that convoked it"
@@ -892,7 +896,7 @@ export async function castSpell(pid, iid, opt, env) {
     const tl = (d.faces[fIdx] || d.faces[0]).typeLine || d.typeLine;
     const k = s.copyNext.findIndex((e) => e.pid === pid && e.turn === s.turn && new RegExp(e.types.join('|'), 'i').test(tl));
     if (k >= 0) {
-      copies += 1;
+      copies += s.copyNext[k].n || 1;
       s.copyNext.splice(k, 1);
       log(pid, `${nameTag(c)} is copied.`);
     }
@@ -1177,6 +1181,7 @@ async function resolveSpell(pid, c, opt, info, env) {
     }
     if (opt.mode === 'warp') c.endOfTurn = 'warp';
     if (opt.mode === 'escape') {
+      c.escaped = true;
       const em = oracle(c).match(/escapes with (a|an|one|two|three|four|five|\d+) \+1\/\+1 counters?/i);
       if (em) addCounters(c, '+1/+1', { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5 }[em[1].toLowerCase()] || +em[1]);
       if (/escapes? with haste|it gains haste/i.test(oracle(c))) c.grants = [...(c.grants || []), 'haste'];
@@ -1801,6 +1806,8 @@ export async function activateAbility(pid, c, ab, env) {
       const copiers = abilityCopiers(pid);
       // Leori, Sparktouched Hunter: copy abilities of planeswalkers of the chosen type this turn
       { const lo = (s.leori || {})[pid]; if (lo && lo.turn === s.turn && (typeLine(c).split('—')[1] || '').includes(lo.type)) copiers.push('Leori'); }
+      // Repeated Reverberation: "…or activate a loyalty ability this turn, copy that spell or ability twice"
+      { const k = (s.copyNext || []).findIndex((e) => e.pid === pid && e.turn === s.turn && e.loyalty); if (k >= 0) { for (let i = 0; i < (s.copyNext[k].n || 1); i++) copiers.push('Repeated Reverberation'); s.copyNext.splice(k, 1); } }
       if (await announceAbility(pid, c, ab.text, env)) return true;
       let did;
       try {

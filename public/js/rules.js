@@ -1553,6 +1553,8 @@ export function damageMods(amount, src, victimPid, opts = {}) {
   if (po && po.turn === G.s.turn && srcCtl && srcCtl !== victimPid) {
     return 0;
   }
+  // Obscuring Haze: "Prevent all damage that would be dealt this turn by creatures your opponents control."
+  if (G.s.hazePrevent && src && srcCtl && isCreature(src) && Object.entries(G.s.hazePrevent).some(([p, t]) => t === G.s.turn && p !== srcCtl)) return 0;
   let a = amount;
   for (const pid of seats()) {
     for (const iid of G.s.players[pid].zones.battlefield) {

@@ -453,7 +453,7 @@ const RESET = ['chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', '
   'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'escaped', 'noUntapWhile', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -1219,6 +1219,7 @@ export function untapAll(pid) {
       continue;
     }
     if (c.noUntapUntil && c.noUntapUntil > G.s.turn) continue;
+    if (c.noUntapWhile && G.s.cards[c.noUntapWhile] && G.s.cards[c.noUntapWhile].zone === 'battlefield') continue; // Origin of Iron Man
     if (/doesn't untap during (?:your|its controller's) untap step/i.test(oracle(c)) && !/if/i.test(oracle(c).match(/[^.\n]*doesn't untap during[^.\n]*/i)[0])) continue;
     if (c.pacifiedBy && /doesn't untap/i.test(oracle(card(c.pacifiedBy) || c))) continue;
     // Auras: "Enchanted creature doesn't untap during its controller's untap step [unless that player is the monarch]"
