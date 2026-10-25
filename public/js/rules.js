@@ -1510,6 +1510,7 @@ export function canAttack(inst) {
   if (G.s && (G.s.cantAttack || []).some((x) => x.turn === G.s.turn && x.by === inst.controller) && seats().filter((p) => p !== inst.controller && G.s.players[p] && !G.s.players[p].lost).every((p) => (G.s.cantAttack || []).some((x) => x.turn === G.s.turn && x.by === inst.controller && x.player === p))) return false;
   if (G.s && inst.detainedUntil && inst.detainedUntil > G.s.turn) return false;
   if (G.s && inst.noAttackUntil && inst.noAttackUntil > G.s.turn) return false;
+  if (G.s && G.s.onlyAttackers && G.s.onlyAttackers.turn === G.s.turn && (G.s.combatNo || {})[inst.controller] >= 1 && !G.s.onlyAttackers.ids.includes(inst.iid) && (G.s.ts[inst.controller] || {}).attacked) return false; // Last Night Together
   if (hasKw(inst, 'defender') && !/can attack as though it didn't have defender/i.test(oracle(inst))) return false;
   if (/(?:^|\n|\. )[^.\n]*can't attack\.?(?:$|\n)/.test(oracle(inst)) && !/can't attack (?:alone|unless)/i.test(oracle(inst))) return false;
   if (inst.sick && !hasKw(inst, 'haste')) return false;
@@ -1553,6 +1554,7 @@ export function damageMods(amount, src, victimPid, opts = {}) {
   if (po && po.turn === G.s.turn && srcCtl && srcCtl !== victimPid) {
     return 0;
   }
+  if (opts.victim && opts.victim.preventDmgTurn === G.s.turn) return 0; // Mutational Advantage
   // Obscuring Haze: "Prevent all damage that would be dealt this turn by creatures your opponents control."
   if (G.s.hazePrevent && src && srcCtl && isCreature(src) && Object.entries(G.s.hazePrevent).some(([p, t]) => t === G.s.turn && p !== srcCtl)) return 0;
   let a = amount;

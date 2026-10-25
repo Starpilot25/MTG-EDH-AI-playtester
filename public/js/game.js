@@ -349,6 +349,16 @@ async function upkeepKeywords(pid) {
       if (G.s !== s) return;
       continue;
     }
+    // Power Pack: "At the beginning of your next upkeep, you may cast that card without paying its mana cost."
+    if (d.kind === 'castFreeExiled') {
+      const r = card(d.iid);
+      if (r && r.zone === 'exile') {
+        const yes = isAI(pid) ? true : await T.confirm(cardName(r), `Cast ${cardName(r)} without paying its mana cost?`);
+        if (yes) { s.exileOnResolve = { ...(s.exileOnResolve || {}), [d.iid]: true }; await castFree(pid, d.iid, envFor(pid), {}); }
+        if (G.s !== s) return;
+      }
+      continue;
+    }
     // Vanish into Memory: return it, then discard cards equal to its toughness
     if (d.kind === 'returnFromExile') {
       const r = card(d.iid);
@@ -1034,6 +1044,11 @@ async function endCombat(pid) {
       move(c.iid, 'hand');
       continue;
     }
+    if (c.endOfCombat === 'exile' && c.zone === 'battlefield') {
+      delete c.endOfCombat;
+      log(c.controller, `${nameTag(c)} is exiled at end of combat.`);
+      move(c.iid, 'exile');
+    }
     if (c.endOfCombat === 'sacrifice' && c.zone === 'battlefield') {
       delete c.endOfCombat;
       log(c.controller, `${nameTag(c)} is sacrificed at end of combat.`);
@@ -1112,6 +1127,18 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
   for (const ev of events) {
     const src = card(ev.from);
     if (!src) continue;
+    // Deflecting Palm
+    if (ev.type === 'player') {
+      const vp = ev.to || defender;
+      const pm = (s.palm || []).find((x) => x.pid === vp && x.turn === s.turn && x.srcIid === ev.from);
+      if (pm) {
+        s.palm.splice(s.palm.indexOf(pm), 1);
+        const ctl_ = src.controller;
+        changeLife(ctl_, -ev.amount);
+        lines.push(`${nameTag(src)}'s ${ev.amount} damage is prevented and dealt to ${seatName(ctl_)} (Deflecting Palm)`);
+        continue;
+      }
+    }
     if (ev.lifelink) changeLife(ev.controller, ev.amount, false);
     if (ev.amount > 0) {
       fire({ type: 'dealsDamage', iid: ev.from, amount: ev.amount, other: ev.type !== 'player' ? ev.to : null, player: ev.type === 'player' ? ev.to || defender : null, combat: true });

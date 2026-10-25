@@ -116,6 +116,16 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever you put one or more counters on ~, (.+)$/i))) { add('counterPut', q[1], { self: true, anyKindSelf: true }); continue; }
       // Invisible Woman, Sue Storm: "Whenever you put one or more +1/+1 counters on one or more other Heroes you control"
       if ((q = line.match(/^Whenever you put one or more ([+\-\d\/]+) counters on one or more other ([A-Z][\w-]+) you control, (.+)$/))) { add('counterPut', q[3], { anyKind: true, other: true, counterKindOnly: q[1], kindF: kindWords(q[2]), oncePerEvent: true }); continue; }
+      // Mirrorwing Dragon
+      if (/^Whenever a player casts an instant or sorcery spell that targets only ~, that player copies that spell for each other creature they control that the spell could target\. Each copy targets a different one of those creatures\.$/i.test(line)) { out.push({ event: 'becomesTarget', self: true, spellOnly: true, mirrorwing: true, raw: line, fn: async (ctx, hit, ev) => {
+        const sp = ev && ev.spell && card(ev.spell);
+        if (!sp || !/Instant|Sorcery/.test(DB[sp.def].faces[0].typeLine || '')) return [];
+        const caster = ev.controller;
+        const others = cardsIn(caster, 'battlefield').filter((c) => isCreature(c) && c.iid !== hit.src.iid);
+        const did = [];
+        for (const o of others) { const d = await resolveEffects(spellText(sp), { ...sp, controller: caster }, { me: caster, choosers: T.choosers, castFree: T.castFree, forcePick: o.iid, x: sp.xPaid || 0, forced: true }); did.push(`copy at ${nameTag(o)}${d.length ? ': ' + d.join('; ') : ''}`); }
+        return did;
+      } }); continue; }
       // Giggling Skitterspike
       if ((q = line.match(/^Whenever ~ attacks, blocks, or becomes the target of a spell, (.+)$/i))) { add('attacks', q[1], { self: true }); add('blocks', q[1], { self: true }); add('becomesTarget', q[1], { self: true, spellOnly: true }); continue; }
       // Trouble in Pairs
@@ -1357,7 +1367,7 @@ function matches(ev) {
       for (const e of (hitter && hitter.dmgDraw) || []) {
         if (G.s.turn >= e.until) continue;
         const src = card(e.src) || hitter;
-        out.push({ src, controller: e.pid, trig: { event: 'combatDamagePlayer', text: e.text || 'Draw a card.', raw: `dmgDraw:${e.src}`, optional: false } });
+        out.push({ src, controller: e.pid, trig: { event: 'combatDamagePlayer', text: e.text || 'Draw a card.', raw: `dmgDraw:${e.src}`, optional: false }, amount: ev.amount });
       }
     }
       each((c, trig) => {
@@ -2420,7 +2430,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
   if (trig.optional) {
     text = text.replace(/^you may /i, '');
     // the AI takes optional triggers unless they cost it something
-    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || (/^pay life equal to its mana value\. If you do, put it onto the battlefield/i.test(text) && G.s.players[controller].life >= 20) /* Lorcan */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
+    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^sacrifice up to (?:one|two|three) [A-Za-z]+\. When you sacrifice/i.test(text) /* Ravenous Rotbelly: the handler decides */ || (/^pay life equal to its mana value\. If you do, put it onto the battlefield/i.test(text) && G.s.players[controller].life >= 20) /* Lorcan */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
     if (!yes) return;
     ctx.lastMay = true; // "you may discard a card. If you do, draw two cards."
   }

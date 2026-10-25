@@ -453,7 +453,7 @@ const RESET = ['chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', '
   'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'escaped', 'noUntapWhile', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -579,6 +579,9 @@ export function move(iid, zone, opts = {}) {
     queueMicrotask(() => { if (G.s === s && s.cards[host] && s.cards[host].zone === 'battlefield') { log(s.cards[host].controller, `${nameTag(s.cards[host])} is sacrificed (its Equipment came off).`); sacrifice(host); } });
   }
   if (leavingField && c.origDef) endCopy(c);
+  // Lucius the Eternal: "When that creature leaves the battlefield, return this card from exile to the battlefield"
+  if (leavingField && c.luciusReturn) { const lu = c.luciusReturn; queueMicrotask(() => { const l = s.cards[lu]; if (G.s === s && l && l.zone === 'exile') { toBattlefield(lu, l.owner); log(l.owner, `${nameTag(l)} returns from exile.`); } }); }
+  if (zone === 'graveyard' && s.ts && s.ts[c.owner]) s.ts[c.owner].toGyCount = (s.ts[c.owner].toGyCount || 0) + 1; // Fraying Sanity
   if (leavingField || (zone !== 'battlefield' && fromZone !== 'battlefield')) {
     if (c.becameLand) delete c.nameOverride;
     for (const k of RESET) delete c[k];
@@ -1219,7 +1222,7 @@ export function untapAll(pid) {
       continue;
     }
     if (c.noUntapUntil && c.noUntapUntil > G.s.turn) continue;
-    if (c.noUntapWhile && G.s.cards[c.noUntapWhile] && G.s.cards[c.noUntapWhile].zone === 'battlefield') continue; // Origin of Iron Man
+    if (c.noUntapWhile && G.s.cards[c.noUntapWhile] && G.s.cards[c.noUntapWhile].zone === 'battlefield' && (!c.noUntapWhileCtl || G.s.cards[c.noUntapWhile].controller === c.noUntapWhileCtl)) continue; // Origin of Iron Man, Merchant Raiders
     if (/doesn't untap during (?:your|its controller's) untap step/i.test(oracle(c)) && !/if/i.test(oracle(c).match(/[^.\n]*doesn't untap during[^.\n]*/i)[0])) continue;
     if (c.pacifiedBy && /doesn't untap/i.test(oracle(card(c.pacifiedBy) || c))) continue;
     // Auras: "Enchanted creature doesn't untap during its controller's untap step [unless that player is the monarch]"

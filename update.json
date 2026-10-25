@@ -1,22 +1,22 @@
 {
-  "version": "1.3.135",
+  "version": "1.3.136",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "479eff8ac4274e0953447381f6cc6e46c84010eaa704bf783a197171e29685bb",
     "public/index.html": "1b926d6d8bb62767cf90d254f8c2bd2341e2700eef961028c7e57c44282a4abb",
     "public/js/ai.js": "ff291c3c8eeab3c45248eb804dbe74a79ba8019e475ca45fc456f791e8816638",
     "public/js/aicombat.js": "764e9bdb24e75f0ad8357c5a5429c4313ea46274f195c172f95fca2fbbc6815d",
-    "public/js/cast.js": "21a9b56f67f2a3468379c5931e20ecd343001a66ddf0778b4739d89d6033b192",
+    "public/js/cast.js": "d4ebfd874512ed20c54c81d018a3c6f8b3864b7931dfed5fd2586b69f3360e38",
     "public/js/data.js": "8abdc7322d1ddf1dd29c4fb82eb2e8c02836848893d505101b378aae4f529660",
     "public/js/dungeon.js": "a42de281cbd9fed4f5470e03f56483a7ce8a82c9a52434f30f90cdaf655ee096",
-    "public/js/effects.js": "c3943d82ad6e6c51f09ef1f0ef9bc1424c061a4b3fff53e52bb4fef26990bfbb",
-    "public/js/game.js": "c5b8a63019ec405e3e0c09314de9ba03b615e22028d4ed4698d03dff8a45f3a2",
+    "public/js/effects.js": "151035514578fb925dff3a459c96b49384442900b2d6809f9c2e7dd56526d4ff",
+    "public/js/game.js": "441d4a2d4cd98212a60948f6bbd769072e23ab0416dd13c3f746af08b8ced670",
     "public/js/main.js": "e1e058ee30df465247c5d098da0560b399f248ee0471c5aa1da9697777aae0b8",
-    "public/js/rules.js": "26741316380ae41673dc1eba4124e4f08c019a802d19e845022683553a83f2f6",
-    "public/js/state.js": "5b6251056b4066c214f4633f1bc9e7701418cab7c474ed393ac894ed4ecc5b44",
+    "public/js/rules.js": "402bd335340e7052317ff89c94e60ad26a59277eecdee2c175e66c0dfe111117",
+    "public/js/state.js": "41f282fb7165e74e00a12c06ab6d4c554ff40eb74ce441bd17d661be6b63d7ef",
     "public/js/statics.js": "63fb588822dcf8ac02f641fe97361d9d53ad0770a5a4916871ca8babe502d0a9",
-    "public/js/triggers.js": "b51343599dba83202b651faf1d753bfb7a25d03cdf5ee19cb222dc3c0195a4b7",
+    "public/js/triggers.js": "f283d5408ecff3e4f20c36b4a4709ce7c00c8c69ca6d94692475fbffccbaadce",
     "public/js/ui.js": "15b50de102e3bb71b17e825731f708aa84611716d0ded1c49cb383912f4fa001",
-    "public/patch-notes.json": "416d5172b11373ee60784cc2f3105d4caf1019829a5803e1a31a716604a6c05b"
+    "public/patch-notes.json": "492f548d48d026b8397bdb904d37a56ca44cec0fae813b60954cf42b5165bdd1"
   }
 }

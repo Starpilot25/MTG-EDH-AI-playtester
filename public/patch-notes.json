@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.136",
+    "title": "Precon sweep: 76 more cards",
+    "notes": [
+      "Another 90 precon cards checked; 76 needed fixes and all 90 now play by themselves.",
+      "Fixed: Commandeer, Creative Technique, Curse of Bounty, Day of the Dragons, Deadly Brew, Deathbringer Regent, Deflecting Palm, Demonic Covenant, Disorienting Choice, Diviner's Portent, Doomsday, Dream Pillager, Dredge the Mire, Duneblast, Empty the Laboratory, Espers to Magicite, Explosion of Riches, Final Parting, Fisher's Talent, Forgotten Ancient, Fraying Sanity, Geometric Nexus, Grim Reaper's Sprint, Halo Forager, Hate Mirage, Heavenly Blademaster, Heirloom Blade, Hideous Taskmaster, Hour of Eternity, Hulkling, Hunter's Insight, Illuna, Innocuous Researcher, Inscription of Abundance, Kamiz, Kari Zev, Keen Duelist, Kirtar's Wrath, Last Night Together, Let the Galaxy Burn, Lictor, Lily Bowen, Lucius the Eternal, Maester Seymour, March from Velis Vel, Marcus, Matter Reshaper, Me, the Immortal, Merchant Raiders, Mirrorwing Dragon, Mission Briefing, Mordant Dragon, Mutational Advantage, Mysterious Stranger, Nanogene Conversion, Narset, Enlightened Master, Necromancy, Neyam Shai Murad, Nuka-Nuke Launcher, Observed Stasis, Old Stickfingers, Orca, Out of the Tombs, Oversimplify, Power Pack, Predators' Hour, Provoke the Trolls, Radiant Performer, Rakshasa Debaser, Rampant Frogantua, Ravenous Rotbelly, Reinterpret, Revivify, Ride the Avalanche, Rise and Shine and Risen Reef.",
+      "d20 tables (\"Roll a d20 and add … 1—14 | … 15+ | …\") now roll and run the matching line.",
+      "Mirrorwing Dragon and Radiant Performer: each copy goes at a different creature or planeswalker. Players aren't included as copy targets yet."
+    ]
+  },
+  {
     "version": "1.3.135",
     "title": "I Am Iron Man",
     "notes": [

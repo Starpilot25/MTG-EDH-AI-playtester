@@ -537,6 +537,8 @@ export function effectiveCost(pid, c, opt) {
 // Can this card be cast right now (timing only)?
 export function timingOk(pid, c, opt) {
   const s = G.s;
+  if (s.noSpellsUntil && s.noSpellsUntil[pid] > s.turn) return false; // Innocuous Researcher
+  if (s.flashNext && s.flashNext[pid] === s.turn && !opt.sorcery) return true; // Ride the Avalanche
   const d = DB[c.def];
   const f = d.faces[opt.face || 0] || d.faces[0];
   if (opt.sorcery || !(instantFace(f) || hasKw(c, 'flash') || opt.mode === 'faceDown' && false)) {
@@ -837,6 +839,17 @@ export async function castSpell(pid, iid, opt, env) {
   applyPayment(pid, pay);
   // Ancient Cellarspawn / Alex Wilder: what was paid, and when
   c.castTurn = s.turn;
+  if (s.nukaRad && s.nukaRad[pid] >= s.turn && !opt.copy) { s.players[pid].counters.rad = (s.players[pid].counters.rad || 0) + 2; log(pid, `${pid === 'p' ? 'You get' : seatName(pid) + ' gets'} two rad counters (Nuka-Nuke Launcher).`); }
+  if (s.flashNext && s.flashNext[pid] === s.turn && !opt.copy) delete s.flashNext[pid];
+  if (s.avalanche && s.avalanche[pid] === s.turn && !opt.copy) {
+    delete s.avalanche[pid];
+    const k = DB[c.def].cmc || 0;
+    const pool = cardsIn(pid, 'battlefield').filter(isCreature);
+    if (k && pool.length) {
+      const [t] = await env.choosers[pid].pickCards({ prompt: `Ride the Avalanche: put ${k} +1/+1 counters on up to one creature`, cards: pool.map((x) => x.iid), min: 0, max: 1, purpose: 'counters', src: c, aiScore: (x) => cardValue(x) });
+      if (t) { addCounters(card(t), '+1/+1', k); log(pid, `Ride the Avalanche: ${k} +1/+1 counters on ${nameTag(card(t))}.`); }
+    }
+  }
   if (s.affinityNext && s.affinityNext[pid] === s.turn && !isCreature(c)) delete s.affinityNext[pid];
   if (s.nextSpellLess && s.nextSpellLess[pid] && !opt.copy) delete s.nextSpellLess[pid];
   c.manaSpent = env.free || opt.free ? 0 : ((pay.payers || []).length + (pay.special || []).filter((x) => x.kind === 'pool' || x.kind === 'convoke').length);
@@ -954,6 +967,8 @@ export async function castSpell(pid, iid, opt, env) {
     env.render();
     return true;
   }
+  // Commandeer: someone else gained control of this spell
+  if (s[stackSlot] && s[stackSlot].stolenBy) { const nb = s[stackSlot].stolenBy; log(nb, `${nameTag(c)} now resolves for ${nb === 'p' ? 'you' : seatName(nb)}.`); pid = nb; c.controller = nb; }
   const exileCountered = s[stackSlot] && s[stackSlot].exileCountered;
   const stealCast = s[stackSlot] && s[stackSlot].stealCast;
   const bounced = s[stackSlot] && s[stackSlot].bounced;
