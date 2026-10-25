@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.135",
+    "title": "I Am Iron Man",
+    "notes": [
+      "Fix: I Am Iron Man did nothing. Your target artifact or creature now becomes a 4/4 artifact creature with flying until end of turn, and you draw a card."
+    ]
+  },
+  {
     "version": "1.3.134",
     "title": "Odric chooses the blocks",
     "notes": [

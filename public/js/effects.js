@@ -8215,19 +8215,26 @@ on(/^create a treasure token, then you may sacrifice a noncreature artifact\. if
 }, { first: true, multi: true });
 // ---- scene box cards ----
 // Iron Man, Futurist Paragon
-on(/^target (artifact or creature|creature|artifact) becomes an artifact creature with base power and toughness (\d+)\/(\d+)(?: and gains ([a-z ,]+))?$/, async (m, env) => {
-  const pool = cardsIn(env.me, 'battlefield').filter((c) => (isCreature(c) || isType(c, 'Artifact')) && canTarget(c, env.me, env.src));
-  const all = seats().flatMap((p) => cardsIn(p, 'battlefield')).filter((c) => (m[1] === 'creature' ? isCreature(c) : m[1] === 'artifact' ? isType(c, 'Artifact') : isCreature(c) || isType(c, 'Artifact')) && canTarget(c, env.me, env.src));
-  if (!all.length) return;
-  const gain = (c) => (isCreature(c) ? (+m[2] + +m[3]) - (power(c) + toughness(c)) : 6 - cardValue(c) / 3);
-  const [p] = await env.choosers[env.me].pickCards({ prompt: `Target ${m[1]} becomes a ${m[2]}/${m[3]} artifact creature${m[4] ? ' with ' + m[4] : ''}`, cards: (isAI(env.me) ? pool : all).map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'animate', src: env.src, aiScore: (c) => gain(c) });
+on(/^(until end of turn, )?target (artifact or creature|creature|artifact) becomes an artifact creature with base power and toughness (\d+)\/(\d+)(?: and gains ([a-z ,]+))?$/, async (m, env) => {
+  // Iron Man, Futurist Paragon (for good); I Am Iron Man (until end of turn)
+  const temp = !!m[1];
+  const kind = m[2];
+  const P = +m[3], Tn = +m[4];
+  const fits = (c) => (kind === 'creature' ? isCreature(c) : kind === 'artifact' ? isType(c, 'Artifact') : isCreature(c) || isType(c, 'Artifact'));
+  const all = seats().flatMap((p) => cardsIn(p, 'battlefield')).filter((c) => fits(c) && canTarget(c, env.me, env.src));
+  if (!all.length) return env.did.push('has no target');
+  const mine = all.filter((c) => c.controller === env.me);
+  const gain = (c) => (isCreature(c) ? P + Tn - (power(c) + toughness(c)) : P + Tn - 2) + (c.attacking ? 3 : 0);
+  const [p] = await env.choosers[env.me].pickCards({ prompt: `Target ${kind} becomes a ${P}/${Tn} artifact creature${m[5] ? ' with ' + m[5] : ''}${temp ? ' until end of turn' : ''}`, cards: (isAI(env.me) && mine.length ? mine : all).map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'animate', src: env.src, aiScore: (c) => gain(c) });
   const c = p && card(p);
   if (!c) return;
-  addLayerFx(c, { until: true, types: { add: 'Artifact' } });
-  if (!isCreature(c)) addLayerFx(c, { until: true, types: { add: 'Creature' } });
-  c.setPT = { ts: nextStamp(), p: +m[2], t: +m[3] };
-  if (m[4]) c.grants = [...(c.grants || []), ...kwList(m[4])];
-  env.did.push(`${nameTag(c)} becomes a ${m[2]}/${m[3]} artifact creature`);
+  addLayerFx(c, { until: temp ? 'eot' : true, types: { add: 'Artifact' } });
+  if (!isCreature(c)) addLayerFx(c, { until: temp ? 'eot' : true, types: { add: 'Creature' } });
+  c.setPT = { ts: nextStamp(), p: P, t: Tn };
+  if (temp) c.setPTUntil = 'eot';
+  if (m[5]) { if (temp) c.eotGrants = [...(c.eotGrants || []), ...kwList(m[5])]; else c.grants = [...(c.grants || []), ...kwList(m[5])]; }
+  env.it = { iid: c.iid };
+  env.did.push(`${nameTag(c)} becomes a ${P}/${Tn} artifact creature${m[5] ? ' with ' + m[5] : ''}${temp ? ' until end of turn' : ''}`);
 }, { first: true });
 // Doc Ock: "target noncreature artifact you control becomes an 8/8 Robot Villain artifact creature in addition to its other types"
 on(/^target noncreature artifact you control becomes an? (\d+)\/(\d+) ([a-z ]+?) artifact creature in addition to its other types$/, async (m, env) => {
