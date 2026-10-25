@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.143",
+    "title": "Smarter Shuri copies",
+    "notes": [
+      "When the AI uses Shuri, Wakandan Inventor, it copies its best mana rock onto a weaker artifact instead of the other way round."
+    ]
+  },
+  {
     "version": "1.3.142",
     "title": "Shuri, Wakandan Inventor",
     "notes": [

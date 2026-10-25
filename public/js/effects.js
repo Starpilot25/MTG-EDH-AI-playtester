@@ -13311,9 +13311,10 @@ on(/^target (artifact|creature|permanent|enchantment) you control becomes a copy
   const pool = cardsIn(env.me, 'battlefield').filter(ok);
   if (pool.length < 2) return env.did.push(`needs two ${kind}s you control`);
   // the AI turns its least valuable one into its best one
-  const [a] = await env.choosers[env.me].pickCards({ prompt: `Choose the ${kind} that becomes a copy`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'copy', src: env.src, aiScore: (c) => -cardValue(c) });
+  const worth = (c) => cardValue(c) + (((manaAbility({ ...c, tapped: false, sick: false }) || {}).amount || 0) * 3);
+  const [a] = await env.choosers[env.me].pickCards({ prompt: `Choose the ${kind} that becomes a copy`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'copy', src: env.src, aiScore: (c) => -worth(c) });
   const rest = pool.filter((c) => c.iid !== a);
-  const [b] = await env.choosers[env.me].pickCards({ prompt: `${cardName(card(a))} becomes a copy of…`, cards: rest.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'copy', src: env.src, aiScore: (c) => cardValue(c) });
+  const [b] = await env.choosers[env.me].pickCards({ prompt: `${cardName(card(a))} becomes a copy of…`, cards: rest.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'copy', src: env.src, aiScore: (c) => worth(c) });
   const self = card(a), model = card(b);
   if (!self || !model || self.def === model.def) return env.did.push('nothing changes');
   const wasName = nameTag(self);
