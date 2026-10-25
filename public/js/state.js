@@ -161,12 +161,40 @@ export function newGame(pDeck, ...aiDecks) {
     for (const id of deck.cards) makeCard(id, pid, 'library');
     shuffleArr(s.players[pid].zones.library);
   }
+  // Turn order: everyone rolls a d20 (shown at the start of the game); highest goes first, ties roll again.
+  // s.rolls = rounds of { pid: value } (a round for each tie-break).
+  const name = (k) => (k === 'p' ? 'you' : s.players[k].name);
   if (!pod) {
-    s.first = Math.random() < 0.5 ? 'p' : 'ai';
-    log('sys', `Coin flip: <b>${s.first === 'p' ? 'you go' : 'the AI goes'} first</b>.`);
+    // 1v1: one random draw decides who starts (as the old coin flip did); the two dice are read from it
+    const r = Math.random();
+    s.first = r < 0.5 ? 'p' : 'ai';
+    const u = (r < 0.5 ? r * 2 : (r - 0.5) * 2) * 190; // 190 = the number of (high, low) pairs of d20s
+    let k = Math.floor(u);
+    let hi = 2;
+    while (k >= hi - 1) { k -= hi - 1; hi++; }
+    const lo = k + 1;
+    s.rolls = [{ [s.first]: hi, [s.first === 'p' ? 'ai' : 'p']: lo }];
+    log('sys', `Dice for turn order: you roll ${s.rolls[0].p}, the AI rolls ${s.rolls[0].ai}. <b>${s.first === 'p' ? 'You go' : 'The AI goes'} first</b>.`);
   } else {
-    s.first = list[Math.floor(Math.random() * list.length)];
-    log('sys', `Random start: <b>${s.first === 'p' ? 'you go' : s.players[s.first].name + ' goes'} first</b>. Turn order: ${list.map((k) => (k === 'p' ? 'you' : s.players[k].name)).join(' → ')}.`);
+    // pods: the rolls set the whole turn order, highest first (ties are broken by rolling again)
+    s.rolls = [];
+    const groups = [list.slice()];
+    const order = [];
+    const scores = {};
+    while (groups.length) {
+      const g = groups.shift();
+      if (g.length === 1) { order.push(g[0]); continue; }
+      const round = {};
+      for (const k of g) round[k] = 1 + Math.floor(Math.random() * 20);
+      s.rolls.push(round);
+      for (const k of g) scores[k] = (scores[k] || []).concat(round[k]);
+      const vals = [...new Set(g.map((k) => round[k]))].sort((a, b) => b - a);
+      groups.unshift(...vals.map((v) => g.filter((k) => round[k] === v)));
+    }
+    list.splice(0, list.length, ...order);
+    s.seats = list;
+    s.first = list[0];
+    log('sys', `Dice for turn order: ${order.map((k) => `${name(k)} ${scores[k].join(' then ')}`).join(', ')}. <b>${s.first === 'p' ? 'You go' : s.players[s.first].name + ' goes'} first</b>. Turn order: ${list.map(name).join(' → ')}.`);
   }
   for (const k of list) draw(k, 7, true);
   return s;
@@ -494,12 +522,14 @@ export function move(iid, zone, opts = {}) {
   }
   // commander replacement
   delete c.cmdAsk;
-  if (c.isCommander && !opts.noCommandZone && fromZone !== zone && fromZone !== 'command') {
+  // (a spell stays recorded in the zone it was cast from while it's on the stack: opts.fromStack marks a
+  // countered or resolving spell, so a commander cast from the command zone still gets the choice)
+  if (c.isCommander && !opts.noCommandZone && (opts.fromStack || (fromZone !== zone && fromZone !== 'command'))) {
     const auto = isAI(c.owner) || G.settings.commanderZone === 'auto';
     const gyEx = zone === 'graveyard' || zone === 'exile';
     if (auto && gyEx) zone = 'command';
     // the player decides: it goes there, and a prompt offers the command zone
-    else if (!auto && (gyEx || ((zone === 'hand' || zone === 'library') && (fromZone === 'battlefield' || fromZone === 'stack')))) c.cmdAsk = zone;
+    else if (!auto && (gyEx || ((zone === 'hand' || zone === 'library') && (fromZone === 'battlefield' || fromZone === 'stack' || opts.fromStack)))) c.cmdAsk = zone;
   }
   // a mutated pile moves together
   if (c.merged && c.merged.length && fromZone === 'battlefield' && zone !== 'battlefield') {

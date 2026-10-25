@@ -411,6 +411,7 @@ function renderAll() {
   const s = G.s;
   if (!s) return;
   document.querySelectorAll('.card.ghost').forEach((g) => (!drag || g !== drag.ghost) && g.remove());
+  document.body.classList.toggle('pod', multiplayer()); // before the boards are measured
   renderTop();
   renderOpp();
   renderMine();
@@ -824,7 +825,7 @@ function renderPod() {
   if (wrap.dataset.game !== String(s.seats.join(','))) {
     // a new game: start with every seat in the main window
     wrap.dataset.game = s.seats.join(',');
-    for (const [key] of [...popouts]) if (key === 'pod' || key.startsWith('seat:')) popIn(key, false, true);
+    for (const [key] of [...popouts]) if (key.startsWith('win:')) popIn(key, false, true);
     wrap.innerHTML = '';
   }
   for (const pid of list) {
@@ -855,7 +856,7 @@ function renderPod() {
     const attacked = cb && cb.by && cb.by !== pid ? (cb.attackers || []).filter((a) => targetPlayer((cb.targets || {})[a] || opp(cb.by)) === pid).length : 0;
     sec.classList.toggle('under-attack', !!attacked);
     const inWin = sec.ownerDocument !== document;
-    const popBtn = `<button class="popout-btn" data-act="${inWin ? 'popin' : 'popout'}" data-pid="seat:${pid}" title="${inWin ? `Put ${esc(pl.name)} back in the main window` : `Pop ${esc(pl.name)} out into its own window (for a second screen)`}">${inWin ? '⇲' : '⧉'}</button>`;
+    const popBtn = `<button class="popout-btn" data-act="seatmenu" data-pid="${pid}" title="Move ${esc(pl.name)} to its own window, another window, or back${inWin ? ' to the main window' : ''}">${inWin ? '⧉ ▾' : '⧉'}</button>`;
     const head = `<div class="pname"><span class="dot ${pid}"></span>${esc(pl.name)} <small>${esc(s.decks[pid].name)}</small>${s.active === pid && !out ? '<span class="turn-tag">Turn</span>' : ''}${popBtn}</div>`;
     const panel = sec.querySelector('.seat-panel');
     panel.innerHTML = out
@@ -2957,11 +2958,12 @@ export function bindEvents() {
     if (!a) return;
     if (a === 'popout') return popOut(b.dataset.pid);
     if (a === 'popin') return popIn(b.dataset.pid);
+    if (a === 'seatmenu') return seatMenu(b.dataset.pid, b);
     if (a === 'popall' || a === 'popinall') {
       const gm = document.getElementById('game-menu');
       if (gm) gm.hidden = true;
       if (a === 'popall') return popOut('pod');
-      for (const [k] of [...popouts]) if (k === 'pod' || k.startsWith('seat:')) popIn(k, false, true);
+      for (const [k] of [...popouts]) if (k.startsWith('win:')) popIn(k, false, true);
       for (const pid of seats().filter(isAI)) popIn('seat:' + pid, false, true);
       return render();
     }
@@ -3147,13 +3149,39 @@ function popOut(pid) {
   w.addEventListener('pagehide', () => popIn(pid, true));
   render();
 }
-function popOutSeats(key) {
-  const pids = key === 'pod' ? seats().filter((k) => isAI(k) && seatEl(k) && !seatInWindow(k)) : [key.slice(5)];
+// Opponent windows: any opponents can share a window. Each one is a popouts entry 'win:N' whose page holds a
+// .pod-grid.pod-win with the seats in it.
+let seatWinCount = 0;
+const seatWindows = () => [...popouts].filter(([k]) => k.startsWith('win:'));
+const seatsIn = (doc) => [...doc.querySelectorAll('.seat')].map((el) => el.dataset.seat);
+function retitle(doc) {
+  const names = seatsIn(doc).map((k) => seatName(k));
+  doc.title = `EDH Playtester — ${names.join(' & ') || 'Opponents'}`;
+}
+// close windows that have no seats left
+function closeEmptySeatWindows() {
+  for (const [k, pop] of seatWindows()) {
+    if (pop.doc.querySelector('.seat')) { retitle(pop.doc); continue; }
+    popouts.delete(k);
+    try { pop.win.close(); } catch (e) { void e; }
+  }
+}
+// move a seat to 'main', to 'new' (a window of its own) or into the window with key `to`
+function moveSeat(pid, to) {
+  const el = seatEl(pid);
+  if (!el || !G.s) return;
+  if (to === 'new') return newSeatWindow([pid]);
+  const dest = to === 'main' ? document.getElementById('pod-opps') : popouts.get(to) && popouts.get(to).doc.querySelector('.pod-grid.pod-win');
+  if (!dest) return;
+  dest.appendChild(dest.ownerDocument.adoptNode(el));
+  closeEmptySeatWindows();
+  render();
+}
+function newSeatWindow(pids) {
+  pids = pids.filter((k) => seatEl(k));
   if (!pids.length || !G.s) return;
-  // a seat already in another window leaves it first
-  for (const pid of pids) if (seatInWindow(pid)) popIn('seat:' + pid, false, true);
-  const title = key === 'pod' ? 'Opponents' : seatName(pids[0]);
-  const win = openBoardWindow(key, title);
+  const key = 'win:' + ++seatWinCount;
+  const win = openBoardWindow(key, pids.map((k) => seatName(k)).join(' & '));
   if (!win) return;
   const { w, doc, holder } = win;
   const grid = doc.createElement('section');
@@ -3161,35 +3189,51 @@ function popOutSeats(key) {
   holder.appendChild(grid);
   for (const pid of pids) grid.appendChild(doc.adoptNode(seatEl(pid)));
   popouts.set(key, { win: w, doc, ids: [] });
+  closeEmptySeatWindows();
+  retitle(doc);
   bindDoc(doc);
   w.addEventListener('resize', () => G.s && render());
   w.addEventListener('pagehide', () => popIn(key, true));
   render();
 }
+function popOutSeats(key) {
+  if (key === 'pod') return newSeatWindow(seats().filter((k) => isAI(k) && seatEl(k) && !seatInWindow(k)));
+  return newSeatWindow([key.slice(5)]);
+}
+// the menu on an opponent's ⧉ button: own window, join another window, or back to the main window
+function seatMenu(pid, btn) {
+  const el = seatEl(pid);
+  if (!el) return;
+  const here = el.ownerDocument;
+  const inWin = here !== document;
+  const alone = inWin && seatsIn(here).length === 1;
+  const items = [{ head: esc(seatName(pid)) }];
+  if (!alone) items.push({ label: 'Own window', fn: () => moveSeat(pid, 'new') });
+  for (const [k, pop] of seatWindows()) {
+    if (pop.doc === here) continue;
+    items.push({ label: `Join the window with ${esc(seatsIn(pop.doc).map((x) => seatName(x)).join(' & '))}`, fn: () => moveSeat(pid, k) });
+  }
+  if (inWin) items.push({ label: 'Back to the main window', fn: () => moveSeat(pid, 'main') });
+  menuDoc = here;
+  const r = btn.getBoundingClientRect();
+  openMenu(r.left, r.bottom + 4, items);
+}
 function popIn(pid, closing, quiet) {
   // one seat: bring it back from whichever window it's in
   if (pid.startsWith('seat:')) {
-    const seat = pid.slice(5);
-    const el = seatEl(seat);
+    const el = seatEl(pid.slice(5));
     const wrap = document.getElementById('pod-opps');
     if (el && wrap && el.ownerDocument !== document) {
-      const fromDoc = el.ownerDocument;
       wrap.appendChild(document.adoptNode(el));
-      // close a window that's now empty
-      for (const [k, pop] of [...popouts]) {
-        if (pop.doc !== fromDoc || pop.doc.querySelector('.seat')) continue;
-        popouts.delete(k);
-        try { pop.win.close(); } catch (e) { void e; }
-      }
+      closeEmptySeatWindows();
     }
-    if (popouts.has(pid) && closing) popouts.delete(pid);
     if (!quiet) render();
     return;
   }
   const pop = popouts.get(pid);
   if (!pop) return;
   popouts.delete(pid);
-  if (pid === 'pod' || pop.ids.length === 0) {
+  if (pid.startsWith('win:') || pop.ids.length === 0) {
     // a seats window: every seat in it goes back to the main window
     const wrap = document.getElementById('pod-opps');
     for (const el of [...pop.doc.querySelectorAll('.seat')]) if (wrap) wrap.appendChild(document.adoptNode(el));

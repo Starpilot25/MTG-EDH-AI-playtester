@@ -464,9 +464,82 @@ async function beginGame() {
   newGame(lastDecks.p, lastDecks.ai, ...(lastDecks.extra || []));
   showTable();
   render();
+  const g = G.s;
+  await diceDialog();
+  if (G.s !== g) return;
   aiMulligans();
   render();
   mulliganDialog();
+}
+
+// Everyone rolls a d20 for turn order (the rolls were made when the game was set up; this shows them).
+// The tumbling numbers are only for show, so they don't use the game's random numbers.
+function diceDialog() {
+  const s = G.s;
+  const rounds = s.rolls || [];
+  if (!rounds.length) return Promise.resolve();
+  const order = s.seats;
+  const who = (k) => (k === 'p' ? 'You' : s.players[k].name);
+  const flick = () => { const a = new Uint8Array(1); crypto.getRandomValues(a); return 1 + (a[0] % 20); };
+  const fast = (G.settings.aiSpeed || 650) <= 300;
+  return new Promise((resolve) => {
+    const dlg = openDialog(`<span class="eyebrow">Turn order</span><h3>Roll for turn order</h3>
+      <p class="hint">Everyone rolls a d20. Highest goes first${order.length > 2 ? ', then the next highest, and so on' : ''}. Ties roll again.</p>
+      <div class="dice-rounds"></div>
+      <p class="dice-result"></p>
+      <div class="btns"><button class="primary" id="dice-ok">Skip</button></div>`, { noClose: true });
+    const box = dlg.querySelector('.dice-rounds');
+    const res = dlg.querySelector('.dice-result');
+    const ok = dlg.querySelector('#dice-ok');
+    let done = false;
+    let timer = null;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearInterval(timer);
+      box.innerHTML = rounds.map((r, i) => roundHTML(r, i, true)).join('');
+      res.innerHTML = `<b>${who(s.first)} ${s.first === 'p' ? 'go' : 'goes'} first.</b>${order.length > 2 ? ` Turn order: ${order.map(who).join(' → ')}.` : ''}`;
+      ok.textContent = 'Continue';
+    };
+    const roundHTML = (r, i, settled, shown = {}) => `<div class="dice-round">${i ? '<span class="dice-tie">Tie — roll again</span>' : ''}
+      <div class="dice-row">${Object.keys(r).sort((a, b) => order.indexOf(a) - order.indexOf(b)).map((k) => {
+        const v = settled || shown[k] ? r[k] : flick();
+        const top = settled && r[k] === Math.max(...Object.values(r));
+        return `<div class="die-wrap ${top ? 'top' : ''}"><div class="d20 ${settled || shown[k] ? '' : 'rolling'} seat-${k}"><b>${v}</b></div><span>${esc(who(k))}</span></div>`;
+      }).join('')}</div></div>`;
+    // animate one round at a time: the dice tumble, then land one after another
+    let i = 0;
+    const playRound = () => {
+      if (done) return;
+      if (i >= rounds.length) return finish();
+      const r = rounds[i];
+      const keys = Object.keys(r).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      const shown = {};
+      const prev = rounds.slice(0, i).map((x, j) => roundHTML(x, j, true)).join('');
+      const t0 = Date.now();
+      const spin = fast ? 450 : 900;
+      const step = fast ? 120 : 260;
+      clearInterval(timer);
+      timer = setInterval(() => {
+        if (done) return clearInterval(timer);
+        const t = Date.now() - t0;
+        keys.forEach((k, n) => { if (t > spin + n * step) shown[k] = true; });
+        box.innerHTML = prev + roundHTML(r, i, false, shown);
+        if (keys.every((k) => shown[k])) {
+          clearInterval(timer);
+          box.innerHTML = prev + roundHTML(r, i, true);
+          i++;
+          setTimeout(playRound, fast ? 250 : 650);
+        }
+      }, 70);
+    };
+    ok.addEventListener('click', () => {
+      if (!done) return finish();
+      closeDialog(true);
+      resolve();
+    });
+    playRound();
+  });
 }
 
 function mulliganDialog() {

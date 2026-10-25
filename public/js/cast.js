@@ -925,7 +925,7 @@ export async function castSpell(pid, iid, opt, env) {
   s[stackSlot] = null;
   if (countered) {
     if (isAI(pid) && !counteredByEffect) log(opp(pid), `You counter ${nameTag(c)}.`);
-    move(iid, bounced ? 'hand' : exileCountered || exileInstead(iid) || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard');
+    move(iid, bounced ? 'hand' : exileCountered || exileInstead(iid) || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard', { fromStack: true });
     env.render();
     // Transcendent Dragon: "then you may cast it without paying its mana cost"
     if (stealCast && card(iid) && card(iid).zone === 'exile') {

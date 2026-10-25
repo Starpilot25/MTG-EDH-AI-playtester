@@ -1019,3 +1019,26 @@ body.pod #game-menu .pod-only { display: block; }
 .thinking.attacking { color: var(--ink); border-color: var(--danger); }
 /* pop-out seat panels: never squash the life total and zones */
 .seat-panel > * { flex-shrink: 0; }
+
+/* ============================== turn-order dice ============================== */
+.dice-rounds { display: grid; gap: 14px; margin: 14px 0 6px; }
+.dice-round { display: grid; gap: 8px; }
+.dice-tie { font: 700 12px var(--f-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--brass); }
+.dice-row { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
+.die-wrap { display: grid; justify-items: center; gap: 6px; font-size: 13px; color: var(--muted); min-width: 72px; }
+.die-wrap.top span { color: var(--brass); font-weight: 700; }
+.d20 {
+  --c: var(--you);
+  width: 64px; height: 64px; display: grid; place-items: center;
+  clip-path: polygon(50% 0, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 85%, white 15%), color-mix(in srgb, var(--c) 70%, black 30%));
+}
+.d20 b { font: 800 24px var(--f-display); color: #10201b; font-variant-numeric: tabular-nums; }
+.d20.seat-ai { --c: var(--ai); }
+.d20.seat-ai2 { --c: var(--ai2); }
+.d20.seat-ai3 { --c: var(--ai3); }
+.die-wrap.top .d20 { box-shadow: none; filter: drop-shadow(0 0 10px rgb(211 170 82 / 0.75)); }
+.d20.rolling { animation: d20-tumble 0.35s linear infinite; }
+@keyframes d20-tumble { 0% { transform: rotate(0) scale(1); } 50% { transform: rotate(180deg) scale(0.9); } 100% { transform: rotate(360deg) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .d20.rolling { animation: none; } }
+.dice-result { text-align: center; min-height: 1.4em; }

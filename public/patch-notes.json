@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.127",
+    "title": "Dice for turn order, group opponents in windows, countered commanders",
+    "notes": [
+      "Every game starts with each player rolling a d20 on screen. The highest roll goes first, and in a multiplayer game the turn order follows the rolls from highest to lowest. Ties roll again. Press Skip to see the result straight away.",
+      "Group opponents into windows however you like: each opponent's ⧉ button opens a menu to give it its own window, move it into a window that's already open (so, say, AI 2 and AI 3 share a window), or bring it back to the main window. Each window is named after the opponents in it and closes by itself when it's empty.",
+      "Fix: when your commander was countered as you cast it from the command zone, it went to the graveyard without offering to put it back in the command zone. You now get the choice, and an AI's countered commander goes back to its command zone.",
+      "Fix: in a multiplayer game the opponents could start out stacked two-over-one instead of side by side until the first card was played."
+    ]
+  },
+  {
     "version": "1.3.126",
     "title": "Iron Man, Titan of Innovation",
     "notes": [
