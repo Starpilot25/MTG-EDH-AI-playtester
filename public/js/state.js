@@ -35,6 +35,19 @@ let nextId = 1;
 
 // Game events waiting for triggered abilities (processed by triggers.js)
 export const eventQueue = [];
+// Avatar: "Whenever you waterbend, earthbend, firebend, or airbend" — remember which this turn
+export function noteBend(pid, kind) {
+  if (!G.s || !pid) return;
+  const t = G.s.ts && G.s.ts[pid];
+  if (t && !(t.bends || []).includes(kind)) t.bends = [...(t.bends || []), kind];
+  queueEvent({ type: 'bend', pid, kind });
+}
+// "Whenever you exert a creature"
+export function noteExert(c) {
+  if (!c) return;
+  c.noUntapUntil = nextTurnNumber(c.controller);
+  queueEvent({ type: 'exerted', iid: c.iid, controller: c.controller });
+}
 export function queueEvent(ev) {
   if (G.s && G.s.phase === 'play') eventQueue.push({ ...ev, turn: G.s.turn });
 }
@@ -434,7 +447,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',

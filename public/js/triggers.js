@@ -29,7 +29,7 @@ function interveningIfFails(hit, ev) {
 }
 import { venture, takeInitiative } from './dungeon.js';
 import { seats, opponents, isAI, isPlayer, multiplayer } from './state.js';
-import { isGoaded } from './state.js';
+import { isGoaded, noteBend, noteExert } from './state.js';
 import { seatName } from './state.js';
 
 // Filled in by ui.js: choosers for both players, a yes/no prompt, render, and casting hooks.
@@ -116,7 +116,21 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever you put one or more counters on ~, (.+)$/i))) { add('counterPut', q[1], { self: true, anyKindSelf: true }); continue; }
       // Invisible Woman, Sue Storm: "Whenever you put one or more +1/+1 counters on one or more other Heroes you control"
       if ((q = line.match(/^Whenever you put one or more ([+\-\d\/]+) counters on one or more other ([A-Z][\w-]+) you control, (.+)$/))) { add('counterPut', q[3], { anyKind: true, other: true, counterKindOnly: q[1], kindF: kindWords(q[2]), oncePerEvent: true }); continue; }
-      // Mikey & Leo / The Great Goblin
+      // Avatar Aang
+      if ((q = line.match(/^Whenever you waterbend, earthbend, firebend, or airbend, (.+)$/i))) { add('bend', q[1], {}); continue; }
+      // Rohirrim Chargers
+      if ((q = line.match(/^Whenever you exert a creature, (.+)$/i))) { add('exerted', q[1], {}); continue; }
+      // Vivi's Persistence / Endless Ranks of HYDRA (from the graveyard too)
+      if ((q = line.match(/^Whenever your commander enters or attacks, (.+)$/i))) { add('enters', q[1], { mine: true, commander: true }); add('attacks', q[1], { anyOfMine: true, commander: true }); continue; }
+      // Squall, Gunblade Duelist
+      if ((q = line.match(/^Whenever one or more creatures attack one of your opponents, if any of those creatures have power or toughness equal to the chosen number, (.+)$/i))) { add('youAttack', q[1], { chosenNumberAtk: true }); continue; }
+      // Seifer, Balamb Rival
+      if ((q = line.match(/^Whenever a creature attacking one of your opponents becomes blocked by (two|three) or more creatures, (.+)$/i))) { add('blocked', q[2], { attackingMyOpp: true, minBlockers: q[1] === 'two' ? 2 : 3 }); continue; }
+      // Loki, God of Mischief
+      if ((q = line.match(/^Whenever a player or permanent becomes the target of an ability you control, (.+)$/i))) { add('abilityTargets', q[1], {}); continue; }
+      // Firebender Ascension: handled where attack triggers are gathered (matches)
+      if ((q = line.match(/^Whenever a creature you control attacking causes a triggered ability of that creature to trigger, (.+)$/i))) { add('ascensionMarker', q[1], {}); continue; }
+
       if ((q = line.match(/^Whenever you put (?:a|one or more) counters? on (?:a|an|one or more) ([A-Z][\w-]+(?:, [A-Z][\w-]+)*,? or [A-Z][\w-]+|[^,]+?)(?: you control)?, (.+)$/))) { add('counterPut', q[2], { anyKind: true, kindF: kindWords(q[1]) }); continue; }
       // Abomination: "Whenever a Gamma or Villain you control deals combat damage to a player"
       if ((q = line.match(/^Whenever an? ([A-Z][\w-]+) or ([A-Z][\w-]+) you control deals combat damage to a player, (.+)$/))) { add('combatDamagePlayer', q[3], { anyOfMine: true, kind: `${q[1].toLowerCase()} or ${q[2].toLowerCase()}` }); continue; }
@@ -832,6 +846,19 @@ function keywordTriggersRaw(c) {
       card(c.iid).chosenType = t;
       return [`chooses ${t}`];
     }, 'Choose a creature type', { self: true, asEnters: true });
+  // Squall, Gunblade Duelist: "As Squall enters, choose a number."
+  if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a number/i.test(o.split(DB[c.def].name).join('~').split(String(DB[c.def].name).split(',')[0]).join('~')) && c.chosenNumber === undefined)
+    f('enters', async () => {
+      const mine = cardsIn(c.controller, 'battlefield').concat(cardsIn(c.controller, 'library')).filter(isCreature);
+      const counts = {};
+      for (const y of mine) { const p = parseInt(DB[y.def].faces[0].power, 10); if (!isNaN(p)) counts[p] = (counts[p] || 0) + 1; }
+      const best = +(Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || [3])[0];
+      const ch = T.choosers[c.controller] || T.choosers.p;
+      const k = ch.chooseNumber ? await ch.chooseNumber({ prompt: `${cardName(c)}: choose a number`, min: 0, max: 20, ai: best }) : best;
+      if (!card(c.iid)) return [];
+      card(c.iid).chosenNumber = +k || 0;
+      return [`chooses ${card(c.iid).chosenNumber}`];
+    }, 'Choose a number', { self: true, asEnters: true });
   // Serra's Emissary: "As ~ enters, choose a card type."
   if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a card type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenCardType)
     f('enters', async () => {
@@ -1018,14 +1045,29 @@ function keywordTriggersRaw(c) {
   // Firebending N: "Whenever this creature attacks, add {R} N times. This mana lasts until end of combat."
   // also when it's been given firebending (Sozin's Comet: "Each creature you control gains firebending 5 until end of turn.")
   const fbGranted = [...(c.eotGrants || []), ...(c.grants || [])].map((g) => String(g).match(/^firebending (\d+)$/i)).filter(Boolean).map((m) => +m[1]);
-  if (/(?:^|\n)Firebending (\d+)/i.test(o) || fbGranted.length) f('attacks', async () => {
+  if (/(?:^|\n|, )Firebending (\d+)/i.test(o) || fbGranted.length) f('attacks', async () => {
     const live = card(c.iid) || c;
     const more = [...(live.eotGrants || []), ...(live.grants || [])].map((g) => String(g).match(/^firebending (\d+)$/i)).filter(Boolean).reduce((a, m) => a + +m[1], 0);
-    const k = (+(o.match(/(?:^|\n)Firebending (\d+)/i) || [])[1] || 0) + more;
+    const k = (+(o.match(/(?:^|\n|, )Firebending (\d+)/i) || [])[1] || 0) + more;
     if (!k) return [];
     addMana(c.controller, Array(k).fill('R'));
+    noteBend(c.controller, 'firebend');
     return [`adds ${'{R}'.repeat(k)} (until end of combat)`];
   }, 'Firebending', { self: true });
+  // Exert: "You may exert ~ as it attacks. (When you do, …)"
+  {
+    const em = o.split(DB[c.def].name).join('~').replace(/\bthis creature\b/gi, '~').match(/(?:^|\n)You may exert ~ as it attacks\.(?: When you do, ([^\n(]+))?/i);
+    if (em) f('attacks', async (ctx) => {
+      const live = card(c.iid);
+      if (!live || live.zone !== 'battlefield') return [];
+      const yes = isAI(live.controller) ? true : await T.confirm(cardName(live), `Exert ${cardName(live)}? (It won't untap during your next untap step.)`);
+      if (!yes) return [];
+      noteExert(live);
+      const out_ = ['exerted'];
+      if (em[1]) out_.push(...(await resolveEffects(em[1].trim(), live, { ...ctx, me: live.controller, forced: true })));
+      return out_;
+    }, 'Exert', { self: true });
+  }
   if (kwNum(c, 'Hideaway')) f('enters', async (ctx) => {
     const k = kwNum(c, 'Hideaway');
     const ids = libTop(c.controller, k);
@@ -1367,6 +1409,19 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'youAttack') return;
         if (trig.anyAttacker) { out.push({ src: c, trig, thatPlayer: ev.controller }); return; }
+        // Squall: per opponent attacked, if an attacker there has power or toughness equal to the chosen number
+        if (trig.chosenNumberAtk) {
+          if (c.controller !== ev.controller || c.chosenNumber === undefined) return;
+          const cb = G.s.combat || {};
+          const defs = new Set();
+          for (const aid of cb.attackers || []) {
+            const a = card(aid);
+            const d = (cb.targets || {})[aid] || ev.defender;
+            if (a && a.controller === c.controller && opponents(c.controller).includes(d) && (power(a) === c.chosenNumber || toughness(a) === c.chosenNumber)) defs.add(d);
+          }
+          for (const d of defs) out.push({ src: c, trig, thatPlayer: d });
+          return;
+        }
         // Fangorn: "Whenever one or more Treefolk you control attack" — that much = how many
         if (trig.kindCount) {
           if (c.controller !== ev.controller) return;
@@ -1414,10 +1469,24 @@ function matches(ev) {
       });
       break;
     case 'blocks':
+    case 'bend':
+      each((c, trig) => trig.event === 'bend' && c.controller === ev.pid && out.push({ src: c, trig }));
+      break;
+    case 'exerted':
+      each((c, trig) => trig.event === 'exerted' && c.controller === ev.controller && out.push({ src: c, trig, it: { iid: ev.iid } }));
+      break;
+    case 'abilityTargets':
+      each((c, trig) => trig.event === 'abilityTargets' && c.controller === ev.controller && out.push({ src: c, trig }));
+      break;
     case 'blocked':
     case 'unblocked':
       each((c, trig) => {
         if (trig.event !== ev.type) return;
+        if (trig.attackingMyOpp) {
+          const a = card(ev.iid);
+          if (a && ev.defender && ev.defender !== c.controller && opponents(c.controller).includes(ev.defender) && (ev.blockers || []).length >= (trig.minBlockers || 1)) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
+          return;
+        }
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender, amount: (ev.blockers || []).length });
         else if (trig.anyOfMine && card(ev.iid) && card(ev.iid).controller === c.controller && (!trig.kind || matchesFilter(card(ev.iid), trig.kind))) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid }, amount: (ev.blockers || []).length });
       });
@@ -1707,6 +1776,27 @@ function matches(ev) {
       if (c) for (const trig of triggersOf(c)) if (trig.event === 'chapter' && trig.chapters.includes(ev.chapter)) out.push({ src: c, trig });
       break;
     }
+  }
+  // Firebender Ascension: an attacking creature's own triggered ability triggering puts a quest counter on it; at four, copy that ability
+  if (ev.type === 'attacks') {
+    const own = out.filter((h) => h.src && h.src.iid === ev.iid && h.trig && !h.trig.ascensionCopy && !h.trig.ascension);
+    const atk = card(ev.iid);
+    const asc = atk ? cardsIn(atk.controller, 'battlefield').filter((x) => /attacking causes a triggered ability of that creature to trigger/i.test(oracle(x))) : [];
+    for (const a of asc) for (const h of own) out.push({ src: a, thatPlayer: h.thatPlayer, trig: { event: 'attacks', ascension: true, raw: 'Whenever a creature you control attacking causes a triggered ability of that creature to trigger, put a quest counter on ~.', fn: async () => {
+      const live = card(a.iid);
+      if (!live || live.zone !== 'battlefield') return [];
+      addCounters(live, 'quest', 1);
+      const k = (live.counters || {}).quest || 0;
+      const out_ = [`quest counter (${k})`];
+      if (k >= 4 && card(h.src.iid)) {
+        const yes = isAI(live.controller) ? true : await T.confirm(cardName(live), `Copy ${cardName(h.src)}'s triggered ability?`);
+        if (yes) {
+          await resolveTrigger({ ...h, trig: { ...h.trig, ascensionCopy: true } }, live.controller, ev);
+          out_.push(`copies ${nameTag(h.src)}'s ability`);
+        }
+      }
+      return out_;
+    } } });
   }
   // The Ring's abilities on your Ring-bearer (level 2: loot on attack, 3: blockers are sacrificed, 4: opponents lose 3)
   {

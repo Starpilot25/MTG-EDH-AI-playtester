@@ -24,7 +24,7 @@ import { costDelta, countPhrase, repl } from './statics.js';
 import { helpers } from './rules.js';
 import { fire, settle, T } from './triggers.js';
 import { seats, opponents, isAI, multiplayer, allBattlefields, seatName } from './state.js';
-import { nextTurnNumber } from './state.js';
+import { nextTurnNumber, noteBend, noteExert } from './state.js';
 import { goad } from './state.js';
 import { seatNameCap } from './state.js';
 
@@ -828,6 +828,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (c.ianSrc && opt.mode === 'impulse') s.ianUsed = { ...(s.ianUsed || {}), [pid + ':' + c.ianSrc]: s.turn };
   info.x = env.x !== undefined ? env.x : pay.x || 0;
   if (info.waterbendX !== undefined) info.x = info.waterbendX;
+  if (info.waterbend) noteBend(pid, 'waterbend');
   // --- the spell is on the stack
   if (fromZone === 'command' && c.isCommander) s.players[pid].tax[c.iid] = (s.players[pid].tax[c.iid] || 0) + 1;
   const ts = s.ts[pid];
@@ -1425,7 +1426,7 @@ export async function payOtherCost(pid, text, src, env) {
       continue;
     }
     if (/^exert ~$/.test(p)) {
-      src.noUntapUntil = nextTurnNumber(src.controller);
+      noteExert(src);
       continue;
     }
     // unknown cost: let the player pay it by hand
@@ -1930,10 +1931,12 @@ export async function activateAbility(pid, c, ab, env) {
     applyPayment(pid, p);
     x = p.x || 0;
   } else if (ab.mana) {
-    const p = await env.pay(pid, ab.mana, name, { ability: true, exclude: ab.tap ? [c.iid] : [] });
+    const wbN = /Waterbend/i.test(ab.costText || '') ? +((ab.costText.match(/Waterbend \{(\d+)\}/i) || [])[1] || 0) : 0;
+    const p = await env.pay(pid, ab.mana, name, { ability: true, exclude: ab.tap ? [c.iid] : [], ...(wbN ? { waterbend: wbN, self: ab.tap ? c.iid : undefined } : {}) });
     if (!p) return false;
     applyPayment(pid, p);
   }
+  if (/Waterbend/i.test(ab.costText || '')) noteBend(pid, 'waterbend');
   // other costs
   if (ab.tapOther) {
     if (!(await payOtherCost(pid, `tap ${tapK} untapped ${ab.tapOther[2].toLowerCase().replace(/ you control$/, '')} you control`, c, env))) throw new Cancelled();
@@ -1972,7 +1975,7 @@ export async function activateAbility(pid, c, ab, env) {
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.putCounters[1].toLowerCase()] || +ab.putCounters[1] || 1;
     addCounters(c, ab.putCounters[2].toLowerCase(), k, { by: pid });
   }
-  if (ab.exert) c.noUntapUntil = nextTurnNumber(c.controller);
+  if (ab.exert) noteExert(c);
   c.usedAbilities[ab.raw] = ab.exhaust ? 'ever' : s.turn;
   log(pid, `${pid === 'p' ? 'You activate' : 'AI activates'} ${nameTag(c)}: <i>${esc(ab.costText.replace(/~/g, name.split(',')[0]))}</i>.`);
   const srcSnap = c;

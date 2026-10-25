@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.3.129",
+    "title": "Last scene box cards",
+    "notes": [
+      "All 240 scene-box cards now play by themselves.",
+      "Avatar Aang: draws a card whenever you waterbend, earthbend, firebend or airbend, and transforms once you've done all four in a turn. Bending is now tracked for every card that bends.",
+      "Exert works: creatures with \"You may exert this as it attacks\" ask you when they attack, and \"whenever you exert a creature\" triggers fire. Rohirrim Chargers finds an Equipment and attaches it.",
+      "Squall, Gunblade Duelist: choose a number as it enters, and it deals damage when an attacker's power or toughness matches.",
+      "Seifer: a creature attacking an opponent that gets blocked by two or more creatures gains deathtouch.",
+      "Loki, God of Mischief: draws a card the first time each turn one of your abilities targets a player or permanent.",
+      "Firebender Ascension: its Soldier token now has firebending, attacking creatures' own triggers add quest counters, and at four you can copy that trigger.",
+      "Vivi's Persistence (and similar cards like Endless Ranks of HYDRA and Spit Flame): the ability that returns it from your graveyard now works, and casting it no longer asks you to handle that line by hand.",
+      "Fix: activated abilities with a waterbend cost (like Aang's \"Waterbend {8}\") now let you tap artifacts and creatures to help pay."
+    ]
+  },
+  {
     "version": "1.3.128",
     "title": "Scene box cards",
     "notes": [

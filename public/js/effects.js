@@ -49,7 +49,7 @@ import { countPhrase, kwList, repl } from './statics.js';
 import { helpers, damageMods, redirectTarget, playerProtectedFrom, abilitiesGone } from './rules.js';
 import { venture, takeInitiative } from './dungeon.js';
 import { seats, opponents, isAI, isPlayer, multiplayer, livingSeats, inGame, seatName } from './state.js';
-import { nextTurnNumber } from './state.js';
+import { nextTurnNumber, noteBend } from './state.js';
 import { joinAttack } from './state.js';
 import { goad, goadUntil } from './state.js';
 import { leftOf, rightOf, turnOrderFrom } from './state.js';
@@ -154,6 +154,7 @@ export function spellText(c) {
     .replace(/Choose one\. If (?:this spell|~) was cast using teamwork, choose both instead\.\s*/i, () => (c.teamworkUsed ? 'Choose two —\n' : 'Choose one —\n'))
     .replace(/\([^)]*\)/g, '')
     .split('\n')
+    .filter((l) => !/^(?:When|Whenever|At)\b[^\n]*\b(?:return|put) (?:~|this card) from your graveyard\b/i.test(l.trim()))
     .filter((l) => l.trim() && !KEYWORD_LINE.test(l.trim()) && !/^(As an additional cost|[A-Z][A-Za-z ]+ \d+ — When you cast|You may pay [^.]* rather than pay|This spell costs|~ costs|You may cast ~|Spend only|This spell can't be countered|~ can't be countered|When you cast ~|When you cycle ~|Split second|Cast ~ only|Cast this spell only|Strive|Kicker|Flash$)/i.test(l.trim()))
     .join('\n');
 }
@@ -825,6 +826,7 @@ export function evalCond(cond, env) {
   if (/(?:this spell|~|it) was bargained/.test(c)) return !!env.bargained;
   if (/(?:this spell|~) was cast using teamwork/.test(c)) return !!env.teamwork;
   if (/^you were the monarch as the turn began$/.test(c)) return G.s.monarchAtStart === env.me;
+  if (/^you've done all four this turn$/.test(c)) return ((G.s.ts[env.me] || {}).bends || []).length >= 4;
   // the Ring: "if you chose a creature other than ~ as your Ring-bearer"
   if (/^you chose a creature other than ~ as your ring-bearer$/.test(c)) { const rb = G.s.players[env.me].ringBearer; return !!rb && (!env.src || rb !== env.src.iid); }
   // Avengers Assemble!
@@ -1149,6 +1151,8 @@ async function pickTargets(env, phrase, opts = {}) {
   }
   // "Whenever ~ becomes the target of a spell" (Goldspan Dragon, heroic-style cards)
   for (const r of kept) if (r.iid && card(r.iid) && card(r.iid).zone === 'battlefield') queueEvent({ type: 'becomesTarget', iid: r.iid, bySpell: Object.prototype.hasOwnProperty.call(env, 'castFrom'), controller: me });
+  // Loki, God of Mischief: "Whenever a player or permanent becomes the target of an ability you control"
+  if (kept.length && !Object.prototype.hasOwnProperty.call(env, 'castFrom')) queueEvent({ type: 'abilityTargets', controller: me });
   return kept;
 }
 
@@ -1423,6 +1427,7 @@ async function playerTarget(env, phrase, harm = true) {
     ...(env.forced ? { forced: true } : {}),
     prompt: oppsOnly ? 'Choose an opponent' : `Choose a player`, candidates: [], players: (oppsOnly ? opponents(env.me) : [...opponents(env.me), env.me]).filter((p) => !playerHexproof(p, env.me, env.src)), harm, src: env.src,
   });
+  if (pick && pick.player && !Object.prototype.hasOwnProperty.call(env, 'castFrom')) queueEvent({ type: 'abilityTargets', controller: env.me });
   return pick && pick.player ? [pick.player] : [];
 }
 
@@ -3317,7 +3322,7 @@ on(/^(.+?) unless you waterbend \{(\d+)\}$/, async (m, env) => {
   const { T } = await import('./triggers.js');
   const want = isAI(env.me) ? true : await env.choosers.p.confirm(cardName(env.src), `Waterbend {${k}} so you don't have to ${m[1].replace(/^then /i, '')}? (Tap artifacts and creatures to help.)`, {});
   const paid = want && T.payMana ? await T.payMana(env.me, `{${k}}`, `Waterbend {${k}}`, { waterbend: k }) : false;
-  if (paid) return env.did.push(`${who(env.me)} ${s_(env.me, 'waterbend')} {${k}}`);
+  if (paid) { noteBend(env.me, 'waterbend'); return env.did.push(`${who(env.me)} ${s_(env.me, 'waterbend')} {${k}}`); }
   await runSentence(m[1], env);
 }, { first: true });
 // Command Bridge: "sacrifice it unless you tap an untapped permanent you control"
@@ -4340,8 +4345,8 @@ async function makeTokens(env, desc, attachPhrase) {
     const subs = words.filter((w) => !colorNames[w] && !/^(colorless|and|legendary|snow)$/.test(w));
     const label = subs.length ? subs.join(' ').replace(/\b\w/g, (x) => x.toUpperCase()) : 'Creature';
     const kws = [];
-    const w = d.match(/with ([a-z ,]+?)(?:\.|$| and "| that| attached|"|$)/);
-    if (w) kws.push(...kwList(w[1]).filter((k) => /^(flying|trample|haste|vigilance|reach|lifelink|deathtouch|menace|first strike|double strike|defender|hexproof|indestructible|infect|prowess|ward \{\d\}|decayed|changeling|toxic \d)$/.test(k)));
+    const w = d.match(/with ([a-z0-9 ,{}]+?)(?:\.|$| and "| that| attached|"|$)/);
+    if (w) kws.push(...kwList(w[1]).filter((k) => /^(flying|trample|haste|vigilance|reach|lifelink|deathtouch|menace|first strike|double strike|defender|hexproof|indestructible|infect|prowess|ward \{\d\}|decayed|changeling|toxic \d|firebending \d+)$/.test(k)));
     defId = genericTokenDef(pw, tg, label, colors, { keywords: kws, types: mm[4].trim().replace(/\b\w/g, (x) => x.toUpperCase()) });
   }
   if (!defId && (mm = d.match(/\b(gingerbrute)\b/))) defId = namedTokenDef('Gingerbrute');
@@ -6050,6 +6055,7 @@ on(/^earthbend (\d+|x)$/, async (m, env) => {
   l.grants = [...(l.grants || []), 'haste'];
   l.earthbent = true;
   addCounters(l, '+1/+1', k);
+  noteBend(env.me, 'earthbend');
   env.did.push(`earthbends ${nameTag(l)} (${k} counters)`);
 });
 // --- copying a spell on the stack: "Copy it", "Copy target instant or sorcery spell"
@@ -8597,6 +8603,7 @@ on(/^target opponent exiles a nontoken creature they control, then they exile a 
 // Aang, Swift Savior: "airbend up to one other target creature or spell"
 on(/^airbend up to one other target creature(?: or spell)?$/, async (m, env) => {
   const pool = seats().flatMap((p) => cardsIn(p, 'battlefield')).filter((c) => isCreature(c) && (!env.src || c.iid !== env.src.iid) && !c.token && canTarget(c, env.me, env.src));
+  noteBend(env.me, 'airbend');
   if (!pool.length) return env.did.push('airbends nothing');
   const [p] = await env.choosers[env.me].pickCards({ prompt: 'Airbend up to one other creature (exile it; its owner may cast it for {2})', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'exile', src: env.src, aiScore: (c) => (c.controller === env.me ? -10 : cardValue(c)) });
   if (!p || (isAI(env.me) && card(p).controller === env.me)) return;
@@ -8664,6 +8671,26 @@ on(/^prevent all damage that would be dealt to you and planeswalkers you control
   G.s.preventOppDmg = { ...(G.s.preventOppDmg || {}), [env.me]: { turn: G.s.turn, src: env.src && env.src.iid, reflect: true } };
   env.did.push('prevents all damage other sources would deal to you this turn, and reflects it');
 }, { first: true, multi: true });
+// Rohirrim Chargers: "reveal cards … until you reveal an Equipment card. Put that card onto the battlefield attached to that creature, then put the rest on the bottom…"
+on(/^reveal cards from the top of your library until you reveal an? (equipment|aura) card\. put that card onto the battlefield attached to that creature, then put the rest on the bottom of your library in a random order$/, async (m, env) => {
+  const host = env.it && env.it.iid && card(env.it.iid);
+  const lib = zoneOf(env.me, 'library').slice().reverse();
+  const seen = [];
+  let hit = null;
+  for (const i of lib) { seen.push(i); if (hasSubtype(card(i), capWords(m[1]))) { hit = i; break; } }
+  seen.filter((i) => i !== hit).sort(() => Math.random() - 0.5).forEach((i) => move(i, 'library', { to: 'bottom' }));
+  if (!hit) return env.did.push(`reveals ${seen.length} cards, no ${m[1]}`);
+  toBattlefield(hit, env.me);
+  if (host && host.zone === 'battlefield' && card(hit)) attachTo(card(hit), host);
+  env.did.push(`reveals ${nameTag(card(hit))}${host && host.zone === 'battlefield' ? ` and attaches it to ${nameTag(host)}` : ''}`);
+}, { first: true, multi: true });
+// Seifer: "that attacking creature gains deathtouch until end of turn"
+on(/^that attacking creature gains ([a-z ,]+?) until end of turn$/, async (m, env) => {
+  const c = env.it && env.it.iid && card(env.it.iid);
+  if (!c || c.zone !== 'battlefield') return;
+  pumpEOT(c, { p: 0, t: 0, grants: kwList(m[1]) });
+  env.did.push(`${nameTag(c)} gains ${m[1]} until end of turn`);
+}, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {
