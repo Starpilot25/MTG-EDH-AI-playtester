@@ -99,6 +99,7 @@ function typeFxOf(inst, base) {
     fx.push({ ts: inst.addTypesTs, ty: { legendary: sup, subAdd: rest } });
   }
   for (const e of inst.layerFx || []) if (e.types) fx.push({ ts: e.ts, ty: e.types });
+  if (inst.typeWhileCounter && ((inst.counters || {})[inst.typeWhileCounter.counter] || 0) > 0) fx.push({ ts: 0, ty: { subAdd: inst.typeWhileCounter.type } }); // Xolatoyac
   // Metallic Mimic, Adaptive Automaton, Roaming Throne: "~ is the chosen type in addition to its other types."
   if (inst.chosenType && /(?:^|\n)(?:[^\n]*?) is the chosen type in addition to its other types/i.test(DB[inst.def].faces[inst.face || 0].oracle || ''))
     fx.push({ ts: 0, ty: { subAdd: inst.chosenType } });
@@ -1271,6 +1272,7 @@ function payCostRaw(cost, sources, opts = {}) {
     else if (u.kind === 'convoke') v = 30;
     else if (u.kind === 'improvise') v = 25;
     else if (u.kind === 'delve') v = 35;
+    else if (u.kind === 'lifeC') v = 60; // Channel (Yavimaya Bloomsage): life is the last resort
     else if (u.kind === 'waterbend') v = cardOf(u.iid) && isCreature(cardOf(u.iid)) ? 9 : 5;
     else {
       const cc = cardOf(u.iid);
@@ -1671,6 +1673,12 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
         if (!noPrevent && (t.counters || {}).shield) {
           t.counters.shield -= 1;
           if (!t.counters.shield) delete t.counters.shield;
+          continue;
+        }
+        if (t.dmgToCounters === G.s.turn) { // Gatta and Luzzu
+          t.counters = t.counters || {};
+          t.counters['+1/+1'] = (t.counters['+1/+1'] || 0) + ev.amount;
+          if (t === G.s.cards[t.iid]) queueEvent({ type: 'counterPut', iid: t.iid, kind: '+1/+1', n: ev.amount, controller: t.controller, by: t.controller });
           continue;
         }
         t.damage = (t.damage || 0) + ev.amount;

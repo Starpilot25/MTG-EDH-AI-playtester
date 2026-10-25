@@ -360,6 +360,7 @@ export function goad(c, by, until = goadUntil(by)) {
 }
 // is it goaded right now?
 export function isGoaded(c) {
+  if (c && c.goadWhile && G.s && (!G.s.cards[c.goadWhile] || G.s.cards[c.goadWhile].zone !== 'battlefield')) return false; // Hot Pursuit
   return !!(c && c.goaded && (!c.goaded.until || G.s.turn <= c.goaded.until));
 }
 // the players who goaded it (whose goad is still in effect)
@@ -454,7 +455,7 @@ const RESET = ['chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', '
   'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -1333,6 +1334,16 @@ export function stateBased() {
   }
   for (let pass = 0; pass < 4; pass++) {
     let changed = false;
+    // Thancred Waters: indestructible for as long as you control Thancred
+    for (const c of Object.values(s.cards)) {
+      if (c.zone !== 'battlefield' || !c.indestructibleFrom) continue;
+      const src = s.cards[c.indestructibleFrom];
+      if (!src || src.zone !== 'battlefield' || src.controller !== c.controller) {
+        const i = (c.grants || []).indexOf('indestructible');
+        if (i >= 0) c.grants.splice(i, 1);
+        delete c.indestructibleFrom;
+      }
+    }
     // "gain control of target creature for as long as ~ remains on the battlefield" (The Akroan War, Old Man of the Sea…)
     for (const c of Object.values(s.cards)) {
       if (c.zone !== 'battlefield' || !c.controlWhile) continue;
@@ -1585,6 +1596,8 @@ function tokenAdditions(defId, pid, n) {
 export const TOKEN_CAP = 1000;
 export function createToken(defId, pid, n = 1, opts = {}) {
   defId = canonicalToken(defId);
+  // Crafty Cutpurse: "each token that would be created under an opponent's control this turn is created under your control instead"
+  if (G.s && G.s.cutpurse) { const th = Object.entries(G.s.cutpurse).find(([k, t]) => t === G.s.turn && k !== pid && opponents(pid).includes(k)); if (th) pid = th[0]; }
   // Divine Visitation: "If one or more creature tokens would be created under your control, that many 4/4 white Angel creature
   // tokens with flying and vigilance are created instead."
   if (G.s && DB[defId] && /\bCreature\b/.test((DB[defId].faces[0].typeLine || DB[defId].typeLine || '').split('—')[0])) {

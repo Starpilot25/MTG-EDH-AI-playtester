@@ -339,6 +339,23 @@ async function upkeepKeywords(pid) {
       if (G.s !== s) return;
       continue;
     }
+    // Vanish into Memory: return it, then discard cards equal to its toughness
+    if (d.kind === 'returnFromExile') {
+      const r = card(d.iid);
+      if (r && r.zone === 'exile') {
+        toBattlefield(d.iid, d.pid || r.owner);
+        log(pid, `${nameTag(r)} returns to the battlefield.`);
+        const k = d.discardAfter ? Math.min(d.discardAfter, toughness(card(d.iid)) || d.discardAfter) : 0;
+        if (k) {
+          const { resolveEffects } = await import('./effects.js');
+          const did = await resolveEffects(`Discard ${k} cards.`, r, { me: d.discarder || pid, choosers: T.choosers, forced: true });
+          if (did.length) log(d.discarder || pid, did.join('; ') + '.');
+        }
+        await settle();
+        if (G.s !== s) return;
+      }
+      continue;
+    }
     const c = card(d.iid);
     if (!c || c.zone !== 'exile') continue;
     const yes = isAI(pid) ? true : await T.confirm('Rebound', `Cast ${cardName(c)} from exile without paying its mana cost?`);
@@ -457,6 +474,7 @@ async function endStepThings(pid) {
     }
     if (d.kind === 'returnFromExile' && (c.zone === 'exile' || c.zone === 'graveyard')) {
       toBattlefield(d.iid, d.pid || c.owner);
+      if (d.tapped && card(d.iid)) card(d.iid).tapped = true;
       if (d.counter && card(d.iid)) {
         const r = card(d.iid);
         if (isType(r, 'Planeswalker') && !isCreature(r)) r.counters.loyalty = (r.counters.loyalty || 0) + 1;

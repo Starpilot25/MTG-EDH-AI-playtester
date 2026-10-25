@@ -90,6 +90,11 @@ export function manaSources(pid, opts = {}) {
     if (relic) for (const c of cardsIn(pid, 'battlefield')) if (isCreature(c) && !c.tapped && /\bLegendary\b/.test(typeLine(c)) && !out.some((o) => o.iid === c.iid) && c.iid !== (opts.self || null))
       out.push({ iid: c.iid, colors: ['W', 'U', 'B', 'R', 'G'], amount: 1, relicVia: relic.iid });
   }
+  // Channel: "any time you could activate a mana ability, you may pay 1 life. If you do, add {C}."
+  if (G.s.lifeForC && G.s.lifeForC[pid] === G.s.turn) {
+    const k = Math.max(0, Math.min(10, G.s.players[pid].life - 1));
+    for (let i = 0; i < k; i++) out.push({ iid: 'life:' + i, colors: ['C'], amount: 1, kind: 'lifeC' });
+  }
   // Waterbend: untapped artifacts and creatures can each pay {1} of the waterbend cost
   if (opts.waterbend)
     for (const c of cardsIn(pid, 'battlefield')) if ((isCreature(c) || isType(c, 'Artifact')) && !c.tapped && c.iid !== opts.self && !out.some((o) => o.iid === c.iid)) out.push({ iid: c.iid, colors: [], amount: 1, kind: 'waterbend' });
@@ -129,6 +134,7 @@ export function applyPayment(pid, pay) {
     }
   }
   for (const sp of pay.special || []) {
+    if (sp.kind === 'lifeC') { changeLife(pid, -1, false); continue; }
     if (sp.kind === 'pool') usedPool.push(+String(sp.iid).slice(5));
     else if (sp.kind === 'delve') move(sp.iid, 'exile');
     else if (card(sp.iid)) tapPerm(card(sp.iid));
@@ -429,7 +435,7 @@ export function castOptions(pid, c) {
     // Ian Malcolm: only while he's on the battlefield, and one spell each turn
     const ianOk = !c.ianSrc || (card(c.ianSrc) && card(c.ianSrc).zone === 'battlefield' && (s.ianUsed || {})[pid + ':' + c.ianSrc] !== s.turn);
     if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn && !isLandFace(f0) && (!c.myTurnOnly || s.active === pid) && ianOk) add({ mode: 'impulse', label: anyMana ? 'Cast from exile (mana of any color)' : 'Cast from exile', cost: anyMana ? anyColorCost(f0.manaCost || d.manaCost) : f0.manaCost || d.manaCost });
-    if (c.mayPlayFree === pid && (c.mayPlayFreeUntil ?? 1e9) >= s.turn && !isLandFace(f0)) add({ mode: 'hideaway', label: 'Cast for free', cost: '', free: true });
+    if (c.mayPlayFree === pid && (c.mayPlayFreeUntil ?? 1e9) >= s.turn && !isLandFace(f0)) add({ mode: 'hideaway', label: c.lifeOnCast ? `Cast for ${d.cmc || 0} life` : 'Cast for free', cost: '', free: true });
     if (c.warped) add({ mode: 'normal', label: 'Cast (warped earlier)', cost: f0.manaCost });
   }
   return opts.filter((x) => x.cost !== undefined);
@@ -817,6 +823,12 @@ export async function castSpell(pid, iid, opt, env) {
       }
     }
   }
+  // Desecrate Reality (adamant): colorless mana from sources that only make {C}
+  c.colorlessSpent = (pay.payers || []).filter((i) => !String(i).startsWith('pool:') && card(i) && /Add \{C\}/.test(oracle(card(i))) && !/Add \{[WUBRG]\}|any color/i.test(oracle(card(i)))).reduce((a, i) => a + ((oracle(card(i)).match(/Add ((?:\{C\})+)/) || ['', '{C}'])[1].length / 3), 0);
+  // Unlucky Witness: "you may play one of those cards"
+  if (c.playOneOf) { for (const i of c.playOneOf.split(',')) if (i !== c.iid && card(i)) Object.assign(card(i), { mayPlay: null, playOneOf: null }); c.playOneOf = null; }
+  // Xander's Pact: pay life equal to its mana value instead
+  if (c.lifeOnCast && opt.mode === 'hideaway') { const lv = DB[c.def].cmc || 0; changeLife(pid, -lv, false); log(pid, `${pid === 'p' ? 'You pay' : 'The AI pays'} ${lv} life for ${nameTag(c)}.`); c.lifeOnCast = null; }
   applyPayment(pid, pay);
   // Ancient Cellarspawn / Alex Wilder: what was paid, and when
   c.castTurn = s.turn;
@@ -881,6 +893,7 @@ export async function castSpell(pid, iid, opt, env) {
   // Rain of Riches: "The first spell you cast each turn that mana from a Treasure was spent to cast has cascade."
   if (!opt.copy) {
     const usedTreasure = s.treasureSpent && s.treasureSpent.pid === pid && s.treasureSpent.turn === s.turn;
+    c.treasureSpent = !!usedTreasure; // Vazi
     s.treasureSpent = null;
     if (usedTreasure && !ts.rainCascade) {
       const rains = cardsIn(pid, 'battlefield').filter((x) => /The first spell you cast each turn that mana from a Treasure was spent to cast has cascade/i.test(oracle(x)));
@@ -1772,6 +1785,8 @@ export async function activateAbility(pid, c, ab, env) {
       if (cost > 0) queueEvent({ type: 'counterPut', iid: c.iid, kind: 'loyalty', n: gained, controller: c.controller });
       await settle();
       const copiers = abilityCopiers(pid);
+      // Leori, Sparktouched Hunter: copy abilities of planeswalkers of the chosen type this turn
+      { const lo = (s.leori || {})[pid]; if (lo && lo.turn === s.turn && (typeLine(c).split('—')[1] || '').includes(lo.type)) copiers.push('Leori'); }
       if (await announceAbility(pid, c, ab.text, env)) return true;
       let did;
       try {

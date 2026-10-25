@@ -116,6 +116,16 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever you put one or more counters on ~, (.+)$/i))) { add('counterPut', q[1], { self: true, anyKindSelf: true }); continue; }
       // Invisible Woman, Sue Storm: "Whenever you put one or more +1/+1 counters on one or more other Heroes you control"
       if ((q = line.match(/^Whenever you put one or more ([+\-\d\/]+) counters on one or more other ([A-Z][\w-]+) you control, (.+)$/))) { add('counterPut', q[3], { anyKind: true, other: true, counterKindOnly: q[1], kindF: kindWords(q[2]), oncePerEvent: true }); continue; }
+      // Giggling Skitterspike
+      if ((q = line.match(/^Whenever ~ attacks, blocks, or becomes the target of a spell, (.+)$/i))) { add('attacks', q[1], { self: true }); add('blocks', q[1], { self: true }); add('becomesTarget', q[1], { self: true, spellOnly: true }); continue; }
+      // Daredevil, Fearless Fighter
+      if ((q = line.match(/^Whenever a source you control deals damage to you, (.+)$/i))) { add('dealsDamage', q[1], { anySourceMine: true, toSelf: true }); continue; }
+      // Marvo, Deep Operative
+      if ((q = line.match(/^Whenever you win a clash, (.+)$/i))) { add('clashWon', q[1], {}); continue; }
+      // Turf War
+      if ((q = line.match(/^Whenever a creature deals combat damage to a player, (if .+)$/i))) { add('combatDamagePlayer', q[1], { anyCreatureAny: true }); continue; }
+      // Tetzin, Gnome Champion
+      if ((q = line.match(/^Whenever ~ or another double-faced artifact you control enters, (.+)$/i))) { add('enters', q[1], { self: true }); add('enters', q[1], { mine: true, other: true, dfcArt: true }); continue; }
       // Avatar Aang
       if ((q = line.match(/^Whenever you waterbend, earthbend, firebend, or airbend, (.+)$/i))) { add('bend', q[1], {}); continue; }
       // Rohirrim Chargers
@@ -1208,6 +1218,7 @@ function matches(ev) {
         if (trig.theirs && nc.controller === c.controller) return;
         if (trig.commander && !nc.isCommander) return;
         if (trig.nontoken && nc.token) return;
+        if (trig.dfcArt && !(DB[nc.def].doubleFaced && isType(nc, 'Artifact'))) return;
         if (!kindOk(nc, trig.kind)) return;
         if (trig.chosenType && !(c.chosenType && hasSubtype(nc, c.chosenType))) return;
         if (trig.notOwned && (nc.owner === c.controller || nc.token)) return;
@@ -1469,6 +1480,9 @@ function matches(ev) {
       });
       break;
     case 'blocks':
+    case 'clashWon':
+      each((c, trig) => trig.event === 'clashWon' && c.controller === ev.pid && out.push({ src: c, trig }));
+      break;
     case 'bend':
       each((c, trig) => trig.event === 'bend' && c.controller === ev.pid && out.push({ src: c, trig }));
       break;
@@ -1530,6 +1544,11 @@ function matches(ev) {
         if (trig.event !== ev.type) return;
         if (trig.noncombat && ev.combat) return;
         // Thor, Guardian of Midgard: any source you control dealing noncombat damage to an opponent
+        if (trig.anySourceMine && trig.toSelf) {
+          const s0 = card(ev.iid);
+          if (s0 && s0.controller === c.controller && ev.player === c.controller && ev.type === 'dealsDamage') out.push({ src: c, trig, amount: ev.amount, thatPlayer: c.controller });
+          return;
+        }
         if (trig.anySourceMine) {
           const s0 = card(ev.iid);
           if (s0 && s0.controller === c.controller && ev.player && ev.player !== c.controller) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player });

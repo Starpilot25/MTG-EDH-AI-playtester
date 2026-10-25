@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.130",
+    "title": "Precon sweep: 73 more cards",
+    "notes": [
+      "Another 90 precon cards checked; 73 of them needed fixes and all 90 now play by themselves.",
+      "Fixed: Crafty Cutpurse, Daredevil, Dead Man's Chest, Deluxe Dragster, Desecrate Reality, Disorder in the Court, Diviner of Mist, Donal, Echoing Assault, Epic Experiment, Fandaniel, Feral Ghoul, Fiery Encore, Finale of Promise, First Responder, Fists of Flame, Flood of Tears, Gatta and Luzzu, Genesis Wave, Gideon's Sacrifice, Giggling Skitterspike, Glamdring, Glint Raker, Goblin Razerunners, Goldwardens' Gambit, Guardian Project, Hakbal, Hot Pursuit, Ian the Reckless, Inversion Behemoth, Jailbreak, Jenson Carthalion, Kardur, King Solomon's Frogs, Launch the Fleet, Leori, Life of the Party, Make an Example, Marauding Raptor, Marvo, Summon: Kujata, Sword of Hours, Szarekh, Tales of the Ancestors, Tato Farmer, Tempting Contract, Tetzin, Thancred Waters, The Caves of Androzani, The Day of the Doctor, The Nipton Lottery, The War in Heaven, Three Dog, Thrilling Encore, Thwip!, Turf War, Unlucky Witness, Vanish into Memory, Vault 87, Vazi, Visions of Ruin, Wakening Sun's Avatar, Wall of Mourning, Wildfire Devils, Wilhelt, Wondrous Crucible, Xander's Pact, Xolatoyac, Yavimaya Bloomsage (Channel), Yuffie and Zimone's Hypothesis.",
+      "Fix: \"investigate X times\" made no Clues.",
+      "Fix: tokens made with firebending or other numbered keywords (\"with firebending 1\") now keep them.",
+      "Not enforced yet: Klauth's and Karolina Dean's limits on what their mana can be spent on."
+    ]
+  },
+  {
     "version": "1.3.129",
     "title": "Last scene box cards",
     "notes": [
