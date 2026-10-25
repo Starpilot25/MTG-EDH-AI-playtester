@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.126",
+    "title": "Iron Man, Titan of Innovation",
+    "notes": [
+      "Iron Man, Titan of Innovation: when he attacks you make a Treasure, then may sacrifice a noncreature artifact to search for an artifact with mana value 1 higher and put it onto the battlefield tapped. The AI only does it when it's an upgrade (e.g. Treasure → Sol Ring)."
+    ]
+  },
+  {
     "version": "1.3.125",
     "title": "Card sweep, batch 6",
     "notes": [

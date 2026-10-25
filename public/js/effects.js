@@ -8131,6 +8131,29 @@ on(/^copy that spell or ability(?:\. you may choose new targets for the copy)?$/
   if (env.src && /targets only ~/i.test(stripName(oracle(env.src), env.src))) return env.did.push('(copies it as it resolves)');
   return 'pass';
 }, { first: true, multi: true });
+// Iron Man, Titan of Innovation
+on(/^create a treasure token, then you may sacrifice a noncreature artifact\. if you do, search your library for an artifact card with mana value equal to 1 plus the sacrificed artifact's mana value, put it onto the battlefield tapped, then shuffle$/, async (m, env) => {
+  await runSentence('create a treasure token', env);
+  const lib = cardsIn(env.me, 'library').filter((c) => /\bArtifact\b/.test(DB[c.def].faces[0].typeLine || ''));
+  const hasUp = (mv) => lib.some((c) => (DB[c.def].cmc || 0) === mv + 1);
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => isType(c, 'Artifact') && !isCreature(c));
+  if (!pool.length) return;
+  // the AI upgrades only when the best artifact one mana value higher is worth more than what it gives up
+  const gain = (c) => { const mv = (c.token ? 0 : DB[c.def].cmc || 0) + 1; const best = lib.filter((x) => (DB[x.def].cmc || 0) === mv).map((x) => cardValue(x)); return best.length ? Math.max(...best) - (c.token ? -0.5 : cardValue(c)) : -100; };
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'You may sacrifice a noncreature artifact to search for one with mana value 1 higher', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'sacrifice', src: env.src, aiScore: (c) => gain(c) });
+  const c = p && card(p);
+  if (!c || (isAI(env.me) && gain(c) <= 0)) return;
+  const mv = (c.token ? 0 : DB[c.def].cmc || 0) + 1;
+  const nm = nameTag(c);
+  sacrifice(c.iid);
+  env.did.push(`sacrifices ${nm}`);
+  const cands = cardsIn(env.me, 'library').filter((x) => /\bArtifact\b/.test(DB[x.def].faces[0].typeLine || '') && (DB[x.def].cmc || 0) === mv);
+  if (cands.length) {
+    const [q] = await env.choosers[env.me].pickCards({ prompt: `Search for an artifact with mana value ${mv}`, cards: cands.map((x) => x.iid), min: 0, max: 1, purpose: 'tutor', src: env.src, aiScore: (x) => cardValue(x) });
+    if (q) { toBattlefield(q, env.me, { tapped: true }); env.did.push(`puts ${nameTag(card(q))} onto the battlefield tapped`); }
+  } else env.did.push(`finds no artifact with mana value ${mv}`);
+  shuffle(env.me);
+}, { first: true, multi: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {
