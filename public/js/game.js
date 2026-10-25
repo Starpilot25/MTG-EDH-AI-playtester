@@ -154,6 +154,14 @@ async function beginUpkeep(pid) {
   if (G.s !== s) return;
   await settle();
   if (G.s !== s) return;
+  // The Ninth Doctor: "you get an additional upkeep step after this step"
+  for (let guard = 0; guard < 5 && s.extraUpkeep && s.extraUpkeep.pid === pid && s.extraUpkeep.turn === s.turn; guard++) {
+    s.extraUpkeep = null;
+    log('sys', 'An additional upkeep step begins.');
+    fire({ type: 'upkeep', active: pid });
+    await settle();
+    if (G.s !== s) return;
+  }
   if (pid === 'p' && G.settings.everyStep) return hooks.render();
   await beginDraw(pid);
 }
@@ -498,6 +506,15 @@ async function endStepThings(pid) {
       log(c.owner, `${nameTag(c)} returns attached to ${nameTag(host)}.`);
       continue;
     }
+    // Ghoulish Impetus, Next of Kin, Lynde: an Aura comes back at the next end step
+    if (d.kind === 'returnAura' && c.zone === 'graveyard') {
+      const { attachAura } = await import('./effects.js');
+      const { T } = await import('./triggers.js');
+      if (d.player) { toBattlefield(d.iid, d.pid); card(d.iid).enchantedPlayer = d.player; log(d.pid, `${nameTag(c)} returns attached to ${d.player === 'p' ? 'you' : seatName(d.player)}.`); }
+      else if (d.host && card(d.host) && card(d.host).zone === 'battlefield') { toBattlefield(d.iid, d.pid); card(d.iid).attachedTo = d.host; log(d.pid, `${nameTag(c)} returns attached to ${nameTag(card(d.host))}.`); }
+      else { await attachAura(c, d.pid, T.choosers[d.pid], {}); }
+      continue;
+    }
     if (d.kind === 'returnFromExile' && (c.zone === 'exile' || c.zone === 'graveyard')) {
       toBattlefield(d.iid, d.pid || c.owner);
       if (d.tapped && card(d.iid)) card(d.iid).tapped = true;
@@ -820,6 +837,8 @@ export function attackTaxOf(x) {
 // Propaganda, Ghostly Prison, Sphere of Safety: what attacking costs
 export function attackTax(attackers, targets, attackerPid) {
   let total = 0;
+  // Summon: Yojimbo: "until your next turn, creatures can't attack you unless their controller pays {2} for each"
+  for (const t of (G.s.attackTaxUntil || []).filter((x) => x.until > G.s.turn && x.pid !== attackerPid)) for (const a of attackers) if (((targets || {})[a] || opp(attackerPid)) === t.pid) total += t.n;
   for (const def of opponents(attackerPid)) {
     for (const x of cardsIn(def, 'battlefield')) {
       const tx = attackTaxOf(x);
@@ -1200,6 +1219,7 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
         if (card(ev.from)) (G.s.ts[victim].combatDmgFromTypes = G.s.ts[victim].combatDmgFromTypes || []).push(typeLine(card(ev.from)));
       }
       if (card(ev.from)) card(ev.from).dmgPlayerTurn = G.s.turn;
+      if (s.rebuke && s.rebuke.some((x) => x.turn === s.turn && x.pid === victim)) import('./effects.js').then((m) => m.rebukeCheck(card(ev.from), victim));
       // toxic N / poisonous N: extra poison on top of the damage
       const o = oracle(src);
       const tox = o.match(/\bToxic (\d+)/i);

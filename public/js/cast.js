@@ -391,6 +391,7 @@ export function castOptions(pid, c) {
     // Hildibrand Manderville: "you may cast it from your graveyard as an Adventure until the end of your next turn"
     if (c.advFromGyUntil >= s.turn && c.advFromGyBy === pid && d.layout === 'adventure' && d.faces[1]) add({ mode: 'adventure', face: 1, label: `Cast ${d.faces[1].name} (Adventure, from graveyard)`, cost: d.faces[1].manaCost });
     if ((a = altCostAny(o0, 'Flashback'))) add({ mode: 'flashback', label: `Flashback ${a.mana}${a.other ? ' — ' + a.other : ''}`, cost: a.mana, other: a.other });
+    else if (c.grantedFlashback && c.grantedFlashbackTurn === s.turn) add({ mode: 'flashback', label: `Flashback ${c.grantedFlashback}`, cost: c.grantedFlashback });
     else if (c.tempFlashback === s.turn && !isLandFace(f0)) add({ mode: 'flashback', label: `Flashback ${f0.manaCost}`, cost: f0.manaCost });
     if ((a = altCostAny(o0, 'Escape'))) add({ mode: 'escape', label: `Escape ${a.mana}${a.other ? ', ' + a.other : ''}`, cost: a.mana, other: a.other });
     if ((a = altCost(o0, 'Jump-start') !== null ? f0.manaCost : null) !== null && /Jump-start/.test(o0)) add({ mode: 'jumpstart', label: 'Jump-start (discard a card)', cost: f0.manaCost });
@@ -540,6 +541,7 @@ export function effectiveCost(pid, c, opt) {
 export function timingOk(pid, c, opt) {
   const s = G.s;
   if (s.noSpellsUntil && s.noSpellsUntil[pid] > s.turn) return false; // Innocuous Researcher
+  if (s.noCreatureSpellsUntil && s.noCreatureSpellsUntil >= s.turn && /\b(?:Creature|Planeswalker)\b/.test(((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '').split('—')[0])) return false; // Single Combat
   if (s.flashNext && s.flashNext[pid] === s.turn && !opt.sorcery) return true; // Ride the Avalanche
   const d = DB[c.def];
   const f = d.faces[opt.face || 0] || d.faces[0];

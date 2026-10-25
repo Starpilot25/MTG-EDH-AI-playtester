@@ -453,7 +453,7 @@ const RESET = ['chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', '
   'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'loseIndestructibleTurn', 'monarchOnDeath', 'enlistedTurn', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'dutyVs', 'vowVs', 'raggerVs', 'eggFor', 'secretOpp', 'grantedUnearth', 'grantedUnearthTurn', 'grantedFlashback', 'grantedFlashbackTurn', 'kodamaPut', 'mustBlockTurn', 'loseIndestructibleTurn', 'monarchOnDeath', 'enlistedTurn', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -469,6 +469,11 @@ export function move(iid, zone, opts = {}) {
   let requested = zone;
   // Samwise the Stouthearted: "a permanent card in your graveyard that was put there from the battlefield this turn"
   if (fromZone === 'battlefield' && zone === 'graveyard') c.fromBfTurn = s.turn;
+  if (zone === 'graveyard') c.gyTurn = s.turn; // Garna: "put there from anywhere this turn"
+  // Lynde, Cheerful Tormentor: a Curse put into your graveyard from the battlefield returns attached to you at the next end step
+  if (fromZone === 'battlefield' && zone === 'graveyard' && /\bCurse\b/.test(DB[c.def].typeLine || '') && Object.values(s.cards).some((x) => x.zone === 'battlefield' && x.controller === c.owner && /Whenever a Curse is put into your graveyard from the battlefield, return it to the battlefield attached to you/i.test(DB[x.def].faces[0].oracle || ''))) (s.delayed = s.delayed || []).push({ at: 'endStep', kind: 'returnAura', iid: c.iid, pid: c.owner, player: c.owner });
+  // Xira: "When that creature dies, if it has an egg counter on it, draw a card and create a 1/1 black Insect creature token with flying."
+  if (fromZone === 'battlefield' && zone === 'graveyard' && (c.counters || {}).egg > 0 && c.eggFor) { const ep = c.eggFor; queueMicrotask(() => { if (G.s !== s) return; draw(ep, 1, true); createToken(genericTokenDef(1, 1, 'Insect', ['B'], { keywords: ['flying'] }), ep, 1); log(ep, `Xira: ${ep === 'p' ? 'you draw' : 'draws'} a card and ${ep === 'p' ? 'create' : 'creates'} an Insect.`); }); }
   // Cass, Hand of Vengeance: remember what was attached as it left
   if (fromZone === 'battlefield' && zone !== 'battlefield') c.lastAttached = Object.values(s.cards).filter((x) => x.attachedTo === iid && x.zone === 'battlefield').map((x) => x.iid);
   // replacements: finality counters, "exile it if it would leave", Rest in Peace and friends

@@ -100,7 +100,7 @@ function parseTriggerText(text, speed) {
       const oncePerTurn = /This ability triggers only once each turn\.?|Do this only once each turn\.?/i.test(t);
       t = t.replace(/\s*(?:This ability triggers|Do this) only once each turn\.?/i, '');
       // Bloodghast, Darklight Phoenix, Interceptor: abilities that work while the card is in its owner's graveyard
-      const fromGy = !extra.self && !extra.attachedTo && /\b(?:return|put) (?:~|this card) from your graveyard\b|\bif (?:~|this card) is in your graveyard\b/i.test(t) && !/return it to the battlefield tapped and attacking/i.test(t);
+      const fromGy = !extra.self && !extra.attachedTo && /\b(?:return|put|exile) (?:~|this card) from your graveyard\b|\bif (?:~|this card) is in your graveyard\b/i.test(t) && !/return it to the battlefield tapped and attacking/i.test(t);
       out.push({ event, text: t, optional: /^you may\b/i.test(t), raw: line, oncePerTurn, ...(/Do this only once each turn/i.test(effect) ? { doOnce: true } : {}), ...(fromGy ? { fromGy } : {}), ...extra });
     };
     // Animate Dead: the leaves part is written inside the enters paragraph
@@ -116,6 +116,17 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever you put one or more counters on ~, (.+)$/i))) { add('counterPut', q[1], { self: true, anyKindSelf: true }); continue; }
       // Invisible Woman, Sue Storm: "Whenever you put one or more +1/+1 counters on one or more other Heroes you control"
       if ((q = line.match(/^Whenever you put one or more ([+\-\d\/]+) counters on one or more other ([A-Z][\w-]+) you control, (.+)$/))) { add('counterPut', q[3], { anyKind: true, other: true, counterKindOnly: q[1], kindF: kindWords(q[2]), oncePerEvent: true }); continue; }
+      // Glowing One
+      if ((q = line.match(/^Whenever a player mills a nonland card, (.+)$/i))) { add('mill', q[1], { anyPlayer: true, kind: 'nonland', perCard: true }); continue; }
+      // Lynde, Cheerful Tormentor
+      if ((q = line.match(/^Whenever a Curse is put into your graveyard from the battlefield, (.+)$/i))) { add('dies', q[1], { kind: 'curse', anyPermanent: true, ownedByMe: true }); continue; }
+      // Overencumbered
+      if ((q = line.match(/^At the beginning of combat on enchanted opponent's turn, (.+)$/i))) { add('beginCombat', q[1], { whose: 'enchanted' }); continue; }
+      // Parnesse (first ability: like ward, handled where targets are chosen)
+      if (/^Whenever you or a permanent you control becomes the target of a spell or ability an opponent controls, counter that spell or ability unless that player pays (\d+) life\.$/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
+      // Unbound Flourishing
+      if ((q = line.match(/^Whenever you cast an instant or sorcery spell or activate an ability, if that spell's mana cost or that ability's activation cost contains \{X\}, (.+)$/i))) { add('cast', q[1], { spell: 'instant or sorcery', mine: true, hasX: true }); continue; }
+      if ((q = line.match(/^Whenever you cast a permanent spell with a mana cost that contains \{X\}, (.+)$/i))) { add('cast', q[1], { spell: 'permanent', mine: true, hasX: true }); continue; }
       // Storm, Queen of Wakanda
       if ((q = line.match(/^Whenever a creature with flying attacks you, (.+)$/i))) { add('attacks', q[1], { attacksMeFlying: true }); continue; }
       // The Fantasticar
@@ -123,7 +134,9 @@ function parseTriggerText(text, speed) {
       // Zurzoth
       if ((q = line.match(/^Whenever an opponent draws their first card each turn, (.+)$/i))) { add('draw', q[1], { who: 'an opponent', nthDraw: 1 }); continue; }
       // Mirrorwing Dragon
-      if (/^Whenever a player casts an instant or sorcery spell that targets only ~, that player copies that spell for each other creature they control that the spell could target\. Each copy targets a different one of those creatures\.$/i.test(line)) { out.push({ event: 'becomesTarget', self: true, spellOnly: true, mirrorwing: true, raw: line, fn: async (ctx, hit, ev) => {
+      // Mirrorwing Dragon / Zada: copied as the spell picks its target (effects.js pickTargets), not as a trigger
+      if (/^Whenever (?:a player casts|you cast) an instant or sorcery spell that targets only ~, (?:that player copies|copy) that spell for each other creature (?:they|you) control that the spell could target\. Each copy targets a different one of those creatures\.$/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
+      if (false) { out.push({ event: 'becomesTarget', self: true, spellOnly: true, mirrorwing: true, raw: line, fn: async (ctx, hit, ev) => {
         const sp = ev && ev.spell && card(ev.spell);
         if (!sp || !/Instant|Sorcery/.test(DB[sp.def].faces[0].typeLine || '')) return [];
         // "targets only this creature": the spell chose no other target
@@ -1206,7 +1219,7 @@ function gyTriggerCards() {
         const txt = (DB[c.def].faces || []).map((f) => f.oracle || '').join('\n');
         const nm = String(DB[c.def].name || '').split(' // ')[0];
         const names = [nm, nm.split(',')[0]].filter(Boolean).map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-        k = new RegExp(`(?:^|\\n)(?:[^\\n]* — )?(?:When|Whenever|At)\\b[^\\n]*\\b(?:(?:return|put) (?:this card|${names}) from your graveyard|is in your graveyard)`, 'i').test(txt);
+        k = new RegExp(`(?:^|\\n)(?:[^\\n]* — )?(?:When|Whenever|At)\\b[^\\n]*\\b(?:(?:return|put|exile) (?:this card|${names}) from your graveyard|is in your graveyard)`, 'i').test(txt);
         gyTrigCache.set(c.def, k);
       }
       if (k) out.push(c);
@@ -1667,6 +1680,7 @@ function matches(ev) {
         if (trig.second && (trig.spell ? nthOfKind() !== 2 : ts.spells !== 2)) return;
         if (trig.nth && ts.spells !== trig.nth) return; // Captain Ripley Vance: your third spell
         if (trig.nthNoncreature && nthOfKind() !== trig.nthNoncreature) return; // The Fantasticar
+        if (trig.hasX && !/\{X\}/.test((d.faces[(sc && sc.castFace) || 0] || d.faces[0]).manaCost || d.manaCost || '')) return; // Unbound Flourishing
         if (!spellMatches(trig.spell, d, sc)) return;
         // "a spell with mana value 4 or greater / 2 or less"
         if (trig.mvMin !== undefined && (d.cmc || 0) < trig.mvMin) return;

@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.138",
+    "title": "Precon sweep finished: 92 more cards",
+    "notes": [
+      "The last 99 precon cards checked; 92 needed fixes. Every card in the precon sweep now plays by itself.",
+      "Fixed: Gandalf, Westward Voyager, Garna, Geth's Summons, Ghost Ark, Ghoulish Impetus, Glowing One, Gorex, Grave Endeavor, Great Unclean One, Grey Host Reinforcements, Grime Gorger, Hammer of Nazahn, Heartless Conscription, Hellish Rebuke, Hexplate Wallbreaker, Hunter's Prowess, Illusionist's Gambit, Immortal Obligation, Imp's Mischief, Isareth, Ixhel, Jason Bright, Jaya's Phoenix, Kindred Summons, Kodama of the East Tree, Kozilek's Return, Lynde, Maelstrom Archangel, March of Progress, Mask of Griselbrand, Master of Ceremonies, Mirror-Style Master, Moira, Ms. Bumbleflower, Muse Vortex, Necromantic Selection, Negative Zone Portal, Next of Kin, Otherworldly Escort, Overencumbered, Paladin Elizabeth Taggerdy, Parnesse, Phantom Steed, Predatory Rampage, Promise of Loyalty, Rashmi, Redemptor Dreadnought, Rejoin the Fight, Rhino's Rampage, Rite of the Raging Storm, Rose Room Treasurer, Scholarship Sponsor, Selfless Police Captain, Sepulchral Primordial, Shadow Kin, Sigarda's Vanguard, Silver Surfer, Galactus's Herald, Single Combat, Sinister Waltz, Skittering Cicada, Song of Inspiration, Spectral Arcanist, Stalking Leonin, Star Athlete, Sudden Salvation, Summon: Yojimbo, Sword of Hearth and Home, Tanazir Quandrix, Tempt with Discovery, Terrific Team-Up, The Brothers' War, The Curse of Fenric, The Fugitive Doctor, The Immortal Sun, The Lord of Pain, The Ninth Doctor, The Parting of the Ways, The Seventh Doctor, The War Games, The Wedding of River Song, Thieving Skydiver, Tragic Arrogance, Triumph of Saint Katherine, Twinflame, Ultimate Nullification, Unbound Flourishing, Vault 101, Victor Timely, Vindictive Lich, Wave of Reckoning, Wild Ricochet and Xira.",
+      "Mirrorwing Dragon and Zada, Hedron Grinder: the copies now resolve before the original spell, as soon as it targets the creature. Zada had been copying every instant and sorcery you cast, whatever it targeted; that's fixed.",
+      "Start the TARDIS: \"you may planeswalk\" does nothing without a planar deck. That's correct by the rules, since this game has no Planechase."
+    ]
+  },
+  {
     "version": "1.3.137",
     "title": "Precon sweep: 67 more cards",
     "notes": [

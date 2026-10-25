@@ -1447,6 +1447,7 @@ export function canBlock(blocker, attacker) {
   if (G.s && G.s.sectorBlockTurn === G.s.turn && attacker && blocker.sector !== attacker.sector) return false;
   if (G.s && blocker.noBlockUntil && blocker.noBlockUntil > G.s.turn) return false;
   if (blocker.cantBlockTurn === (G.s && G.s.turn)) return false;
+  if (attacker && blocker.dutyVs && (blocker.counters || {}).duty > 0 && attacker.controller === blocker.dutyVs) return false; // Immortal Obligation
   if (G.s && G.s.noBlocksTurn === G.s.turn) return false;
   const bo = oracle(blocker);
   if ((/(?:^|\n|\. )(?:~|This creature|[A-Z][^.\n]*?) can't block\.?/.test(bo) && !/can't block (?:creatures with|unless|alone)/i.test(bo)) || hasKw(blocker, 'decayed') || blocker.suspected) return false;
@@ -1511,6 +1512,11 @@ export function canAttack(inst) {
   if (G.s && (G.s.cantAttack || []).some((x) => x.turn === G.s.turn && x.by === inst.controller) && seats().filter((p) => p !== inst.controller && G.s.players[p] && !G.s.players[p].lost).every((p) => (G.s.cantAttack || []).some((x) => x.turn === G.s.turn && x.by === inst.controller && x.player === p))) return false;
   if (G.s && inst.detainedUntil && inst.detainedUntil > G.s.turn) return false;
   if (G.s && inst.noAttackUntil && inst.noAttackUntil > G.s.turn) return false;
+  if (G.s && G.s.noAttackTurn && G.s.noAttackTurn.turn === G.s.turn && G.s.noAttackTurn.pid === inst.controller) return false; // Overencumbered
+  { // Immortal Obligation (duty), Promise of Loyalty (vow), Lightning Rager: can't attack that player — with nobody else to attack, it can't attack
+    const vs = [((inst.counters || {}).duty > 0) && inst.dutyVs, ((inst.counters || {}).vow > 0) && inst.vowVs, inst.raggerVs].filter(Boolean);
+    if (G.s && vs.length && seats().filter((p) => p !== inst.controller && G.s.players[p] && !G.s.players[p].lost).every((p) => vs.includes(p))) return false;
+  }
   if (G.s && G.s.onlyAttackers && G.s.onlyAttackers.turn === G.s.turn && (G.s.combatNo || {})[inst.controller] >= 1 && !G.s.onlyAttackers.ids.includes(inst.iid) && (G.s.ts[inst.controller] || {}).attacked) return false; // Last Night Together
   if (hasKw(inst, 'defender') && !/can attack as though it didn't have defender/i.test(oracle(inst))) return false;
   if (/(?:^|\n|\. )[^.\n]*can't attack\.?(?:$|\n)/.test(oracle(inst)) && !/can't attack (?:alone|unless)/i.test(oracle(inst))) return false;
