@@ -1,6 +1,6 @@
 // Game state, zones and the actions both players use.
 import { DB } from './data.js';
-import { isCreature, isLand, power, toughness, isDead, def, isType, hasKw, oracle, face, typeLine, hasSubtype, abilitiesGone } from './rules.js';
+import { isCreature, isLand, power, toughness, isDead, def, isType, hasKw, oracle, face, typeLine, hasSubtype, abilitiesGone, pairGrantText } from './rules.js';
 import { repl, playerFlag } from './statics.js';
 
 export const ZONES = ['library', 'hand', 'battlefield', 'graveyard', 'exile', 'command'];
@@ -450,7 +450,7 @@ const RESET = ['chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', '
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
-  'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'chosenPlayers', 'dmgBy', 'dmgByTurn', 'grantedText', 'grantedBy', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
+  'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'pairedWith', 'chosenPlayers', 'dmgBy', 'dmgByTurn', 'grantedText', 'grantedBy', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
   'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'dutyVs', 'vowVs', 'raggerVs', 'eggFor', 'secretOpp', 'grantedUnearth', 'grantedUnearthTurn', 'grantedFlashback', 'grantedFlashbackTurn', 'kodamaPut', 'mustBlockTurn', 'loseIndestructibleTurn', 'monarchOnDeath', 'enlistedTurn', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
@@ -492,12 +492,16 @@ export function move(iid, zone, opts = {}) {
   // "Whenever one or more cards are put into exile …" (Laelia, The War Doctor): one batch per effect
   if (zone === 'exile' && fromZone && fromZone !== 'exile') {
     const batch = eventQueue.find((e) => e.type === 'exiledBatch');
-    const item = { iid, from: fromZone, owner: c.owner, controller: fromZone === 'battlefield' ? c.controller : c.owner };
+    const item = { iid, from: fromZone, owner: c.owner, controller: fromZone === 'battlefield' ? c.controller : c.owner, by: s.effectCtl || null }; // by: whose spell or ability is resolving (Hero of Bretagard)
     if (batch) batch.items.push(item);
     else queueEvent({ type: 'exiledBatch', items: [item] });
   }
   // events for triggered abilities
   if (fromZone === 'battlefield' && zone !== 'battlefield') {
+    const pairGrant = c.pairedWith ? pairGrantText(c) : ''; // soulbond: a dying creature keeps what its pair gave it (Doom Weaver)
+    // soulbond: the pair breaks when either leaves
+    if (c.pairedWith && s.cards[c.pairedWith] && s.cards[c.pairedWith].pairedWith === iid) delete s.cards[c.pairedWith].pairedWith;
+    delete c.pairedWith;
     s.ts[c.controller].permLeft = true;
     if (!isLand(c)) s.ts.nonlandLeft = true;
     const attachedHere = Object.values(s.cards).filter((a) => a.attachedTo === iid && a.zone === 'battlefield');
@@ -507,7 +511,7 @@ export function move(iid, zone, opts = {}) {
       queueEvent({
         type: 'dies', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token,
         power: power(c), toughness: toughness(c), counters: { ...(c.counters || {}) }, isCommander: c.isCommander, merged: c.merged || [],
-        granted: [c.extraText, c.eotText].filter(Boolean).join('\n') || undefined, // "When this creature dies, …" it gained (Rabid Attack)
+        granted: [c.extraText, c.eotText, pairGrant].filter(Boolean).join('\n') || undefined, // "When this creature dies, …" it gained (Rabid Attack)
         wasBlitzed: c.castMode === 'blitz', wasAttacking: !!c.attacking, wasBlocking: !!c.blocking, dmgBy: c.dmgByTurn === s.turn ? c.dmgBy || [] : [], attached: attachedHere.map((a) => a.iid), attachedCtl: Object.fromEntries(attachedHere.map((a) => [a.iid, a.controller])),
       });
     } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token, fromBattlefield: true });
@@ -618,6 +622,7 @@ export function move(iid, zone, opts = {}) {
     if (fromZone !== 'stack') c.castMode = c.castMode || null;
   }
   if (opts.controller && fromZone === 'battlefield' && zone === 'battlefield' && c.controller !== opts.controller) queueEvent({ type: 'controlLost', iid, from: c.controller, to: opts.controller }); // Khârn the Betrayer
+  if (opts.controller && fromZone === 'battlefield' && zone === 'battlefield' && c.controller !== opts.controller && c.pairedWith) { if (s.cards[c.pairedWith] && s.cards[c.pairedWith].pairedWith === iid) delete s.cards[c.pairedWith].pairedWith; delete c.pairedWith; } // soulbond: control changed
   if (opts.controller) c.controller = opts.controller;
   if (opts.tapped !== undefined) c.tapped = opts.tapped;
   if (opts.faceDown !== undefined) c.faceDown = opts.faceDown;

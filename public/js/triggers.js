@@ -157,6 +157,12 @@ function parseTriggerText(text, speed) {
           fn: async (ctx, hit, ev) => { const o = (card(hit.src.iid).chosenPlayers || []).find((p) => p !== ev.pid); if (!o) return []; changeLife(o, -ev.amount); return [`${seatName(o)} loses ${ev.amount} life`]; } });
         continue;
       }
+      // Hordewing Skaab: one trigger for the whole combat damage step, counting the opponents hit
+      if ((q = line.match(/^Whenever one or more ([A-Z]\w+?)s you control deal combat damage to one or more of your opponents, (.+)$/))) {
+        const sub = q[1];
+        add('p:combatDamageAll', q[2], { pred: (c, ev) => { if (ev.controller !== c.controller) return false; const hit = Object.entries(ev.players || {}).filter(([v, srcs]) => opponents(c.controller).includes(v) && srcs.some((x) => card(x.iid) && hasSubtype(card(x.iid), sub))); return hit.length > 0 && { amount: hit.length }; } });
+        continue;
+      }
       // Glowing One
       if ((q = line.match(/^Whenever an opponent mills a nonland card, (.+)$/i))) { add('p:mill', q[1], { pred: (c, ev) => ev.pid !== c.controller && (ev.ids || []).some((i) => card(i) && !isLand(card(i))) && { thatPlayer: ev.pid } }); continue; } // Infesting Radroach
       if ((q = line.match(/^Whenever a player mills a nonland card, (.+)$/i))) { add('mill', q[1], { anyPlayer: true, kind: 'nonland', perCard: true }); continue; }
@@ -1010,7 +1016,7 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^When you lose control of ~, (.+)$/i))) { add('p:controlLost', q[1], { pred: (c, ev) => ev.iid === c.iid && { controller: ev.from } }); continue; }
       // exile batches (Hero of Bretagard, Ranar)
       if ((q = line.match(/^Whenever one or more cards are put into exile from your hand or a spell or ability you control exiles one or more permanents from the battlefield, (.+)$/i))) {
-        add('p:exiledBatch', q[1], { pred: (c, ev) => { const k = (ev.items || []).filter((x) => (x.from === 'hand' && x.owner === c.controller) || x.from === 'battlefield').length; return k > 0 && { amount: k }; } });
+        add('p:exiledBatch', q[1], { pred: (c, ev) => { const k = (ev.items || []).filter((x) => (x.from === 'hand' && x.owner === c.controller) || (x.from === 'battlefield' && x.by === c.controller)).length; return k > 0 && { amount: k }; } });
         continue;
       }
       // targets
@@ -1119,6 +1125,35 @@ function keywordTriggersRaw(c) {
   const f = (event, fn, label, extra = {}) => out.push({ event, fn, raw: label, kw: true, ...extra });
   const o = oracle(c);
   if (hasKw(c, 'prowess')) t('cast', '~ gets +1/+1 until end of turn', { spell: 'noncreature', mine: true, self: false });
+  // Soulbond: pair this creature with another unpaired creature you control when either enters
+  if (/(?:^|\n|, )Soulbond\b/i.test(o)) {
+    const unpaired = (x) => x && x.zone === 'battlefield' && isCreature(x) && !(x.pairedWith && card(x.pairedWith) && card(x.pairedWith).zone === 'battlefield' && card(x.pairedWith).controller === x.controller);
+    const pair = async (me, other) => {
+      if (!unpaired(me) || !unpaired(other) || me.iid === other.iid || me.controller !== other.controller) return [];
+      const pid = me.controller;
+      const yes = isAI(pid) ? true : await T.confirm(cardName(me), `Soulbond: pair ${cardName(me)} with ${cardName(other)}?`);
+      if (!yes) return [];
+      me.pairedWith = other.iid;
+      other.pairedWith = me.iid;
+      return [`pairs with ${nameTag(other)}`];
+    };
+    f('enters', async (ctx, hit) => {
+      const me = card(c.iid);
+      if (!unpaired(me)) return [];
+      const pool = cardsIn(me.controller, 'battlefield').filter((x) => x.iid !== me.iid && unpaired(x));
+      if (!pool.length) return [];
+      let pick;
+      if (isAI(me.controller)) pick = pool.sort((a, b) => cardValue(b) - cardValue(a))[0];
+      else { const [i] = await T.choosers[me.controller].pickCards({ prompt: `Soulbond: pair ${cardName(me)} with another creature? (none to skip)`, cards: pool.map((x) => x.iid), min: 0, max: 1, purpose: 'pair', src: me, aiScore: (x) => cardValue(x) }); pick = i && card(i); if (!pick) return []; me.pairedWith = pick.iid; pick.pairedWith = me.iid; return [`pairs with ${nameTag(pick)}`]; }
+      return pair(me, pick);
+    }, 'Soulbond', { self: true });
+    f('enters', async (ctx, hit, ev) => {
+      const me = card(c.iid);
+      const nc = card(ev.iid);
+      if (!me || !nc || nc.iid === me.iid) return [];
+      return pair(me, nc);
+    }, 'Soulbond', { other: true, mine: true, kind: 'creature' });
+  }
   const ex = (o.match(/\bExalted\b/g) || []).length + (hasKw(c, 'exalted') && !/\bExalted\b/.test(o) ? 1 : 0);
   for (let k = 0; k < ex; k++) t('attacksAlone', 'it gets +1/+1 until end of turn', { anyOfMine: true });
   if (hasKw(c, 'battle cry')) t('attacks', 'each other attacking creature you control gets +1/+0 until end of turn', { self: true });
@@ -2820,7 +2855,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
   if (trig.optional) {
     text = text.replace(/^you may /i, '');
     // the AI takes optional triggers unless they cost it something
-    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^sacrifice up to (?:one|two|three) [A-Za-z]+\. When you sacrifice/i.test(text) /* Ravenous Rotbelly: the handler decides */ || (/^pay life equal to its mana value\. If you do, put it onto the battlefield/i.test(text) && G.s.players[controller].life >= 20) /* Lorcan */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
+    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^sacrifice up to (?:one|two|three) [A-Za-z]+\. When you sacrifice/i.test(text) /* Ravenous Rotbelly: the handler decides */ || /^draw cards equal to the number of opponents dealt damage this way/i.test(text) /* Hordewing Skaab: looting */ || (/^pay life equal to its mana value\. If you do, put it onto the battlefield/i.test(text) && G.s.players[controller].life >= 20) /* Lorcan */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
     if (!yes) return;
     ctx.lastMay = true; // "you may discard a card. If you do, draw two cards."
   }

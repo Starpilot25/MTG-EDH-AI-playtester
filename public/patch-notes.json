@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.141",
+    "title": "Soulbond, and four exact triggers",
+    "notes": [
+      "Soulbond works: when a soulbond creature or another creature you control enters, you can pair them, and the pair breaks when either leaves or changes control. Paired creatures get what the soulbond card gives them (Doom Weaver, Breathkeeper Seraph, Imperious Mindbreaker, Mirage Phalanx, Thundering Mightmare), even as they die.",
+      "Donna Noble triggers when the creature it's paired with is dealt damage too.",
+      "River Song now also triggers when an opponent searches their library.",
+      "Hero of Bretagard and Ranar count only permanents exiled by your own spells and abilities.",
+      "Hordewing Skaab triggers once per combat damage step and draws (then discards) one card for each opponent your Zombies hit.",
+      "Abilities that say \"equal to its power\" after the creature died use its last known power."
+    ]
+  },
+  {
     "version": "1.3.140",
     "title": "159 more triggered abilities, aura copies, whose-card labels",
     "notes": [

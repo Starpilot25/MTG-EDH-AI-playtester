@@ -5799,7 +5799,13 @@ function xFrom(phrase, env) {
   const p = phrase.toLowerCase();
   const it = env.it && env.it.iid ? card(env.it.iid) : null;
   if (/^(?:that spell's|its|that card's|the exiled card's|that creature's) mana value/.test(p)) return it ? DB[it.def].cmc || 0 : 0;
-  if (/^(?:that spell's|its|that creature's) power/.test(p)) return it ? Math.max(0, power(it)) : 0;
+  if (/^(?:that spell's|its|that creature's) power/.test(p)) {
+    // a creature that has left the battlefield uses its last known power ("When this creature dies, draw cards equal to its power")
+    const o = it || (env.src && card(env.src.iid)) || null;
+    if (!o) return 0;
+    if (o.zone !== 'battlefield' && G.s.lki && G.s.lki[o.iid]) return Math.max(0, G.s.lki[o.iid].p);
+    return Math.max(0, power(o));
+  }
   if (/^~'s power/.test(p)) return env.src ? Math.max(0, power(env.src)) : 0;
   return countPhrase(env.me, p.replace(/^the number of /, ''), helpers, env.src && env.src.iid) || 0;
 }
@@ -13168,8 +13174,9 @@ on(/^(?:you may )?cast target instant or sorcery card from your graveyard\. if t
 }, { first: true, multi: true });
 // Hordewing Skaab
 on(/^(?:you may )?draw cards equal to the number of opponents dealt damage this way\. if you do, discard that many cards$/, async (m, env) => {
-  const k = 1;
+  const k = env.thatMuch || env.lastAmount || 1;
   draw(env.me, k, true);
+  env.did.push(`draws ${k}`);
   await runSentence(`discard ${k === 1 ? 'a card' : k + ' cards'}`, env);
 }, { first: true, multi: true });
 // Lattice Library
@@ -13281,6 +13288,21 @@ on(/^for each (other )?(nontoken )?((?:[a-z]+ )?)creature you control, create a 
     await runSentence(`create a token that's a copy of that creature${m[4] ? ', except ' + m[4] : ''}`, env);
   }
   if (env.did.length > before + 3) env.did.splice(before, env.did.length - before, `creates a token copy of each of ${list.length} creatures`);
+}, { first: true });
+// Breathkeeper Seraph's pair: "When this creature dies, you may return it to the battlefield under its owner's control at the beginning of your next upkeep."
+on(/^(?:you may )?return it to the battlefield under its owner's control at the beginning of your next upkeep$/, async (m, env) => {
+  const c = (env.it && env.it.iid && card(env.it.iid)) || (env.src && card(env.src.iid));
+  if (!c || c.zone !== 'graveyard') return;
+  G.s.delayed.push({ at: 'upkeep', kind: 'returnFromExile', fromGy: true, iid: c.iid, pid: c.owner, turnOf: env.me, after: G.s.turn });
+  env.did.push(`${nameTag(c)} returns at your next upkeep`);
+}, { first: true });
+// Imperious Mindbreaker's pair: "Whenever this creature attacks, each opponent mills cards equal to its toughness."
+on(/^each opponent mills cards equal to its toughness$/, async (m, env) => {
+  const c = (env.it && env.it.iid && card(env.it.iid)) || (env.src && card(env.src.iid));
+  const k = c ? Math.max(0, toughness(c)) : 0;
+  if (!k) return;
+  for (const o of opponents(env.me).filter(inGame)) millCards(o, k);
+  env.did.push(`each opponent mills ${k}`);
 }, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
@@ -13854,6 +13876,15 @@ on(/^put the exiled card into its owner's hand$/, async (m, env) => {
 
 async function runSentence(sentence, env) {
   let s = sentence.trim().replace(/\s{2,}/g, ' ').replace(/ ([.,])/g, '$1').replace(/\.$/, '').replace(/^then,? /i, '').replace(/^also,? /i, '');
+  // searching a library (River Song: "Whenever an opponent … searches their library")
+  {
+    const sm = s.match(/^(?:you may )?(?:(you|each player|each opponent|target player|target opponent|that player|its controller|their controller|they|that creature's controller|that permanent's controller) (?:may )?)?search(?:es)? (?:your|their|his or her|its owner's) library\b/i);
+    if (sm && G.s) {
+      const w = (sm[1] || 'you').toLowerCase();
+      const ps = w === 'you' ? [env.me] : w === 'each player' ? seats().filter(inGame) : w === 'each opponent' ? opponents(env.me).filter(inGame) : [env.thatPlayer || (env.it && card(env.it.iid) && (card(env.it.iid).controller || card(env.it.iid).owner)) || null];
+      for (const p of ps.filter(Boolean)) queueEvent({ type: 'searched', pid: p });
+    }
+  }
   // Marvel/Spider-Man cards name their creature "he"/"she": "He gets +1/+0 until end of turn"
   // Karn, Living Legacy: "Look at that many cards from the top of your library" after paying mana
   if (/^look at that many cards\b/i.test(s) && env.lastAmount != null) {
@@ -14175,7 +14206,18 @@ async function playerSubject(s, env) {
  * chooser API: target, pickCards, scry, choose, chooseModes, confirm, payUnless
  * Returns a list of short descriptions of what happened (env.unknown lists sentences left to the player).
  */
+// whose spell or ability is resolving right now (Hero of Bretagard, Ranar: "a spell or ability you control exiles …")
 export async function resolveEffects(text, src, ctx) {
+  if (!text || !src) return [];
+  const prevCtl = G.s ? G.s.effectCtl : null;
+  if (G.s) G.s.effectCtl = (ctx && ctx.me) || src.controller || null;
+  try {
+    return await resolveEffectsRaw(text, src, ctx);
+  } finally {
+    if (G.s) G.s.effectCtl = prevCtl;
+  }
+}
+async function resolveEffectsRaw(text, src, ctx) {
   if (!text || !src) return [];
   const env = {
     ...ctx, src, did: [], unknown: [], it: ctx.it || null, it0: ctx.it || null, them_: ctx.them_ || null,

@@ -378,7 +378,7 @@ async function upkeepKeywords(pid) {
     // Vanish into Memory: return it, then discard cards equal to its toughness
     if (d.kind === 'returnFromExile') {
       const r = card(d.iid);
-      if (r && r.zone === 'exile') {
+      if (r && (r.zone === 'exile' || (d.fromGy && r.zone === 'graveyard'))) {
         toBattlefield(d.iid, d.pid || r.owner);
         log(pid, `${nameTag(r)} returns to the battlefield.`);
         const k = d.discardAfter ? Math.min(d.discardAfter, toughness(card(d.iid)) || d.discardAfter) : 0;
@@ -1256,6 +1256,12 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
   // each player who was dealt combat damage (in 1v1: the defender)
   const victimOf = (e) => e.to || defender;
   const victims = multiplayer() ? seats().filter((k) => events.some((e) => e.type === 'player' && e.amount > 0 && victimOf(e) === k)) : [defender];
+  // one event per attacking player with every player they hit (Hordewing Skaab: "the number of opponents dealt damage this way")
+  {
+    const byCtl = {};
+    for (const e of events) if (e.type === 'player' && e.amount > 0) { const v = multiplayer() ? victimOf(e) : defender; const m = (byCtl[e.controller] = byCtl[e.controller] || {}); (m[v] = m[v] || []).push({ iid: e.from, amount: e.amount }); }
+    for (const [controller, players] of Object.entries(byCtl)) fire({ type: 'combatDamageAll', controller, players });
+  }
   for (const v of victims) {
     const hitters = [...new Set(events.filter((e) => e.type === 'player' && e.amount > 0 && (!multiplayer() || victimOf(e) === v)).map((e) => e.controller))];
     hitters.forEach((controller) => {

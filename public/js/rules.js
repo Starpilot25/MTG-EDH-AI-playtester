@@ -296,6 +296,19 @@ export function maxSpeedText(text, pid) {
   return text.split('\n').map((l) => (/^Max speed — /.test(l) ? (on ? l.replace(/^Max speed — /, '') : null) : l)).filter((l) => l !== null).join('\n');
 }
 export const isRoomCard = (d) => !!d && d.faces && d.faces.length === 2 && /Room/.test(d.faces[0].typeLine || '') && /Room/.test(d.faces[1].typeLine || '');
+// soulbond: what the pair gives each of its creatures ("each of those creatures has "…"")
+export function pairGrantText(inst) {
+  if (!inst || !inst.pairedWith || !G.s) return '';
+  const mate = G.s.cards[inst.pairedWith];
+  if (!mate || mate.zone !== 'battlefield' || mate.controller !== inst.controller || mate.pairedWith !== inst.iid) return '';
+  const out = [];
+  for (const x of [inst, mate]) {
+    const fo = (DB[x.def].faces[x.face || 0] || DB[x.def].faces[0]).oracle || '';
+    const gm = fo.match(/As long as [^\n]*? is paired with another creature, (?:each of those creatures has|both creatures have) "([^"]+)"/i);
+    if (gm) out.push(gm[1]);
+  }
+  return out.join('\n');
+}
 function oracleRaw(inst) {
   const f = face(inst);
   if (inst.becameTreasure) return inst.extraText || '';
@@ -328,6 +341,8 @@ function oracleRaw(inst) {
   }
   text = maxSpeedText(text, inst.controller || inst.owner);
   if (inst.extraText) text += '\n' + inst.extraText;
+  // soulbond: "As long as ~ is paired with another creature, each of those creatures has "…"" (both halves of the pair)
+  if (inst.pairedWith && inst.zone === 'battlefield') { const pg = pairGrantText(inst); if (pg) text += '\n' + pg; }
   // Harold and Bob: "Enchanted Forest has '…'" — only while that Aura is still attached
   if (inst.grantedText && G.s && G.s.cards[inst.grantedBy] && G.s.cards[inst.grantedBy].zone === 'battlefield' && G.s.cards[inst.grantedBy].attachedTo === inst.iid) text += '\n' + inst.grantedText;
   if (inst.eotText) text += '\n' + inst.eotText; // "until end of turn, it gains \"…\"" (Trash the Town)
