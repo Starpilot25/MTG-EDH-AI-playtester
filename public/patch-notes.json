@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.140",
+    "title": "159 more triggered abilities, aura copies, whose-card labels",
+    "notes": [
+      "Every triggered ability in the precon pool is now recognised: 159 cards whose triggers were being skipped now fire, including Teysa, Envoy of Ghosts, Vampiric Dragon, Gahiji, Bold Plagiarist, Mr. House, Pain Distributor, Erdwal Illuminator, Khârn the Betrayer, Treasure Nabber, Sower of Discord, Captain Marvel, Combat Calligrapher, Jolene, Norn's Decree, Foe-Razer Regent, Historian's Boon, Patrolling Peacemaker and Ao, the Dawn Sky.",
+      "New game events behind them: activated abilities, die rolls, coin flips won, mana tapped from a permanent, investigating, fights, evolving, expend, committing a crime, losing control of a permanent, a player losing the game, and time counters coming off a card.",
+      "Multiversal Incursion makes a non-legendary token copy of each nontoken creature you control.",
+      "Copies of Auras that enter without being cast now attach to something, and Auras and Equipment sit under what they're attached to on every seat's board in multiplayer.",
+      "Card pickers now say whose card each one is (Yours, AI 2's, Your graveyard…), and cards belonging to different players are no longer stacked together.",
+      "Feather, Radiant Arbiter offers its copies as the spell picks its target. Harold and Bob's Forest taps for three mana of one color and gives you two rad counters, and stops doing so if the Aura leaves. Selfless Squire gets +1/+1 counters for prevented damage."
+    ]
+  },
+  {
     "version": "1.3.139",
     "title": "70 skipped precon cards fixed",
     "notes": [

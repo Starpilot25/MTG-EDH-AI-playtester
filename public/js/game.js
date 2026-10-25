@@ -292,6 +292,7 @@ async function upkeepKeywords(pid) {
     // vanishing
     if (/(?:^|\n)Vanishing\b/.test(o) && (c.counters.time || 0) > 0) {
       c.counters.time--;
+      queueEvent({ type: 'timeRemoved', iid: c.iid, controller: pid, n: 1 });
       if (!c.counters.time) {
         log(pid, `${nameTag(c)} loses its last time counter and is sacrificed (vanishing).`);
         sacrifice(c.iid);
@@ -320,6 +321,7 @@ async function upkeepKeywords(pid) {
   for (const c of [...cardsIn(pid, 'exile')]) {
     if (!c.suspended || !(c.counters.time > 0)) continue;
     c.counters.time--;
+    queueEvent({ type: 'timeRemoved', iid: c.iid, controller: pid, n: 1, exiled: true });
     if (c.counters.time) {
       log(pid, `${nameTag(c)}: ${c.counters.time} time counter${c.counters.time > 1 ? 's' : ''} left.`);
       continue;
@@ -494,6 +496,16 @@ async function endStepThings(pid) {
       }
       continue;
     }
+    // Foe-Razer Regent: counters at the beginning of the next end step
+    if (d.kind === 'counters') {
+      if (c && c.zone === 'battlefield') { addCounters(c, d.counter || '+1/+1', d.n || 1); log(c.controller, `${nameTag(c)} gets ${d.n || 1} ${d.counter || '+1/+1'} counter${(d.n || 1) === 1 ? '' : 's'}.`); }
+      continue;
+    }
+    // Shirei: "return that card to the battlefield at the beginning of the next end step if Shirei is still on the battlefield"
+    if (d.kind === 'returnIfSrc') {
+      if (c && c.zone === 'graveyard' && card(d.src) && card(d.src).zone === 'battlefield') { toBattlefield(d.iid, d.pid); log(d.pid, `${nameTag(c)} returns to the battlefield.`); }
+      continue;
+    }
     // Gift of Immortality: return attached to the creature it enchanted
     if (d.kind === 'returnAttached' && c.zone === 'graveyard') {
       const host = d.host && card(d.host);
@@ -532,7 +544,7 @@ async function endStepThings(pid) {
 
 function cleanupStep() {
   const s = G.s;
-  for (const d of s.delayed.filter((x) => x.at === 'cleanup')) {
+  for (const d of s.delayed.filter((x) => x.at === 'cleanup' && !(x.waitTurnOf && !(s.active === x.waitTurnOf && s.turn > x.after)))) {
     s.delayed.splice(s.delayed.indexOf(d), 1);
     const c = card(d.iid);
     if (c && c.zone === 'battlefield' && d.kind === 'returnControl' && c.controller !== d.pid) {
@@ -1172,6 +1184,7 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     }
     if (ev.lifelink) changeLife(ev.controller, ev.amount, false);
     if (ev.amount > 0) {
+      if (ev.type !== 'player' && card(ev.to)) { const vt = card(ev.to); if (vt.dmgByTurn !== s.turn) vt.dmgBy = []; vt.dmgByTurn = s.turn; vt.dmgBy = [...(vt.dmgBy || []), ev.from]; }
       fire({ type: 'dealsDamage', iid: ev.from, amount: ev.amount, other: ev.type !== 'player' ? ev.to : null, player: ev.type === 'player' ? ev.to || defender : null, combat: true });
       if (ev.type !== 'player') fire({ type: 'dealtDamage', iid: ev.to, amount: ev.amount, other: ev.from, combat: true });
       if (ev.type === 'creature') fire({ type: 'combatDamageCreature', iid: ev.from, amount: ev.amount, other: ev.to });

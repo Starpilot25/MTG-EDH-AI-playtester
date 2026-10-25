@@ -8,7 +8,7 @@ import {
   setLife, toBattlefield, createToken, stateBased, commanderTax, cardName, makeCard, CARD_W, CARD_H,
   STEPS, STEP_LABEL, checkLoss, untapAll, opp, freeSpot, genericTokenDef, onChange, eventQueue, isLegendary, ringLevel, RING_TEXT, restoreInPlace, sacrifice, changeLife, withReadCache, aiSlaved, handControl,
 } from './state.js';
-import { tapPerm } from './state.js';
+import { tapPerm, queueEvent } from './state.js';
 import {
   hooks, run, playerNextStep, playerEndTurn, toggleAttacker, confirmAttacks, resolvePlayerCombat, beginTurn, attackTax, attackTaxOf,
 } from './game.js';
@@ -925,7 +925,7 @@ function stackKey(c) {
 function boardLanes(pid) {
   const bf = cardsIn(pid, 'battlefield');
   const onField = new Set(bf.map((c) => c.iid));
-  const all = [...cardsIn('p', 'battlefield'), ...cardsIn('ai', 'battlefield')];
+  const all = seats().flatMap((k) => cardsIn(k, 'battlefield'));
   // attachments live with their host (even an Aura you put on the opponent's creature)
   const att = {};
   for (const a of all) if (a.attachedTo && card(a.attachedTo) && card(a.attachedTo).zone === 'battlefield' && !isCreature(a)) (att[a.attachedTo] = att[a.attachedTo] || []).push(a);
@@ -1638,6 +1638,16 @@ function cancelTarget() {
   pt.reject(new Cancelled());
 }
 
+// card pickers say whose card each one is: the controller of a permanent, the owner of a card in another zone
+function pickOwner(c) {
+  return c.zone === 'battlefield' ? c.controller : c.owner;
+}
+function pickOwnerLabel(c) {
+  const o = pickOwner(c);
+  const who_ = o === 'p' ? 'Yours' : `${multiplayer() ? seatName(o) : 'AI'}'s`;
+  const zone = { battlefield: '', graveyard: ' graveyard', exile: ' exile', hand: ' hand', library: ' library', command: ' command zone' }[c.zone] ?? '';
+  return c.zone === 'battlefield' ? (o === 'p' ? 'Yours' : `${multiplayer() ? seatName(o) : 'The AI'}'s`) : (o === 'p' ? `Your${zone}` : `${who_}${zone}`);
+}
 function pickCardsDialog(req, resolve, reject) {
   const chosen = [];
   const min = req.min ?? 1;
@@ -1647,19 +1657,22 @@ function pickCardsDialog(req, resolve, reject) {
   for (const iid of req.cards) {
     const c = card(iid);
     // legend-rule choices show every copy separately (their counters may differ)
-    const key = req.purpose === 'legend' ? iid : c.def + ':' + (c.face || 0);
+    const key = req.purpose === 'legend' ? iid : c.def + ':' + (c.face || 0) + ':' + pickOwner(c) + ':' + c.zone;
     let g = groups.find((x) => x.key === key);
     if (!g) groups.push((g = { key, ids: [] }));
     g.ids.push(iid);
   }
-  groups.sort((a, b) => cardName(card(a.ids[0])).localeCompare(cardName(card(b.ids[0]))));
+  // whose card it is: yours first, then each other player's, then by name
+  const ownRank = (c) => { const o = pickOwner(c); return o === 'p' ? 0 : 1 + seats().indexOf(o); };
+  const mixed = new Set(req.cards.map((i) => pickOwner(card(i)) + ':' + card(i).zone)).size > 1 || req.cards.some((i) => pickOwner(card(i)) !== 'p');
+  groups.sort((a, b) => ownRank(card(a.ids[0])) - ownRank(card(b.ids[0])) || cardName(card(a.ids[0])).localeCompare(cardName(card(b.ids[0]))));
   const dlg = openDialog(`
     <span class="eyebrow">${esc(req.src ? cardName(req.src) : '')}</span>
     <h3>${esc(req.prompt)}</h3>
     ${req.detail ? `<p class="hint pre-line">${esc(req.detail)}</p>` : ''}
     ${groups.length > 10 ? '<input class="filter" id="pk-filter" placeholder="Filter by name or type…" autocomplete="off">' : ''}
     <div class="zv-grid pick">${groups
-      .map((g, k) => `<button class="zv-item" data-group="${k}">${cardHTML(card(g.ids[0]), { small: true, count: g.ids.length })}<span>${esc(cardName(card(g.ids[0])))}</span><b class="pk-sel" hidden></b>${max > 1 && g.ids.length > 1 ? `<span class="pk-step"><i data-step="-1" title="One fewer">−</i><i data-step="1" title="One more">+</i></span>` : ''}</button>`)
+      .map((g, k) => `<button class="zv-item" data-group="${k}">${cardHTML(card(g.ids[0]), { small: true, count: g.ids.length })}<span>${esc(cardName(card(g.ids[0])))}</span>${mixed ? `<small class="pk-owner">${esc(pickOwnerLabel(card(g.ids[0])))}</small>` : ''}<b class="pk-sel" hidden></b>${max > 1 && g.ids.length > 1 ? `<span class="pk-step"><i data-step="-1" title="One fewer">−</i><i data-step="1" title="One more">+</i></span>` : ''}</button>`)
       .join('')}${(req.players || [])
       .map((pl) => `<button class="zv-item pk-player" data-player="${esc(pl.key)}"><span class="pk-ptile"><b>👤</b>${pl.sub ? `<small>${esc(pl.sub)}</small>` : ''}</span><span>${esc(pl.label)}</span></button>`)
       .join('')}</div>
@@ -2119,6 +2132,8 @@ async function floatMana(c) {
     c.floated = { syms, step: G.s.step, turn: G.s.turn };
     log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${poolSym(x).col}}`).join(''))}${m.onlyFor ? ` (only for ${m.onlyFor === 'abilities' ? 'abilities' : m.onlyFor === 'artifactOrAbility' ? 'artifact spells and abilities' : m.onlyFor === 'fromExile' ? 'spells cast from exile' : m.onlyFor + ' spells' + (m.abilitiesOf ? ' or abilities' : '')})` : ''}.`);
     if (m.sac && hasSubtype(c, 'Treasure')) G.s.treasurePool = { pid: 'p', turn: G.s.turn }; // Rain of Riches
+    queueEvent({ type: 'manaTapped', iid: c.iid, pid: 'p', land: isLand(c), artifact: isType(c, 'Artifact') });
+    { const rm = oracle(c).match(/\{T\}: Add [^.\n]+\. You get (two|three|one|a|\d+) rad counters?\./i); if (rm) { const k = { a: 1, one: 1, two: 2, three: 3 }[rm[1].toLowerCase()] || +rm[1] || 1; G.s.players.p.counters.rad = (G.s.players.p.counters.rad || 0) + k; log('p', `You get ${k} rad counters.`); } } // Harold and Bob
     if (m.sac) sacrifice(c.iid);
     if (m.energy && m.energy.length && syms.some((x) => m.energy.includes(poolSym(x).col) || poolSym(x).col === 'ANY')) {
       G.s.players.p.counters.energy = Math.max(0, (G.s.players.p.counters.energy || 0) - (m.energyNeed || 1));

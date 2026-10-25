@@ -665,6 +665,7 @@ body.target-mode .life { cursor: crosshair; }
 .zv-grid.pick .zv-item { background: none; border: 0; padding: 4px; border-radius: 8px; }
 .zv-grid.pick .zv-item.on { background: rgb(211 170 82 / 0.16); outline: 2px solid var(--brass); }
 .zv-grid.pick .zv-item.on > span:not(.pk-step) { color: var(--brass); }
+.zv-grid.pick .pk-owner { font-size: 10.5px; color: var(--brass); opacity: 0.85; letter-spacing: 0.02em; margin-top: -2px; }
 #menu .ab { white-space: normal; text-align: left; max-width: 300px; color: var(--brass); }
 .pk-sel { font: 700 11px var(--f-display); color: var(--brass-ink); background: var(--brass); border-radius: 4px; padding: 1px 6px; justify-self: center; }
 .pk-step { display: flex; gap: 6px; justify-content: center; }

@@ -450,7 +450,7 @@ const RESET = ['chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', '
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
-  'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
+  'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'chosenPlayers', 'dmgBy', 'dmgByTurn', 'grantedText', 'grantedBy', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
   'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'dutyVs', 'vowVs', 'raggerVs', 'eggFor', 'secretOpp', 'grantedUnearth', 'grantedUnearthTurn', 'grantedFlashback', 'grantedFlashbackTurn', 'kodamaPut', 'mustBlockTurn', 'loseIndestructibleTurn', 'monarchOnDeath', 'enlistedTurn', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
@@ -508,10 +508,10 @@ export function move(iid, zone, opts = {}) {
         type: 'dies', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token,
         power: power(c), toughness: toughness(c), counters: { ...(c.counters || {}) }, isCommander: c.isCommander, merged: c.merged || [],
         granted: [c.extraText, c.eotText].filter(Boolean).join('\n') || undefined, // "When this creature dies, …" it gained (Rabid Attack)
-        wasBlitzed: c.castMode === 'blitz', wasAttacking: !!c.attacking, attached: attachedHere.map((a) => a.iid), attachedCtl: Object.fromEntries(attachedHere.map((a) => [a.iid, a.controller])),
+        wasBlitzed: c.castMode === 'blitz', wasAttacking: !!c.attacking, wasBlocking: !!c.blocking, dmgBy: c.dmgByTurn === s.turn ? c.dmgBy || [] : [], attached: attachedHere.map((a) => a.iid), attachedCtl: Object.fromEntries(attachedHere.map((a) => [a.iid, a.controller])),
       });
     } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token, fromBattlefield: true });
-    queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone, wasAttacking: !!c.attacking, power: isCreature(c) ? power(c) : undefined });
+    queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone, wasAttacking: !!c.attacking, power: isCreature(c) ? power(c) : undefined, creature: isCreature(c), artifact: isType(c, 'Artifact'), counters: { ...(c.counters || {}) }, attached: attachedHere.map((a) => a.iid) });
     if (requested === 'graveyard' && isCreature(c)) (s.ts[c.controller].diedTypes = s.ts[c.controller].diedTypes || []).push(typeLine(c));
   }
   if (fromZone === 'graveyard' && zone !== 'graveyard') {
@@ -617,6 +617,7 @@ export function move(iid, zone, opts = {}) {
     }
     if (fromZone !== 'stack') c.castMode = c.castMode || null;
   }
+  if (opts.controller && fromZone === 'battlefield' && zone === 'battlefield' && c.controller !== opts.controller) queueEvent({ type: 'controlLost', iid, from: c.controller, to: opts.controller }); // Khârn the Betrayer
   if (opts.controller) c.controller = opts.controller;
   if (opts.tapped !== undefined) c.tapped = opts.tapped;
   if (opts.faceDown !== undefined) c.faceDown = opts.faceDown;
@@ -1133,6 +1134,7 @@ function hasLoseImmunity(pid) {
 }
 
 export function loseGame(pid, why) {
+  if (G.s && G.s.players[pid] && !G.s.players[pid].lost) queueEvent({ type: 'playerLost', pid }); // Share the Spoils, Ramses
   const pl = G.s.players[pid];
   if (pl.lost || G.s.winner) return;
   pl.lost = why;
@@ -1721,6 +1723,12 @@ export function genericTokenDef(p, t, label, color, extra = {}) {
 
 // Inkshield: "For each 1 damage prevented this way, create a 2/1 white and black Inkling creature token with flying."
 export function inkshieldFlush() {
+  // Selfless Squire: "Whenever damage that would be dealt to you is prevented, put that many +1/+1 counters on this creature."
+  const q = (G.s && G.s.preventedQ) || [];
+  if (q.length) {
+    G.s.preventedQ = [];
+    for (const e of q) for (const c of cardsIn(e.pid, 'battlefield')) if (!abilitiesGone(c) && /Whenever damage that would be dealt to you is prevented, put that many \+1\/\+1 counters on/i.test(oracle(c))) { addCounters(c, '+1/+1', e.n); log(e.pid, `${nameTag(c)} gets ${e.n} +1/+1 counter${e.n === 1 ? '' : 's'}.`); }
+  }
   const ik = G.s && G.s.inkshield;
   if (!ik || !(ik.n > 0)) return;
   const k = ik.n;

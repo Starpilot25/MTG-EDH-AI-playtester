@@ -328,6 +328,8 @@ function oracleRaw(inst) {
   }
   text = maxSpeedText(text, inst.controller || inst.owner);
   if (inst.extraText) text += '\n' + inst.extraText;
+  // Harold and Bob: "Enchanted Forest has '…'" — only while that Aura is still attached
+  if (inst.grantedText && G.s && G.s.cards[inst.grantedBy] && G.s.cards[inst.grantedBy].zone === 'battlefield' && G.s.cards[inst.grantedBy].attachedTo === inst.iid) text += '\n' + inst.grantedText;
   if (inst.eotText) text += '\n' + inst.eotText; // "until end of turn, it gains \"…\"" (Trash the Town)
   for (const b of Object.values(inst.auraBuffs || {})) if (b.text) text += '\n' + b.text;
   // Locus of Enlightenment: "has each activated ability of the exiled cards used to craft it" (once each turn)
@@ -900,6 +902,8 @@ function manaAbilityRaw(inst) {
     if (best <= 0) return null;
     return { colors: vals.filter((v) => v[1] === best).map((v) => v[0]), amount: best, oneColor: true, byColor: Object.fromEntries(vals.filter((v) => v[1] > 0)) };
   }
+  // Harold and Bob's Forest: "{T}: Add three mana of any one color. You get two rad counters." (better than its {G})
+  if (/\{T\}: Add three mana of any one color\. You get two rad counters\./i.test(o)) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: 3, oneColor: true };
   // Sceptre of Eternal Glory: "{T}: Add three mana of any one color. Activate only if you control three or more lands with the same name."
   {
     const sm = o.match(/\{T\}: Add (two|three) mana of any one color\. Activate only if you control (two|three|four) or more lands with the same name/i);
@@ -1553,7 +1557,13 @@ export function redirectTarget(victimPid, victimIid) {
   const c = G.s.cards[r.iid];
   return c && c.zone === 'battlefield' && !c.phasedOut ? c : null;
 }
+// Selfless Squire: remember damage to a player that got prevented (flushed by state.inkshieldFlush)
 export function damageMods(amount, src, victimPid, opts = {}) {
+  const r = damageModsRaw(amount, src, victimPid, opts);
+  if (opts.real && !opts.victim && victimPid && amount > 0 && r < amount && G.s) G.s.preventedQ = [...(G.s.preventedQ || []), { pid: victimPid, n: amount - r }];
+  return r;
+}
+function damageModsRaw(amount, src, victimPid, opts = {}) {
   if (!G.s || amount <= 0) return amount;
   const srcCtl = src ? src.controller || src.owner : null;
   // Judgment of Alexander: "Prevent all damage that would be dealt to you this turn by sources your opponents control."

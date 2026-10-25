@@ -135,6 +135,14 @@ export function applyPayment(pid, pay) {
       tappedHook(card(iid));
     }
   }
+  // "Whenever … is tapped for mana" triggers (C.A.M.P., Treasure Nabber, Barbflare Gremlin's damage)
+  for (const iid of new Set(pay.payers || [])) { const c = !String(iid).startsWith('pool:') && card(iid); if (c) queueEvent({ type: 'manaTapped', iid: c.iid, pid, land: isLand(c), artifact: isType(c, 'Artifact') }); }
+  // Harold and Bob's Forest: "{T}: Add three mana of any one color. You get two rad counters."
+  for (const iid of new Set(pay.payers || [])) {
+    const c = !String(iid).startsWith('pool:') && card(iid);
+    const rm = c && oracle(c).match(/\{T\}: Add [^.\n]+\. You get (two|three|one|a|\d+) rad counters?\./i);
+    if (rm) { const k = { a: 1, one: 1, two: 2, three: 3 }[rm[1].toLowerCase()] || +rm[1] || 1; G.s.players[pid].counters.rad = (G.s.players[pid].counters.rad || 0) + k; log(pid, `${nameTag(c)}: ${pid === 'p' ? 'you get' : seatName(pid) + ' gets'} ${k} rad counters.`); }
+  }
   for (const sp of pay.special || []) {
     if (sp.kind === 'lifeC') { changeLife(pid, -1, false); continue; }
     if (sp.kind === 'pool') usedPool.push(+String(sp.iid).slice(5));
@@ -844,6 +852,8 @@ export async function castSpell(pid, iid, opt, env) {
   // Xander's Pact: pay life equal to its mana value instead
   if (c.lifeOnCast && opt.mode === 'hideaway') { const lv = DB[c.def].cmc || 0; changeLife(pid, -lv, false); log(pid, `${pid === 'p' ? 'You pay' : 'The AI pays'} ${lv} life for ${nameTag(c)}.`); c.lifeOnCast = null; }
   applyPayment(pid, pay);
+  // Expend: the total mana spent on spells this turn
+  { const sp = (pay.payers || []).length + (pay.special || []).filter((x) => x.kind !== 'delve').length; if (sp && s.ts && s.ts[pid] && !opt.copy) { const b0 = s.ts[pid].expended || 0; s.ts[pid].expended = b0 + sp; for (let k = b0 + 1; k <= b0 + sp; k++) queueEvent({ type: 'expend', pid, n: k }); } }
   // Ancient Cellarspawn / Alex Wilder: what was paid, and when
   c.castTurn = s.turn;
   if (s.nukaRad && s.nukaRad[pid] >= s.turn && !opt.copy) { s.players[pid].counters.rad = (s.players[pid].counters.rad || 0) + 2; log(pid, `${pid === 'p' ? 'You get' : seatName(pid) + ' gets'} two rad counters (Nuka-Nuke Launcher).`); }
@@ -2050,6 +2060,7 @@ export async function activateAbility(pid, c, ab, env) {
   c.usedAbilities[ab.raw] = ab.exhaust ? 'ever' : s.turn;
   log(pid, `${pid === 'p' ? 'You activate' : 'AI activates'} ${nameTag(c)}: <i>${esc(ab.costText.replace(/~/g, name.split(',')[0]))}</i>.`);
   const srcSnap = c;
+  queueEvent({ type: 'activated', iid: c.iid, controller: pid, def: c.def, powerUp: /^Power-up\b/i.test(ab.raw || '') }); // Harsh Mentor, Avalanche of Sector 7, Marvel Boy
   if (ab.sac) sacrifice(c.iid);
   if (ab.returnToHand) move(c.iid, 'hand');
   if (ab.exileSelf && c.zone !== 'exile') move(c.iid, 'exile');
