@@ -453,7 +453,7 @@ const RESET = ['chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', '
   'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'loseIndestructibleTurn', 'monarchOnDeath', 'enlistedTurn', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -579,6 +579,8 @@ export function move(iid, zone, opts = {}) {
     queueMicrotask(() => { if (G.s === s && s.cards[host] && s.cards[host].zone === 'battlefield') { log(s.cards[host].controller, `${nameTag(s.cards[host])} is sacrificed (its Equipment came off).`); sacrifice(host); } });
   }
   if (leavingField && c.origDef) endCopy(c);
+  // Fight for the Throne: "When the creature an opponent controls dies this turn, if you control your commander, you become the monarch."
+  if (leavingField && zone === 'graveyard' && c.monarchOnDeath && c.monarchOnDeath.turn === s.turn && Object.values(s.cards).some((x) => x.zone === 'battlefield' && x.isCommander && x.controller === c.monarchOnDeath.pid)) { const mp = c.monarchOnDeath.pid; if (s.monarch !== mp) { s.monarch = mp; queueEvent({ type: 'becameMonarch', pid: mp }); log(mp, `${mp === 'p' ? 'You become' : 'The AI becomes'} the monarch.`); } }
   // Lucius the Eternal: "When that creature leaves the battlefield, return this card from exile to the battlefield"
   if (leavingField && c.luciusReturn) { const lu = c.luciusReturn; queueMicrotask(() => { const l = s.cards[lu]; if (G.s === s && l && l.zone === 'exile') { toBattlefield(lu, l.owner); log(l.owner, `${nameTag(l)} returns from exile.`); } }); }
   if (zone === 'graveyard' && s.ts && s.ts[c.owner]) s.ts[c.owner].toGyCount = (s.ts[c.owner].toGyCount || 0) + 1; // Fraying Sanity

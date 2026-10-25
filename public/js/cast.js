@@ -488,6 +488,8 @@ function genericAdjust(pid, c, opt) {
     else if (/it targets/i.test(m[2])) delta -= +m[1];
   }
   if ((m = o.match(/Affinity for ([^\n(]+)/i))) delta -= countPhrase(pid, m[1].trim() + ' you control', helpers, c.iid) || 0;
+  // Spellbinding Soprano: instants and sorceries cost {1} less this turn
+  if (G.s.isDiscount && G.s.isDiscount[pid] && G.s.isDiscount[pid].turn === G.s.turn && /\b(?:Instant|Sorcery)\b/.test(f.typeLine || d.typeLine || '')) delta -= G.s.isDiscount[pid].n;
   // Mutated Cultist: "The next spell you cast this turn costs {1} less for each counter removed this way."
   if (G.s.nextSpellLess && G.s.nextSpellLess[pid] && G.s.nextSpellLess[pid].turn === G.s.turn) delta -= G.s.nextSpellLess[pid].n;
   // Don & Raph: "the next noncreature spell you cast this turn has affinity for artifacts"
@@ -810,7 +812,7 @@ export async function castSpell(pid, iid, opt, env) {
   const eff = env.free || opt.free ? { generic: 0 } : effectiveCost(pid, c, opt);
   const extraGeneric = eff.generic + info.extraGeneric;
   const pay = await env.pay(pid, costStr, label, {
-    extraGeneric, convoke: hasKw(c, 'convoke'), improvise: hasKw(c, 'improvise'), delve: hasKw(c, 'delve'), self: c.iid, waterbend: info.waterbend || 0,
+    extraGeneric, convoke: hasKw(c, 'convoke') || ((s.convokeNext || {})[pid] === s.turn), improvise: hasKw(c, 'improvise'), delve: hasKw(c, 'delve'), self: c.iid, waterbend: info.waterbend || 0,
     xFixed: env.x,
   });
   if (!pay) throw new Cancelled();
@@ -851,6 +853,7 @@ export async function castSpell(pid, iid, opt, env) {
     }
   }
   if (s.affinityNext && s.affinityNext[pid] === s.turn && !isCreature(c)) delete s.affinityNext[pid];
+  if (s.convokeNext && s.convokeNext[pid] === s.turn && !opt.copy) delete s.convokeNext[pid];
   if (s.nextSpellLess && s.nextSpellLess[pid] && !opt.copy) delete s.nextSpellLess[pid];
   c.manaSpent = env.free || opt.free ? 0 : ((pay.payers || []).length + (pay.special || []).filter((x) => x.kind === 'pool' || x.kind === 'convoke').length);
   if (opt.removeCounters) removeCountersAmong(pid, opt.removeCounters, c);
@@ -910,11 +913,14 @@ export async function castSpell(pid, iid, opt, env) {
     const k = s.copyNext.findIndex((e) => e.pid === pid && e.turn === s.turn && new RegExp(e.types.join('|'), 'i').test(tl));
     if (k >= 0) {
       copies += s.copyNext[k].n || 1;
+      if (s.copyNext[k].notLegendary) info.copyNotLegendary = true;
       s.copyNext.splice(k, 1);
       log(pid, `${nameTag(c)} is copied.`);
     }
   }
   let cascades = (oracle({ ...c, face: fIdx }).replace(/\([^)]*\)/g, '').match(/(?:^|\n|, )cascade\b/gi) || []).length;
+  // Smoldering Stagecoach: "the next instant spell and the next sorcery spell you cast this turn each have cascade"
+  if (s.cascadeNext && !opt.copy) { const tl0 = (d.faces[fIdx] || d.faces[0]).typeLine || d.typeLine || ''; const k = s.cascadeNext.findIndex((e) => e.pid === pid && e.turn === s.turn && new RegExp('\\b' + e.type + '\\b').test(tl0)); if (k >= 0) { cascades++; s.cascadeNext.splice(k, 1); log(pid, `${nameTag(c)} has cascade (Smoldering Stagecoach).`); } }
   // Rain of Riches: "The first spell you cast each turn that mana from a Treasure was spent to cast has cascade."
   if (!opt.copy) {
     const usedTreasure = s.treasureSpent && s.treasureSpent.pid === pid && s.treasureSpent.turn === s.turn;
@@ -961,6 +967,8 @@ export async function castSpell(pid, iid, opt, env) {
     // pods: the other AI seats may counter an AI's spell too
     if (!countered && isAI(pid) && multiplayer() && env.aiCounter && G.s === s && !aiSlaved()) countered = await env.aiCounter(c);
   }
+  // a cast trigger countered it while it waited (Boromir, Swindler's Scheme, Mana Tithe-style effects)
+  if (!countered && s[stackSlot] && s[stackSlot].iid === iid && s[stackSlot].countered) countered = true;
   if (leftStack()) {
     s[stackSlot] = null;
     log(pid, `${nameTag(c)} left the stack.`);
@@ -969,11 +977,15 @@ export async function castSpell(pid, iid, opt, env) {
   }
   // Commandeer: someone else gained control of this spell
   if (s[stackSlot] && s[stackSlot].stolenBy) { const nb = s[stackSlot].stolenBy; log(nb, `${nameTag(c)} now resolves for ${nb === 'p' ? 'you' : seatName(nb)}.`); pid = nb; c.controller = nb; }
+  const redirectBy = s[stackSlot] && s[stackSlot].redirectBy;
   const exileCountered = s[stackSlot] && s[stackSlot].exileCountered;
   const stealCast = s[stackSlot] && s[stackSlot].stealCast;
   const bounced = s[stackSlot] && s[stackSlot].bounced;
   const counteredByEffect = !!(s[stackSlot] && s[stackSlot].countered);
   s[stackSlot] = null;
+  if (counteredByEffect) countered = true;
+  // countered by an effect while another spell took the stack slot (a spell cast in response, then resolved)
+  if (s.counteredIids && s.counteredIids.includes(iid)) { countered = true; s.counteredIids = s.counteredIids.filter((x) => x !== iid); }
   if (countered) {
     if (isAI(pid) && !counteredByEffect) log(opp(pid), `You counter ${nameTag(c)}.`);
     move(iid, bounced ? 'hand' : exileCountered || exileInstead(iid) || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard', { fromStack: true });
@@ -995,7 +1007,8 @@ export async function castSpell(pid, iid, opt, env) {
     // once it resolves, the spell can't be taken back: card pickers offer "Choose none", not "Cancel spell"
     T.inTrigger = (T.inTrigger || 0) + 1;
     try {
-      await resolveSpell(pid, c, opt, info, env);
+      // Deflecting Swat: another player chooses this spell's targets
+      await resolveSpell(pid, c, opt, info, redirectBy && redirectBy !== pid ? { ...env, choosers: { ...env.choosers, [pid]: env.choosers[redirectBy] } } : env);
     } finally {
       T.inTrigger--;
     }
@@ -1024,6 +1037,7 @@ async function resolveCopy(pid, c, fIdx, info, env) {
   if (isPermanentCard({ faces: [f] })) {
     const [tok] = createToken(c.def, pid, 1);
     card(tok).face = fIdx;
+    if (info.copyNotLegendary) card(tok).notLegendary = true; // The Clone Saga
     log(pid, `A copy of ${nameTag(c)} enters as a token.`);
     return;
   }

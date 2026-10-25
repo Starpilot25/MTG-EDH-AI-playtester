@@ -73,6 +73,12 @@ export async function startPlay() {
 function setStep(step) {
   G.s.step = step;
   emptyPools();
+  // Vivien's Stampede: "At the beginning of the next main phase this turn, draw a card for each player who was dealt combat damage this turn."
+  if (step === 'main2' && G.s.delayed) for (const d of G.s.delayed.filter((x) => x.at === 'main2' && x.turn === G.s.turn)) {
+    G.s.delayed.splice(G.s.delayed.indexOf(d), 1);
+    const k = seats().filter((p) => ((G.s.ts[p] || {}).combatDmgFromTypes || []).length).length;
+    if (k) { draw(d.pid, k, true); log(d.pid, `Vivien's Stampede: ${d.pid === 'p' ? 'you draw' : 'draws'} ${k}.`); }
+  }
 }
 
 // Pay a mana cost for an upkeep keyword. AI pays when it can; you get asked.
@@ -1127,6 +1133,12 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
   for (const ev of events) {
     const src = card(ev.from);
     if (!src) continue;
+    // Angel of Salvation: shields on players
+    if (ev.type === 'player' && s.dmgShield) {
+      const vp = ev.to || defender;
+      for (const sh of s.dmgShield) if (sh.turn === s.turn && sh.player === vp && sh.n > 0 && ev.amount > 0) { const k = Math.min(sh.n, ev.amount); sh.n -= k; ev.amount -= k; }
+      if (ev.amount <= 0) { lines.push(`${nameTag(src)}'s damage is prevented`); continue; }
+    }
     // Deflecting Palm
     if (ev.type === 'player') {
       const vp = ev.to || defender;
@@ -1236,6 +1248,8 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     : `${toPlayer} to ${seatName(defender)}`;
   if (lines.length) log(atkr, `Combat damage: ${lines.join(', ')}${toPlayer ? ` (${toText})` : ''}.`);
   if (lifelinkTotal) log(atkr, `Lifelink: ${atkr === 'p' ? 'you gain' : `${aiName(atkr)} gains`} ${lifelinkTotal}.`);
+  // Forth Eorlingas!: "whenever one or more creatures you control deal combat damage to one or more players this turn, you become the monarch"
+  { const hitBy = new Set(events.filter((e) => e.type === 'player' && e.amount > 0 && card(e.from)).map((e) => card(e.from).controller)); for (const p of hitBy) if ((s.monarchOnHit || {})[p] === s.turn && s.monarch !== p) { s.monarch = p; queueEvent({ type: 'becameMonarch', pid: p }); log(p, `${p === 'p' ? 'You become' : seatName(p) + ' becomes'} the monarch.`); } }
   // Judgment of Alexander: each commander creature you control deals damage equal to its power to the creature whose damage was prevented
   const retaliateQ = [];
   for (const [vp, po] of Object.entries(s.preventOppDmg || {})) {
@@ -1387,6 +1401,7 @@ export async function runAiTurn(pid = 'ai') {
   const wait = (m = G.settings.aiSpeed) => hooks.wait(m);
   // the turn stops early if this player leaves the game (pods) or the game ends
   const over = () => G.s !== s || s.winner || !inGame(pid);
+  const ended = () => s.endTurnNow === s.turn; // Day's Undoing: "end the turn"
   try {
     await asSeat(pid, async () => {
       await wait();
@@ -1394,29 +1409,35 @@ export async function runAiTurn(pid = 'ai') {
       if (aiSlaved() && hooks.slavedMain) await hooks.slavedMain(false);
       else await aiMainPhase(hooks);
       if (over()) return;
-      await aiCombat(pid);
-      while (G.s === s && !s.winner && inGame(pid) && s.extraCombats > 0) {
+      if (!ended()) await aiCombat(pid);
+      while (!ended() && G.s === s && !s.winner && inGame(pid) && s.extraCombats > 0) {
         s.extraCombats--;
         log('sys', 'An additional combat phase begins.');
         await aiCombat(pid);
       }
       if (over()) return;
-      setStep('main2');
-      hooks.render();
-      fire({ type: 'main2', active: pid });
-      await settle();
+      if (!ended()) {
+        setStep('main2');
+        hooks.render();
+        fire({ type: 'main2', active: pid });
+        await settle();
+        if (over()) return;
+      }
+      if (!ended()) {
+        if (aiSlaved() && hooks.slavedMain) await hooks.slavedMain(true);
+        else await aiMainPhase(hooks, true);
+      }
       if (over()) return;
-      if (aiSlaved() && hooks.slavedMain) await hooks.slavedMain(true);
-      else await aiMainPhase(hooks, true);
-      if (over()) return;
-      await extraBeginningPhases(pid);
+      if (!ended()) await extraBeginningPhases(pid);
       if (over()) return;
       setStep('end');
       hooks.render();
-      fire({ type: 'endStep', active: pid });
-      await settle();
-      if (over()) return;
-      await endStepThings(pid);
+      if (!ended()) {
+        fire({ type: 'endStep', active: pid });
+        await settle();
+        if (over()) return;
+        await endStepThings(pid);
+      }
       if (over()) return;
       // pods: the other AIs act at the end of this turn (flash creatures, instants, abilities)
       if (multiplayer()) await aiWindow('endStep');

@@ -446,6 +446,7 @@ export function grantsOf(inst) {
 export function hasKw(inst, kw) {
   if (!inst) return false;
   kw = kw.toLowerCase();
+  if (kw === 'indestructible' && G.s && inst.loseIndestructibleTurn === G.s.turn) return false; // Exterminatus, Smite the Deathless
   if (readCache.on) {
     const twin = cacheTwin(inst);
     if (twin && twin.grants === inst.grants && twin.eotGrants === inst.eotGrants && twin.auraBuffs === inst.auraBuffs) {
@@ -1555,6 +1556,7 @@ export function damageMods(amount, src, victimPid, opts = {}) {
     return 0;
   }
   if (opts.victim && opts.victim.preventDmgTurn === G.s.turn) return 0; // Mutational Advantage
+  if (opts.combat && G.s.preventCombatTo && victimPid && G.s.preventCombatTo[victimPid] === G.s.turn && (!opts.victim || isType(opts.victim, 'Planeswalker'))) return 0; // Take the Bait
   // Obscuring Haze: "Prevent all damage that would be dealt this turn by creatures your opponents control."
   if (G.s.hazePrevent && src && srcCtl && isCreature(src) && Object.entries(G.s.hazePrevent).some(([p, t]) => t === G.s.turn && p !== srcCtl)) return 0;
   let a = amount;
@@ -1679,6 +1681,7 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
           if (!t.counters.shield) delete t.counters.shield;
           continue;
         }
+        if (G.s.dmgShield && t === G.s.cards[t.iid]) { for (const sh of G.s.dmgShield) if (sh.turn === G.s.turn && sh.iid === t.iid && sh.n > 0 && ev.amount > 0) { const k = Math.min(sh.n, ev.amount); sh.n -= k; ev.amount -= k; } if (ev.amount <= 0) continue; }
         if (t.dmgToCounters === G.s.turn) { // Gatta and Luzzu
           t.counters = t.counters || {};
           t.counters['+1/+1'] = (t.counters['+1/+1'] || 0) + ev.amount;

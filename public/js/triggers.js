@@ -116,10 +116,18 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever you put one or more counters on ~, (.+)$/i))) { add('counterPut', q[1], { self: true, anyKindSelf: true }); continue; }
       // Invisible Woman, Sue Storm: "Whenever you put one or more +1/+1 counters on one or more other Heroes you control"
       if ((q = line.match(/^Whenever you put one or more ([+\-\d\/]+) counters on one or more other ([A-Z][\w-]+) you control, (.+)$/))) { add('counterPut', q[3], { anyKind: true, other: true, counterKindOnly: q[1], kindF: kindWords(q[2]), oncePerEvent: true }); continue; }
+      // Storm, Queen of Wakanda
+      if ((q = line.match(/^Whenever a creature with flying attacks you, (.+)$/i))) { add('attacks', q[1], { attacksMeFlying: true }); continue; }
+      // The Fantasticar
+      if ((q = line.match(/^Whenever you cast your fourth noncreature spell each turn, (.+)$/i))) { add('cast', q[1], { spell: 'noncreature', mine: true, nthNoncreature: 4 }); continue; }
+      // Zurzoth
+      if ((q = line.match(/^Whenever an opponent draws their first card each turn, (.+)$/i))) { add('draw', q[1], { who: 'an opponent', nthDraw: 1 }); continue; }
       // Mirrorwing Dragon
       if (/^Whenever a player casts an instant or sorcery spell that targets only ~, that player copies that spell for each other creature they control that the spell could target\. Each copy targets a different one of those creatures\.$/i.test(line)) { out.push({ event: 'becomesTarget', self: true, spellOnly: true, mirrorwing: true, raw: line, fn: async (ctx, hit, ev) => {
         const sp = ev && ev.spell && card(ev.spell);
         if (!sp || !/Instant|Sorcery/.test(DB[sp.def].faces[0].typeLine || '')) return [];
+        // "targets only this creature": the spell chose no other target
+        if ((ev.tlog || []).length !== 1) return [];
         const caster = ev.controller;
         const others = cardsIn(caster, 'battlefield').filter((c) => isCreature(c) && c.iid !== hit.src.iid);
         const did = [];
@@ -835,6 +843,7 @@ function keywordTriggersRaw(c) {
     if (!pick) return [];
     tapPerm(card(pick));
     pumpEOT(c, { p: power(card(pick)), t: 0, grants: [] });
+    if (card(c.iid)) card(c.iid).enlistedTurn = G.s.turn; // Aradesh
     return [`enlists ${nameTag(card(pick))} (+${power(card(pick))}/+0)`];
   }, 'Enlist', { self: true });
   if (hasKw(c, 'evolve')) f('enters', async (ctx, hit, ev) => {
@@ -1419,6 +1428,7 @@ function matches(ev) {
           if (!trig.minAttackers || ((G.s.combat && G.s.combat.attackers.length) || 0) >= trig.minAttackers) out.push({ src: c, trig, thatPlayer: ev.defender });
         } else if (trig.anyOfMine && c.controller === ev.controller && (trig.chosenType ? c.chosenType && hasSubtype(card(ev.iid), c.chosenType) : !trig.kind || matchesFilter(card(ev.iid), trig.kind)) && !(trig.other && c.iid === ev.iid) && !(trig.commander && !(card(ev.iid) || {}).isCommander)) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid } });
+        else if (trig.attacksMeFlying) { const a = card(ev.iid); if (a && a.controller !== c.controller && ev.defender === c.controller && hasKw(a, 'flying')) out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: a.controller }); }
         else if (trig.theirAttacker && c.controller !== ev.controller) out.push({ src: c, trig, it: { iid: ev.iid } });
         else if (trig.goadedAttacker) {
           const a = card(ev.iid);
@@ -1648,6 +1658,7 @@ function matches(ev) {
         if (trig.whileAttacking && !c.attacking) return; // Fire Lord Azula
         if (trig.enchantedPlayer && (c.enchantedPlayer || opp(c.controller)) !== ev.controller) return; // Maddening Hex
         if (trig.theirs && c.controller === ev.controller) return;
+        if (/casts? (?:a|an) [^,]*spell from (?:their|your) hand/i.test(trig.raw || '') && card(ev.iid) && card(ev.iid).castFrom !== 'hand') return; // Swindler's Scheme: from their hand only
         if (trig.notSelf && c.iid === ev.iid) return;
         // "your first instant or sorcery spell each turn": the first of that kind, not the first spell overall
         const nthOfKind = () => (ts.castIids || [ev.iid]).filter((i) => card(i) && spellMatches(trig.spell, DB[card(i).def], card(i))).length;
@@ -1655,6 +1666,7 @@ function matches(ev) {
         if (trig.firstNotHand && (ts.spellsNotHand || 0) !== 1) return;
         if (trig.second && (trig.spell ? nthOfKind() !== 2 : ts.spells !== 2)) return;
         if (trig.nth && ts.spells !== trig.nth) return; // Captain Ripley Vance: your third spell
+        if (trig.nthNoncreature && nthOfKind() !== trig.nthNoncreature) return; // The Fantasticar
         if (!spellMatches(trig.spell, d, sc)) return;
         // "a spell with mana value 4 or greater / 2 or less"
         if (trig.mvMin !== undefined && (d.cmc || 0) < trig.mvMin) return;

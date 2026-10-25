@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.3.137",
+    "title": "Precon sweep: 67 more cards",
+    "notes": [
+      "Another 90 precon cards checked; 67 needed fixes and all 90 now play by themselves.",
+      "Fixed: Acclaimed Contender, Angel of Salvation, Aradesh, Curse of Unbinding, Danse Macabre, Day's Undoing, Deflecting Swat, Demonlord Belzenlok, Depthshaker Titan, Descendants' Path, Desert Warfare, Dream-Thief's Bandana, Elektra, Everybody Lives!, Excava, Exterminatus, Fight for the Throne, Flockchaser Phantom, Foreboding Steamboat, Forth Eorlingas!, Sadistic Shell Game, Sarkhan the Masterless, Scythe Specter, Serene Sleuth, Shadrix Silverquill, Sibylline Soothsayer, Silver Surfer, Skyship Plunderer, Smite the Deathless, Smoldering Stagecoach, Spectacular Showdown, Spellbinding Soprano, Spirit of Resilience, Spiteful Repossession, Stangg, Start the TARDIS, Storm, Queen of Wakanda, Subterfuge, Swindler's Scheme, Syrix, T'Chaka, Take the Bait, Tangletrove Kelp, Taunt from the Rampart, Tempt with Bunnies, The Clone Saga, The Fantasticar, The Goose Mother, The Night of the Doctor, The Second Doctor, The Thing, Thieving Amalgam, Time Lord Regeneration, Torsten, Tzaangor Shaman, Ulalek, Ursine Monstrosity, Valiant Endeavor, Vault 21, Vivien's Stampede, Wave of Rats, Wurmquake, Yennett, Yuna's Whistle, Zada, Zndrsplt's Judgment and Zurzoth.",
+      "Radiant Performer: copies can now go at players too, not just creatures and planeswalkers.",
+      "Mirrorwing Dragon: only copies a spell that targets nothing but the Dragon.",
+      "Fix: if a cast trigger countered one of your spells (Swindler's Scheme, Boromir), the spell could still resolve. It's now countered properly.",
+      "Fix: Hot Pursuit crashed when its \"two or more players have lost\" check ran.",
+      "Start the TARDIS: there are no planes in this game, so \"you may planeswalk\" does nothing."
+    ]
+  },
+  {
     "version": "1.3.136",
     "title": "Precon sweep: 76 more cards",
     "notes": [
