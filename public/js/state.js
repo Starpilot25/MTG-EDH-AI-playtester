@@ -1260,6 +1260,7 @@ export function endCopy(c) {
   delete c.copyUntil;
   delete c.nameOverride;
   delete c.addTypes;
+  if (c.copyNotLegendary) { delete c.notLegendary; delete c.copyNotLegendary; } // Shuri
 }
 export function cleanupDamage() {
   const s = G.s;

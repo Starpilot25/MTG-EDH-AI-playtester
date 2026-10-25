@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.142",
+    "title": "Shuri, Wakandan Inventor",
+    "notes": [
+      "Shuri, Wakandan Inventor's ability works: one artifact you control becomes a copy of another one you control until end of turn, isn't legendary, and turns back at end of turn. Her artifact cost reduction already worked."
+    ]
+  },
+  {
     "version": "1.3.141",
     "title": "Soulbond, and four exact triggers",
     "notes": [

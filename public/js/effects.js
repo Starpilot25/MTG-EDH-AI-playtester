@@ -13304,6 +13304,26 @@ on(/^each opponent mills cards equal to its toughness$/, async (m, env) => {
   for (const o of opponents(env.me).filter(inGame)) millCards(o, k);
   env.did.push(`each opponent mills ${k}`);
 }, { first: true });
+// Shuri, Wakandan Inventor: "Target artifact you control becomes a copy of a second target artifact you control until end of turn, except it isn't legendary."
+on(/^target (artifact|creature|permanent|enchantment) you control becomes a copy of a second target \1 you control( until end of turn)?(?:, except (.+))?$/, async (m, env) => {
+  const kind = m[1];
+  const ok = (c) => (kind === 'permanent' ? true : isType(c, kind[0].toUpperCase() + kind.slice(1))) && canTarget(c, env.me, env.src);
+  const pool = cardsIn(env.me, 'battlefield').filter(ok);
+  if (pool.length < 2) return env.did.push(`needs two ${kind}s you control`);
+  // the AI turns its least valuable one into its best one
+  const [a] = await env.choosers[env.me].pickCards({ prompt: `Choose the ${kind} that becomes a copy`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'copy', src: env.src, aiScore: (c) => -cardValue(c) });
+  const rest = pool.filter((c) => c.iid !== a);
+  const [b] = await env.choosers[env.me].pickCards({ prompt: `${cardName(card(a))} becomes a copy of…`, cards: rest.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'copy', src: env.src, aiScore: (c) => cardValue(c) });
+  const self = card(a), model = card(b);
+  if (!self || !model || self.def === model.def) return env.did.push('nothing changes');
+  const wasName = nameTag(self);
+  if (!self.origDef) { self.origDef = self.def; self.origFace = self.face || 0; }
+  self.def = model.def;
+  self.face = model.face || 0;
+  if (m[2]) self.copyUntil = 'eot';
+  if (/isn't legendary|is not legendary/i.test(m[3] || '') && !self.notLegendary) { self.notLegendary = true; self.copyNotLegendary = true; }
+  env.did.push(`${wasName} becomes a copy of ${nameTag(model)}${m[2] ? ' until end of turn' : ''}`);
+}, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {
