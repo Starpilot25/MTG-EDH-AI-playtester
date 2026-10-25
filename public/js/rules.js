@@ -1546,6 +1546,11 @@ export function redirectTarget(victimPid, victimIid) {
 export function damageMods(amount, src, victimPid, opts = {}) {
   if (!G.s || amount <= 0) return amount;
   const srcCtl = src ? src.controller || src.owner : null;
+  // Judgment of Alexander: "Prevent all damage that would be dealt to you this turn by sources your opponents control."
+  const po = victimPid && !opts.victim && G.s.preventOppDmg && G.s.preventOppDmg[victimPid];
+  if (po && po.turn === G.s.turn && srcCtl && srcCtl !== victimPid) {
+    return 0;
+  }
   let a = amount;
   for (const pid of seats()) {
     for (const iid of G.s.players[pid].zones.battlefield) {
@@ -1591,7 +1596,7 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
       const toPlayer = isPlayer(tgt);
       const dest = (amount) => (toPlayer ? { type: 'player', from: aid, to: tgt, amount } : { type: 'permanent', from: aid, to: tgt, amount });
       if (deals(a)) {
-        let dmg = Math.max(0, /assigns combat damage equal to its toughness/i.test(oracle(a)) ? toughness(a) : power(a));
+        let dmg = Math.max(0, combatDmgOf(a));
         const plan = G.s && G.s.combat && G.s.combat.blocks === blocks && (G.s.combat.assign || {})[aid];
         if (!wasBlocked) {
           if (dmg > 0) pending.push(dest(dmg));
@@ -1635,7 +1640,7 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
       }
       for (const bid of bl) {
         const b = cards[bid];
-        if (deals(b) && power(b) > 0) pending.push({ type: 'creature', from: bid, to: aid, amount: power(b) });
+        if (deals(b) && combatDmgOf(b) > 0) pending.push({ type: 'creature', from: bid, to: aid, amount: combatDmgOf(b) });
       }
     }
     for (const ev of pending) {
@@ -1689,3 +1694,11 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
 
 // handed to statics.js so it can test types without importing this module's state
 export const helpers = { typeLine, hasSubtype, isCreature, power, toughness };
+
+// combat damage a creature assigns: its power, or its toughness (Kingpin of Crime, "assigns combat damage equal to its toughness")
+export function combatDmgOf(c) {
+  if (/assigns combat damage equal to its toughness/i.test(oracle(c))) return toughness(c);
+  const td = G.s && G.s.toughDmg && G.s.toughDmg[c.controller];
+  if (td === G.s.turn && toughness(c) > power(c)) return toughness(c);
+  return power(c);
+}

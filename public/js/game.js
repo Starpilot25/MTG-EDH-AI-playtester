@@ -18,6 +18,7 @@ import {
   aiInstantWindow, asSeat,
 } from './ai.js';
 import { emptyPools, castFree, applyPayment } from './cast.js';
+import { combatDmgOf } from './rules.js';
 import { seats, opponents, isAI, isPlayer, multiplayer, nextSeat, inGame, seatName } from './state.js';
 import { isGoaded, goadersOf, expireGoads, goadOk } from './state.js';
 
@@ -308,6 +309,17 @@ async function upkeepKeywords(pid) {
   // Arcane Denial & co.: draws at the beginning of the next turn's upkeep
   for (const d of s.delayed.filter((x) => x.at === 'nextUpkeep' && x.after < s.turn)) {
     s.delayed.splice(s.delayed.indexOf(d), 1);
+    // The Eagles Are Coming! (tokens) / Aang, at the Crossroads (transform)
+    if (d.kind === 'tokens' || d.kind === 'transform') {
+      const src = card(d.iid) || null;
+      if (d.kind === 'transform' && (!src || src.zone !== 'battlefield')) continue;
+      const { resolveEffects } = await import('./effects.js');
+      const did = await resolveEffects(d.kind === 'tokens' ? `Create ${d.tokens}.` : 'Transform ~.', src || { iid: null, controller: d.pid, def: null }, { me: d.pid, choosers: T.choosers, forced: true });
+      log(d.pid, `${d.why}: ${did.join('; ')}.`);
+      await settle();
+      if (G.s !== s) return;
+      continue;
+    }
     let k = d.n;
     if (d.upTo && d.pid === 'p') k = (await T.confirm('Draw', `Draw ${d.n} card${d.n === 1 ? '' : 's'} (${d.why})?`)) ? d.n : 0;
     if (k) {
@@ -923,7 +935,7 @@ export async function resolvePlayerCombat() {
       if (!a || a.zone !== 'battlefield' || !bl.length) continue;
       const trample = hasKw(a, 'trample');
       if (bl.length < 2 && !trample) continue;
-      const dmg = Math.max(0, /assigns combat damage equal to its toughness/i.test(oracle(a)) ? toughness(a) : power(a));
+      const dmg = Math.max(0, combatDmgOf(a));
       if (dmg <= 0) continue;
       const plan = await hooks.assignDamage(a, bl.map(card), dmg, trample, hasKw(a, 'deathtouch'));
       if (G.s !== s) return;
@@ -1028,8 +1040,8 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     if (!src) continue;
     if (ev.lifelink) changeLife(ev.controller, ev.amount, false);
     if (ev.amount > 0) {
-      fire({ type: 'dealsDamage', iid: ev.from, amount: ev.amount, other: ev.type !== 'player' ? ev.to : null, player: ev.type === 'player' ? ev.to || defender : null });
-      if (ev.type !== 'player') fire({ type: 'dealtDamage', iid: ev.to, amount: ev.amount, other: ev.from });
+      fire({ type: 'dealsDamage', iid: ev.from, amount: ev.amount, other: ev.type !== 'player' ? ev.to : null, player: ev.type === 'player' ? ev.to || defender : null, combat: true });
+      if (ev.type !== 'player') fire({ type: 'dealtDamage', iid: ev.to, amount: ev.amount, other: ev.from, combat: true });
       if (ev.type === 'creature') fire({ type: 'combatDamageCreature', iid: ev.from, amount: ev.amount, other: ev.to });
       if (ev.type === 'player') fire({ type: 'dealsDamagePlayer', iid: ev.from, amount: ev.amount, player: ev.to || defender });
     }
@@ -1123,6 +1135,32 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     : `${toPlayer} to ${seatName(defender)}`;
   if (lines.length) log(atkr, `Combat damage: ${lines.join(', ')}${toPlayer ? ` (${toText})` : ''}.`);
   if (lifelinkTotal) log(atkr, `Lifelink: ${atkr === 'p' ? 'you gain' : `${aiName(atkr)} gains`} ${lifelinkTotal}.`);
+  // Judgment of Alexander: each commander creature you control deals damage equal to its power to the creature whose damage was prevented
+  const retaliateQ = [];
+  for (const [vp, po] of Object.entries(s.preventOppDmg || {})) {
+    if (!(po.retaliate || po.reflect) || po.turn !== s.turn) continue;
+    for (const aid of attackers) {
+      const a = card(aid);
+      if (a && a.controller !== vp && (targets[aid] || defender) === vp && !(blocks[aid] || []).length && combatDmgOf(a) > 0) retaliateQ.push({ pid: vp, iid: aid, reflect: po.reflect ? card(po.src) : null, amount: combatDmgOf(a) });
+    }
+  }
+  for (const q of retaliateQ) {
+    const t = card(q.iid);
+    if (!t || t.zone !== 'battlefield') continue;
+    if (s.preventOppDmg[q.pid].reflect) {
+      t.damage = (t.damage || 0) + q.amount;
+      fire({ type: 'dealtDamage', iid: t.iid, amount: q.amount, other: q.reflect ? q.reflect.iid : null });
+      log(q.pid, `Comeuppance deals ${q.amount} damage to ${nameTag(t)}.`);
+      continue;
+    }
+    for (const cm of cardsIn(q.pid, 'battlefield').filter((x) => x.isCommander && isCreature(x) && power(x) > 0)) {
+      t.damage = (t.damage || 0) + power(cm);
+      if (hasKw(cm, 'deathtouch')) t.deathtouched = true;
+      fire({ type: 'dealsDamage', iid: cm.iid, amount: power(cm), other: t.iid });
+      fire({ type: 'dealtDamage', iid: t.iid, amount: power(cm), other: cm.iid });
+      log(q.pid, `${nameTag(cm)} deals ${power(cm)} damage to ${nameTag(t)} (Judgment of Alexander).`);
+    }
+  }
   stateBased();
   if (multiplayer()) for (const k of seats()) checkLoss(k);
   else checkLoss(defender);

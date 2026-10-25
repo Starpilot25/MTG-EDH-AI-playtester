@@ -105,6 +105,54 @@ function parseTriggerText(text, speed) {
     };
     // Animate Dead: the leaves part is written inside the enters paragraph
     if (/^When ~ enters/.test(line) && /When ~ leaves the battlefield, that creature's controller sacrifices it\./.test(line)) add('leaves', "that creature's controller sacrifices it.", { self: true });
+    // ---- scene-box sweep forms (checked first) ----
+    {
+      let q;
+      // plural names: "Whenever Aang and Katara enter or attack", "Whenever Don & Raph attack", "attack or block"
+      if ((q = line.match(/^Whenever ~ enter or attack, (.+)$/))) { add('enters', q[1], { self: true }); add('attacks', q[1], { self: true }); continue; }
+      if ((q = line.match(/^Whenever ~ attack or block, (.+)$/))) { add('attacks', q[1], { self: true }); add('blocks', q[1], { self: true }); continue; }
+      if ((q = line.match(/^Whenever ~ attack, (.+)$/))) { add('attacks', q[1], { self: true }); continue; }
+      // Aragorn, Company Leader
+      if ((q = line.match(/^Whenever you put one or more counters on ~, (.+)$/i))) { add('counterPut', q[1], { self: true, anyKindSelf: true }); continue; }
+      // Invisible Woman, Sue Storm: "Whenever you put one or more +1/+1 counters on one or more other Heroes you control"
+      if ((q = line.match(/^Whenever you put one or more ([+\-\d\/]+) counters on one or more other ([A-Z][\w-]+) you control, (.+)$/))) { add('counterPut', q[3], { anyKind: true, other: true, counterKindOnly: q[1], kindF: kindWords(q[2]), oncePerEvent: true }); continue; }
+      // Mikey & Leo / The Great Goblin
+      if ((q = line.match(/^Whenever you put (?:a|one or more) counters? on (?:a|an|one or more) ([A-Z][\w-]+(?:, [A-Z][\w-]+)*,? or [A-Z][\w-]+|[^,]+?)(?: you control)?, (.+)$/))) { add('counterPut', q[2], { anyKind: true, kindF: kindWords(q[1]) }); continue; }
+      // Abomination: "Whenever a Gamma or Villain you control deals combat damage to a player"
+      if ((q = line.match(/^Whenever an? ([A-Z][\w-]+) or ([A-Z][\w-]+) you control deals combat damage to a player, (.+)$/))) { add('combatDamagePlayer', q[3], { anyOfMine: true, kind: `${q[1].toLowerCase()} or ${q[2].toLowerCase()}` }); continue; }
+      // Aang, at the Crossroads
+      if ((q = line.match(/^When(?:ever)? another creature you control leaves the battlefield, (.+)$/i))) { add('leaves', q[1], { mine: true, kind: 'creature' }); continue; }
+      // Fangorn: "Whenever one or more Treefolk you control attack"
+      if ((q = line.match(/^Whenever one or more ([A-Z][\w-]+) you control attack, (.+)$/))) { add('youAttack', q[2], { kindCount: q[1] }); continue; }
+      // Fire Lord Azula
+      if ((q = line.match(/^Whenever you cast a spell while ~ is attacking, (.+)$/i))) { add('cast', q[1], { spell: '', mine: true, whileAttacking: true }); continue; }
+      // Mirkwood Bats
+      if ((q = line.match(/^Whenever you create or sacrifice a token, (.+)$/i))) { add('tokensCreated', q[1]); add('sacrificed', q[1], { kind: 'token', who: 'you' }); continue; }
+      // Necklace of Girion
+      if ((q = line.match(/^Whenever you cast an? ([a-z]+) spell and whenever an? ([A-Z][a-z]+) you control enters, (.+)$/))) { add('cast', q[3], { spell: q[1], mine: true }); add('enters', q[3], { mine: true, kind: q[2].toLowerCase() }); continue; }
+      // Noctis
+      if ((q = line.match(/^Whenever a creature you control enters during combat, (.+)$/i))) { add('enters', q[1], { mine: true, kind: 'creature', duringCombat: true }); continue; }
+      // Orcish Bowmasters
+      if ((q = line.match(/^When ~ enters and whenever an opponent draws a card except the first one they draw in each of their draw steps, (.+)$/i))) { add('enters', q[1], { self: true }); add('draw', q[1], { who: 'an opponent', notFirstInDrawStep: true }); continue; }
+      // Smaug the Impenetrable
+      if ((q = line.match(/^Whenever ~ is dealt noncombat damage, (.+)$/i))) { add('dealtDamage', q[1], { self: true, noncombat: true }); continue; }
+      // The Great Goblin: "Whenever another Goblin, Orc, or Army you control dies"
+      if ((q = line.match(/^Whenever another ([A-Z][\w-]+(?:, [A-Z][\w-]+)*,? or [A-Z][\w-]+) you control dies, (.+)$/))) { add('dies', q[2], { other: true, mine: true, kind: kindWords(q[1]) }); continue; }
+      // Witch-king of Angmar
+      if ((q = line.match(/^Whenever one or more creatures deal combat damage to you, (.+)$/i))) { add('combatDamagedMe', q[1], {}); continue; }
+      // Thor, Guardian of Midgard
+      if ((q = line.match(/^Whenever a source you control deals noncombat damage to an opponent, (.+)$/i))) { add('dealsDamage', q[1], { anySourceMine: true, noncombat: true, toOpp: true }); continue; }
+      // Edea
+      if ((q = line.match(/^Whenever a creature you control but don't own dies, (.+)$/i))) { add('dies', q[1], { mine: true, kind: 'creature', notOwnedDies: true }); continue; }
+      // Elrond: "Whenever a creature you control with a +1/+1 counter on it becomes the target of a spell or ability an opponent controls"
+      if ((q = line.match(/^Whenever a creature you control with an? ([+\-\d\/a-z]+) counter on it becomes the target of a spell or ability an opponent controls, (.+)$/i))) { add('becomesTarget', q[2], { sub: 'Creature', withCounter: q[1], oppOnly: true }); continue; }
+      // Éomer
+      if ((q = line.match(/^Whenever one or more other attacking ([a-z]+ )?creatures you control die, (.+)$/i))) { add('dies', q[2], { other: true, mine: true, kind: (q[1] || '').trim() ? (q[1] || '').trim() + ' creature' : 'creature', attackingOnly: true }); continue; }
+      // The Sensational She-Hulk
+      if ((q = line.match(/^Whenever a creature you control is dealt damage, (.+)$/i))) { add('dealtDamage', q[1], { anyMineDealt: true }); continue; }
+      // Rinoa
+      if ((q = line.match(/^Whenever one or more attacking creatures you control die, (.+)$/i))) { add('dies', q[1], { mine: true, kind: 'creature', attackingOnly: true }); continue; }
+    }
     // enters
     if ((m = line.match(/^When(?:ever)? ~ enters(?: the battlefield)? or leaves the battlefield, (.+)$/i))) {
       add('enters', m[1], { self: true });
@@ -1121,6 +1169,7 @@ function matches(ev) {
         if (!kindOk(nc, trig.kind)) return;
         if (trig.chosenType && !(c.chosenType && hasSubtype(nc, c.chosenType))) return;
         if (trig.notOwned && (nc.owner === c.controller || nc.token)) return;
+        if (trig.duringCombat && !(G.s.combat && G.s.active === c.controller)) return;
         if (trig.once) {
           const key = c.iid + trig.raw;
           if (seenOnce.has(key) || ev.batchSeen) return;
@@ -1144,6 +1193,8 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'dies' || trig.self || trig.attachedTo) return;
         if (trig.other && c.iid === ev.iid) return;
+        if (trig.notOwnedDies && ev.owner === ev.controller) return;
+        if (trig.attackingOnly && !ev.wasAttacking) return;
         if (trig.nontoken && ev.token) return;
         if (trig.mine && ev.controller !== c.controller) return;
         if (trig.theirs && ev.controller === c.controller) return;
@@ -1316,6 +1367,13 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'youAttack') return;
         if (trig.anyAttacker) { out.push({ src: c, trig, thatPlayer: ev.controller }); return; }
+        // Fangorn: "Whenever one or more Treefolk you control attack" — that much = how many
+        if (trig.kindCount) {
+          if (c.controller !== ev.controller) return;
+          const k = ((G.s.combat && G.s.combat.attackers) || []).map(card).filter((x) => x && hasSubtype(x, trig.kindCount)).length;
+          if (k) out.push({ src: c, trig, amount: k, thatPlayer: ev.defender });
+          return;
+        }
         // Glimmer Lens: equipped creature and at least one other creature attack
         if (trig.equippedPlus) {
           const ids = (G.s.combat && G.s.combat.attackers) || [];
@@ -1401,6 +1459,19 @@ function matches(ev) {
       });
       each((c, trig) => {
         if (trig.event !== ev.type) return;
+        if (trig.noncombat && ev.combat) return;
+        // Thor, Guardian of Midgard: any source you control dealing noncombat damage to an opponent
+        if (trig.anySourceMine) {
+          const s0 = card(ev.iid);
+          if (s0 && s0.controller === c.controller && ev.player && ev.player !== c.controller) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player });
+          return;
+        }
+        // She-Hulk: a creature you control is dealt damage
+        if (trig.anyMineDealt) {
+          const t0 = card(ev.iid);
+          if (ev.type === 'dealtDamage' && t0 && t0.controller === c.controller && isCreature(t0)) out.push({ src: c, trig, amount: ev.amount, it: { iid: ev.iid } });
+          return;
+        }
         if (trig.oppOnly && ev.player === c.controller) return;
         if (trig.minAmount && (ev.amount || 0) < trig.minAmount) return;
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player, it: ev.other ? { iid: ev.other } : null });
@@ -1419,7 +1490,9 @@ function matches(ev) {
         if (trig.event !== 'becomesTarget') return;
         if (trig.sub) {
           const t = card(ev.iid);
-          if (!t || t.controller !== c.controller || ev.controller === c.controller || !hasSubtype(t, trig.sub)) return;
+          if (!t || t.controller !== c.controller || ev.controller === c.controller) return;
+          if (trig.sub === 'Creature' ? !isCreature(t) : !hasSubtype(t, trig.sub)) return;
+          if (trig.withCounter && !((t.counters || {})[trig.withCounter] > 0)) return;
           out.push({ src: c, trig, thatPlayer: ev.controller, it: { iid: ev.iid } });
           return;
         }
@@ -1459,6 +1532,7 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'cast') return;
         if (trig.mine && c.controller !== ev.controller) return;
+        if (trig.whileAttacking && !c.attacking) return; // Fire Lord Azula
         if (trig.enchantedPlayer && (c.enchantedPlayer || opp(c.controller)) !== ev.controller) return; // Maddening Hex
         if (trig.theirs && c.controller === ev.controller) return;
         if (trig.notSelf && c.iid === ev.iid) return;
@@ -1495,7 +1569,7 @@ function matches(ev) {
       break;
     }
     case 'draw':
-      each((c, trig) => trig.event === 'draw' && whoOk(trig.who, c, ev.pid) && (!trig.second || ev.nth === 2) && (!trig.nthDraw || ev.nth === trig.nthDraw) && out.push({ src: c, trig, thatPlayer: ev.pid }));
+      each((c, trig) => trig.event === 'draw' && whoOk(trig.who, c, ev.pid) && !(trig.notFirstInDrawStep && G.s.step === 'draw' && G.s.active === ev.pid && ev.nth === 1) && (!trig.second || ev.nth === 2) && (!trig.nthDraw || ev.nth === trig.nthDraw) && out.push({ src: c, trig, thatPlayer: ev.pid }));
       break;
     case 'discard':
       each((c, trig) => trig.event === 'discard' && whoOk(trig.who, c, ev.pid) && (!trig.kind || (card(ev.iid) && matchesFilter({ ...card(ev.iid), zone: 'battlefield' }, trig.kind.replace(/^non(\w)/, 'non$1')))) && out.push({ src: c, trig, thatPlayer: ev.pid, it: { iid: ev.iid } }));
@@ -1539,8 +1613,15 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'counterPut') return;
         // Captain Marvel: "Whenever you put one or more counters on another creature"
+        // Aragorn, Company Leader: "Whenever you put one or more counters on ~" (any kind)
+        if (trig.anyKindSelf) {
+          if (c.iid === ev.iid && (ev.by || tgt.controller) === c.controller) out.push({ src: c, trig, amount: ev.n, counterKind: ev.kind });
+          return;
+        }
         if (trig.anyKind) {
           if (!isCreature(tgt) || (trig.other && tgt.iid === c.iid) || (ev.by || tgt.controller) !== c.controller || ev.kind === 'loyalty') return;
+          if (trig.kindF && !(tgt.controller === c.controller && kindOk(tgt, trig.kindF))) return;
+          if (trig.counterKindOnly && trig.counterKindOnly !== ev.kind) return;
           out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: tgt.controller, amount: ev.n, counterKind: ev.kind });
           return;
         }

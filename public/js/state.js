@@ -455,6 +455,8 @@ export function move(iid, zone, opts = {}) {
   if (fromZone === 'battlefield' || zone === 'battlefield') s.bfv = (s.bfv || 0) + 1; // board changed (rules.js caches by this)
   const fromCtl = fromZone === 'battlefield' ? c.controller : c.owner;
   let requested = zone;
+  // Samwise the Stouthearted: "a permanent card in your graveyard that was put there from the battlefield this turn"
+  if (fromZone === 'battlefield' && zone === 'graveyard') c.fromBfTurn = s.turn;
   // Cass, Hand of Vengeance: remember what was attached as it left
   if (fromZone === 'battlefield' && zone !== 'battlefield') c.lastAttached = Object.values(s.cards).filter((x) => x.attachedTo === iid && x.zone === 'battlefield').map((x) => x.iid);
   // replacements: finality counters, "exile it if it would leave", Rest in Peace and friends
@@ -489,7 +491,7 @@ export function move(iid, zone, opts = {}) {
         type: 'dies', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token,
         power: power(c), toughness: toughness(c), counters: { ...(c.counters || {}) }, isCommander: c.isCommander, merged: c.merged || [],
         granted: [c.extraText, c.eotText].filter(Boolean).join('\n') || undefined, // "When this creature dies, …" it gained (Rabid Attack)
-        wasBlitzed: c.castMode === 'blitz', attached: attachedHere.map((a) => a.iid), attachedCtl: Object.fromEntries(attachedHere.map((a) => [a.iid, a.controller])),
+        wasBlitzed: c.castMode === 'blitz', wasAttacking: !!c.attacking, attached: attachedHere.map((a) => a.iid), attachedCtl: Object.fromEntries(attachedHere.map((a) => [a.iid, a.controller])),
       });
     } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token, fromBattlefield: true });
     queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone, wasAttacking: !!c.attacking, power: isCreature(c) ? power(c) : undefined });

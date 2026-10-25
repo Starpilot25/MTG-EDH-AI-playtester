@@ -174,7 +174,14 @@ export function emptyPools(endOfTurn = false) {
     // Upwelling, Kruphix, Omnath, Horizon Stone…
     if (allBattlefields().some((x) => /Players don't lose unspent mana as steps and phases end/i.test(oracle(x)))) next[pid] = left;
     else if (field.some((o) => /If you would lose unspent (?:green )?mana, that mana becomes colorless instead/i.test(o))) next[pid] = left.map(() => 'C');
-    else if (!endOfTurn && field.some((o) => /You don't lose unspent red mana as steps and phases end/i.test(o)) && left.some((x) => poolSym(x).col === 'R')) {
+    // Fangorn ("green"), The Last Agni Kai (red, until end of turn): that color stays in the pool
+    else if (!endOfTurn && (field.some((o) => /You don't lose unspent (red|green) mana as steps and phases end/i.test(o)) || ((G.s.keepColor || {})[pid] && G.s.keepColor[pid].turn === G.s.turn)) && left.some((x) => { const col = poolSym(x).col; const kc = (G.s.keepColor || {})[pid]; return (kc && kc.turn === G.s.turn && kc.col === col) || field.some((o) => new RegExp(`You don't lose unspent ${col === 'R' ? 'red' : col === 'G' ? 'green' : 'zzz'} mana`, 'i').test(o)); })) {
+      const kc = (G.s.keepColor || {})[pid];
+      const keepCol = (col) => (kc && kc.turn === G.s.turn && kc.col === col) || field.some((o) => new RegExp(`You don't lose unspent ${col === 'R' ? 'red' : col === 'G' ? 'green' : 'zzz'} mana`, 'i').test(o));
+      next[pid] = left.filter((x) => keepCol(poolSym(x).col));
+      const gone = left.length - next[pid].length;
+      if (pid === 'p' && gone) log('p', `Unused mana empties from your pool (${gone}); some colored mana stays.`);
+    } else if (!endOfTurn && field.some((o) => /You don't lose unspent red mana as steps and phases end/i.test(o)) && left.some((x) => poolSym(x).col === 'R')) {
       // Leyline Tyrant: red mana stays (until the turn ends)
       next[pid] = left.filter((x) => poolSym(x).col === 'R');
       const gone = left.length - next[pid].length;
@@ -472,6 +479,8 @@ function genericAdjust(pid, c, opt) {
     else if (/it targets/i.test(m[2])) delta -= +m[1];
   }
   if ((m = o.match(/Affinity for ([^\n(]+)/i))) delta -= countPhrase(pid, m[1].trim() + ' you control', helpers, c.iid) || 0;
+  // Don & Raph: "the next noncreature spell you cast this turn has affinity for artifacts"
+  else if (G.s.affinityNext && G.s.affinityNext[pid] === G.s.turn && !/\bCreature\b/.test((f.typeLine || d.typeLine || '').split('—')[0]) && !/\bLand\b/.test(f.typeLine || d.typeLine || '')) delta -= cardsIn(pid, 'battlefield').filter((x) => isType(x, 'Artifact')).length;
   if (/\bUndaunted\b/.test(o)) delta -= 1;
   if (opt.extraGeneric) delta += opt.extraGeneric;
   return delta;
@@ -811,6 +820,7 @@ export async function castSpell(pid, iid, opt, env) {
   applyPayment(pid, pay);
   // Ancient Cellarspawn / Alex Wilder: what was paid, and when
   c.castTurn = s.turn;
+  if (s.affinityNext && s.affinityNext[pid] === s.turn && !isCreature(c)) delete s.affinityNext[pid];
   c.manaSpent = env.free || opt.free ? 0 : ((pay.payers || []).length + (pay.special || []).filter((x) => x.kind === 'pool' || x.kind === 'convoke').length);
   if (opt.removeCounters) removeCountersAmong(pid, opt.removeCounters, c);
   c.convokedBy = (pay.special || []).filter((x) => x.kind === 'convoke').map((x) => x.iid); // Lethal Scheme: "each creature that convoked it"
@@ -1196,7 +1206,15 @@ async function resolveSpell(pid, c, opt, info, env) {
     move(c.iid, 'library');
     shuffle(c.owner);
   } else if (info.buyback) move(c.iid, 'hand');
-  else if (/^(flashback|escape|jumpstart|disturb|aftermath|harmonize)$/.test(opt.mode) || exileInstead(c.iid)) move(c.iid, 'exile'); // "If that spell would be put into your graveyard, exile it instead"
+  else if (s.suspendOnResolve && s.suspendOnResolve[c.iid] && !c.copyCard) {
+    // Gandalf of the Secret Fire: exiled with time counters, and it gains suspend
+    const k = s.suspendOnResolve[c.iid];
+    delete s.suspendOnResolve[c.iid];
+    move(c.iid, 'exile');
+    c.counters = { ...(c.counters || {}), time: k };
+    c.suspended = true;
+    log(pid, `${nameTag(c)} is exiled with ${k} time counters (suspend).`);
+  } else if (/^(flashback|escape|jumpstart|disturb|aftermath|harmonize)$/.test(opt.mode) || exileInstead(c.iid)) move(c.iid, 'exile'); // "If that spell would be put into your graveyard, exile it instead"
   else if (/\bRebound\b/.test(o) && c.castFrom === 'hand') {
     move(c.iid, 'exile');
     c.rebound = true;

@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.128",
+    "title": "Scene box cards",
+    "notes": [
+      "Went through all 240 cards that only come in scene boxes (Lord of the Rings, Final Fantasy, Marvel, Avatar, Turtles and more). 238 of them now play fully by themselves.",
+      "Iron Man, Futurist Paragon: at the start of combat, your target artifact or creature becomes a 5/5 artifact creature with flying and stays that way.",
+      "Fixed: Doc Ock, Ultron, Bard's Company (recruit), Bruce Banner's extra combat, Duelist's Flame, Éowyn, Galadriel (both abilities), Gandalf of the Secret Fire (spells go into suspend), Gandalf the Spark Starter, Glamdring, Grasping Tentacles, Katara's Reversal, Legolas's Quick Reflexes, Mega Flare, Olórin's Searing Light, Raphael, Rinoa, Samwise, Lobelia, Sensational Spider-Man, Sokka and Suki, Sorcerous Squall, The Eagles Are Coming!, The Last Agni Kai, Tony Stark, Zuko (each mode once, and you lose 2 life), Krang & Shredder, Aang (airbend and transforming at the next upkeep), Witch-king, Edea, Éomer, Fangorn, Smaug, Thor, She-Hulk, Aragorn, Azula, Rosie Cotton, Noctis, Don & Raph (affinity on your next spell), The Kingpin of Crime (damage by toughness), Judgment of Alexander, Saruman of Many Colors, Invisible Woman, The Great Goblin, Avengers Assemble!, Boromir, Leonardo, Flame of Anor and HULK SMASH!.",
+      "Also fixed Comeuppance from the earlier precon sweep.",
+      "Still played by hand: Avatar Aang's bending trigger, Rohirrim Chargers (exert), Squall, Seifer, Loki, God of Mischief, Firebender Ascension and Vivi's Persistence."
+    ]
+  },
+  {
     "version": "1.3.127",
     "title": "Dice for turn order, group opponents in windows, countered commanders",
     "notes": [
