@@ -18,7 +18,7 @@ import {
   aiInstantWindow, asSeat,
 } from './ai.js';
 import { emptyPools, castFree, applyPayment } from './cast.js';
-import { combatDmgOf } from './rules.js';
+import { combatDmgOf, cardValue } from './rules.js';
 import { seats, opponents, isAI, isPlayer, multiplayer, nextSeat, inGame, seatName } from './state.js';
 import { isGoaded, goadersOf, expireGoads, goadOk } from './state.js';
 
@@ -827,6 +827,49 @@ function attackRestrictions(attackers) {
   return null;
 }
 
+// Odric, Master Tactician: is the attacking player choosing the blocks this combat?
+function odricActive(attackerPid) {
+  const o = G.s.odric;
+  return !!o && o.pid === attackerPid && o.turn === G.s.turn && o.n === ((G.s.combatNo || {})[attackerPid] || 0);
+}
+// blocks must still be legal: menace needs two or more blockers, each blocker blocks one attacker
+function legalizeBlocks(blocks) {
+  for (const [a, bs] of Object.entries(blocks)) {
+    const ac = card(a);
+    if (ac && hasKw(ac, 'menace') && bs.length < 2) delete blocks[a];
+    else if (!bs.length) delete blocks[a];
+  }
+  return blocks;
+}
+// you choose a defending player's blocks: for each creature that could block, which attacker it blocks (or none)
+async function odricPlayerBlocks(attackers, defender) {
+  const blocks = {};
+  const ch = T.choosers.p;
+  for (const b of cardsIn(defender, 'battlefield').filter(isCreature)) {
+    const can = attackers.filter((a) => card(a) && canBlock(b, card(a)));
+    if (!can.length) continue;
+    const opts = [{ label: "Doesn't block" }, ...can.map((a) => ({ label: `Blocks ${cardName(card(a))} (${power(card(a))}/${toughness(card(a))})` }))];
+    const k = await ch.choose({ prompt: `Odric: how does ${seatName(defender)}'s ${cardName(b)} (${power(b)}/${toughness(b)}) block?`, options: opts, aiPick: () => 0 });
+    if (k > 0) blocks[can[k - 1]] = [...(blocks[can[k - 1]] || []), b.iid];
+  }
+  return legalizeBlocks(blocks);
+}
+// the AI chooses an opponent's blocks: throw their creatures in front of attackers that kill them and survive
+function odricAiBlocks(attackers, defender) {
+  const blocks = {};
+  const used = new Set();
+  const pool = cardsIn(defender, 'battlefield').filter(isCreature);
+  for (const a of attackers.map(card).filter(Boolean).sort((x, y) => power(y) - power(x))) {
+    if (hasKw(a, 'menace')) continue;
+    const kills = (b) => hasKw(a, 'deathtouch') || power(a) >= toughness(b) - (b.damage || 0);
+    const survives = (b) => (hasKw(a, 'first strike') || hasKw(a, 'double strike')) && !hasKw(b, 'first strike') && !hasKw(b, 'double strike') ? true : power(b) < toughness(a) - (a.damage || 0) && !hasKw(b, 'deathtouch');
+    const pick = pool.filter((b) => !used.has(b.iid) && canBlock(b, a) && kills(b) && survives(b) && !hasKw(b, 'indestructible')).sort((x, y) => cardValue(y) - cardValue(x))[0];
+    // worth it when the blocker is worth more than the damage it would stop (or the attacker tramples over anyway)
+    if (pick && (cardValue(pick) >= 2.5 || hasKw(a, 'trample'))) { blocks[a.iid] = [pick.iid]; used.add(pick.iid); }
+  }
+  return blocks;
+}
+
 export async function confirmAttacks() {
   const s = G.s;
   const cb = s.combat;
@@ -892,12 +935,13 @@ export async function confirmAttacks() {
   const defenders = multiplayer() ? defendersOf(cb, 'p') : ['ai'];
   for (const d of defenders) {
     const mine = multiplayer() ? cb.attackers.filter((i) => playerOfTarget(cb.targets[i], 'p') === d) : cb.attackers;
-    const blocks = asSeat(d, () => aiChooseBlocks(mine));
+    const blocks = odricActive('p') ? await odricPlayerBlocks(mine, d) : asSeat(d, () => aiChooseBlocks(mine));
+    if (G.s !== s || !s.combat) return;
     Object.assign(cb.blocks, blocks);
     const bl = Object.entries(blocks);
     if (bl.length)
-      log(d, bl.map(([a, bs]) => `${aiName(d)} blocks ${nameTag(card(a))} with ${bs.map((b) => nameTag(card(b))).join(' + ')}`).join('. ') + '.');
-    else log(d, `${aiName(d)} does not block.`);
+      log(d, bl.map(([a, bs]) => (odricActive('p') ? `You have ${aiName(d)}'s ${bs.map((b) => nameTag(card(b))).join(' + ')} block ${nameTag(card(a))} (Odric)` : `${aiName(d)} blocks ${nameTag(card(a))} with ${bs.map((b) => nameTag(card(b))).join(' + ')}`)).join('. ') + '.');
+    else log(d, odricActive('p') ? `You choose that ${aiName(d)} doesn't block (Odric).` : `${aiName(d)} does not block.`);
   }
   fireBlocks(cb, 'p');
   await settle();
@@ -1257,7 +1301,13 @@ async function aiCombat(pid = 'ai') {
   const cb = s.combat;
   const atMe = pod ? aimedAt('p') : cb.attackers;
   const canAnyBlock = atMe.length && cardsIn('p', 'battlefield').some((b) => atMe.some((a) => card(a) && canBlock(b, card(a))));
-  if (canAnyBlock) await hooks.askBlocks(); // (you can also cast instants and activate abilities while choosing blocks)
+  const odric = odricActive(pid);
+  if (odric) {
+    // Odric: the attacker decides how your creatures block
+    cb.blocks = atMe.length ? odricAiBlocks(atMe, 'p') : {};
+    if (!Object.keys(cb.blocks).length) log(pid, `${aiName(pid)} chooses that your creatures don't block (Odric).`);
+    if (hooks.combatWindow) await hooks.combatWindow('aiAttack');
+  } else if (canAnyBlock) await hooks.askBlocks(); // (you can also cast instants and activate abilities while choosing blocks)
   else if (hooks.combatWindow) await hooks.combatWindow('aiAttack');
   if (G.s !== s) return;
   // you can only block creatures attacking you (or your planeswalkers and battles)
@@ -1271,12 +1321,12 @@ async function aiCombat(pid = 'ai') {
     log('p', `${nameTag(b)} is provoked into blocking.`);
   }
   const bl = Object.entries(cb.blocks).filter(([, v]) => v.length);
-  if (bl.length) log('p', bl.map(([a, bs]) => `You block ${nameTag(card(a))} with ${bs.map((b) => nameTag(card(b))).join(' + ')}`).join('. ') + '.');
+  if (bl.length) log('p', bl.map(([a, bs]) => `${odric ? `${aiName(pid)} has ${bs.map((b) => nameTag(card(b))).join(' + ')} block ${nameTag(card(a))} (Odric)` : `You block ${nameTag(card(a))} with ${bs.map((b) => nameTag(card(b))).join(' + ')}`}`).join('. ') + '.');
   // the other defending AIs block what's coming at them
   if (pod) for (const d of defenders.filter(isAI)) {
     const mine = aimedAt(d);
     if (!mine.length) continue;
-    const blocks = asSeat(d, () => aiChooseBlocks(mine));
+    const blocks = odric ? odricAiBlocks(mine, d) : asSeat(d, () => aiChooseBlocks(mine));
     Object.assign(cb.blocks, blocks);
     const ent = Object.entries(blocks);
     if (ent.length) log(d, ent.map(([a, bs]) => `${aiName(d)} blocks ${nameTag(card(a))} with ${bs.map((b) => nameTag(card(b))).join(' + ')}`).join('. ') + '.');

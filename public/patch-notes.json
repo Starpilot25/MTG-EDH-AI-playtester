@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.134",
+    "title": "Odric chooses the blocks",
+    "notes": [
+      "Odric, Master Tactician: when you attack with Odric and at least three other creatures, you now choose how each defending creature blocks. You're asked for each creature that can block, one at a time.",
+      "When an AI's Odric triggers, the AI picks your blocks. It puts your valuable creatures in front of attackers that kill them and survive, and otherwise leaves you unblocked."
+    ]
+  },
+  {
     "version": "1.3.133",
     "title": "Precon sweep: 66 more cards",
     "notes": [

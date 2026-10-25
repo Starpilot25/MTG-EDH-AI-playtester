@@ -9633,10 +9633,10 @@ on(/^prevent all damage that would be dealt this turn by creatures your opponent
   G.s.hazePrevent = { ...(G.s.hazePrevent || {}), [env.me]: G.s.turn };
   env.did.push("prevents all damage from opponents' creatures this turn");
 }, { first: true });
-// Odric, Master Tactician: you choose the blocks — modelled as no blocks (the attacker's best choice almost always)
+// Odric, Master Tactician: the attacker declares the defenders' blocks this combat (game.js asks them)
 on(/^you choose which creatures block this combat and how those creatures block$/, async (m, env) => {
-  G.s.noBlocksTurn = G.s.turn;
-  env.did.push('chooses that no creatures block this combat');
+  G.s.odric = { pid: env.me, turn: G.s.turn, n: (G.s.combatNo || {})[env.me] || 0 };
+  env.did.push(`${who(env.me)} ${s_(env.me, 'choose')} how creatures block this combat`);
 }, { first: true });
 // Open the Way
 on(/^x can't be greater than the number of players in the game$/, async () => {}, { first: true });
