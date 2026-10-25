@@ -9,7 +9,7 @@ import {
 import {
   G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, aiSlaved, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
   freshTurnStats, changeLife, setLife, sacrifice, addCounters, toBattlefield, cardName, queueEvent, discard as discardCard,
-  tappedHook,
+  tappedHook, inkshieldFlush,
 } from './state.js';
 import { maxHandSize } from './statics.js';
 import { fire, settle, T } from './triggers.js';
@@ -1270,6 +1270,15 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
   if (lifelinkTotal) log(atkr, `Lifelink: ${atkr === 'p' ? 'you gain' : `${aiName(atkr)} gains`} ${lifelinkTotal}.`);
   // Forth Eorlingas!: "whenever one or more creatures you control deal combat damage to one or more players this turn, you become the monarch"
   { const hitBy = new Set(events.filter((e) => e.type === 'player' && e.amount > 0 && card(e.from)).map((e) => card(e.from).controller)); for (const p of hitBy) if ((s.monarchOnHit || {})[p] === s.turn && s.monarch !== p) { s.monarch = p; queueEvent({ type: 'becameMonarch', pid: p }); log(p, `${p === 'p' ? 'You become' : seatName(p) + ' becomes'} the monarch.`); } }
+  inkshieldFlush();
+  // Human Torch: "he deals that much damage to each other opponent"; Stensian Sanguinist: "~ becomes prepared"
+  for (const e of events) {
+    if (e.type !== 'player' || !(e.amount > 0)) continue;
+    const a = card(e.from);
+    if (!a) continue;
+    if (a.torchSplash === s.turn) for (const o of opponents(a.controller).filter((x) => x !== e.to && inGame(x))) { changeLife(o, -e.amount); log(a.controller, `${nameTag(a)} deals ${e.amount} damage to ${seatName(o)}.`); }
+    if (a.prepareOnHit && card(a.prepareOnHit) && card(a.prepareOnHit).zone === 'battlefield' && !card(a.prepareOnHit).prepared) { card(a.prepareOnHit).prepared = true; log(a.controller, `${nameTag(card(a.prepareOnHit))} becomes prepared.`); }
+  }
   // Judgment of Alexander: each commander creature you control deals damage equal to its power to the creature whose damage was prevented
   const retaliateQ = [];
   for (const [vp, po] of Object.entries(s.preventOppDmg || {})) {

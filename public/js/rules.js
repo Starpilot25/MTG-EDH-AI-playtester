@@ -1562,7 +1562,8 @@ export function damageMods(amount, src, victimPid, opts = {}) {
     return 0;
   }
   if (opts.victim && opts.victim.preventDmgTurn === G.s.turn) return 0; // Mutational Advantage
-  if (opts.combat && G.s.preventCombatTo && victimPid && G.s.preventCombatTo[victimPid] === G.s.turn && (!opts.victim || isType(opts.victim, 'Planeswalker'))) return 0; // Take the Bait
+  if (victimPid && !opts.victim && G.s.preventAllTo && G.s.preventAllTo[victimPid] === G.s.turn) { if (opts.real && G.s.inkshield && G.s.inkshield.pid === victimPid && G.s.inkshield.turn === G.s.turn) G.s.inkshield.n = (G.s.inkshield.n || 0) + amount; return 0; } // Inkshield, Selfless Squire
+  if (opts.combat && G.s.preventCombatTo && victimPid && G.s.preventCombatTo[victimPid] === G.s.turn && (!opts.victim || isType(opts.victim, 'Planeswalker'))) { if (opts.real && !opts.victim && G.s.inkshield && G.s.inkshield.pid === victimPid && G.s.inkshield.turn === G.s.turn) G.s.inkshield.n = (G.s.inkshield.n || 0) + amount; return 0; } // Take the Bait, Inkshield
   // Obscuring Haze: "Prevent all damage that would be dealt this turn by creatures your opponents control."
   if (G.s.hazePrevent && src && srcCtl && isCreature(src) && Object.entries(G.s.hazePrevent).some(([p, t]) => t === G.s.turn && p !== srcCtl)) return 0;
   let a = amount;
@@ -1672,7 +1673,7 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
       }
       {
         const victim = ev.type === 'player' ? ev.to || defender : cards[ev.to] ? cards[ev.to].controller : null;
-        ev.amount = damageMods(ev.amount, src, victim, { combat: true, victim: ev.type === 'player' ? null : cards[ev.to] });
+        ev.amount = damageMods(ev.amount, src, victim, { combat: true, real: cards === G.s.cards, victim: ev.type === 'player' ? null : cards[ev.to] });
         if (ev.amount <= 0) continue;
       }
       const noPrevent = playerFlag(src.controller, 'noPrevent') || G.s.noPreventTurn === G.s.turn;

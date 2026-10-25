@@ -1719,6 +1719,16 @@ export function genericTokenDef(p, t, label, color, extra = {}) {
   return id;
 }
 
+// Inkshield: "For each 1 damage prevented this way, create a 2/1 white and black Inkling creature token with flying."
+export function inkshieldFlush() {
+  const ik = G.s && G.s.inkshield;
+  if (!ik || !(ik.n > 0)) return;
+  const k = ik.n;
+  ik.n = 0;
+  createToken(genericTokenDef(2, 1, 'Inkling', ['W', 'B'], { keywords: ['flying'] }), ik.pid, k);
+  log(ik.pid, `Inkshield: ${k} Inkling${k === 1 ? '' : 's'}.`);
+}
+
 export function attackersTotalPower() {
   const cb = G.s.combat;
   return cb ? cb.attackers.reduce((a, i) => a + Math.max(0, power(card(i))), 0) : 0;

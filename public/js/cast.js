@@ -393,6 +393,7 @@ export function castOptions(pid, c) {
     if ((a = altCostAny(o0, 'Flashback'))) add({ mode: 'flashback', label: `Flashback ${a.mana}${a.other ? ' — ' + a.other : ''}`, cost: a.mana, other: a.other });
     else if (c.grantedFlashback && c.grantedFlashbackTurn === s.turn) add({ mode: 'flashback', label: `Flashback ${c.grantedFlashback}`, cost: c.grantedFlashback });
     else if (c.tempFlashback === s.turn && !isLandFace(f0)) add({ mode: 'flashback', label: `Flashback ${f0.manaCost}`, cost: f0.manaCost });
+    if (c.grantedEscape && c.grantedEscapeTurn === s.turn && !altCostAny(o0, 'Escape')) add({ mode: 'escape', label: `Escape ${f0.manaCost || d.manaCost}, exile two other cards`, cost: f0.manaCost || d.manaCost, other: 'Exile two other cards from your graveyard' }); // Desdemona
     if ((a = altCostAny(o0, 'Escape'))) add({ mode: 'escape', label: `Escape ${a.mana}${a.other ? ', ' + a.other : ''}`, cost: a.mana, other: a.other });
     if ((a = altCost(o0, 'Jump-start') !== null ? f0.manaCost : null) !== null && /Jump-start/.test(o0)) add({ mode: 'jumpstart', label: 'Jump-start (discard a card)', cost: f0.manaCost });
     // Six: "During your turn, nonland permanent cards in your graveyard have retrace."
@@ -565,6 +566,8 @@ function exileInstead(iid) {
   const m = G.s.exileOnResolve;
   if (!m || !m[iid]) return false;
   delete m[iid];
+  // River Song's Diary, Rod of Absorption: "exile it instead … as it resolves" — exiled with the artifact
+  if (G.s.linkOnExile && G.s.linkOnExile[iid]) { const c = card(iid); if (c) c.exiledWith = G.s.linkOnExile[iid]; delete G.s.linkOnExile[iid]; }
   return true;
 }
 export async function castSpell(pid, iid, opt, env) {
@@ -1272,6 +1275,7 @@ async function resolveSpell(pid, c, opt, info, env) {
     c.counters = { ...(c.counters || {}), time: k };
     c.suspended = true;
     log(pid, `${nameTag(c)} is exiled with ${k} time counters (suspend).`);
+  } else if (s.returnToHandOnResolve && s.returnToHandOnResolve[c.iid]) { delete s.returnToHandOnResolve[c.iid]; move(c.iid, 'hand'); // Haunting Imitation
   } else if (/^(flashback|escape|jumpstart|disturb|aftermath|harmonize)$/.test(opt.mode) || exileInstead(c.iid)) move(c.iid, 'exile'); // "If that spell would be put into your graveyard, exile it instead"
   else if (/\bRebound\b/.test(o) && c.castFrom === 'hand') {
     move(c.iid, 'exile');

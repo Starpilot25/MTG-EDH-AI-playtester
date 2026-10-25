@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.3.139",
+    "title": "70 skipped precon cards fixed",
+    "notes": [
+      "70 more precon cards now play by themselves, including Expel the Interlopers, Fractured Identity, Flawless Forgery, Prisoner's Dilemma, Slaughter the Strong, Storm of Souls, Rise of the Dark Realms, Ghouls' Night Out, Guff Rewrites History, Haunting Imitation, Primeval Spawn, Midnight Clock, Nuclear Fallout, Run Away Together and Disciple of Caelus Nin.",
+      "Parley cards (Cutthroat Negotiator, Phabine) reveal, reward and draw correctly.",
+      "Inkshield and Selfless Squire prevent damage to you; Inkshield makes an Inkling for each damage prevented.",
+      "Desdemona gives escape for the turn; Haunting Imitation goes back to your hand when no creature is revealed.",
+      "Human Torch splashes his combat damage to the other opponents, and Stensian Sanguinist becomes prepared when its target connects.",
+      "River Song's Diary and Rod of Absorption keep track of the spells they exile.",
+      "SOLDIER Military Program lets you choose both modes when you control a commander."
+    ]
+  },
+  {
     "version": "1.3.138",
     "title": "Precon sweep finished: 92 more cards",
     "notes": [
