@@ -2506,10 +2506,13 @@ on(/^exile a card at random from each opponent's graveyard\. you may cast any nu
 }, { first: true, multi: true });
 // Fevered Suspicion / Plargg and Nassari: exile until a nonland card
 on(/^each opponent exiles cards from the top of their library until they exile a nonland card\. you may cast any number of spells from among those nonland cards without paying their mana costs$/, async (m, env) => {
-  const o = opp(env.me);
-  const { hit, all } = exileUntil(o, (c) => !isLandFace_(c));
-  env.did.push(`${who(o)} ${s_(o, 'exile')} ${all.length} card${all.length === 1 ? '' : 's'}${hit ? `, hitting ${nameTag(card(hit))}` : ''}`);
-  if (hit) await castFromPool(env, [hit], { free: true });
+  const hits = [];
+  for (const o of opponents(env.me).filter(inGame)) {
+    const { hit, all } = exileUntil(o, (c) => !isLandFace_(c));
+    env.did.push(`${who(o)} ${s_(o, 'exile')} ${all.length} card${all.length === 1 ? '' : 's'}${hit ? `, hitting ${nameTag(card(hit))}` : ''}`);
+    if (hit) hits.push(hit);
+  }
+  if (hits.length) await castFromPool(env, hits, { free: true });
 }, { first: true, multi: true });
 on(/^each player exiles cards from the top of their library until they exile a nonland card\. an opponent choo?ses a nonland card exiled this way\. you may cast up to two spells from among the other cards exiled this way without paying their mana costs$/, async (m, env) => {
   const hits = [];
@@ -2519,9 +2522,17 @@ on(/^each player exiles cards from the top of their library until they exile a n
   }
   env.did.push(`exiles ${hits.map((i) => nameTag(card(i))).join(' and ') || 'nothing'}`);
   if (!hits.length) return;
-  const o = opp(env.me);
+  // "An opponent chooses": the controller picks which opponent makes the choice (in a pod)
+  const os = opponents(env.me).filter(inGame);
+  if (!os.length) return castFromPool(env, hits, { free: true, max: 2 });
+  let o = os[0];
+  if (os.length > 1) {
+    const k = await env.choosers[env.me].choose({ prompt: `${cardName(env.src)}: which opponent chooses the card you can't cast?`, options: os.map((p) => ({ label: seatName(p) })), aiPick: () => Math.floor(Math.random() * os.length) });
+    o = os[k] || os[0];
+  }
+  const ch = env.choosers[o] || (T.choosers && T.choosers[o]);
   // the opponent takes away the best one
-  const [veto] = await env.choosers[o].pickCards({ prompt: 'Choose a card your opponent can’t cast', cards: hits, min: 1, max: 1, purpose: 'veto', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
+  const [veto] = ch ? await ch.pickCards({ prompt: `${cardName(env.src)}: choose the card ${seatName(env.me)} can't cast`, cards: hits, min: 1, max: 1, forced: true, purpose: 'veto', src: env.src, aiScore: (c) => (DB[c.def].cmc || 0) + cardValue(c) / 2 }) : [hits.slice().sort((a, b) => (DB[card(b).def].cmc || 0) - (DB[card(a).def].cmc || 0))[0]];
   if (veto) env.did.push(`${who(o)} ${s_(o, 'choose')} ${nameTag(card(veto))}`);
   await castFromPool(env, hits.filter((i) => i !== veto), { free: true, max: 2 });
 }, { first: true, multi: true });
