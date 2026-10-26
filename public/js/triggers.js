@@ -1883,7 +1883,8 @@ function matches(ev) {
         // Fangorn: "Whenever one or more Treefolk you control attack" — that much = how many
         if (trig.kindCount) {
           if (c.controller !== ev.controller) return;
-          const k = ((G.s.combat && G.s.combat.attackers) || []).map(card).filter((x) => x && hasSubtype(x, trig.kindCount)).length;
+          const one = trig.kindCount.replace(/ves$/, 'f').replace(/ies$/, 'y').replace(/(?<!s)s$/, ''); // "Dragons" → Dragon, "Elves" → Elf (Fangorn's Treefolk stays)
+          const k = ((G.s.combat && G.s.combat.attackers) || []).map(card).filter((x) => x && (hasSubtype(x, trig.kindCount) || hasSubtype(x, one))).length;
           if (k) out.push({ src: c, trig, amount: k, thatPlayer: ev.defender });
           return;
         }

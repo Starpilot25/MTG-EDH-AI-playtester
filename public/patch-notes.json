@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.153",
+    "title": "The Ur-Dragon",
+    "notes": [
+      "The Ur-Dragon's attack trigger works: when one or more Dragons you control attack, you draw that many cards, then you may put a permanent card from your hand onto the battlefield. Its eminence discount already worked.",
+      "The same fix covers other \"whenever one or more <creature type>s you control attack\" cards written with a plural type (Dragons, Elves, Wolves…)."
+    ]
+  },
+  {
     "version": "1.3.152",
     "title": "Comet Storm",
     "notes": [
