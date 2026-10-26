@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.144",
+    "title": "Ugin's Mastery",
+    "notes": [
+      "Ugin's Mastery manifests only when you cast a colorless creature spell (before, any creature spell set it off), and its attack trigger checks that the attacking creatures have total power 6 or greater, then turns a face-down creature face up for free.",
+      "Any \"whenever you cast a colorless … spell\" trigger now really requires the spell to be colorless."
+    ]
+  },
+  {
     "version": "1.3.143",
     "title": "Smarter Shuri copies",
     "notes": [

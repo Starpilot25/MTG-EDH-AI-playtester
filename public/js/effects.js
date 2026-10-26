@@ -13325,6 +13325,19 @@ on(/^target (artifact|creature|permanent|enchantment) you control becomes a copy
   if (/isn't legendary|is not legendary/i.test(m[3] || '') && !self.notLegendary) { self.notLegendary = true; self.copyNotLegendary = true; }
   env.did.push(`${wasName} becomes a copy of ${nameTag(model)}${m[2] ? ' until end of turn' : ''}`);
 }, { first: true });
+// Ugin's Mastery: "you may turn a face-down creature you control face up" (no cost; a card that isn't a permanent card stays face down)
+on(/^(?:you may )?turn (?:a|target|up to one target) face-down creature you control face up$/, async (m, env) => {
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => c.faceDown && isPermanentCard(DB[c.def]));
+  if (!pool.length) return env.did.push('has no face-down creature to turn up');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Turn a face-down creature face up?', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'faceUp', src: env.src, aiScore: (c) => cardValue({ ...c, faceDown: false }) });
+  if (!p) return;
+  const c = card(p);
+  c.faceDown = false;
+  c.turnedUpTurn = G.s.turn;
+  delete c.wardTwo;
+  queueEvent({ type: 'turnedFaceUp', iid: c.iid, controller: env.me });
+  env.did.push(`turns ${nameTag(c)} face up`);
+}, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {

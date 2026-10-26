@@ -610,7 +610,8 @@ function parseTriggerText(text, speed) {
       // Love on the Battlefield: "Whenever you attack with exactly two creatures"
       const ex = line.match(/attack with exactly (one|two|three|four|\d+) /i);
       const W = { one: 1, two: 2, three: 3, four: 4, five: 5 };
-      add('youAttack', m[1], { kind: km ? kindWords(km[1]) : '', minCount: mn ? W[mn[1].toLowerCase()] || +mn[1] : 0, ...(ex ? { exactCount: W[ex[1].toLowerCase()] || +ex[1] } : {}) });
+      const tp = line.match(/with total power (\d+) or greater/i); // Ugin's Mastery
+      add('youAttack', m[1], { kind: km ? kindWords(km[1]) : '', minCount: mn ? W[mn[1].toLowerCase()] || +mn[1] : 0, ...(ex ? { exactCount: W[ex[1].toLowerCase()] || +ex[1] } : {}), ...(tp ? { totalPower: +tp[1] } : {}) });
     }
     else if ((m = line.match(/^Whenever a creature you control attacks alone, (.+)$/i)))
       add('attacksAlone', m[1], { anyOfMine: true });
@@ -1569,6 +1570,7 @@ function spellMatches(filter, d, c) {
   if (/^enchantment/.test(f)) return /Enchantment/.test(t);
   if (/^legendary/.test(f)) return /Legendary/.test(t);
   if (/^historic/.test(f)) return /Legendary|Artifact|Saga/.test(t);
+  if (/^colorless/.test(f)) return !(d.colors || []).length && spellMatches(f.replace(/^colorless\s*/, ''), d, c); // Ugin's Mastery
   if (/^multicolored/.test(f)) return d.colors.length > 1;
   if (/^(white|blue|black|red|green)/.test(f)) return d.colors.includes({ white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }[f.split(' ')[0]]);
   if (/kicked/.test(f)) return !!(c && c.kicked);
@@ -1921,6 +1923,7 @@ function matches(ev) {
         if (trig.kind && !atk.length) return;
         if (trig.minCount && atk.length < trig.minCount) return; // "attack with two or more Spiders"
         if (trig.exactCount && atk.length !== trig.exactCount) return;
+        if (trig.totalPower && atk.reduce((n, x) => n + Math.max(0, power(x)), 0) < trig.totalPower) return; // "creatures with total power 6 or greater"
         out.push({ src: c, trig, thatPlayer: ev.defender, amount: atk.length, them: atk.map((a) => a.iid) });
       });
       break;
