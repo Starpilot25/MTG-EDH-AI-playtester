@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.148",
+    "title": "Ascendant Packleader and conditional counters",
+    "notes": [
+      "Ascendant Packleader only enters with its +1/+1 counter if you control a permanent with mana value 4 or greater.",
+      "Other \"enters with a counter on it if …\" cards now check their condition too: the Myojin cycle only gets its indestructible counter when you cast it from your hand, not when it's put onto the battlefield."
+    ]
+  },
+  {
     "version": "1.3.147",
     "title": "Cemetery Prowler",
     "notes": [

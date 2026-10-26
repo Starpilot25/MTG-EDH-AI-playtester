@@ -752,12 +752,18 @@ function entering(c, opts) {
   if (isType(c, 'Battle') && c.counters.defense === undefined) c.counters.defense = parseInt(f.defense, 10) || 0;
   let m;
   // "enters with N +1/+1 counters", "enters with X …", modular, graft, fading, vanishing, sunburst-ish
-  for (const mm of o.matchAll(/enters(?: the battlefield)? with (a|an|one|two|three|four|five|six|seven|eight|nine|ten|x|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|him|her|them)( for each time (?:it|he|she|~|this [a-z]+) was kicked)?/gi)) {
+  for (const mm of o.matchAll(/enters(?: the battlefield)? with (a|an|one|two|three|four|five|six|seven|eight|nine|ten|x|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|him|her|them)( for each time (?:it|he|she|~|this [a-z]+) was kicked)?(?: (if|unless) ([^.\n]+))?/gi)) {
     const words = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
     const nW = mm[1].toLowerCase();
     let k = nW === 'x' ? c.xPaid || 0 : words[nW] || parseInt(nW, 10) || 0;
     // Everflowing Chalice, Batroc: "… for each time it was kicked" (multikicker)
     if (mm[3]) k *= typeof c.kicked === 'number' ? c.kicked : c.kicked ? 1 : 0;
+    // Ascendant Packleader: "… with a +1/+1 counter on it if you control a permanent with mana value 4 or greater"
+    if (mm[4] && G.evalCondHook) {
+      let v = null;
+      try { v = G.evalCondHook(mm[5].trim().toLowerCase(), { me: c.controller, src: c, did: [], unknown: [] }); } catch (e) { v = null; }
+      if (v !== null && v !== undefined && (mm[4].toLowerCase() === 'if' ? !v : !!v)) k = 0;
+    }
     if (k) addCounters(c, mm[2].toLowerCase(), k, { silent: true });
   }
   // Oath of Gideon: "Each planeswalker you control enters with an additional loyalty counter on it."

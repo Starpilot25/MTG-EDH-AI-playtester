@@ -19,6 +19,8 @@ let T = {};
 export function bindTriggerHooks(t) {
   T = t;
 }
+// state.js asks conditions through this hook (it can't import effects.js directly): "enters with … counter on it if …"
+queueMicrotask(() => { G.evalCondHook = (cond, env) => evalCond(cond, env); });
 import('./triggers.js').then((m) => {
   T = m.T;
 }).catch(() => {});
@@ -832,6 +834,7 @@ export function evalCond(cond, env) {
   if (/^they aren't attacking you$/.test(c)) { const cb = G.s.combat || {}; return !(cb.attackers || []).some((a) => { const d = (cb.targets || {})[a]; return (d || opp(card(a) ? card(a).controller : env.me)) === env.me || (card(d) && card(d).controller === env.me); }); } // Mirkwood Trapper
   if (/^one or more players being attacked are poisoned$/.test(c)) { const cb = G.s.combat || {}; return (cb.attackers || []).some((a) => { const d = (cb.targets || {})[a]; const p = d && G.s.players[d] ? d : d && card(d) ? card(d).controller : opp(card(a) ? card(a).controller : env.me); return ((G.s.players[p] || {}).counters || {}).poison > 0; }); } // Norn's Decree
   if (/^they were attacked this turn by an assassin you controlled$/.test(c)) { const al = (G.s.attackLog || {})[env.me]; return !!al && al.turn === G.s.turn && (al.targets || []).includes(env.thatPlayer) && cardsIn(env.me, 'battlefield').concat(cardsIn(env.me, 'graveyard')).some((x) => hasSubtype(x, 'Assassin') && x.attackedTurn === G.s.turn); } // Ramses
+  if (/^you cast (?:it|~|this creature) from your hand$/.test(c)) { const x = env.src && card(env.src.iid); return !!x && x.castFrom === 'hand' && x.castTurn === G.s.turn; } // Myojin
   if (/^(?:~|it) attacked this combat$/.test(c)) return !!(env.src && card(env.src.iid) && card(env.src.iid).attacking && G.s.combat && (G.s.combat.attackers || []).includes(env.src.iid)); // Tolsimir, Midnight's Light
   if (/^you were the monarch as the turn began$/.test(c)) return G.s.monarchAtStart === env.me;
   if (/^it doesn't have the same name as another creature you control or a creature card in your graveyard$/.test(c)) { const x = env.it && env.it.iid && card(env.it.iid); if (!x) return true; const nm = cardName(x); return !cardsIn(env.me, 'battlefield').some((y) => y.iid !== x.iid && isCreature(y) && cardName(y) === nm) && !cardsIn(env.me, 'graveyard').some((y) => /Creature/.test(DB[y.def].faces[0].typeLine || '') && cardName(y) === nm); }
