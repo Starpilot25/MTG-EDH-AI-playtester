@@ -3253,6 +3253,16 @@ async function dealDamage(env, source, amount, toPhrase, divided) {
       if (/and each creature/.test(part)) for (const c of await objects(env, 'each creature' + (part.match(/each creature(.*)$/) || ['', ''])[1])) damagePermanent(env, source, c, amount);
       continue;
     }
+    // "… deals X damage to each of them": the targets chosen earlier in this effect, not every creature
+    if (/^each of (?:them|those (?:creatures|permanents|targets|players))$/.test(part)) {
+      const ids = env.them_ && env.them_.length ? env.them_.map((i) => ({ iid: i })) : (env.tlog || []);
+      for (const r of ids) {
+        if (r.player) damagePlayer(env, source, r.player, amount);
+        else if (r.iid && card(r.iid) && card(r.iid).zone === 'battlefield') damagePermanent(env, source, card(r.iid), amount, true);
+      }
+      if (!ids.length) env.did.push('has nothing chosen to damage');
+      continue;
+    }
     if (/^each |^all /.test(part)) {
       const objs = await objects(env, part);
       for (const c of objs) damagePermanent(env, source, c, amount);
@@ -13400,6 +13410,23 @@ on(/^exile a card from a graveyard$/, async (m, env) => {
   if (card(p) && env.src) card(p).exiledWith = env.src.iid;
   env.did.push(`exiles ${nameTag(card(p))} from ${card(p).owner === env.me ? 'your' : 'a'} graveyard`);
 }, { first: true });
+// Comet Storm: "Choose any target, then choose another target for each time this spell was kicked. ~ deals X damage to each of them."
+on(/^choose any target, then choose another target for each time (?:~|this spell) was kicked\. ~ deals (x|\d+) damage to each of them$/, async (m, env) => {
+  const kicks = typeof env.kicked === 'number' ? env.kicked : typeof (env.src && env.src.kicked) === 'number' ? env.src.kicked : env.kicked || (env.src && env.src.kicked) ? 1 : 0;
+  const amount = m[1] === 'x' ? env.x || 0 : +m[1];
+  const picks = [];
+  for (let k = 0; k <= kicks; k++) {
+    const [pk] = await pickTargetsForDamage(env, 'any target', amount, picks);
+    if (!pk) break;
+    picks.push(pk);
+  }
+  const src = (env.src && card(env.src.iid)) || env.src;
+  for (const pk of picks) {
+    if (pk.player) damagePlayer(env, src, pk.player, amount);
+    else if (card(pk.iid)) damagePermanent(env, src, card(pk.iid), amount, true);
+  }
+  if (!picks.length) env.did.push('has no target');
+}, { first: true, multi: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {

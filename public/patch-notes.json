@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.152",
+    "title": "Comet Storm",
+    "notes": [
+      "Comet Storm picks one target plus one more for each time it was kicked, and deals X to each of them (it was hitting every creature on the battlefield).",
+      "When the AI casts Comet Storm it splits its mana between X and multikicker to deal the most total damage.",
+      "Other \"deals damage to each of them\" effects hit only the targets that were chosen."
+    ]
+  },
+  {
     "version": "1.3.151",
     "title": "Intellect Devourer and \"each opponent\" in pods",
     "notes": [

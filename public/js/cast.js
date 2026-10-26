@@ -650,7 +650,15 @@ export async function castSpell(pid, iid, opt, env) {
     // AI: kick as many times as the mana it has allows
     const mv = (cost) => ((cost || '').match(/\{(\d+)\}/g) || []).reduce((a, x) => a + +x.slice(1, -1), 0) + ((cost || '').match(/\{[WUBRGCS](?:\/[WUBRGP])?\}/g) || []).length;
     const avail = isAI(pid) ? manaSources(pid, { spell: c }).reduce((a, s_) => a + (s_.amount || 1), 0) : 0;
-    const aiTimes = isAI(pid) && mv(mk) ? Math.max(0, Math.min(10, Math.floor((avail - mv(f.manaCost || DB[c.def].manaCost) - mv(info.extraMana)) / mv(mk)))) : 0;
+    let aiTimes = isAI(pid) && mv(mk) ? Math.max(0, Math.min(10, Math.floor((avail - mv(f.manaCost || DB[c.def].manaCost) - mv(info.extraMana)) / mv(mk)))) : 0;
+    // an X spell (Comet Storm): split the mana between X and extra targets so X × targets is biggest
+    if (isAI(pid) && /\{X\}/.test(f.manaCost || DB[c.def].manaCost || '') && mv(mk)) {
+      const spare = avail - mv(f.manaCost || DB[c.def].manaCost) - mv(info.extraMana);
+      const targets = opponents(pid).filter((o) => G.s.players[o] && !G.s.players[o].lost).length + opponents(pid).flatMap((o) => cardsIn(o, 'battlefield')).filter((x) => isCreature(x) || isType(x, 'Planeswalker')).length;
+      let best = 0, bestV = -1;
+      for (let k = 0; k <= 10 && k + 1 <= targets; k++) { const x = spare - k * mv(mk); if (x < 1) break; const v = x * (k + 1); if (v > bestV) { bestV = v; best = k; } }
+      aiTimes = best;
+    }
     const times = await ch.chooseNumber({ prompt: `Multikicker ${mk}: how many times?`, min: 0, max: 10, ai: aiTimes });
     for (let k = 0; k < times; k++) info.extraMana = (info.extraMana || '') + mk;
     info.kicked = times;
