@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.146",
+    "title": "Tolsimir, Midnight's Light",
+    "notes": [
+      "Tolsimir, Midnight's Light: when a Wolf you control attacks alongside Tolsimir, you pick a creature an opponent controls and it must block that Wolf if able. Both the AI and your own blocks follow it.",
+      "Creatures that must block this combat are now put into your blocks for you if you leave them out (Tolsimir's Wolves, Berserker's Frenzy)."
+    ]
+  },
+  {
     "version": "1.3.145",
     "title": "Crackling Drake",
     "notes": [

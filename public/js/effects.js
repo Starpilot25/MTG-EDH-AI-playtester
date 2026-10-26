@@ -832,6 +832,7 @@ export function evalCond(cond, env) {
   if (/^they aren't attacking you$/.test(c)) { const cb = G.s.combat || {}; return !(cb.attackers || []).some((a) => { const d = (cb.targets || {})[a]; return (d || opp(card(a) ? card(a).controller : env.me)) === env.me || (card(d) && card(d).controller === env.me); }); } // Mirkwood Trapper
   if (/^one or more players being attacked are poisoned$/.test(c)) { const cb = G.s.combat || {}; return (cb.attackers || []).some((a) => { const d = (cb.targets || {})[a]; const p = d && G.s.players[d] ? d : d && card(d) ? card(d).controller : opp(card(a) ? card(a).controller : env.me); return ((G.s.players[p] || {}).counters || {}).poison > 0; }); } // Norn's Decree
   if (/^they were attacked this turn by an assassin you controlled$/.test(c)) { const al = (G.s.attackLog || {})[env.me]; return !!al && al.turn === G.s.turn && (al.targets || []).includes(env.thatPlayer) && cardsIn(env.me, 'battlefield').concat(cardsIn(env.me, 'graveyard')).some((x) => hasSubtype(x, 'Assassin') && x.attackedTurn === G.s.turn); } // Ramses
+  if (/^(?:~|it) attacked this combat$/.test(c)) return !!(env.src && card(env.src.iid) && card(env.src.iid).attacking && G.s.combat && (G.s.combat.attackers || []).includes(env.src.iid)); // Tolsimir, Midnight's Light
   if (/^you were the monarch as the turn began$/.test(c)) return G.s.monarchAtStart === env.me;
   if (/^it doesn't have the same name as another creature you control or a creature card in your graveyard$/.test(c)) { const x = env.it && env.it.iid && card(env.it.iid); if (!x) return true; const nm = cardName(x); return !cardsIn(env.me, 'battlefield').some((y) => y.iid !== x.iid && isCreature(y) && cardName(y) === nm) && !cardsIn(env.me, 'graveyard').some((y) => /Creature/.test(DB[y.def].faces[0].typeLine || '') && cardName(y) === nm); }
   if (/^that player controls one or more lands with contested counters on them$/.test(c)) { const tp = env.thatPlayer; return !!tp && cardsIn(tp, 'battlefield').some((y) => isLand(y) && (y.counters || {}).contested > 0); }
@@ -13337,6 +13338,24 @@ on(/^(?:you may )?turn (?:a|target|up to one target) face-down creature you cont
   delete c.wardTwo;
   queueEvent({ type: 'turnedFaceUp', iid: c.iid, controller: env.me });
   env.did.push(`turns ${nameTag(c)} face up`);
+}, { first: true });
+// Tolsimir, Midnight's Light: "target creature an opponent controls blocks that Wolf this combat if able"
+on(/^target creature (?:an opponent controls|defending player controls) blocks (?:that [a-z]+|it) this combat if able$/, async (m, env) => {
+  const atk = env.it && env.it.iid && card(env.it.iid);
+  if (!atk || !atk.attacking) return env.did.push('that creature is no longer attacking');
+  const cb = G.s.combat || {};
+  const t = (cb.targets || {})[atk.iid];
+  const defP = !t ? opp(atk.controller) : G.s.players[t] ? t : (card(t) || {}).controller;
+  let pool = allBf().filter((c) => isCreature(c) && c.controller !== env.me && canTarget(c, env.me, env.src));
+  const there = pool.filter((c) => c.controller === defP);
+  if (there.length) pool = there;
+  if (!pool.length) return env.did.push('no creature to make block');
+  // the AI picks the creature that would lose the fight worst
+  const [p] = await env.choosers[env.me].pickCards({ prompt: `Which creature must block ${cardName(atk)}?`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'lure', src: env.src, aiScore: (c) => (c.tapped ? -5 : 0) + cardValue(c) - (toughness(c) > power(atk) ? 6 : 0) });
+  const c = card(p);
+  c.mustBlockTurn = G.s.turn;
+  c.forcedBlockOn = atk.iid;
+  env.did.push(`${nameTag(c)} must block ${nameTag(atk)}`);
 }, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy

@@ -1409,6 +1409,18 @@ async function aiCombat(pid = 'ai') {
     cb.blocks[b.provokedBy] = [...(cb.blocks[b.provokedBy] || []), b.iid];
     log('p', `${nameTag(b)} is provoked into blocking.`);
   }
+  // creatures that must block this combat (Tolsimir's Wolf, Berserker's Frenzy): put them in if they could block
+  for (const b of cardsIn('p', 'battlefield')) {
+    if (b.mustBlockTurn !== s.turn || b.tapped || !isCreature(b)) continue;
+    const want = b.forcedBlockOn && atMe.includes(b.forcedBlockOn) && card(b.forcedBlockOn) && canBlock(b, card(b.forcedBlockOn)) ? b.forcedBlockOn : null;
+    const blocking = Object.entries(cb.blocks).find(([, v]) => v.includes(b.iid));
+    if (want ? blocking && blocking[0] === want : blocking) continue;
+    const a = want || atMe.find((x) => card(x) && canBlock(b, card(x)));
+    if (!a) continue;
+    if (blocking) cb.blocks[blocking[0]] = blocking[1].filter((x) => x !== b.iid);
+    cb.blocks[a] = [...(cb.blocks[a] || []), b.iid];
+    log('p', `${nameTag(b)} has to block ${nameTag(card(a))}.`);
+  }
   const bl = Object.entries(cb.blocks).filter(([, v]) => v.length);
   if (bl.length) log('p', bl.map(([a, bs]) => `${odric ? `${aiName(pid)} has ${bs.map((b) => nameTag(card(b))).join(' + ')} block ${nameTag(card(a))} (Odric)` : `You block ${nameTag(card(a))} with ${bs.map((b) => nameTag(card(b))).join(' + ')}`}`).join('. ') + '.');
   // the other defending AIs block what's coming at them
