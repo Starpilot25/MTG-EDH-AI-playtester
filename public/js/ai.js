@@ -172,6 +172,33 @@ function bestTarget(pid, phrase, pred = () => true) {
 // removal for the commander until it is a real problem: close to lethal commander damage, a big engine, or late
 // in the game when the tax has piled up.
 function removalWorth(t) {
+  return removalWorthRaw(t) + (t && casualAI() ? casualAdjust(t) : 0);
+}
+// Casual Commander table manners: removal goes where it matters to this seat, not wherever there's a target.
+// - spread it around: a player who just lost permanents to AI removal is a worse target for a while
+// - something attacking this seat (or that hit it recently) matters more; small tokens and mana dorks matter less
+function casualAdjust(t) {
+  let adj = 0;
+  const victim = t.controller;
+  const log = (G.s.removalLog || []).filter((e) => G.s.turn - e.turn <= seats().length * 2);
+  adj -= log.filter((e) => e.victim === victim).length * 1.5;
+  const cb = G.s.combat;
+  if (cb && (cb.attackers || []).includes(t.iid)) {
+    const d = (cb.targets || {})[t.iid];
+    const atMe = !d ? opp(t.controller) === AI : d === AI || (card(d) && card(d).controller === AI);
+    adj += atMe ? 2 : -2;
+  }
+  if (t.lastHitTurn && t.lastHitPlayer === AI && G.s.turn - t.lastHitTurn <= seats().length) adj += 1.5;
+  if (t.token && threat(t) < 4) adj -= 2;
+  if (isCreature(t) && !t.isCommander && power(t) <= 1 && !isType(t, 'Planeswalker')) adj -= 1.5;
+  return adj;
+}
+// remember whose permanents this AI's removal hit (casual: spread it around)
+function noteRemoval(t) {
+  if (!t || t.controller === AI || !G.s) return;
+  G.s.removalLog = [...(G.s.removalLog || []).filter((e) => G.s.turn - e.turn <= 12), { by: AI, victim: t.controller, turn: G.s.turn }];
+}
+function removalWorthRaw(t) {
   let w = threat(t);
   if (!t || !t.isCommander || t.controller === AI) return w;
   const dmg = G.s.players[AI].cmdDmg[t.iid] || 0;
@@ -251,7 +278,9 @@ const chooserImpl = {
         else if (face) return { player: face };
       }
       pool.sort((a, b) => removalWorth(b) - removalWorth(a));
-      if (pool[0] && (req.amount === undefined || threat(pool[0]) >= 2 || !face)) return { iid: pool[0].iid };
+      // casual: an optional removal effect ("up to one target", "you may") isn't spent on something that doesn't matter
+      if (casualAI() && req.optional && pool[0] && removalWorth(pool[0]) < 3 && !(req.amount !== undefined && face)) return null;
+      if (pool[0] && (req.amount === undefined || threat(pool[0]) >= 2 || !face)) { if (req.amount === undefined) noteRemoval(pool[0]); return { iid: pool[0].iid }; }
       if (face) return { player: face };
       if (pool[0]) return { iid: pool[0].iid };
       if (req.forced && !req.optional && cands[0]) return { iid: cands.sort((a, b) => threat(a) - threat(b))[0].iid };
@@ -801,7 +830,7 @@ function planMain(post) {
       curWardSpare = o.spare;
       const t = o.a.removal ? bestTarget(FOES(), o.a.removal.phrase) : o.a.bounce ? bestTarget(FOES(), o.a.bounce.phrase) : null;
       curWardSpare = Infinity;
-      return (t && removalWorth(t) >= 7) || (post && G.s.turn > 8 && o.score > 6);
+      return (t && removalWorth(t) >= (casualAI() ? 9 : 7)) || (post && G.s.turn > 8 && o.score > (casualAI() ? 9 : 6));
     }
     if (o.role === 'flash' || o.role === 'value') return false; // cast at the end of the opponent's turn instead
     return true;
@@ -988,7 +1017,7 @@ async function planeswalkersOnce(h) {
       let v = 0;
       if (a.removal) {
         const t = bestTarget(FOES(), a.removal.phrase);
-        v += t ? removalWorth(t) : -6;
+        v += t ? removalWorth(t) - (casualAI() ? 3 : 0) : -6;
       }
       if (a.bounce) {
         const t = bestTarget(FOES(), a.bounce.phrase);
@@ -1252,6 +1281,9 @@ function chooseInstant(kind) {
       if (o.role === 'fog' && (dying || through >= myLife * 0.4)) consider(o, dying ? 100 : through * lifeWeight(myLife), null);
       if (o.role === 'removal') {
         for (const t of removalTargets(o).filter((c) => cb.attackers.includes(c.iid))) {
+          // casual: don't spend removal on a creature that's attacking somebody else
+          const d = (cb.targets || {})[t.iid];
+          if (casualAI() && d && d !== AI && !(card(d) && card(d).controller === AI)) continue;
           const r = fight(t, (blocks[t.iid] || []).map(card));
           const gain = removalWorth(t) + r.through * lifeWeight(myLife) + (dying && r.through ? 50 : 0) - (casualAI() ? 7 : 4);
           consider(o, gain, { iid: t.iid });

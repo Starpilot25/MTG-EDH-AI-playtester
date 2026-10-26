@@ -1295,6 +1295,7 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     if (e.type !== 'player' || !(e.amount > 0)) continue;
     const a = card(e.from);
     if (!a) continue;
+    a.lastHitTurn = s.turn; a.lastHitPlayer = e.to || defender; // the AI remembers who just hit it (casual removal)
     if (a.torchSplash === s.turn) for (const o of opponents(a.controller).filter((x) => x !== e.to && inGame(x))) { changeLife(o, -e.amount); log(a.controller, `${nameTag(a)} deals ${e.amount} damage to ${seatName(o)}.`); }
     if (a.prepareOnHit && card(a.prepareOnHit) && card(a.prepareOnHit).zone === 'battlefield' && !card(a.prepareOnHit).prepared) { card(a.prepareOnHit).prepared = true; log(a.controller, `${nameTag(card(a.prepareOnHit))} becomes prepared.`); }
   }

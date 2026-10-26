@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.149",
+    "title": "Calmer AI removal (Casual)",
+    "notes": [
+      "On the Casual AI style (the default), the AI is pickier about removal:",
+      "It spreads removal around the table: a player who just lost something to AI removal is a worse target for a couple of rounds.",
+      "It doesn't spend removal on creatures attacking someone else, and favours creatures that are attacking it or just hit it.",
+      "Small tokens and 1-power creatures are rarely worth a removal spell, and optional removal (\"up to one target\", \"you may\") is skipped when nothing matters.",
+      "Instant removal on its own turn and planeswalker removal abilities need a bigger threat first."
+    ]
+  },
+  {
     "version": "1.3.148",
     "title": "Ascendant Packleader and conditional counters",
     "notes": [
