@@ -1650,8 +1650,9 @@ on(/^there is an additional beginning phase after this phase$/, async (m, env) =
 on(/^(?:this turn, )?(that player|target opponent|target player|each opponent) can't cast spells(?: or activate abilities)?(?: and plays with (?:their|his or her) hand revealed)?(?: this turn)?$/, async (m, env) => {
   let [pid] = /that player/.test(m[1]) ? [env.chosenPlayer || (env.it && env.it.player) || opp(env.me)] : /each opponent/.test(m[1]) ? [opp(env.me)] : await playerTarget(env, m[1]);
   if (!pid) pid = opp(env.me);
-  G.s.silenced = { pid, turn: G.s.turn };
-  if (/activate abilities/.test(env.sentence)) G.s.noAbilities = { pid, turn: G.s.turn };
+  const pids = /each opponent/.test(m[1]) ? opponents(env.me).filter(inGame) : [pid];
+  G.s.silenced = { pid, pids, turn: G.s.turn };
+  if (/activate abilities/.test(env.sentence)) G.s.noAbilities = { pid, pids, turn: G.s.turn };
   if (/hand revealed/.test(env.sentence)) G.s.handRevealed = { pid, turn: G.s.turn };
   env.it = { player: pid };
   env.did.push(`${who(pid)} can't cast spells${/activate abilities/.test(env.sentence) ? ' or activate abilities' : ''} this turn`);
@@ -2342,11 +2343,10 @@ on(/^look at the top (\w+) cards of target opponent's library, exile (\w+) of th
 }, { first: true, multi: true });
 // Author of Shadows
 on(/^exile (?:all cards from )?(?:all opponents'|each opponent's|all of your opponents') graveyards?\. choose a nonland card exiled this way\. you may cast (?:that card|it)(?: for as long as it remains exiled)?[^]*$/, async (m, env) => {
-  const o = opp(env.me);
-  const ids = zoneOf(o, 'graveyard').slice();
+  const ids = opponents(env.me).filter(inGame).flatMap((o) => zoneOf(o, 'graveyard').slice());
   ids.forEach((i) => move(i, 'exile'));
   const pool = spellCards(ids);
-  env.did.push(`exiles ${ids.length} card${ids.length === 1 ? '' : 's'} from ${whoseLib(o)} graveyard`);
+  env.did.push(`exiles ${ids.length} card${ids.length === 1 ? '' : 's'} from opponents' graveyards`);
   if (!pool.length) return;
   const [pick] = await env.choosers[env.me].pickCards({ prompt: 'Choose a nonland card you may cast while it stays exiled', cards: pool, min: 1, max: 1, purpose: 'steal', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
   grantPlay([pick], env.me, { anyMana: anyManaText(m[0]), castOnly: true });
@@ -2416,14 +2416,16 @@ on(/^(?:you may )?cast target nonland permanent card from that player's graveyar
 }, { first: true });
 // The Horus Heresy
 on(/^for each opponent, gain control of up to one target nonlegendary creature that player controls for as long as ~ remains on the battlefield$/, async (m, env) => {
-  const pool = cardsIn(opp(env.me), 'battlefield').filter((c) => isCreature(c) && !/Legendary/.test(typeLine(c)) && canTarget(c, env.me, env.src));
-  if (!pool.length) return env.did.push('finds no target');
+  for (const o of opponents(env.me).filter(inGame)) {
+  const pool = cardsIn(o, 'battlefield').filter((c) => isCreature(c) && !/Legendary/.test(typeLine(c)) && canTarget(c, env.me, env.src));
+  if (!pool.length) { env.did.push(`finds no target from ${seatName(o)}`); continue; }
   const [pick] = await env.choosers[env.me].pickCards({ prompt: 'Gain control of up to one nonlegendary creature', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'steal', src: env.src, aiScore: (c) => cardValue(c) });
-  if (!pick) return;
+  if (!pick) continue;
   const prev = card(pick).controller;
   move(pick, 'battlefield', { controller: env.me });
   if (card(pick) && env.src) card(pick).controlWhile = { src: env.src.iid, prev, by: env.me, youControl: false };
   env.did.push(`gains control of ${nameTag(card(pick))}`);
+  }
 }, { first: true });
 // Opportunistic Dragon
 on(/^choose target ([a-z]+) or ([a-z]+) an opponent controls\. for as long as ~ remains on the battlefield, gain control of that permanent, it loses all abilities, and it can't attack or block$/, async (m, env) => {
@@ -2489,13 +2491,17 @@ on(/^exile it from their graveyard with a stash counter on it$/, async (m, env) 
 }, { first: true });
 // Kefka, Dancing Mad
 on(/^exile a card at random from each opponent's graveyard\. you may cast any number of spells from among cards exiled this way without paying their mana costs\. then each player who owns a spell you cast this way loses life equal to its mana value$/, async (m, env) => {
-  const o = opp(env.me);
-  const gy = zoneOf(o, 'graveyard');
-  if (!gy.length) return env.did.push('finds an empty graveyard');
-  const i = gy[Math.floor(Math.random() * gy.length)];
-  move(i, 'exile');
-  env.did.push(`exiles ${nameTag(card(i))}`);
-  const cast_ = await castFromPool(env, [i], { free: true });
+  const got = [];
+  for (const o of opponents(env.me).filter(inGame)) {
+    const gy = zoneOf(o, 'graveyard');
+    if (!gy.length) continue;
+    const i = gy[Math.floor(Math.random() * gy.length)];
+    move(i, 'exile');
+    got.push(i);
+  }
+  if (!got.length) return env.did.push('finds only empty graveyards');
+  env.did.push(`exiles ${got.map((i) => nameTag(card(i))).join(', ')}`);
+  const cast_ = await castFromPool(env, got, { free: true });
   for (const x of cast_) {
     const c = card(x);
     if (!c || c.owner === env.me) continue;
@@ -2794,18 +2800,19 @@ on(/^exile the top (\w+) cards of target opponent's library face down\. you may 
 }, { first: true, multi: true });
 // Dream Harvest
 on(/^each opponent exiles cards from the top of their library until they have exiled cards with total mana value (\d+) or greater this way\. until end of turn, you may cast cards exiled this way without paying their mana costs$/, async (m, env) => {
-  const o = opp(env.me);
-  const lib = zoneOf(o, 'library');
   const ids = [];
-  let tot = 0;
-  while (lib.length && tot < +m[1]) {
-    const i = lib[lib.length - 1];
-    move(i, 'exile');
-    ids.push(i);
-    tot += DB[card(i).def].cmc || 0;
+  for (const o of opponents(env.me).filter(inGame)) {
+    const lib = zoneOf(o, 'library');
+    let tot = 0;
+    while (lib.length && tot < +m[1]) {
+      const i = lib[lib.length - 1];
+      move(i, 'exile');
+      ids.push(i);
+      tot += DB[card(i).def].cmc || 0;
+    }
   }
   grantPlay(spellCards(ids), env.me, { free: true, until: G.s.turn });
-  env.did.push(`${who(o)} ${s_(o, 'exile')} ${ids.length} cards; you may cast them free this turn`.replace('you may', env.me === 'p' ? 'you may' : 'the AI may'));
+  env.did.push(`opponents exile ${ids.length} cards; ${env.me === 'p' ? 'you' : seatName(env.me)} may cast them free this turn`);
 }, { first: true, multi: true });
 // Breeches, Brazen Plunderer
 on(/^exile the top card of each of those opponents' libraries\. you may play those cards this turn, and you may spend mana as though it were mana of any (?:color|type) to cast those spells$/, async (m, env) => {
@@ -2857,19 +2864,24 @@ on(/^they lose life equal to its mana value$/, async (m, env) => {
 }, { first: true });
 // Intellect Devourer
 on(/^each opponent exiles a card from their hand until ~ leaves the battlefield$/, async (m, env) => {
-  const o = opp(env.me);
-  const hand = cardsIn(o, 'hand');
-  if (!hand.length) return env.did.push(`${who(o)} ${s_(o, 'have')} no cards in hand`);
-  const [pick] = await env.choosers[o].pickCards({ forced: true, prompt: `Exile a card from your hand until ${cardName(env.src)} leaves`, cards: hand.map((c) => c.iid), min: 1, max: 1, purpose: 'exile', src: env.src, aiScore: (c) => (isLand(c) ? 10 : -(DB[c.def].cmc || 0)) });
-  move(pick, 'exile');
-  const c = card(pick);
-  if (c && env.src) {
-    c.exiledBy = env.src.iid;
-    c.exiledFromHand = true;
-    c.exiledWith = env.src.iid;
-    grantPlay([pick], env.me, { anyMana: true });
+  // every opponent, not just one (pods)
+  for (const o of opponents(env.me).filter(inGame)) {
+    const hand = cardsIn(o, 'hand');
+    if (!hand.length) { env.did.push(`${who(o)} ${s_(o, 'have')} no cards in hand`); continue; }
+    const ch = env.choosers[o] || (T.choosers && T.choosers[o]);
+    const aiScore = (c) => (isLand(c) ? 10 : -(DB[c.def].cmc || 0));
+    const [pick] = ch ? await ch.pickCards({ forced: true, prompt: `Exile a card from your hand until ${cardName(env.src)} leaves`, cards: hand.map((c) => c.iid), min: 1, max: 1, purpose: 'exile', src: env.src, aiScore }) : [hand.slice().sort((a, b) => aiScore(b) - aiScore(a))[0].iid];
+    if (!pick) continue;
+    move(pick, 'exile');
+    const c = card(pick);
+    if (c && env.src) {
+      c.exiledBy = env.src.iid;
+      c.exiledFromHand = true;
+      c.exiledWith = env.src.iid;
+      grantPlay([pick], env.me, { anyMana: true });
+    }
+    env.did.push(`${who(o)} ${s_(o, 'exile')} ${nameTag(c)}`);
   }
-  env.did.push(`${who(o)} ${s_(o, 'exile')} ${nameTag(c)}`);
 }, { first: true });
 // Labyrinth Raptor: "defending player sacrifices a creature blocking it"
 on(/^defending player sacrifices a creature blocking it$/, async (m, env) => {
@@ -2904,12 +2916,15 @@ on(/^target opponent exiles cards from the top of their library until they exile
 on(/^roll a d20\. each opponent exiles cards from the top of their library until they exile an instant or sorcery card, then shuffles the rest into their library\. you may cast up to x instant and\/or sorcery spells from among cards exiled this way without paying their mana costs\.?/, async (m, env) => {
   const roll = rollD(20, env.me);
   const x = roll >= 20 ? 3 : roll >= 10 ? 2 : 1;
-  const o = opp(env.me);
-  const { hit, all } = exileUntil(o, (c) => /Instant|Sorcery/.test(DB[c.def].typeLine || ''));
-  all.filter((i) => i !== hit).forEach((i) => move(i, 'library'));
-  shuffle(o);
-  env.did.push(`rolls ${roll} (up to ${x}); ${who(o)} ${s_(o, 'exile')} ${hit ? nameTag(card(hit)) : 'no instant or sorcery'}`);
-  if (hit) await castFromPool(env, [hit], { free: true, max: x });
+  const hits = [];
+  for (const o of opponents(env.me).filter(inGame)) {
+    const { hit, all } = exileUntil(o, (c) => /Instant|Sorcery/.test(DB[c.def].typeLine || ''));
+    all.filter((i) => i !== hit).forEach((i) => move(i, 'library'));
+    shuffle(o);
+    if (hit) hits.push(hit);
+  }
+  env.did.push(`rolls ${roll} (up to ${x}); opponents exile ${hits.length ? hits.map((i) => nameTag(card(i))).join(', ') : 'no instant or sorcery'}`);
+  if (hits.length) await castFromPool(env, hits, { free: true, max: x });
 }, { first: true, multi: true, consumesRest: true });
 // Ian Malcolm, Chaotician: "that player exiles the top card of their library" — the other player may cast it on their turns
 on(/^that player exiles the top card of their library$/, async (m, env) => {
@@ -2921,7 +2936,7 @@ on(/^that player exiles the top card of their library$/, async (m, env) => {
 }, { first: true });
 // Bident of Thassa: "Creatures your opponents control attack this turn if able."
 on(/^creatures your opponents control attack this turn if able$/, async (m, env) => {
-  const objs = cardsIn(opp(env.me), 'battlefield').filter(isCreature);
+  const objs = opponents(env.me).filter(inGame).flatMap((o) => cardsIn(o, 'battlefield')).filter(isCreature);
   for (const c of objs) goad(c, env.me);
   env.did.push(`${objs.length} creature${objs.length === 1 ? '' : 's'} must attack this turn`);
 }, { first: true });
@@ -2941,11 +2956,10 @@ on(/^(?:you may )?(play|cast) (?:the )?cards exiled this way( until the end of y
   env.did.push(`may play ${ids.length} exiled card${ids.length === 1 ? '' : 's'} ${/next turn/.test(m[2] || '') ? 'until the end of its next turn' : 'this turn'}`);
 }, { first: true });
 on(/^exile (?:all cards from )?(?:all opponents'|each opponent's|all of your opponents') graveyards?$/, async (m, env) => {
-  const o = opp(env.me);
-  const ids = zoneOf(o, 'graveyard').slice();
+  const ids = opponents(env.me).filter(inGame).flatMap((o) => zoneOf(o, 'graveyard').slice());
   ids.forEach((i) => move(i, 'exile'));
   env.them_ = ids;
-  env.did.push(`exiles ${ids.length} card${ids.length === 1 ? '' : 's'} from ${seatPoss(o)} graveyard`);
+  env.did.push(`exiles ${ids.length} card${ids.length === 1 ? '' : 's'} from opponents' graveyards`);
 }, { first: true });
 // "Choose a nonland card exiled this way." (works sentence by sentence when a card's wording differs)
 on(/^choose a (nonland |creature |instant or sorcery |)card exiled this way$/, async (m, env) => {
@@ -3380,7 +3394,7 @@ on(/^(~|it|this land|this saga) gains "(.+)"$/, async (m, env) => {
 }, { first: true });
 // The Akroan War: "Until your next turn, creatures your opponents control attack each combat if able."
 on(/^until your next turn, creatures your opponents control attack each combat if able$/, async (m, env) => {
-  G.s.mustAttackAll = { pid: opp(env.me), until: nextTurnNumber(env.me) };
+  G.s.mustAttackAll = { pid: opp(env.me), pids: opponents(env.me).filter(inGame), until: nextTurnNumber(env.me) };
   env.did.push(`${who(opp(env.me)) === 'you' ? 'your' : "the AI's"} creatures must attack until ${who(env.me) === 'you' ? 'your' : "the AI's"} next turn`);
 }, { first: true });
 // The Akroan War: "Each tapped creature deals damage to itself equal to its power."
@@ -3580,15 +3594,17 @@ on(/^any number of target players each draw (\w+) cards?$/, async (m, env) => {
 }, { first: true });
 // Jace, Reality Sculptor 0: "Exile all but the bottom card of each opponent's library."
 on(/^exile all but the bottom card of (each opponent's|target player's|target opponent's) library$/, async (m, env) => {
-  const pid = opp(env.me);
-  const lib = zoneOf(pid, 'library').slice();
-  const keep = lib[0]; // index 0 is the bottom
-  let k = 0;
-  for (const i of lib) if (i !== keep) {
-    move(i, 'exile');
-    k++;
+  const pids = /each opponent/.test(m[1]) ? opponents(env.me).filter(inGame) : [(await playerTarget(env, /opponent/.test(m[1]) ? 'target opponent' : 'target player'))[0] || opp(env.me)];
+  for (const pid of pids) {
+    const lib = zoneOf(pid, 'library').slice();
+    const keep = lib[0]; // index 0 is the bottom
+    let k = 0;
+    for (const i of lib) if (i !== keep) {
+      move(i, 'exile');
+      k++;
+    }
+    env.did.push(`exiles ${k} cards from ${seatPoss(pid)} library`);
   }
-  env.did.push(`exiles ${k} cards from ${who(pid) === 'you' ? 'your' : "the AI's"} library`);
 }, { first: true });
 // Jace, Reality Sculptor −3 / Jace, Architect of Thought +1: attackers get −N/−0
 on(/^until your next turn, whenever a creature (an opponent controls attacks|attacks you or a planeswalker you control), it gets -(\d+)\/-0 until end of turn$/, async (m, env) => {
@@ -3944,8 +3960,9 @@ on(/^if it's a permanent card, (?:they|that player|its owner) puts? it onto the 
 // Silence: "Your opponents can't cast spells this turn."
 on(/^(?:your opponents|each opponent|target player|target opponent) can't cast spells this turn$/, async (m, env) => {
   const pid = /target player/.test(m[0]) ? (await playerTarget(env, 'target player'))[0] : opp(env.me);
-  G.s.silenced = { pid, turn: G.s.turn };
-  env.did.push(`${who(pid)} can't cast spells this turn`);
+  const pids = /target player|target opponent/.test(m[0]) ? [pid] : opponents(env.me).filter(inGame);
+  G.s.silenced = { pid, pids, turn: G.s.turn };
+  env.did.push(`${pids.length > 1 ? 'your opponents' : who(pid)} can't cast spells this turn`);
 }, { first: true });
 // Secret Rendezvous: "You and target opponent each draw three cards."
 on(/^you and (target opponent|target player|each opponent) each draw (\w+) cards?$/, async (m, env) => {
@@ -7068,9 +7085,9 @@ on(/^target opponent discards all the cards in their hand, then draws that many 
 }, { first: true });
 // Missy: "Each artifact creature you control deals 1 damage to that opponent"
 on(/^each (artifact creature|creature|[a-z]+) you control deals (\w+) damage to (that opponent|that player|target opponent|each opponent)$/, async (m, env) => {
-  const them = env.thatPlayer || opp(env.me);
+  const thems = m[3] === 'each opponent' ? opponents(env.me).filter(inGame) : [env.thatPlayer || opp(env.me)];
   const srcs = cardsIn(env.me, 'battlefield').filter((c) => matchesFilter(c, m[1]));
-  for (const c of srcs) damagePlayer(env, c, them, n(m[2]));
+  for (const them of thems) for (const c of srcs) damagePlayer(env, c, them, n(m[2]));
   if (!srcs.length) env.did.push(`no ${m[1]}s to deal damage`);
 }, { first: true });
 // Ensnared by the Mara: "that player exiles the top four cards of their library and ~ deals damage equal to the total mana value of those exiled cards to that player"

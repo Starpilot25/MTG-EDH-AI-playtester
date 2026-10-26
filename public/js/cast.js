@@ -588,7 +588,7 @@ export async function castSpell(pid, iid, opt, env) {
   const f = d.faces[fIdx] || d.faces[0];
   const o = stripName(f.oracle || '', c);
   const fromZone = c.zone;
-  if (s.silenced && s.silenced.pid === pid && s.silenced.turn === s.turn && !opt.copy) {
+  if (s.silenced && (s.silenced.pids || [s.silenced.pid]).includes(pid) && s.silenced.turn === s.turn && !opt.copy) {
     log(pid, `${who_(pid)} can't cast spells this turn.`);
     return false;
   }
@@ -1758,7 +1758,7 @@ export async function activateAbility(pid, c, ab, env) {
     return p;
   };
   const ctx = (extra = {}) => ({ me: pid, choosers: env.choosers, castFree: (p, i) => castFree(p, i, env), stackTarget: pid === 'p' && s.stack ? s.stack.iid : null, ...extra });
-  if (s.noAbilities && s.noAbilities.pid === pid && s.noAbilities.turn === s.turn && ab.kind !== 'mana') {
+  if (s.noAbilities && (s.noAbilities.pids || [s.noAbilities.pid]).includes(pid) && s.noAbilities.turn === s.turn && ab.kind !== 'mana') {
     return env.say(`${pid === 'p' ? "You" : 'The AI'} can't activate abilities this turn.`);
   }
   switch (ab.kind) {
