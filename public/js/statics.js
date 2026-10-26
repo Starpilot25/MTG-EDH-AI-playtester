@@ -619,6 +619,14 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
       return Object.values(G.s.cards).filter((c) => c.zone === 'battlefield' && c.attacking && (am[2] === 'creature' ? true : helpers.hasSubtype(c, am[2][0].toUpperCase() + am[2].slice(1))) && (!am[3] || c.controller === pid) && (!am[1] || c.iid !== srcIid)).length;
     }
   }
+  // Crackling Drake: "the total number of instant and sorcery cards you own in exile and in your graveyard"
+  {
+    const em = p.match(/^([a-z]+(?: and(?:\/or)? [a-z]+)?) cards you own in exile and in your graveyard$/) || p.match(/^([a-z]+(?: and(?:\/or)? [a-z]+)?) cards in your graveyard and(?: cards you own)? in exile$/);
+    if (em && G.s) {
+      const kinds = em[1].split(/ and(?:\/or)? /).map((w) => w.replace(/s$/, ''));
+      return Object.values(G.s.cards).filter((c) => c.owner === pid && (c.zone === 'graveyard' || c.zone === 'exile') && !c.token && kinds.some((k) => new RegExp('\\b' + k + '\\b', 'i').test((DB[c.def].faces[0] || {}).typeLine || DB[c.def].typeLine || ''))).length;
+    }
+  }
   // Metalwork Colossus: "the total mana value of noncreature artifacts you control"
   {
     const tm = p.match(/^(?:the )?(?:total )?mana value of ((?:non)?[a-z]+(?: (?:non)?[a-z]+)?) (you control|on the battlefield)$/);

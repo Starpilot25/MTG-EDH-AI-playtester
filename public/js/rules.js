@@ -610,7 +610,7 @@ function cda(inst) {
     const v = countPhrase(inst.controller, m[1], helpers, inst.iid);
     if (v !== null) return { p: v + (+m[2] || 0), t: v + (+m[2] || 0) };
   }
-  if ((m = o.match(/~'s power is equal to (?:the number of |your )?([^.]+?)\./i))) {
+  if ((m = o.match(/~'s power is equal to (?:the (?:total )?number of |your )?([^.]+?)\./i))) {
     const v = countPhrase(inst.controller, m[1], helpers, inst.iid);
     if (v !== null) return { p: v, t: null };
   }

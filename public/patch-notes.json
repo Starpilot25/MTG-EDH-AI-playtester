@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.145",
+    "title": "Crackling Drake",
+    "notes": [
+      "Crackling Drake's power counts the instant and sorcery cards you own in your graveyard and in exile (it was stuck at a wrong number)."
+    ]
+  },
+  {
     "version": "1.3.144",
     "title": "Ugin's Mastery",
     "notes": [
