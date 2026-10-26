@@ -552,6 +552,15 @@ export function costDelta(pid, c, fromZone, faceIdx = 0) {
       if (!spellFits(cm.filter.replace(/commander/, '').trim(), d, faceIdx)) continue;
       if (cm.yourTurn && G.s.active !== pid) continue;
       if (cm.chosen && !(src.chosenCardType && new RegExp('\\b' + src.chosenCardType + '\\b', 'i').test((d.faces[0].typeLine || '').split('—')[0]))) continue;
+      // Cemetery Prowler: "for each card type they share with cards exiled with ~"
+      if (cm.each && /^card type (?:they share|it shares) with cards exiled with (?:~|this creature|this permanent|[^.]+)$/i.test(cm.each)) {
+        const CT = ['Artifact', 'Battle', 'Creature', 'Enchantment', 'Instant', 'Kindred', 'Land', 'Planeswalker', 'Sorcery', 'Tribal'];
+        const types = (tl) => CT.filter((t) => new RegExp('\\b' + t + '\\b').test((tl || '').split('—')[0]));
+        const mine = new Set(types((d.faces[faceIdx] || d.faces[0]).typeLine || d.typeLine));
+        const ex = new Set(Object.values(G.s.cards).filter((x) => x.zone === 'exile' && x.exiledWith === src.iid).flatMap((x) => types((DB[x.def].faces[0] || {}).typeLine || DB[x.def].typeLine)));
+        delta += cm.delta * [...mine].filter((t) => ex.has(t)).length;
+        continue;
+      }
       if (cm.each) {
         const k = countPhrase(src.controller, cm.each, rulesHelpersObj, src.iid) || 0;
         delta += cm.delta * k;

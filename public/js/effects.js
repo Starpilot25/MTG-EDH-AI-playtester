@@ -13357,6 +13357,18 @@ on(/^target creature (?:an opponent controls|defending player controls) blocks (
   c.forcedBlockOn = atk.iid;
   env.did.push(`${nameTag(c)} must block ${nameTag(atk)}`);
 }, { first: true });
+// Cemetery Prowler: "exile a card from a graveyard" (not targeted; the card is remembered as exiled with it)
+on(/^exile a card from a graveyard$/, async (m, env) => {
+  const pool = seats().flatMap((k) => cardsIn(k, 'graveyard'));
+  if (!pool.length) return env.did.push('finds no card in any graveyard');
+  // the AI exiles card types it's about to cast (cheaper spells), preferring opponents' cards
+  const handTypes = cardsIn(env.me, 'hand').map((c) => (DB[c.def].faces[0].typeLine || '').split('—')[0]).join(' ');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Exile a card from a graveyard', cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'gy-exile', src: env.src,
+    aiScore: (c) => (c.owner === env.me ? -4 : 2) + ((DB[c.def].faces[0].typeLine || '').split('—')[0].split(/\s+/).filter((t) => t && new RegExp('\\b' + t + '\\b').test(handTypes)).length) * 3 + (DB[c.def].cmc || 0) / 3 });
+  move(p, 'exile');
+  if (card(p) && env.src) card(p).exiledWith = env.src.iid;
+  env.did.push(`exiles ${nameTag(card(p))} from ${card(p).owner === env.me ? 'your' : 'a'} graveyard`);
+}, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {

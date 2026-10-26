@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.147",
+    "title": "Cemetery Prowler",
+    "notes": [
+      "Cemetery Prowler remembers the cards it exiles, and your spells cost {1} less for each card type they share with those cards (a creature card exiled makes your creature spells cheaper, and so on). The AI exiles card types it's about to cast, preferring opponents' cards."
+    ]
+  },
+  {
     "version": "1.3.146",
     "title": "Tolsimir, Midnight's Light",
     "notes": [
