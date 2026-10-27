@@ -94,6 +94,8 @@ function trimCard(c) {
     collector_number: c.collector_number,
     digital: !!c.digital,
     lang: c.lang || 'en',
+    image_status: c.image_status, // 'lowres' scans look blurry: the app swaps in a sharp printing's picture
+    illustration_id: c.illustration_id || (c.card_faces && c.card_faces[0].illustration_id) || undefined,
   };
 }
 

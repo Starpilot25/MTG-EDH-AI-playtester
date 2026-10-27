@@ -213,7 +213,11 @@ export async function fetchCards(identifiers, opts = {}) {
   // Foreign-language pictures can only come from a printing picked by id or set + number (deck links); a card asked for
   // by name is already the English printing. Check those few, a few seconds later, so it never competes with loading.
   const printed = found.filter((c, i) => c && (identifiers[i].id || identifiers[i].collector_number));
-  if (printed.length && !opts.quiet) setTimeout(() => englishImages(printed).catch(() => {}), 4000);
+  if (!opts.quiet) {
+    const all = found.filter(Boolean);
+    sharpFromCache(all);
+    setTimeout(() => (printed.length ? englishImages(printed) : Promise.resolve()).catch(() => {}).then(() => sharpImages(all)).catch(() => {}), 4000);
+  }
   return out;
 }
 
@@ -272,6 +276,80 @@ async function englishImages(cards) {
     swapped++;
   }
   if (swapped) imageHooks.changed();
+}
+
+// Some printings only have a low-resolution scan on Scryfall (new sets, promos): they look blurry. Use the picture of a
+// sharp English printing of the same card instead, the same artwork if there is one. Runs in the background after a deck
+// loads, asks Scryfall once per card, and remembers the answer.
+const SHARP_OK = 'edh-sharp-ok';
+const SHARP_SWAP = 'edh-sharp-swap';
+const lsGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || '') || d; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } };
+function applySharp(id, faces) {
+  const d = DB[id];
+  if (!d || !faces) return false;
+  d.faces.forEach((f, k) => {
+    const u = faces[k] || faces[0];
+    if (u && u.img) { f.img = u.img; f.imgLarge = u.imgLarge || u.img; }
+  });
+  return true;
+}
+function sharpFromCache(cards) {
+  const swap = lsGet(SHARP_SWAP, {});
+  let n = 0;
+  for (const c of cards) if (swap[c.id] && applySharp(c.id, swap[c.id])) n++;
+  if (n) imageHooks.changed();
+}
+async function sharpImages(cards) {
+  if (typeof fetch === 'undefined') return;
+  const sf = async (url, opts) => {
+    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctl && setTimeout(() => ctl.abort(), 6000);
+    try {
+      const r = await fetch(url, { headers: { Accept: 'application/json', ...(opts && opts.body ? { 'Content-Type': 'application/json' } : {}) }, ...(ctl ? { signal: ctl.signal } : {}), ...opts });
+      return r.ok ? await r.json() : null;
+    } catch (e) {
+      return null;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ok = new Set(lsGet(SHARP_OK, []));
+  const swap = lsGet(SHARP_SWAP, {});
+  const todo = cards.filter((c) => c && DB[c.id] && !ok.has(c.id) && !swap[c.id] && !String(c.id).startsWith('gen-'));
+  if (!todo.length) return;
+  // what Scryfall says about each scan (older saved cards don't carry it)
+  const info = {};
+  for (const c of todo) if (c.image_status) info[c.id] = { status: c.image_status, oracle: c.oracle_id, illus: c.illustration_id, name: c.name };
+  const ask = todo.filter((c) => !info[c.id]).map((c) => c.id);
+  for (let i = 0; i < ask.length; i += 75) {
+    const body = await sf('https://api.scryfall.com/cards/collection', { method: 'POST', body: JSON.stringify({ identifiers: ask.slice(i, i + 75).map((id) => ({ id })) }) });
+    if (!body) return; // offline / Scryfall slow: try again next time
+    for (const x of body.data || []) info[x.id] = { status: x.image_status, oracle: x.oracle_id, illus: x.illustration_id || (x.card_faces && x.card_faces[0].illustration_id), name: x.name };
+    await wait(120);
+  }
+  let changed = 0;
+  for (const c of todo) {
+    const inf = info[c.id];
+    if (!inf) continue;
+    if (inf.status === 'highres_scan') { ok.add(c.id); continue; }
+    if (!inf.oracle) continue;
+    await wait(120);
+    const res = await sf(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(`oracleid:${inf.oracle} lang:en game:paper`)}&unique=prints&order=released&dir=desc`);
+    const prints = ((res && res.data) || []).filter((x) => x.image_status === 'highres_scan' && !x.oversized && x.lang === 'en');
+    if (!prints.length) { ok.add(c.id); continue; } // nothing sharper exists yet
+    const same = prints.find((x) => inf.illus && (x.illustration_id === inf.illus || (x.card_faces && x.card_faces[0].illustration_id === inf.illus)));
+    const best = same || prints[0];
+    const src = best.card_faces && best.card_faces.length && best.card_faces[0].image_uris ? best.card_faces : [best];
+    const faces = DB[c.id].faces.map((f, k) => { const u = (src[k] || src[0]).image_uris || best.image_uris; return u ? { img: u.normal, imgLarge: u.large || u.normal } : null; });
+    if (!faces.some(Boolean)) continue;
+    swap[c.id] = faces;
+    if (applySharp(c.id, faces)) changed++;
+  }
+  lsSet(SHARP_OK, [...ok].slice(-30000));
+  lsSet(SHARP_SWAP, swap);
+  if (changed) imageHooks.changed();
 }
 
 // Saved decks live on the local server (saved-decks.json).

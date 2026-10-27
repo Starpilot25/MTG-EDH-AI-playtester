@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.157",
+    "title": "Sharper card pictures",
+    "notes": [
+      "Some printings only have a low-resolution scan on Scryfall (new sets and promos), which looks blurry. After a deck loads, the app now quietly swaps those for a sharp English printing of the same card, with the same artwork when one exists, and remembers the swap."
+    ]
+  },
+  {
     "version": "1.3.156",
     "title": "Sculpting Steel and clones",
     "notes": [
