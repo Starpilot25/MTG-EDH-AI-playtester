@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.162",
+    "title": "Iron Spider, Mindblade Render, Captain America",
+    "notes": [
+      "Iron Spider, Stark Upgrade: {T} now puts a +1/+1 counter on each artifact creature and each Vehicle you control (it was only hitting Vehicles).",
+      "Iron Spider, Stark Upgrade: the draw ability now actually removes two +1/+1 counters from among your artifacts, and can't be activated without them.",
+      "Mindblade Render: draws a card and loses 1 life when your opponents are dealt combat damage by a Warrior.",
+      "Captain America, Living Legend: also untaps creatures tapped by spells and abilities (first tap each of your turns)."
+    ]
+  },
+  {
     "version": "1.3.161",
     "title": "Iron Man Armor",
     "notes": [

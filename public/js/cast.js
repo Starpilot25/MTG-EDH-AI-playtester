@@ -525,6 +525,15 @@ function genericAdjust(pid, c, opt) {
   return delta;
 }
 
+const AMONG_N = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+function amongK(m) { return AMONG_N[m[1].toLowerCase()] || +m[1] || 0; }
+function amongPiles(pid, m) {
+  const k = m[2].toLowerCase();
+  const kind = m[3].toLowerCase().replace(/s$/, '').replace(/ and\/or /g, ' or ');
+  const piles = cardsIn(pid, 'battlefield').filter((x) => ((x.counters || {})[k] || 0) > 0 && (kind === 'permanent' || matchesFilter(x, kind))).map((x) => ({ x, k, v: x.counters[k] }));
+  piles.sort((a, b) => (isCreature(a.x) ? 1 : 0) - (isCreature(b.x) ? 1 : 0) || b.v - a.v);
+  return { piles, total: piles.reduce((a, p) => a + p.v, 0) };
+}
 // "removing N counters from among creatures you control": take off the ones that hurt first (-1/-1, stun), then +1/+1 from the biggest piles
 function removeCountersAmong(pid, n, src) {
   let left = n;
@@ -2019,6 +2028,7 @@ export async function activateAbility(pid, c, ab, env) {
   const lifeCost = ab.payLife === 'identity' ? identityColors(pid) : +ab.payLife || 0;
   if (ab.payLife && s.players[pid].life < lifeCost) return env.say('Not enough life.');
   if (ab.payEnergy && s.players[pid].counters.energy < ab.payEnergy) return env.say('Not enough energy.');
+  if (ab.removeAmong && amongPiles(pid, ab.removeAmong).total < amongK(ab.removeAmong)) return env.say('Not enough counters.');
   if (ab.removeCounters) {
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
     const have = ab.removeCounters[2] ? (c.counters || {})[ab.removeCounters[2].toLowerCase()] || 0 : Object.values(c.counters || {}).reduce((a, v) => a + (v > 0 ? v : 0), 0);
@@ -2065,6 +2075,20 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.untap) c.tapped = false;
   if (ab.payLife && lifeCost) changeLife(pid, -lifeCost);
   if (ab.payEnergy) { s.players[pid].counters.energy -= ab.payEnergy; if (s.ts && s.ts[pid]) s.ts[pid].energyPaid = (s.ts[pid].energyPaid || 0) + ab.payEnergy; }
+  if (ab.removeAmong) {
+    // Iron Spider: "Remove two +1/+1 counters from among artifacts you control" — take from non-creatures and the biggest piles first
+    let left = amongK(ab.removeAmong);
+    const took = [];
+    for (const pl of amongPiles(pid, ab.removeAmong).piles) {
+      if (!left) break;
+      const t = Math.min(left, pl.v);
+      pl.x.counters[pl.k] -= t;
+      if (!pl.x.counters[pl.k]) delete pl.x.counters[pl.k];
+      left -= t;
+      took.push(`${t} ${pl.k} from ${nameTag(pl.x)}`);
+    }
+    if (took.length) log(pid, `${nameTag(c)}: removes ${took.join(', ')}.`);
+  }
   if (ab.removeCounters) {
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
     if (ab.removeCounters[2]) c.counters[ab.removeCounters[2].toLowerCase()] -= k;

@@ -163,6 +163,12 @@ function parseTriggerText(text, speed) {
         add('p:combatDamageAll', q[2], { pred: (c, ev) => { if (ev.controller !== c.controller) return false; const hit = Object.entries(ev.players || {}).filter(([v, srcs]) => opponents(c.controller).includes(v) && srcs.some((x) => card(x.iid) && hasSubtype(card(x.iid), sub))); return hit.length > 0 && { amount: hit.length }; } });
         continue;
       }
+      // Mindblade Render: "Whenever your opponents are dealt combat damage, if any of that damage was dealt by a Warrior, ..."
+      if ((q = line.match(/^Whenever your opponents are dealt combat damage, if any of that damage was dealt by an? ([A-Z]\w+), (.+)$/))) {
+        const sub = q[1];
+        add('p:combatDamageAll', q[2], { pred: (c, ev) => Object.entries(ev.players || {}).some(([v, srcs]) => opponents(c.controller).includes(v) && srcs.some((x) => x.amount > 0 && card(x.iid) && hasSubtype(card(x.iid), sub))) });
+        continue;
+      }
       // Glowing One
       if ((q = line.match(/^Whenever an opponent mills a nonland card, (.+)$/i))) { add('p:mill', q[1], { pred: (c, ev) => ev.pid !== c.controller && (ev.ids || []).some((i) => card(i) && !isLand(card(i))) && { thatPlayer: ev.pid } }); continue; } // Infesting Radroach
       if ((q = line.match(/^Whenever a player mills a nonland card, (.+)$/i))) { add('mill', q[1], { anyPlayer: true, kind: 'nonland', perCard: true }); continue; }

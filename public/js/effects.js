@@ -272,6 +272,7 @@ export function activatedAbilities(c) {
       discardN: (cost.match(/Discard (a|two|\d+) cards?/i) || [])[1],
       exert: /Exert ~/i.test(cost),
       removeCounters: cost.match(/Remove (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+|X) (?:([+-]\d+\/[+-]\d+|\w+) )?counters? from ~/i), // no kind: any counters (Ghost-Spider)
+      removeAmong: cost.match(/Remove (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) ([+-]\d+\/[+-]\d+|\w+) counters? from among ([a-z ]+?) you control/i), // Iron Spider
       putCounters: cost.match(/Put (a|an|one|two|three|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on ~/i), // Mazemind Tome: "Put a page counter on ~"
       payLife: (cost.match(/Pay (\d+) life/i) || [])[1] || (/Pay life equal to the number of colors in your commanders?'? color identity/i.test(cost) ? 'identity' : undefined),
       payEnergy: (cost.match(/Pay (\w+) \{E\}/i) && WORDNUM[cost.match(/Pay (\w+) \{E\}/i)[1].toLowerCase()]) || (cost.match(/Pay (\d+) \{E\}/i) || [])[1] * 1 || (cost.match(/\{E\}/g) || []).length, // "Pay six {E}"
@@ -399,6 +400,8 @@ export function subtypeWords(phrase) {
 export function matchesFilter(c, phrase) {
   phrase = phrase.toLowerCase();
   let m0;
+  // Iron Spider: "each artifact creature and/or Vehicle you control" — a two-word kind or-ed with another kind
+  if ((m0 = phrase.match(/^(?:each |all )?((?:token |nontoken )?[a-z]+ creature)s? and\/or ([a-z]+?)s?((?: you control| an opponent controls| you don't control)?)$/))) return matchesFilter(c, m0[1] + m0[3]) || matchesFilter(c, m0[2] + m0[3]);
   const d = DB[c.def];
   for (const m of phrase.matchAll(/non-?(\w+)/g)) {
     const w = m[1];

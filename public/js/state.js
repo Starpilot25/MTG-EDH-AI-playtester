@@ -428,6 +428,7 @@ export function tapPerm(c) {
   if (!c || c.tapped) return;
   c.tapped = true;
   if (c.zone === 'battlefield') queueEvent({ type: 'tapped', iid: c.iid, controller: c.controller });
+  tappedHook(c); // Captain America
 }
 export function tappedHook(c) {
   if (!c || !G.s || c.zone !== 'battlefield' || !isCreature(c)) return;
