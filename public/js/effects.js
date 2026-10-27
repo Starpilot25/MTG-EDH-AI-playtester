@@ -267,7 +267,7 @@ export function activatedAbilities(c) {
       tap: /\{T\}/.test(cost),
       untap: /\{Q\}/.test(cost),
       sac: /Sacrifice ~|Sacrifice this/i.test(cost),
-      sacOther: (cost.match(/Sacrifice (an?|two|three|\d+|another) ([^,]+?)(?:,|$)/i) || null),
+      sacOther: (cost.match(/Sacrifice (an?|two|three|four|five|six|seven|eight|nine|ten|\d+|another) ([^,]+?)(?:,|$)/i) || null),
       tapOther: (cost.match(/Tap (an?|one|two|three|four|five|\d+) untapped ([^,]+?)(?:,|$)/i) || null),
       discardN: (cost.match(/Discard (a|two|\d+) cards?/i) || [])[1],
       exert: /Exert ~/i.test(cost),

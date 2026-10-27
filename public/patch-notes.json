@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.160",
+    "title": "Bolas's Citadel",
+    "notes": [
+      "Bolas's Citadel: spells cast from the top of your library cost life equal to their mana value instead of mana (they were charging the mana cost). The AI won't pay itself below 12 life this way.",
+      "Its \"{T}, Sacrifice ten nonland permanents\" ability now actually makes you sacrifice ten permanents (and other costs that sacrifice four to ten things)."
+    ]
+  },
+  {
     "version": "1.3.159",
     "title": "Koh, the Face Stealer",
     "notes": [

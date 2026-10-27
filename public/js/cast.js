@@ -261,6 +261,8 @@ export function topAccess(pid) {
       if (m[2] !== undefined) a.filters.push((m[2] || '').trim().toLowerCase());
     }
     if (/cast spells from the top of your library/i.test(o) && !a.filters.includes('')) a.filters.push('');
+    // Bolas's Citadel: "If you cast a spell this way, pay life equal to its mana value rather than pay its mana cost."
+    if (/If you cast a spell this way, pay life equal to its mana value rather than pay its mana cost/i.test(o)) a.payLife = true;
     // The Fourth Doctor: "Once each turn, you may play a historic land or cast a historic spell from the top of your library."
     if (/Once each turn, you may play a historic land or cast a historic spell from the top of your library/i.test(o) && c.topOnceTurn !== G.s.turn) {
       a.filters.push('historic');
@@ -318,7 +320,10 @@ export function castOptions(pid, c) {
   // Mystic Forge & co.: the top card of your library
   if (zone === 'library' && isLibraryTop(pid, c) && !isLandFace(f0)) {
     const a = topAccess(pid);
-    if (a.filters.some((f) => topFilterOk(f, d))) add({ mode: 'normal', label: 'Cast from the top of your library', cost: f0.manaCost || d.manaCost || '' });
+    if (a.filters.some((f) => topFilterOk(f, d))) {
+      if (a.payLife) { const lv = d.cmc || 0; if (G.s.players[pid].life >= lv) add({ mode: 'normal', label: `Cast from the top of your library (pay ${lv} life)`, cost: '', free: true, payLife: lv }); }
+      else add({ mode: 'normal', label: 'Cast from the top of your library', cost: f0.manaCost || d.manaCost || '' });
+    }
     return opts;
   }
   if (zone === 'hand' || (zone === 'command' && c.isCommander)) {
@@ -872,6 +877,7 @@ export async function castSpell(pid, iid, opt, env) {
   // Xander's Pact: pay life equal to its mana value instead
   if (c.lifeOnCast && opt.mode === 'hideaway') { const lv = DB[c.def].cmc || 0; changeLife(pid, -lv, false); log(pid, `${pid === 'p' ? 'You pay' : 'The AI pays'} ${lv} life for ${nameTag(c)}.`); c.lifeOnCast = null; }
   applyPayment(pid, pay);
+  if (opt.payLife) { changeLife(pid, -opt.payLife, false); log(pid, `${pid === 'p' ? 'You pay' : seatName(pid) + ' pays'} ${opt.payLife} life for ${nameTag(c)}.`); } // Bolas's Citadel
   // Expend: the total mana spent on spells this turn
   { const sp = (pay.payers || []).length + (pay.special || []).filter((x) => x.kind !== 'delve').length; if (sp && s.ts && s.ts[pid] && !opt.copy) { const b0 = s.ts[pid].expended || 0; s.ts[pid].expended = b0 + sp; for (let k = b0 + 1; k <= b0 + sp; k++) queueEvent({ type: 'expend', pid, n: k }); } }
   // Ancient Cellarspawn / Alex Wilder: what was paid, and when
@@ -2045,7 +2051,7 @@ export async function activateAbility(pid, c, ab, env) {
     if (!(await payOtherCost(pid, `tap ${tapK} untapped ${ab.tapOther[2].toLowerCase().replace(/ you control$/, '')} you control`, c, env))) throw new Cancelled();
   }
   if (ab.sacOther) {
-    const k = { a: 1, an: 1, another: 1, two: 2, three: 3 }[ab.sacOther[1].toLowerCase()] || +ab.sacOther[1] || 1;
+    const k = { a: 1, an: 1, another: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[ab.sacOther[1].toLowerCase()] || +ab.sacOther[1] || 1;
     if (!(await payOtherCost(pid, `sacrifice ${k === 1 ? 'a' : k} ${ab.sacOther[2]}`, c, env))) throw new Cancelled();
   }
   if (ab.discardN && !(await payOtherCost(pid, `discard ${ab.discardN} card`, c, env))) throw new Cancelled();

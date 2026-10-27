@@ -768,6 +768,7 @@ function options(filter = () => true) {
     for (const opt of castOptions(AI, c)) {
       if (!AI_MODES.has(opt.mode) || opt.other) continue;
       if (opt.mode === 'handPermit' && (!permitCard || permitCard.iid !== c.iid)) continue;
+      if (opt.payLife && G.s.players[AI].life - opt.payLife < 12) continue; // Bolas's Citadel: don't pay itself into danger
       if (!timingOk(AI, c, opt)) continue;
       if (opt.mode === 'bestow' && !cardsIn(AI, 'battlefield').some(isCreature)) continue;
       // retrace (Six): only with a spare land to discard — it has made its land drop or has plenty of lands out
