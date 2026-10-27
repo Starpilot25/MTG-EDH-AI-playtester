@@ -13456,6 +13456,19 @@ on(/^if (?:~|this [a-z]+) isn't a creature, it becomes an? (\d+)\/(\d+) ([a-z ]+
   me.sick = me.sick && me.enteredTurn === G.s.turn;
   env.did.push(`${nameTag(me)} becomes a ${m[1]}/${m[2]} ${capWords(m[3])} creature until end of turn`);
 }, { first: true });
+// Mirror Entity: "Until end of turn, creatures you control have base power and toughness X/X and gain all creature types."
+on(/^(?:until end of turn, )?(creatures you control|other creatures you control) have base power and toughness (x|\d+)\/(x|\d+)(?: until end of turn)?(?: and gain all creature types)?(?: until end of turn)?$/, async (m, env) => {
+  const val = (w) => (w === 'x' ? env.x || 0 : +w);
+  const p = val(m[2]), t = val(m[3]);
+  const all = /gain all creature types/.test(env.sentence || m[0]);
+  const objs = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && !(m[1].startsWith('other') && env.src && c.iid === env.src.iid));
+  for (const c of objs) {
+    c.setPT = { ts: nextStamp(), p, t };
+    c.setPTUntil = 'eot';
+    if (all) c.allTypesTurn = G.s.turn;
+  }
+  env.did.push(`${objs.length} creature${objs.length === 1 ? '' : 's'} become${objs.length === 1 ? 's' : ''} ${p}/${t}${all ? ' and gain all creature types' : ''} until end of turn`);
+}, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {
