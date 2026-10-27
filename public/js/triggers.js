@@ -647,7 +647,7 @@ function parseTriggerText(text, speed) {
     else if ((m = line.match(/^Whenever you cast a spell that shares a creature type with (?:this creature|~), (.+)$/i)))
       add('cast', m[1], { spell: '', mine: true, sharesType: true });
     else if ((m = line.match(/^Whenever you cast (?:a|an|another|your first|your second) ([^,]*?)spell(?: each turn| during [^,]+| from [^,]+| with [^,]+| that [^,]+| this turn)?, (.+)$/i)))
-      add('cast', m[2], { spell: m[1].toLowerCase().trim(), mine: true, first: /your first/i.test(line), second: /your second/i.test(line), notSelf: /another/i.test(line), from: (line.match(/spell from (your hand|your graveyard|exile|anywhere other than your hand)/i) || [])[1],
+      add('cast', m[2], { spell: (m[1].toLowerCase().trim() + ((line.match(/spell with (power \d+ or (?:greater|less))/i) || [])[1] ? ' ' + line.match(/spell with (power \d+ or (?:greater|less))/i)[1] : '')).trim(), mine: true, first: /your first/i.test(line), second: /your second/i.test(line), notSelf: /another/i.test(line), from: (line.match(/spell from (your hand|your graveyard|exile|anywhere other than your hand)/i) || [])[1],
         ...mvLimit(line) });
     else if ((m = line.match(/^Whenever you cast an? ((?:Aura|Equipment|Vehicle|historic|[A-Z]\w+)(?:(?:,|, or| or) (?:Aura|Equipment|Vehicle|[A-Z]\w+))*)(?: spell)?, (.+)$/)))
       add('cast', m[2], { spell: m[1].toLowerCase(), mine: true });
@@ -1568,9 +1568,12 @@ function spellMatches(filter, d, c) {
   if (/, /.test(f)) return f.split(/,\s*(?:or\s+)?/).some((part) => spellMatches(part.trim(), d, c));
   if (/noncreature/.test(f)) return !/Creature/.test(t);
   if (/instant or sorcery|instant and sorcery/.test(f)) return /Instant|Sorcery/.test(t);
-  if (/^creature/.test(f)) {
+  if (/^creature/.test(f) || /^power \d+ or/.test(f)) {
     const mv = f.match(/mana value (\d+) or greater/);
-    return /Creature/.test(t) && (!mv || d.cmc >= +mv[1]);
+    // Monstrous Vortex: "a creature spell with power 5 or greater"
+    const pw = f.match(/power (\d+) or (greater|less)/);
+    const pNow = () => { let v = null; try { if (c) v = power(c); } catch (e) { v = null; } if (v == null || isNaN(v)) v = +(d.faces[0].power || 0) || 0; return v; };
+    return (/Creature/.test(t) || (/^power/.test(f) && d.faces[0].power != null)) && (!mv || d.cmc >= +mv[1]) && (!pw || (pw[2] === 'greater' ? pNow() >= +pw[1] : pNow() <= +pw[1]));
   }
   if (/^artifact/.test(f)) return /Artifact/.test(t);
   if (/^enchantment/.test(f)) return /Enchantment/.test(t);

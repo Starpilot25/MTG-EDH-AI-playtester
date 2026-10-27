@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.164",
+    "title": "Monstrous Vortex",
+    "notes": [
+      "Monstrous Vortex: now only triggers on creature spells with power 5 or greater (it was discovering on every creature spell, so discovered creatures chained more discovers)."
+    ]
+  },
+  {
     "version": "1.3.163",
     "title": "Wolfir Silverheart",
     "notes": [
