@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.156",
+    "title": "Sculpting Steel and clones",
+    "notes": [
+      "Sculpting Steel (and other \"enter as a copy\" cards) log the right name: \"Sculpting Steel enters as a copy of Sol Ring\".",
+      "The AI copies the best artifact for it, counting mana production (Sol Ring over Mind Stone), and won't copy its own legendary permanent when the copy would just die to the legend rule."
+    ]
+  },
+  {
     "version": "1.3.155",
     "title": "Vision, Spectral Synthezoid",
     "notes": [

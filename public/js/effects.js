@@ -6320,7 +6320,7 @@ export async function enterAsCopy(pid, c, choosers) {
   const pool = [...(/you control/i.test(m[3]) ? [] : opponents(pid).flatMap((o2) => cardsIn(o2, 'battlefield'))), ...cardsIn(pid, 'battlefield')]
     .filter((x) => x.iid !== c.iid && !x.phasedOut && !x.faceDown && kinds.some((k) => (k === 'creature' ? isCreature(x) : isType(x, k[0].toUpperCase() + k.slice(1)))) && statOk(x));
   if (!pool.length) return null;
-  const [pick] = await choosers[pid].pickCards({ prompt: `${cardName(c)}: enter as a copy of… (or choose none)`, cards: pool.map((x) => x.iid), min: 0, max: 1, purpose: 'copy', src: c, aiScore: (x) => cardValue(x) + (x.controller === pid ? 0.5 : 0) });
+  const [pick] = await choosers[pid].pickCards({ prompt: `${cardName(c)}: enter as a copy of… (or choose none)`, cards: pool.map((x) => x.iid), min: 0, max: 1, purpose: 'copy', src: c, aiScore: (x) => cardValue(x) + (x.controller === pid ? 0.5 : 0) + (((manaAbility({ ...x, tapped: false, sick: false }) || {}).amount || 0) * 3) - (/Legendary/.test(typeLine(x)) && !/isn't legendary|not legendary/i.test(m[7] || '') && x.controller === pid ? 100 : 0) });
   if (!pick || !card(pick)) return null;
   const model = card(pick);
   const except = (m[7] || '').toLowerCase();

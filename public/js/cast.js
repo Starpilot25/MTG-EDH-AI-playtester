@@ -1206,6 +1206,7 @@ async function resolveSpell(pid, c, opt, info, env) {
     if (opt.mode === 'prototype') c.proto = opt.proto;
     if (opt.mode === 'impending') c.impending = true;
     // Clone & co.: choose what it copies before it enters
+    const preName = cardName(c);
     const copied = await enterAsCopy(pid, c, env.choosers);
     toBattlefield(c.iid, pid, env.pos || {});
     // haste from how it was cast: Thundermane Dragon (from the top of the library), Carnelian Orb's mana
@@ -1216,7 +1217,7 @@ async function resolveSpell(pid, c, opt, info, env) {
       if (x.enterExtra && x.enterExtra.plus) addCounters(x, '+1/+1', x.enterExtra.plus, { silent: true });
       if (x.enterExtra && x.enterExtra.loyalty) x.counters.loyalty = (x.counters.loyalty || 0) + x.enterExtra.loyalty;
       delete x.enterExtra;
-      log(pid, `${nameTag(x)} enters as a copy of ${nameTag(copied)}.`);
+      log(pid, `${preName} enters as a copy of ${nameTag(copied)}.`);
       // a copy of an Aura (Copy Enchantment, Estrid's Invocation copying Rancor): attach it to something
       const ad = await attachLooseAuras([x.iid], pid, env.choosers);
       if (ad.length) log(pid, ad.join('; ') + '.');
