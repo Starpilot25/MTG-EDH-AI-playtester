@@ -13706,6 +13706,11 @@ async function runText(text, env) {
     return;
   }
   const sentences = splitSentences(text);
+  // "Metalcraft — ~ deals 4 damage instead if you control three or more artifacts." → "If …, ~ deals 4 damage instead."
+  for (let i = 1; i < sentences.length; i++) {
+    const im = sentences[i].trim().match(/^(?:[A-Z][A-Za-z' ]{2,30} — )?(.+?) instead if (.+?)\.?$/);
+    if (im && !/^if /i.test(im[1])) sentences[i] = `If ${im[2]}, ${im[1]} instead.`;
+  }
   const skip = new Set();
   // "If X, … instead": when X holds, the previous sentence doesn't happen
   for (let i = 0; i < sentences.length; i++) {

@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.154",
+    "title": "Galvanic Blast (Metalcraft)",
+    "notes": [
+      "Galvanic Blast deals 4 damage instead of 2 when you control three or more artifacts.",
+      "Same fix for other spells worded \"… instead if …\" after the main effect (Metalcraft and similar ability words)."
+    ]
+  },
+  {
     "version": "1.3.153",
     "title": "The Ur-Dragon",
     "notes": [
