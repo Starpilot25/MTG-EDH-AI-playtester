@@ -472,6 +472,8 @@ button.mini { width: 20px; height: 20px; padding: 0; font-size: 13px; line-heigh
 .cdot.c-W { background: #f8f3d8; } .cdot.c-U { background: #3f8fe0; } .cdot.c-B { background: #3a3036; border-color: #aaa; } .cdot.c-R { background: #e0533a; } .cdot.c-G { background: #3fa35a; }
 .badge.sector { background: #1b2433; color: #9ec3ff; border-color: #4d6a99; font-weight: 700; }
 .badge.count { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); font-weight: 700; }
+.badge.devotion { background: #1f1a12; color: var(--brass); border-color: var(--brass); font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
+.badge.devotion .ms, .badge.devotion img { width: 11px; height: 11px; }
 .badge.tax { background: #2a2216; color: var(--brass); border-color: var(--brass); }
 .badge.sick { color: var(--muted); }
 .badge.ring { background: #2a2216; color: #ffd36b; border-color: #c9a227; font-weight: 700; white-space: nowrap; }

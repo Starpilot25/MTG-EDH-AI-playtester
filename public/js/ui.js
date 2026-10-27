@@ -69,6 +69,18 @@ function manaSymbols(cost) {
 
 // cards exiled face down by the AI (Expensive Taste, Gonti, Black Cat…) stay hidden from you
 const hiddenFromMe = (c) => c && c.zone === 'exile' && c.hiddenExile && c.hiddenExile !== 'p';
+// devotion: colored mana symbols in the mana costs of permanents a player controls (hybrid counts once for either color)
+function devotionOf(pid) {
+  const perms = cardsIn(pid, 'battlefield').filter((x) => !x.faceDown);
+  return (...cols) => {
+    let k = 0;
+    for (const x of perms) {
+      const f = DB[x.def].faces[x.face || 0] || DB[x.def].faces[0];
+      for (const mm of ((f && f.manaCost) || DB[x.def].manaCost || '').matchAll(/\{([^}]+)\}/g)) if (cols.some((y) => mm[1].includes(y))) k++;
+    }
+    return k;
+  };
+}
 // who goaded it, for the badge ("you", "the AI", "AI 2 and AI 3")
 const goaderNames = (c) => ((multiplayer() ? goadersOf(c) : [c.goaded.by]).map((k) => (k === 'p' ? 'you' : multiplayer() ? seatName(k) : 'the AI')).join(' and ') || 'nobody');
 function cardHTML(c, opts = {}) {
@@ -161,6 +173,18 @@ function cardHTML(c, opts = {}) {
       const tip = `Ring-bearer — tempted ${(G.s.players[c.controller].ringTimes || rl)} time(s), level ${rl} of 4:\n` + RING_TEXT.map((t, k) => `${k < rl ? '✓' : '·'} ${k + 1}. ${t}`).join('\n');
       badges.push(`<span class="badge ring" title="${esc(tip)}">💍 ${rl}/4</span>`);
     }
+  }
+  // Nyx Lotus, Theros gods, Karametra's Acolyte…: show the controller's current devotion
+  if (c.zone === 'battlefield' && !c.faceDown && /devotion to/i.test(oracle(c))) {
+    const o = oracle(c).toLowerCase();
+    const W = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
+    const named = [...o.matchAll(/devotion to (white|blue|black|red|green)(?: and (white|blue|black|red|green))?/g)].map((m) => [W[m[1]], m[2] && W[m[2]]].filter(Boolean));
+    const any = /devotion to (?:that color|the chosen color|a color|each color|any color)/.test(o) || !named.length;
+    const dev = devotionOf(c.controller);
+    const groups = any ? ['W', 'U', 'B', 'R', 'G'].filter((k) => dev(k) > 0).map((k) => [k]) : named.filter((g, i, arr) => arr.findIndex((h) => h.join() === g.join()) === i);
+    const parts = groups.map((g) => `${manaSymbols(g.map((k) => '{' + k + '}').join(''))}${dev(...g)}`);
+    const tip = groups.length ? groups.map((g) => `devotion to ${g.map((k) => Object.keys(W).find((w) => W[w] === k)).join(' and ')}: ${dev(...g)}`).join(', ') : 'no colored mana symbols among your permanents';
+    badges.push(`<span class="badge devotion" title="${esc(seatPoss(c.controller).replace(/^y/, "Y"))} ${esc(tip)}">${parts.length ? parts.join(' ') : 'Devotion 0'}</span>`);
   }
   if (c.zone === 'battlefield' && c.prepared && d.faces[1]) badges.push(`<span class="badge chosen" title="Prepared: right-click to cast a copy of ${esc(d.faces[1].name)} (${esc(d.faces[1].manaCost || '')})">✦ Prepared</span>`);
   // Rooms: which doors are unlocked
