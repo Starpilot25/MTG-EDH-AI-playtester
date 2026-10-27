@@ -904,10 +904,51 @@ function commanderIdentity(pid) {
   for (const c of Object.values(G.s.cards)) if (c.isCommander && c.owner === pid) for (const x of (DB[c.def].ci && DB[c.def].ci.length ? DB[c.def].ci : DB[c.def].colors) || []) cols.add(x);
   return ['W', 'U', 'B', 'R', 'G'].filter((x) => cols.has(x));
 }
+// Mana abilities other permanents give this one: "Creatures you control have "{T}: Add {G}."" (Citanul Hierophants),
+// "Enchanted land has "{T}: Add one mana of any color."" (Abundant Growth), "All Slivers have …", "Equipped creature … has …"
+function grantedManaText(inst) {
+  if (!G.s || inst.zone !== 'battlefield') return '';
+  const out = [];
+  const sing = (w) => w.replace(/ves$/, 'f').replace(/ies$/, 'y').replace(/(?<!s)s$/, '');
+  const fits = (words) => words.every((w) => {
+    if (!w) return true;
+    if (/^(?:permanents?)$/.test(w)) return true;
+    if (/^creatures?$/.test(w)) return isCreature(inst);
+    if (/^lands?$/.test(w)) return isLand(inst);
+    if (/^artifacts?$/.test(w)) return isType(inst, 'Artifact');
+    if (/^basic$/.test(w)) return /\bBasic\b/.test(typeLine(inst));
+    if (/^tokens?$/.test(w)) return !!inst.token;
+    if (/^nontoken$/.test(w)) return !inst.token;
+    return hasSubtype(inst, w[0].toUpperCase() + w.slice(1)) || hasSubtype(inst, sing(w[0].toUpperCase() + w.slice(1)));
+  });
+  for (const pid of seats()) for (const i of G.s.players[pid].zones.battlefield) {
+    const x = G.s.cards[i];
+    if (!x || x.phasedOut || x.faceDown) continue;
+    const raw = (DB[x.def].faces[x.face || 0] || DB[x.def].faces[0]).oracle || '';
+    if (!/(?:has|have)[^".]*"[^"]*\bAdd\b/i.test(raw) || abilitiesGone(x)) continue;
+    for (const m of raw.matchAll(/(?:^|\n|\. )((?:[A-Z][^.\n"]*?)) (?:has|have)(?: [a-z ,]+? and)? "([^"]*\bAdd\b[^"]*)"/g)) {
+      const subj = m[1].trim().toLowerCase();
+      if (/^(?:it|they|the token|the tokens)\b/.test(subj) || /\btreasures you control\b/.test(subj)) continue; // tokens it makes; Treasures are handled above
+      let ok = false;
+      if (/^(?:enchanted|equipped) (?:land|creature|permanent|artifact)\b/.test(subj)) ok = x.attachedTo === inst.iid;
+      else {
+        const mine = /\byou control\b/.test(subj);
+        if (mine && x.controller !== inst.controller) continue;
+        const other = /\bother\b/.test(subj);
+        if (other && x.iid === inst.iid) continue;
+        const words = subj.replace(/\byou control\b|\bother\b|^all\b|^each\b/g, ' ').trim().split(/\s+/).filter(Boolean);
+        ok = words.length > 0 && fits(words);
+      }
+      if (ok) out.push(m[2]);
+    }
+  }
+  return out.join('\n');
+}
 function manaAbilityRaw(inst) {
   if (inst.tapped || inst.faceDown || inst.phasedOut) return null;
   const d = DB[inst.def];
-  const o = oracle(inst);
+  // quoted text is an ability something else has (Warren Soultrader's Treasure reminder: "{T}, Sacrifice this token: Add …"), not this card's
+  const o = grantedManaText(inst) + '\n' + oracle(inst).replace(/"[^"]*"/g, '""'); // granted ones first: "any color" beats a Forest's {G}
   // Nyx Lotus, Karametra's Acolyte-likes: "{T}: Choose a color. Add an amount of mana of that color equal to your devotion to that color."
   if (/\{T\}: Choose a color\. Add an amount of mana of that color equal to your devotion to that color/i.test(o)) {
     if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
@@ -1007,9 +1048,18 @@ function manaAbilityRaw(inst) {
     }
   }
   // what it can make: from the card data, or read off its own "Add …" text when the data has none
-  const produced = d.produced.length ? d.produced : (() => {
+  const produced0 = d.produced.length ? d.produced : (() => {
     const adds = (o.match(/Add [^.\n]*/g) || []).join(' ');
     const set = new Set((adds.match(/\{[WUBRGC]\}/g) || []).map((x) => x[1]));
+    if (/mana of any (?:one )?color|any combination of colors/i.test(adds)) ['W', 'U', 'B', 'R', 'G'].forEach((x) => set.add(x));
+    return [...set];
+  })();
+  // mana abilities other permanents give it (Abundant Growth on a Forest: {G} or any color)
+  const produced = (() => {
+    const g = grantedManaText(inst);
+    if (!g) return produced0;
+    const adds = (g.match(/Add [^.\n]*/g) || []).join(' ');
+    const set = new Set([...produced0, ...(adds.match(/\{[WUBRGC]\}/g) || []).map((x) => x[1])]);
     if (/mana of any (?:one )?color|any combination of colors/i.test(adds)) ['W', 'U', 'B', 'R', 'G'].forEach((x) => set.add(x));
     return [...set];
   })();

@@ -2615,6 +2615,38 @@ function kill(c, zone, verb, opts = {}) {
   });
 }
 
+// Right-click on the mat: the things you'd reach for at a real table
+function menuForMat(x, y) {
+  const make = (label) => () => act(() => {
+    createToken(genericTokenDef(0, 0, label), 'p', 1);
+    log('p', `You create a ${label} token.`);
+  });
+  const roll = (sides) => () => act(() => {
+    const r = 1 + Math.floor(Math.random() * sides);
+    log('p', `You roll a d${sides}: <b>${r}</b>.`);
+    toast(`d${sides}: ${r}`);
+  });
+  openMenu(x, y, [
+    { head: 'Quick actions' },
+    { label: 'Create a Treasure', fn: make('Treasure') },
+    { label: 'Create a Clue', fn: make('Clue') },
+    { label: 'Create a Food', fn: make('Food') },
+    { label: 'Create a token…', key: 'C', fn: () => tokenDialog() },
+    '-',
+    { label: 'Draw a card', key: 'D', fn: () => act(() => draw('p', 1)) },
+    { label: 'Untap all', key: 'U', fn: () => $('#btn-untap').click() },
+    { label: 'Search your library…', key: 'L', fn: () => searchLibrary() },
+    { label: 'Shuffle your library', key: 'S', fn: () => act(() => { shuffle('p'); log('p', 'You shuffle your library.'); toast('Library shuffled'); }) },
+    { label: 'Mill a card', fn: () => act(() => mill('p', 1)) },
+    '-',
+    { label: 'Gain 1 life', fn: () => act(() => { setLife('p', G.s.players.p.life + 1); log('p', 'You gain 1 life.'); }) },
+    { label: 'Lose 1 life', fn: () => act(() => { setLife('p', G.s.players.p.life - 1); log('p', 'You lose 1 life.'); }) },
+    { label: 'Roll a d6', fn: roll(6) },
+    { label: 'Roll a d20', fn: roll(20) },
+    { label: 'Flip a coin', fn: () => act(() => { const h = Math.random() < 0.5; log('p', `You flip a coin: <b>${h ? 'heads' : 'tails'}</b>.`); toast(h ? 'Heads' : 'Tails'); }) },
+  ]);
+}
+
 function menuForPile(pid, zone, x, y) {
   if (pid !== 'p') {
     return openMenu(x, y, [
@@ -2909,6 +2941,12 @@ export function bindEvents() {
       const [pid, zone] = pileEl.dataset.pile.split(':');
       if (zone === 'command') return;
       menuForPile(pid, zone, e.clientX, e.clientY);
+      return;
+    }
+    // anywhere else on the table (the mat, a player panel): quick actions
+    if (G.s.phase === 'play' && !e.target.closest('#dialog, .dlg, #menu, #log, .log, a, button, select')) {
+      e.preventDefault();
+      menuForMat(e.clientX, e.clientY);
     }
   });
 
@@ -3112,7 +3150,7 @@ function onHover(e) {
       if (hoverIid !== c.iid) attachHighlight(c);
       hoverIid = c.iid;
       if (c.owner === 'ai' && c.zone === 'hand' && !revealAiHand) return;
-      if (c.zone === 'library' && !el.closest('#dialog')) return;
+      if (c.zone === 'library' && !el.closest('#dialog') && !el.closest('.top-ready')) return; // the top card you may look at (Bolas's Citadel, Future Sight) does preview
       if (hiddenFromMe(c)) return;
       setPreview(c.iid, null);
     } else setPreview(null, el.dataset.def, +el.dataset.face || 0);

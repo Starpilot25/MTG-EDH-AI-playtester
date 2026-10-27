@@ -28,6 +28,7 @@ export const G = {
     arenaMode: true,
     aiStyle: 'casual',
     boardLayout: 'organized',
+    aiVoice: 'off',
   },
 };
 
@@ -443,6 +444,7 @@ export function log(who, html) {
   if (multiplayer() && isAI(who) && typeof html === 'string') html = seatWords(html, who);
   G.s.log.push({ who, html, turn: G.s.turn });
   if (G.s.log.length > 500) G.s.log.shift();
+  if (G.voiceHook) { try { G.voiceHook(who, html); } catch (e) { /* speech is a nicety */ } } // AI announcements (voice.js)
 }
 
 // ------------------------------------------------------------ zone movement

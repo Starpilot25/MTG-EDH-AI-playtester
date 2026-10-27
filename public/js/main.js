@@ -5,6 +5,7 @@ import {
 } from './data.js';
 import { G, newGame, cardsIn, move, log, esc, emit } from './state.js';
 import { loadDungeons } from './dungeon.js';
+import { voiceSupported, speak, stopSpeaking } from './voice.js';
 import { run, aiMulligans, mulligan, bottomCount, startPlay } from './game.js';
 import { render, bindEvents, openDialog, closeDialog, cancelPending, toast, teardownTable } from './ui.js';
 
@@ -342,6 +343,7 @@ function readSettings() {
   G.settings.arenaMode = $('#set-arena').checked;
   G.settings.aiSpeed = +$('#set-speed').value;
   G.settings.aiStyle = $('#set-aistyle').value;
+  G.settings.aiVoice = $('#set-voice').value;
   G.settings.boardLayout = $('#set-layout').value;
   G.settings.commanderZone = $('#set-cmdzone').value;
   G.settings.dorks = $('#set-dorks').value;
@@ -354,6 +356,7 @@ function readSettings() {
     arenaMode: G.settings.arenaMode,
     aiSpeed: G.settings.aiSpeed,
     aiStyle: G.settings.aiStyle,
+    aiVoice: G.settings.aiVoice,
     boardLayout: G.settings.boardLayout,
     commanderZone: G.settings.commanderZone,
     dorks: G.settings.dorks,
@@ -428,6 +431,9 @@ function initSetup() {
   $('#set-arena').checked = st.arenaMode ?? true;
   $('#set-speed').value = st.aiSpeed ?? 650;
   $('#set-aistyle').value = st.aiStyle ?? 'casual';
+  $('#set-voice').value = st.aiVoice ?? 'off';
+  if (!voiceSupported()) for (const id of ['#set-voice', '#gm-voice']) { const el = $(id); if (el) { el.value = 'off'; el.disabled = true; el.title = "This browser can't speak."; } }
+  $('#set-voice').addEventListener('change', (e) => { if (e.target.value !== 'off') { stopSpeaking(); speak(e.target.value === 'read' ? 'A.I. announcements on. I will also read you the cards I cast.' : 'A.I. announcements on.'); } });
   $('#set-layout').value = st.boardLayout ?? 'organized';
   $('#set-cmdzone').value = st.commanderZone ?? 'ask';
   $('#set-dorks').value = st.dorks ?? 'last';
@@ -650,6 +656,13 @@ document.addEventListener('DOMContentLoaded', () => {
     store.set('settings', { ...store.get('settings', {}), commanderZone: e.target.value });
     $('#set-cmdzone').value = e.target.value;
   });
+  $('#gm-voice').addEventListener('change', (e) => {
+    G.settings.aiVoice = e.target.value;
+    store.set('settings', { ...store.get('settings', {}), aiVoice: e.target.value });
+    $('#set-voice').value = e.target.value;
+    stopSpeaking();
+    if (e.target.value !== 'off') speak(e.target.value === 'read' ? 'A.I. announcements on. I will also read you the cards I cast.' : 'A.I. announcements on.');
+  });
   $('#gm-aistyle').addEventListener('change', (e) => {
     G.settings.aiStyle = e.target.value;
     store.set('settings', { ...store.get('settings', {}), aiStyle: e.target.value });
@@ -668,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#gm-arena').checked = G.settings.arenaMode;
     $('#gm-speed').value = G.settings.aiSpeed;
     $('#gm-aistyle').value = G.settings.aiStyle || 'casual';
+    $('#gm-voice').value = G.settings.aiVoice || 'off';
     $('#gm-layout').value = G.settings.boardLayout || 'organized';
     $('#gm-cmdzone').value = G.settings.commanderZone || 'ask';
     $('#gm-dorks').value = G.settings.dorks || 'last';
