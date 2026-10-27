@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.159",
+    "title": "Koh, the Face Stealer",
+    "notes": [
+      "Koh, the Face Stealer remembers the cards it exiles. \"Pay 1 life: Choose a creature card exiled with Koh\" works, and Koh then has that card's activated and triggered abilities. The AI uses it when one of its stolen cards has abilities worth having.",
+      "Other cards that refer to \"cards exiled with\" themselves now remember what they exiled."
+    ]
+  },
+  {
     "version": "1.3.158",
     "title": "AI announcements, right-click quick actions, Warren Soultrader",
     "notes": [

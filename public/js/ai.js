@@ -1155,6 +1155,15 @@ async function useAbilities(h) {
         }
         continue;
       }
+      // Koh, the Face Stealer: pick up a stolen card's abilities once there's one worth having
+      if (ab.kind === 'ability' && /Choose a creature card exiled with ~/i.test(ab.text || '') && G.s.active === AI && /main/.test(G.s.step) && !G.s.stack && G.s.players[AI].life > 10) {
+        const best = Object.values(G.s.cards).filter((x) => x.zone === 'exile' && x.exiledWith === c.iid && /(?:^|\n)(?:When|Whenever|At)\b|\{[^}]+\}[^\n:]*:/.test((DB[x.def].faces[0] || {}).oracle || ''))[0];
+        if (best && !c.kohChosen) {
+          await safely(h, () => activateAbility(AI, c, ab, aiEnv(h)));
+          h.render();
+        }
+        continue;
+      }
       if (ab.kind !== 'ability' || ab.sac || /Discard|Pay \d+ life|Exile|Sacrifice/i.test(ab.costText)) continue;
       const a = analyze(ab.text);
       const prolif = a.proliferate && (cardsIn(AI, 'battlefield').some((x) => Object.entries(x.counters || {}).some(([k, v]) => v > 0 && k !== '-1/-1' && k !== 'stun')) ||

@@ -341,6 +341,14 @@ function oracleRaw(inst) {
   }
   text = maxSpeedText(text, inst.controller || inst.owner);
   if (inst.extraText) text += '\n' + inst.extraText;
+  // Koh, the Face Stealer: "Koh has all activated and triggered abilities of the last chosen card."
+  if (inst.kohChosen && DB[inst.kohChosen] && inst.zone === 'battlefield') {
+    const kd = DB[inst.kohChosen];
+    const kn = kd.name.split(' // ')[0];
+    const lines = ((kd.faces[0] || {}).oracle || '').replace(/\([^)]*\)/g, '').split('\n').map((l) => l.trim()).filter((l) => /^(?:[A-Z][\w' ]{1,30} — )?(?:When|Whenever|At)\b/.test(l) || /^[^"\n]*?(?:\{[^}]+\}|Pay [^:]+|Sacrifice [^:]+|Discard [^:]+|Exile [^:]+|Tap [^:]+)[^"\n:]*:/.test(l));
+    const own = face(inst).name;
+    if (lines.length) text += '\n' + lines.join('\n').split(kn).join(own).split(kn.split(',')[0]).join(own.split(',')[0]);
+  }
   // soulbond: "As long as ~ is paired with another creature, each of those creatures has "…"" (both halves of the pair)
   if (inst.pairedWith && inst.zone === 'battlefield') { const pg = pairGrantText(inst); if (pg) text += '\n' + pg; }
   // Harold and Bob: "Enchanted Forest has '…'" — only while that Aura is still attached

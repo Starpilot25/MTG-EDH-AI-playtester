@@ -13427,6 +13427,19 @@ on(/^choose any target, then choose another target for each time (?:~|this spell
   }
   if (!picks.length) env.did.push('has no target');
 }, { first: true, multi: true });
+// Koh, the Face Stealer: "Pay 1 life: Choose a creature card exiled with Koh." (it then has that card's activated and triggered abilities)
+on(/^choose a creature card exiled with ~$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!me) return;
+  const pool = Object.values(G.s.cards).filter((x) => x.zone === 'exile' && x.exiledWith === me.iid && /Creature/.test((DB[x.def].faces[0] || {}).typeLine || ''));
+  if (!pool.length) return env.did.push(`has no creature card exiled with it`);
+  const abilScore = (x) => { const o = (DB[x.def].faces[0] || {}).oracle || ''; return (o.match(/(?:^|\n)(?:[A-Z][\w' ]{1,30} — )?(?:When|Whenever|At)\b/g) || []).length * 5 + (o.match(/(?:^|\n)[^\n:"]*\{[^}]+\}[^\n:"]*:/g) || []).length * 5 + cardValue(x) / 10; };
+  const [p] = await env.choosers[env.me].pickCards({ prompt: `${cardName(me)} gets the activated and triggered abilities of…`, cards: pool.map((x) => x.iid), min: 1, max: 1, forced: true, purpose: 'copy', src: me, aiScore: abilScore });
+  if (!p) return;
+  me.kohChosen = card(p).def;
+  env.did.push(`chooses ${nameTag(card(p))}`);
+}, { first: true });
+on(/^~ has all activated and triggered abilities of the last chosen card$/, async () => {}, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {
@@ -14338,11 +14351,12 @@ async function playerSubject(s, env) {
 export async function resolveEffects(text, src, ctx) {
   if (!text || !src) return [];
   const prevCtl = G.s ? G.s.effectCtl : null;
-  if (G.s) G.s.effectCtl = (ctx && ctx.me) || src.controller || null;
+  const prevSrc = G.s ? G.s.effectSrc : null;
+  if (G.s) { G.s.effectCtl = (ctx && ctx.me) || src.controller || null; G.s.effectSrc = src.iid || null; }
   try {
     return await resolveEffectsRaw(text, src, ctx);
   } finally {
-    if (G.s) G.s.effectCtl = prevCtl;
+    if (G.s) { G.s.effectCtl = prevCtl; G.s.effectSrc = prevSrc; }
   }
 }
 async function resolveEffectsRaw(text, src, ctx) {
