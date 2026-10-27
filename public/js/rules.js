@@ -306,6 +306,11 @@ export function pairGrantText(inst) {
     const fo = (DB[x.def].faces[x.face || 0] || DB[x.def].faces[0]).oracle || '';
     const gm = fo.match(/As long as [^\n]*? is paired with another creature, (?:each of those creatures has|both creatures have) "([^"]+)"/i);
     if (gm) out.push(gm[1]);
+    // Wolfir Silverheart: "each of those creatures gets +4/+4" / Silverblade Paladin: "both creatures have double strike"
+    else {
+      const gs = fo.match(/As long as [^\n]*? is paired with another creature, (?:each of those creatures|both creatures) ((?:gets?|ha(?:s|ve)) [^"\n]+?)\.?(?:\n|$)/i);
+      if (gs) out.push('This creature ' + gs[1].replace(/^get /i, 'gets ').replace(/^have /i, 'has ').replace(/ and have /i, ' and has ') + '.');
+    }
   }
   return out.join('\n');
 }
