@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.161",
+    "title": "Iron Man Armor",
+    "notes": [
+      "Iron Man Armor's {2} ability now works: it becomes a 0/0 Construct Hero artifact creature with flying that gets +1/+1 for each artifact you control until end of turn, and falls off the creature it was equipping."
+    ]
+  },
+  {
     "version": "1.3.160",
     "title": "Bolas's Citadel",
     "notes": [

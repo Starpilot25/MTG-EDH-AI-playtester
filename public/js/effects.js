@@ -13440,6 +13440,19 @@ on(/^choose a creature card exiled with ~$/, async (m, env) => {
   env.did.push(`chooses ${nameTag(card(p))}`);
 }, { first: true });
 on(/^~ has all activated and triggered abilities of the last chosen card$/, async () => {}, { first: true });
+// Iron Man Armor: "{2}: If this Equipment isn't a creature, it becomes a 0/0 Construct Hero artifact creature with flying and
+// "This creature gets +1/+1 for each artifact you control" until end of turn."
+on(/^if (?:~|this [a-z]+) isn't a creature, it becomes an? (\d+)\/(\d+) ([a-z ]+?) artifact creature(?: with ([a-z ,]+?))?(?: and "(.+)")?(?: until end of turn)?$/, async (m, env, raw) => {
+  const me = env.src && card(env.src.iid);
+  if (!me || me.zone !== 'battlefield') return;
+  if (isCreature(me)) return env.did.push('is already a creature');
+  const quoted = ((raw || env.sentence || '').match(/"(.+)"/) || [])[1];
+  addLayerFx(me, { until: 'eot', types: { add: 'Creature', subAdd: capWords(m[3]) }, base: { p: +m[1], t: +m[2] }, grants: kwList(m[4] || '') });
+  if (quoted) me.eotText = ((me.eotText ? me.eotText + '\n' : '') + quoted.replace(/\bthis creature\b/gi, '~')).trim();
+  if (me.attachedTo) delete me.attachedTo; // an Equipment that's a creature can't stay attached
+  me.sick = me.sick && me.enteredTurn === G.s.turn;
+  env.did.push(`${nameTag(me)} becomes a ${m[1]}/${m[2]} ${capWords(m[3])} creature until end of turn`);
+}, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {
