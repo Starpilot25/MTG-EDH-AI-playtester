@@ -741,7 +741,7 @@ function targetsAvailable(text, c) {
 
 // Modes the AI knows how to use well.
 const AI_MODES = new Set(['normal', 'back', 'adventure', 'fuse', 'flashback', 'escape', 'foretold', 'plotted', 'impulse', 'hideaway', 'fromGraveyard',
-  'mayhem', 'gyPermit', 'disturb', 'aftermath', 'prototype', 'surge', 'spectacle', 'prowl', 'freerunning', 'overload', 'awaken', 'bestow', 'harmonize', 'omen', 'coram', 'freecast', 'retrace']);
+  'mayhem', 'gyPermit', 'handPermit', 'disturb', 'aftermath', 'prototype', 'surge', 'spectacle', 'prowl', 'freerunning', 'overload', 'awaken', 'bestow', 'harmonize', 'omen', 'coram', 'freecast', 'retrace']);
 
 // Every way the AI could cast something right now, best option per card.
 function options(filter = () => true) {
@@ -760,11 +760,14 @@ function options(filter = () => true) {
     // Sen Triplets: spells from your hand, cast with the AI's mana
     ...FOES().flatMap((o) => (handControl(AI, o) ? cardsIn(o, 'hand').filter((c) => !isLand(c) || DB[c.def].faces.length > 1) : [])),
   ];
+  // Vision, Spectral Synthezoid: one free spell a turn — save it for the most expensive card it can be used on
+  const permitCard = cardsIn(AI, 'hand').filter((c) => castOptions(AI, c).some((o) => o.mode === 'handPermit')).sort((x, y) => (DB[y.def].cmc || 0) - (DB[x.def].cmc || 0))[0];
   for (const c of pool) {
     if (c.aiSkip === G.s.turn) continue;
     let best = null;
     for (const opt of castOptions(AI, c)) {
       if (!AI_MODES.has(opt.mode) || opt.other) continue;
+      if (opt.mode === 'handPermit' && (!permitCard || permitCard.iid !== c.iid)) continue;
       if (!timingOk(AI, c, opt)) continue;
       if (opt.mode === 'bestow' && !cardsIn(AI, 'battlefield').some(isCreature)) continue;
       // retrace (Six): only with a spare land to discard — it has made its land drop or has plenty of lands out
@@ -788,7 +791,7 @@ function options(filter = () => true) {
       o.score = scoreSpell(c, pay, opt);
       o.spare = units - o.u;
       if (!filter(o)) continue;
-      if (!best || o.score > best.score) best = o;
+      if (!best || o.score > best.score || (o.score === best.score && o.u < best.u)) best = o; // the same spell for less mana
     }
     if (best) out.push(best);
   }

@@ -379,6 +379,17 @@ export function castOptions(pid, c) {
         : (() => { try { return !!evalCond(cond.toLowerCase(), { me: pid, src: c }); } catch (e) { return false; } })();
       if (ok) add({ mode: 'freecast', label: `Cast without paying its mana cost (${cond})`, cost: '', free: true });
     }
+    // Vision, Spectral Synthezoid: "Once during each of your turns, you may cast a noncreature or Robot spell from your hand without paying its mana cost."
+    if (zone === 'hand' && s.active === pid && !isLandFace(f0)) {
+      for (const src of cardsIn(pid, 'battlefield')) {
+        if (src.phasedOut || abilitiesGone(src)) continue;
+        const hm = stripName(oracle(src), src).match(/Once during each of your turns, you may cast an? ((?:[\w-]+ )*?)spell from your hand without paying its mana cost/i);
+        if (!hm || (s.handPermit || {})[src.iid] === s.turn) continue;
+        if (!hm[1].trim().toLowerCase().split(/ or /).some((part) => topFilterOk(part.trim(), d))) continue;
+        add({ mode: 'handPermit', permitSrc: src.iid, label: `Cast without paying its mana cost (${cardName(src)})`, cost: '', free: true });
+        break;
+      }
+    }
     if ((m = o0.match(/(?:^|\n)Prototype ((?:\{[^}]+\})+) — (\d+)\/(\d+)/))) add({ mode: 'prototype', label: `Prototype ${m[1]} (${m[2]}/${m[3]})`, cost: m[1], proto: { p: +m[2], t: +m[3] } });
     if ((m = o0.match(/(?:^|\n)Mutate ((?:\{[^}]+\})+)/))) {
       if (cardsIn(pid, 'battlefield').some((x) => isCreature(x) && !hasSubtype(x, 'Human') && x.owner === pid)) add({ mode: 'mutate', label: `Mutate ${m[1]}`, cost: m[1] });
@@ -585,6 +596,7 @@ export async function castSpell(pid, iid, opt, env) {
   const d = DB[c.def];
   const ch = env.choosers[pid];
   const fIdx = opt.face || 0;
+  if (opt.mode === 'handPermit' && (s.handPermit || {})[opt.permitSrc] === s.turn) return false; // already used this turn
   const f = d.faces[fIdx] || d.faces[0];
   const o = stripName(f.oracle || '', c);
   const fromZone = c.zone;
@@ -897,10 +909,11 @@ export async function castSpell(pid, iid, opt, env) {
   if (opt.mode === 'warp') s.ts.warped = true;
   if (opt.mode === 'coram') s.coramSpell = { ...(s.coramSpell || {}), [pid]: s.turn };
   if (opt.mode === 'gyPermit') s.gyPermit = { ...(s.gyPermit || {}), [opt.permitSrc]: s.turn };
+  if (opt.mode === 'handPermit') s.handPermit = { ...(s.handPermit || {}), [opt.permitSrc]: s.turn };
   Object.assign(c, { castMode: opt.mode === 'normal' ? null : opt.mode, kicked: info.kicked, xPaid: info.x, castFrom: fromZone, castFace: fIdx, bargained: !!info.bargained });
   if (fromZone === 'library' && !opt.copy) await fourthDoctorUsed(pid, c);
   c.colorsSpent = new Set((f.manaCost || '').match(/[WUBRG]/g) || []).size;
-  const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse|gyPermit|coram|freecast)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
+  const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse|gyPermit|coram|freecast)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode === 'handPermit' ? `free, ${card(opt.permitSrc) ? cardName(card(opt.permitSrc)) : 'permission'}` : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
   log(pid, tag);
   const stackSlot = pid === 'p' && s.stack ? 'pstack' : pid === 'p' ? 'pstack' : 'stack';
   s[stackSlot] = { iid, by: pid, face: fIdx };

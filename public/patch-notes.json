@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.155",
+    "title": "Vision, Spectral Synthezoid",
+    "notes": [
+      "Vision, Spectral Synthezoid: once during each of your turns you can cast a noncreature or Robot spell from your hand without paying its mana cost (it shows up as a cast option on eligible cards).",
+      "The AI saves Vision's free cast for its most expensive eligible card, and in general picks the cheaper way to cast a spell when two ways are equally good."
+    ]
+  },
+  {
     "version": "1.3.154",
     "title": "Galvanic Blast (Metalcraft)",
     "notes": [
