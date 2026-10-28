@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.172",
+    "title": "Bootleggers' Stash, Combustible Gearhulk",
+    "notes": [
+      "Bootleggers' Stash: your lands now have \"{T}: Create a Treasure token.\" (right-click a land to use it).",
+      "Combustible Gearhulk: the AI no longer flips a coin when you cast it — it looks at your library's mana values and takes the damage unless the mill could kill it or leave it below 15 life."
+    ]
+  },
+  {
     "version": "1.3.171",
     "title": "T-45 Power Armor energy",
     "notes": [

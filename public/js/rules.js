@@ -373,6 +373,14 @@ function oracleRaw(inst) {
       }
     }
   }
+  // Bootleggers' Stash: 'Lands you control have "{T}: Create a Treasure token."' (non-mana activated abilities; mana ones come from grantedManaText)
+  if (inst.zone === 'battlefield' && G.s && /\bLand\b/.test(typeLine(inst).split('—')[0])) {
+    for (const iid of G.s.players[inst.controller].zones.battlefield) {
+      const src = G.s.cards[iid];
+      if (!src || src.phasedOut || src.faceDown || abilitiesGone(src)) continue;
+      for (const m of (face(src).oracle || '').matchAll(/(?:^|\n)Lands you control have "([^"]+)"/g)) if (/:/.test(m[1]) && !/: Add /.test(m[1])) text += '\n' + m[1].replace(/\bthis land\b/gi, '~');
+    }
+  }
   // Way of the Pyromancer and friends: "Planeswalkers you control have "[+1]: Add {R}.""
   if (inst.zone === 'battlefield' && G.s && /Planeswalker/.test(typeLine(inst).split('—')[0])) {
     for (const iid of G.s.players[inst.controller].zones.battlefield) {

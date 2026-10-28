@@ -8199,8 +8199,13 @@ on(/^put one of them onto the battlefield$/, async (m, env) => {
 on(/^target opponent may have you draw three cards\. if the player doesn't, you mill three cards, then ~ deals damage to that player equal to the total mana value of those cards$/, async (m, env) => {
   const [o] = await playerTarget(env, 'target opponent');
   if (!o) return;
-  const lifeOk = G.s.players[o].life > 12;
-  const yes = isAI(o) ? !lifeOk || Math.random() < 0.5 : await env.choosers[o].confirm(cardName(env.src), `Let ${who(env.me) === 'you' ? 'them' : 'the AI'} draw three cards? (No: they mill three and you take damage equal to the total mana value)`);
+  // AI as the opponent: it knows what's in the library (not the order) — take the damage unless the mill could kill it or hurt too much
+  const cmcs = cardsIn(env.me, 'library').map((c) => DB[c.def].cmc || 0).sort((a, b) => b - a);
+  const avg = cmcs.length ? cmcs.reduce((a, v) => a + v, 0) / cmcs.length : 0;
+  const worst = cmcs.slice(0, 3).reduce((a, v) => a + v, 0);
+  const life = G.s.players[o].life;
+  const aiLetDraw = worst >= life || life - 3 * avg < 15;
+  const yes = isAI(o) ? aiLetDraw : await env.choosers[o].confirm(cardName(env.src), `Let ${who(env.me) === 'you' ? 'them' : 'the AI'} draw three cards? (No: they mill three and you take damage equal to the total mana value)`);
   if (yes) { draw(env.me, 3, true); return env.did.push(`${who(o)} ${s_(o, 'let')} ${who(env.me)} draw three`); }
   const ids = libTop(env.me, 3);
   ids.forEach((i) => move(i, 'graveyard'));
