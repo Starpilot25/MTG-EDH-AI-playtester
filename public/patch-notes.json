@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.175",
+    "title": "Loot's mana ability in the menu",
+    "notes": [
+      "Loot, the Pathfinder: its exhaust mana ability is now in the right-click menu (first, like on the card), shown as already used once spent. It still needs {G} in your pool."
+    ]
+  },
+  {
     "version": "1.3.174",
     "title": "Steady table in multiplayer",
     "notes": [

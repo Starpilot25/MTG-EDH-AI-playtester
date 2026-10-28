@@ -2543,6 +2543,14 @@ function menuForCard(c, x, y) {
   items.push({ head: esc(cardName(c)) });
   if (c.zone === 'battlefield' && mine) {
     if (G.settings.arenaMode && !c.faceDown) {
+      // Loot, the Pathfinder: its exhaust mana ability ("Exhaust — {G}, {T}: Add three mana of any one color.")
+      const xm = oracle(c).match(/(?:^|\n)(Exhaust\s*[—-]\s*\{[WUBRG]\}, \{T\}: Add [^.\n]+\.)/);
+      if (xm && c.controller === 'p') {
+        const key = 'mana:' + xm[1].trim();
+        const spentX = c.usedAbilities && c.usedAbilities[key] === 'ever';
+        if (spentX) items.push({ label: `<span class="ab spent">${esc(xm[1])} <i>(already used)</i></span>`, fn: () => toast('Exhaust abilities can only be activated once.') });
+        else items.push({ label: `<span class="ab">${esc(xm[1])}</span>`, fn: () => (manaAbility(c) ? floatMana(c) : toast(c.tapped ? `${cardName(c)} is tapped.` : `${cardName(c)} can't use that right now.`)) });
+      }
       const abs = activatedAbilities(c);
       for (const ab of abs) {
         const short = cardName(c).split(',')[0];
@@ -2557,7 +2565,7 @@ function menuForCard(c, x, y) {
         if (spent) { items.push({ label: `<span class="ab spent">${esc(lab.length > 60 ? lab.slice(0, 58) + '…' : lab)} <i>(already used)</i></span>`, fn: () => toast('Exhaust abilities can only be activated once.') }); continue; }
         items.push({ label: `<span class="ab">${esc(lab.length > 70 ? lab.slice(0, 68) + '…' : lab)}</span>`, fn: () => activate(c, ab) });
       }
-      if (abs.length) items.push('-');
+      if (abs.length || (xm && c.controller === 'p')) items.push('-');
     }
     items.push({ label: c.tapped ? 'Untap' : 'Tap', key: 'T', fn: () => toggleTap(c.iid) });
     if (d.doubleFaced || d.faces.length > 1) items.push({ label: 'Transform / flip', key: 'F', fn: () => act(() => (c.face = c.face ? 0 : 1)) });
