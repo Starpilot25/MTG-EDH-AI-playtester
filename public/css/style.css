@@ -934,9 +934,10 @@ body.pod-setup .opp-slots .in-paste { min-height: 120px; }
 #pod-opps[hidden] { display: none; }
 body.pod #opp-panel, body.pod #opp-field { display: none; }
 body.pod:not(.popout-body) .board {
-  grid-template-rows: minmax(250px, 1.15fr) minmax(220px, 1fr) 150px;
+  grid-template-rows: minmax(230px, 1.15fr) 84px minmax(200px, 1fr) 150px;
   grid-template-areas:
     "pod pod rail"
+    "bar bar rail"
     "me  myf rail"
     "hand hand rail";
 }
@@ -989,7 +990,7 @@ body.pod-setup .opp-slots .sum-head h3 { font-size: 15px; }
 body.pod-setup .opp-slots .sum-cmds img, body.pod-setup .opp-slots .sum-cmds .img-missing { width: 64px; }
 .seat-zones .piles { grid-template-columns: repeat(4, minmax(0, 40px)); }
 @media (max-height: 820px) {
-  body.pod:not(.popout-body) .board { grid-template-rows: minmax(240px, 1.3fr) minmax(190px, 0.9fr) 132px; }
+  body.pod:not(.popout-body) .board { grid-template-rows: minmax(220px, 1.3fr) 76px minmax(170px, 0.9fr) 132px; }
   .seat-zones .piles { grid-template-columns: repeat(4, minmax(0, 32px)); }
   .seat-life .life .lval { font-size: 22px; }
   .seat-life .lbtn { width: 26px; height: 26px; font-size: 16px; }
@@ -1009,7 +1010,7 @@ body.pod-setup .opp-slots .sum-cmds img, body.pod-setup .opp-slots .sum-cmds .im
 .pod-ph { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 6px 12px; background: var(--felt); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
 .pod-away { display: inline-flex; align-items: center; gap: 6px; }
 .pod-away .popout-btn { margin-left: 2px; padding: 1px 7px; }
-body.pod.pod-all-away:not(.popout-body) .board { grid-template-rows: auto minmax(250px, 1fr) 156px; }
+body.pod.pod-all-away:not(.popout-body) .board { grid-template-rows: auto 84px minmax(250px, 1fr) 156px; }
 body.pod.pod-all-away #pod-opps { border-bottom: 2px solid var(--line); }
 #game-menu .pod-only { display: none; }
 body.pod #game-menu .pod-only { display: block; }
@@ -1046,7 +1047,33 @@ body.pod #game-menu .pod-only { display: block; }
 @media (prefers-reduced-motion: reduce) { .d20.rolling { animation: none; } }
 .dice-result { text-align: center; min-height: 1.4em; }
 /* pods: the banner sits below the opponents (its top is set by the layout code), so their fields need no room for it */
-body.pod.banner-on .seat-field.field.opp.organized { padding-bottom: 6px; }
 
 .ab.spent { opacity: 0.45; text-decoration: line-through; }
 .ab.spent i { text-decoration: none; font-style: italic; }
+
+/* pods: the prompt strip between the opponents and your board (prompts are laid over it, compact) */
+#prompt-strip { display: none; }
+body.pod:not(.popout-body) #prompt-strip { display: block; grid-area: bar; background: var(--felt-2); border-bottom: 2px solid var(--line); }
+@media (max-width: 1100px) { body.pod #prompt-strip { display: none; } }
+body.pod.banner-on .field.me.organized { padding-top: 12px; }
+body.pod.banner-on .field.opp.organized { padding-bottom: 12px; }
+body.pod #banner { padding: 6px 14px; align-items: center; }
+body.pod #banner > .combat-bar, body.pod #banner > .stack, body.pod #banner > .thinking { max-width: none; padding: 6px 12px; max-height: 100%; overflow: hidden; }
+body.pod #banner .combat-bar { flex-wrap: nowrap; gap: 4px 14px; }
+body.pod #banner .combat-bar .eyebrow { flex-basis: auto; white-space: nowrap; }
+body.pod #banner .combat-bar h3 { font-size: 19px; white-space: nowrap; }
+body.pod #banner .combat-bar p { font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+body.pod #banner .combat-bar .btns { flex-shrink: 0; flex-wrap: nowrap; }
+body.pod #banner .stack { transform: none; align-items: center; gap: 12px; }
+body.pod #banner .stack-card .card { --cw: 44px; --ch: 61px; }
+body.pod #banner .stack-copy { flex: 1; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 0 14px; align-items: center; }
+body.pod #banner .stack-copy .eyebrow { grid-column: 1; }
+body.pod #banner .stack-copy h3 { grid-column: 1; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.pod #banner .stack-copy > p:not(.stack-targets) { display: none; }
+body.pod #banner .stack-copy .stack-targets { grid-column: 1; margin: 0; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.pod #banner .stack-copy .hint { display: none; }
+body.pod #banner .stack-copy .btns { grid-column: 2; grid-row: 1 / span 3; }
+/* the top bar keeps the same size on every turn ("Your turn" vs "AI 2's turn", "To combat" vs "AI 2's turn"),
+   so it never wraps onto a second line mid-game and shrinks the board */
+#turninfo .who { display: inline-block; min-width: 7.6em; white-space: nowrap; }
+#btn-next { min-width: 10.5em; white-space: nowrap; }

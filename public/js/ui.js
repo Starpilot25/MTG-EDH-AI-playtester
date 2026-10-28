@@ -1202,18 +1202,27 @@ function renderBanner() {
   el.hidden = !html;
   // leave room at the middle seam for the banner, so it doesn't sit on top of the creatures
   const on = !!html;
-  // pods: the opponents' creatures sit at the bottom of their row, so the banner goes just below that row,
-  // over the top of your battlefield, which makes room for it
-  let podPad = '';
-  const wrap = document.getElementById('pod-opps');
-  const pod = multiplayer() && wrap && !wrap.hidden && window.innerWidth > 1100;
-  if (pod) {
-    el.style.top = `${wrap.offsetTop + wrap.offsetHeight + 6}px`;
-    if (on) podPad = `${el.offsetHeight + 12}px`;
-  } else el.style.top = '';
+  // pods: prompts go in a fixed strip between the opponents and your board, so nothing on the table moves
+  // or changes size when one appears (and it never covers the attacking creatures)
+  const pod = multiplayer() && window.innerWidth > 1100;
+  let strip = document.getElementById('prompt-strip');
+  if (pod && !strip) {
+    strip = document.createElement('div');
+    strip.id = 'prompt-strip';
+    const board = document.querySelector('#table .board');
+    if (board) board.appendChild(strip);
+  }
+  if (pod && strip && strip.offsetParent) {
+    el.style.top = `${strip.offsetTop}px`;
+    el.style.left = `${strip.offsetLeft}px`;
+    el.style.right = `${strip.offsetParent.clientWidth - strip.offsetLeft - strip.offsetWidth}px`;
+    el.style.height = `${strip.offsetHeight}px`;
+  } else {
+    el.style.top = el.style.left = el.style.right = el.style.height = '';
+  }
   const mf = document.getElementById('my-field');
-  const padChanged = mf && mf.style.paddingTop !== podPad;
-  if (mf) mf.style.paddingTop = podPad;
+  if (mf && mf.style.paddingTop) mf.style.paddingTop = '';
+  const padChanged = false;
   if (document.body.classList.contains('banner-on') !== on || padChanged) {
     document.body.classList.toggle('banner-on', on);
     for (const f of [$('#opp-field'), $('#my-field'), ...$$('.seat-field')]) if (f && f.classList.contains('organized')) fitLanes(f);
