@@ -843,6 +843,15 @@ export function manaAbility(inst) {
     }
   }
   let r = manaAbilityRaw(inst);
+  // Inga and Esika: a granted "Spend this mana only to cast a creature spell" ability mustn't replace the card's own
+  // unrestricted one (Nightshade Dryad's any color, Llanowar Elves' {G}) — the restricted one becomes an alternative
+  if (r && r.onlyFor && !r.alts && grantedManaText(inst)) {
+    noGrantFor = inst.iid;
+    let own = null;
+    try { own = manaAbilityRaw(inst); } finally { noGrantFor = null; }
+    if (own && !own.onlyFor && r.colors.every((x) => own.colors.includes(x)) && (r.amount || 1) <= (own.amount || 1)) r = own; // its own is at least as good
+    else if (own && !own.onlyFor) r = { ...own, alts: [...(own.alts || []), { colors: r.colors, amount: r.amount, onlyFor: r.onlyFor, ...(r.abilitiesOf ? { abilitiesOf: r.abilitiesOf } : {}) }] };
+  }
   // Haven of the Spirit Dragon: "{T}: Add {C}." plus "{T}: Add one mana of any color. Spend this mana only to cast a Dragon creature spell."
   if (r && !r.alts) {
     const o1 = oracle(inst);
@@ -955,10 +964,11 @@ function commanderIdentity(pid) {
   for (const c of Object.values(G.s.cards)) if (c.isCommander && c.owner === pid) for (const x of (DB[c.def].ci && DB[c.def].ci.length ? DB[c.def].ci : DB[c.def].colors) || []) cols.add(x);
   return ['W', 'U', 'B', 'R', 'G'].filter((x) => cols.has(x));
 }
+let noGrantFor = null; // manaAbility: look at a permanent's own mana abilities without the granted ones
 // Mana abilities other permanents give this one: "Creatures you control have "{T}: Add {G}."" (Citanul Hierophants),
 // "Enchanted land has "{T}: Add one mana of any color."" (Abundant Growth), "All Slivers have …", "Equipped creature … has …"
 function grantedManaText(inst) {
-  if (!G.s || inst.zone !== 'battlefield') return '';
+  if (!G.s || inst.zone !== 'battlefield' || noGrantFor === inst.iid) return '';
   const out = [];
   const sing = (w) => w.replace(/ves$/, 'f').replace(/ies$/, 'y').replace(/(?<!s)s$/, '');
   const fits = (words) => words.every((w) => {

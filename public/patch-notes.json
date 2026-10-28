@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.176",
+    "title": "Inga and Esika no longer restricts your mana creatures",
+    "notes": [
+      "Inga and Esika's granted creature-only mana no longer replaces a creature's own mana ability: Nightshade Dryad's any color (and Llanowar Elves' {G}) can be spent on anything again; Inga's any-color creature-only mana is offered as an extra choice where it adds something."
+    ]
+  },
+  {
     "version": "1.3.175",
     "title": "Loot's mana ability in the menu",
     "notes": [
