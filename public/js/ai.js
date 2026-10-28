@@ -625,6 +625,8 @@ function scoreSpellRaw(c, pay, opt = {}) {
   if (a.bounce) {
     const tgt = bestTarget(FOES(), a.bounce.phrase);
     if (!tgt && !perm) return -1;
+    // casual: bouncing something that doesn't matter just slows the table down
+    if (casualAI() && !perm && tgt && removalWorth(tgt) < removalBar(c, f) - 1 && !(tgt.token && removalWorth(tgt) >= 3)) return -1;
     if (tgt) s += cardValue(tgt) / 2;
   }
   if (a.wipe) {
@@ -646,6 +648,8 @@ function scoreSpellRaw(c, pay, opt = {}) {
     s += Math.max(0, net);
   }
   if (a.edict && !FOES().some((o) => cardsIn(o, 'battlefield').some(isCreature)) && !perm) return -1;
+  // casual: an edict takes their worst creature — only worth a card when some opponent has few creatures and one of them is a real threat
+  if (a.edict && casualAI() && !perm && !FOES().some((o) => { const cr = cardsIn(o, 'battlefield').filter(isCreature); return cr.length && cr.length <= 2 && Math.max(...cr.map(removalWorth)) >= removalBar(c, f) - 1; })) return -1;
   if (a.burn && /creature/.test(a.burn.to) && !/any target|player/.test(a.burn.to)) {
     const t = bestTarget(FOES(), 'creature', (x) => toughness(x) - x.damage <= a.burn.amount && !hasKw(x, 'indestructible'));
     if (!perm && (!t || removalWorth(t) < removalBar(c, f) - 1)) return -1;
@@ -654,7 +658,7 @@ function scoreSpellRaw(c, pay, opt = {}) {
     // burn to the face only when it finishes the game or there's nothing worth killing
     const t = bestTarget(FOES(), 'creature', (x) => toughness(x) - x.damage <= a.burn.amount && !hasKw(x, 'indestructible'));
     const lethal = FOES().some((o) => a.burn.amount >= G.s.players[o].life);
-    if (!lethal && (!t || removalWorth(t) < removalBar(c, f) - 1) && a.burn.amount < 4) return -1;
+    if (!lethal && (!t || removalWorth(t) < removalBar(c, f) - 1) && (casualAI() ? a.burn.amount < 6 : a.burn.amount < 4)) return -1;
   }
   if (a.reanimate) {
     const best = cardsIn(AI, 'graveyard').filter((g) => isType(g, 'Creature')).sort((x, y) => cardValue(y) - cardValue(x))[0];
@@ -1135,6 +1139,8 @@ async function useAbilities(h) {
     const exiledWithIt = Object.values(G.s.cards).some((x) => x.zone === 'exile' && x.exiledWith === c.iid);
     const abs = activatedAbilities(c).filter((ab) => !/exiled with ~/i.test(ab.text || '') || exiledWithIt);
     abs.sort((a, b) => (/exiled with ~/i.test(b.text || '') ? 1 : 0) - (/exiled with ~/i.test(a.text || '') ? 1 : 0));
+    // Loot, the Pathfinder: a damage ability that finishes an opponent goes before anything else that taps the same creature
+    { const lethalBurn = (ab) => { const an = analyze(ab.text || ''); return an.burn && /any target|player|opponent/.test(an.burn.to || '') && FOES().some((o) => (an.burn.amount || 0) >= G.s.players[o].life); }; abs.sort((a, b) => (lethalBurn(b) ? 1 : 0) - (lethalBurn(a) ? 1 : 0)); }
     for (const ab of abs) {
       // Prepared: cast a copy of its spell when it does something useful
       if (ab.kind === 'prepared') {
@@ -1171,6 +1177,13 @@ async function useAbilities(h) {
         FOES().some((o) => cardsIn(o, 'battlefield').some((x) => (x.counters || {})['-1/-1'] > 0) || G.s.players[o].poison > 0));
       if (!(a.draw || a.transform || a.token || a.selfCounters || a.counters || a.investigate || a.drain || a.burn || prolif)) continue;
       if (a.transform && c.face) continue; // already transformed
+      // one-shot damage (exhaust, "activate only once"): save it for something that matters or lethal
+      if (a.burn && (ab.exhaust || ab.once) && !(a.draw || a.token)) {
+        const amt = a.burn.amount || 0;
+        const t = bestTarget(FOES(), 'creature', (x) => toughness(x) - x.damage <= amt && !hasKw(x, 'indestructible'));
+        const lethal = /any target|player|opponent/.test(a.burn.to || '') && FOES().some((o) => amt >= G.s.players[o].life);
+        if (!lethal && (!t || removalWorth(t) < 4 + (casualAI() ? 2 : 0))) continue;
+      }
       c.usedAbilities = c.usedAbilities || {};
       if (c.usedAbilities[ab.raw] === G.s.turn || c.usedAbilities[ab.raw] === 'ever') continue;
       if (ab.tap && (c.tapped || (isCreature(c) && c.sick && !hasKw(c, 'haste')))) continue;

@@ -163,6 +163,12 @@ function parseTriggerText(text, speed) {
         add('p:combatDamageAll', q[2], { pred: (c, ev) => { if (ev.controller !== c.controller) return false; const hit = Object.entries(ev.players || {}).filter(([v, srcs]) => opponents(c.controller).includes(v) && srcs.some((x) => card(x.iid) && hasSubtype(card(x.iid), sub))); return hit.length > 0 && { amount: hit.length }; } });
         continue;
       }
+      // Coveted Jewel: "Whenever one or more creatures an opponent controls attack you and aren't blocked, that player draws three cards and gains control of ~. Untap it."
+      if (/^Whenever one or more creatures an opponent controls attack you and aren't blocked, that player draws three cards and gains control of (?:~|this artifact)\. Untap it\.$/i.test(line)) {
+        add('p:unblocked', '', { pred: (c, ev) => { const a = card(ev.iid); if (!a || ev.defender !== c.controller || a.controller === c.controller) return false; const key = G.s.turn + ':' + ((G.s.combatNo || {})[a.controller] || 0) + ':' + a.controller; if (c.jewelKey === key) return false; c.jewelKey = key; return { thatPlayer: a.controller }; },
+          fn: async (ctx, hit) => { const me = card(hit.src.iid); const who = hit.thatPlayer; if (!me || me.zone !== 'battlefield' || !who) return []; drawCards(who, 3); move(me.iid, 'battlefield', { controller: who }); me.zone = 'battlefield'; me.tapped = false; return [`${nameTag(me)} goes to ${seatName(who)} (untapped)`]; } });
+        continue;
+      }
       // Mindblade Render: "Whenever your opponents are dealt combat damage, if any of that damage was dealt by a Warrior, ..."
       if ((q = line.match(/^Whenever your opponents are dealt combat damage, if any of that damage was dealt by an? ([A-Z]\w+), (.+)$/))) {
         const sub = q[1];
@@ -2932,8 +2938,17 @@ export function deckTypes(pid) {
 const COMMON_TYPES = ['Human', 'Elf', 'Goblin', 'Zombie', 'Vampire', 'Dragon', 'Angel', 'Merfolk', 'Wizard', 'Warrior', 'Soldier', 'Knight', 'Cat', 'Dinosaur', 'Sliver', 'Spirit', 'Beast', 'Elemental', 'Faerie', 'Rogue', 'Cleric', 'Pirate', 'Dog', 'Squirrel', 'Rat', 'Bird', 'Demon', 'Hydra', 'Insect', 'Snake'];
 async function chooseCreatureType(pid, prompt) {
   const mine = deckTypes(pid);
-  const list = [...new Set([...mine.slice(0, 12), ...COMMON_TYPES])].slice(0, 24);
-  const k = await T.choosers[pid].choose({ prompt, options: list.map((t) => ({ label: t, detail: mine.includes(t) ? 'in your deck' : '' })), aiPick: () => 0 });
+  // your commander's creature types come first (Secluded Courtyard, Path of Ancestry-style choices usually want them)
+  const cmdTypes = [];
+  for (const c of Object.values(G.s.cards)) {
+    if (!c.isCommander || (c.owner || c.controller) !== pid) continue;
+    const tl = DB[c.def].faces[0].typeLine || '';
+    if (/Creature|Kindred|Tribal/.test(tl.split('—')[0]) && tl.includes('—')) for (const w of tl.split('—')[1].trim().split(/\s+/)) if (w && !cmdTypes.includes(w)) cmdTypes.push(w);
+  }
+  const list = [...new Set([...cmdTypes, ...mine.slice(0, 12), ...COMMON_TYPES])].slice(0, 26);
+  const cnt = (t) => mine.length - (mine.indexOf(t) < 0 ? mine.length : mine.indexOf(t));
+  const aiBest = () => list.map((t, i) => [i, cnt(t) + (cmdTypes.includes(t) ? 6 : 0)]).sort((a, b) => b[1] - a[1])[0][0];
+  const k = await T.choosers[pid].choose({ prompt, options: list.map((t) => ({ label: t, detail: [cmdTypes.includes(t) ? 'your commander' : '', mine.includes(t) ? 'in your deck' : ''].filter(Boolean).join(' · ') })), aiPick: aiBest });
   return list[k] || list[0];
 }
 

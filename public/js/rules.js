@@ -849,6 +849,9 @@ export function manaAbility(inst) {
     const rm = /(?:^|\n)\{T\}: Add \{C\}\.(?:\n|$)/.test(o1) && o1.match(/(?:^|\n)\{T\}: Add one mana of any color\. Spend this mana only to cast (?:an? )?([A-Z][\w-]+) (?:creature )?spells?\./);
     if (rm) r = { colors: ['C'], amount: 1, alts: [{ colors: ['C', 'W', 'U', 'B', 'R', 'G'], amount: 1, onlyFor: rm[1] }] };
   }
+  // Secluded Courtyard, Unclaimed Territory, Cavern of Souls: {C}, or any color only for creature spells of the chosen type
+  if (r && !r.alts && inst.chosenType && /\{T\}: Add one mana of any color\. Spend this mana only to cast (?:a creature spell of the chosen type|an? [A-Z][\w-]* creature spell)/.test(oracle(inst)))
+    r = { colors: /\{T\}: Add \{C\}/.test(oracle(inst)) ? ['C'] : [], amount: /\{T\}: Add \{C\}/.test(oracle(inst)) ? 1 : 0, alts: [{ colors: ['C', 'W', 'U', 'B', 'R', 'G'], amount: 1, onlyFor: inst.chosenType, ...(/or activate an ability of a creature source of (?:the chosen type|that type)|or activate an ability of an? [A-Z][\w-]* creature source|creature source of (?:the chosen type|[A-Z][\w-]*)/i.test(oracle(inst)) ? { abilitiesOf: inst.chosenType } : {}) }] };
   // Aether Hub, Servant of the Conduit: "{T}, Pay {E}: Add one mana of any color." — only with energy to spend
   {
     const o0 = oracle(inst);

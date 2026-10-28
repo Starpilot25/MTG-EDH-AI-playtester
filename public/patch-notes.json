@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.173",
+    "title": "Coveted Jewel, Secluded Courtyard, AI removal",
+    "notes": [
+      "Coveted Jewel: when an opponent's creatures attack you unblocked, that player draws three and takes the Jewel (untapped).",
+      "Secluded Courtyard (and other 'choose a creature type' cards): your commander's types are listed first; the AI picks its commander's type. Courtyard's colored mana now only goes to creature spells (and creature abilities) of the chosen type; {C} works for anything.",
+      "AI removal (casual): bounce spells, edicts, and mid-size burn now wait for a real threat or lethal instead of firing at anything. One-shot damage abilities (like Loot's exhaust ping) are saved for a worthwhile target or lethal.",
+      "AI now recognizes 'target player sacrifices a creature' cards (Chainer's Edict and friends) as removal.",
+      "'Target player or planeswalker' damage (Lava Axe) can no longer hit creatures."
+    ]
+  },
+  {
     "version": "1.3.172",
     "title": "Bootleggers' Stash, Combustible Gearhulk",
     "notes": [

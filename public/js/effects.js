@@ -522,7 +522,7 @@ export function analyze(text, x = 0) {
   else if (/search your library for (?:a|an) /.test(t)) a.tutor = true;
   if (/return (?:target |up to \w+ target )?[^.]*?creature cards? from (?:your|a) graveyard to the battlefield|put target creature card from (?:a|your|an opponent's) graveyard onto the battlefield/.test(t)) a.reanimate = true;
   if (/return (?:up to \w+ )?target [^.]*?cards? from your graveyard to your hand/.test(t)) a.regrowth = true;
-  if ((m = t.match(/(?:each|target) opponent sacrifices (a|two|\d+) /))) a.edict = n(m[1]);
+  if ((m = t.match(/(?:each opponent|target opponent|target player|each other player) sacrifices (a|two|\d+) /))) a.edict = n(m[1]);
   if ((m = t.match(/put (a|one|two|three|\d+|x) \+1\/\+1 counters? on (target creature|each creature you control|~)/))) a.counters = { amount: n(m[1], x) };
   if (/gets \+\d+\/\+\d+ until end of turn|gains? (?:flying|trample|indestructible|hexproof)[^.]* until end of turn/.test(t)) a.pump = true;
   if (/creatures you control get \+/.test(t)) a.teamPump = true;
@@ -1117,7 +1117,7 @@ async function pickTargets(env, phrase, opts = {}) {
     cands = pids.flatMap((pid) => cardsIn(pid, 'graveyard')).filter((c) => matchesFilter(c, kind.replace(/cards? (?:from|in) .*$/, '').trim() || 'card'));
   } else if (anyTarget) {
     cands = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter(
-      (c) => canTarget(c, me, env.src) && (isCreature(c) || isType(c, 'Planeswalker') || isType(c, 'Battle')) && (/^any other/.test(kind) ? c.iid !== env.src.iid : true)
+      (c) => canTarget(c, me, env.src) && (/^player or planeswalker/.test(kind) ? isType(c, 'Planeswalker') : /^creature or player/.test(kind) ? isCreature(c) : (isCreature(c) || isType(c, 'Planeswalker') || isType(c, 'Battle'))) && (/^any other/.test(kind) ? c.iid !== env.src.iid : true)
     );
   } else if (/^(?:player|opponent)/.test(kind)) cands = [];
   else cands = legalTargets(kind, me, env.src);
