@@ -791,6 +791,16 @@ function withExtraC(inst, r) {
   }
   return r;
 }
+// creatures that can be tapped to pay a "Tap an untapped creature you control" cost — idle ones first
+// (summoning-sick, no mana ability, not attacking, smallest)
+export function tapFodder(pid, kind, exclude = []) {
+  if (!G.s || !G.s.players[pid]) return [];
+  const k = (kind || 'creature').toLowerCase();
+  const sub = /creature$/.test(k) ? null : kind;
+  const pool = G.s.players[pid].zones.battlefield.map((i) => G.s.cards[i]).filter((x) => x && !x.tapped && !x.phasedOut && isCreature(x) && !exclude.includes(x.iid) && (!sub || hasSubtype(x, sub)) && (!/legendary/.test(k) || /\bLegendary\b/.test(typeLine(x))));
+  const busy = (x) => (x.attacking || x.blocking ? 4 : 0) + (manaAbilityRaw(x) ? 2 : 0) + (x.sick && !hasKw(x, 'haste') ? 0 : 1);
+  return pool.sort((a, b) => busy(a) - busy(b) || power(a) - power(b));
+}
 export function manaAbility(inst) {
   if (inst.becameLand && inst.zone === 'battlefield') return inst.tapped || inst.phasedOut ? null : withExtraC(inst, { colors: ['C'], amount: 1 });
   if (blighted(inst)) return inst.tapped || inst.phasedOut ? null : withExtraC(inst, { colors: ['C'], amount: 1 });
@@ -806,6 +816,23 @@ export function manaAbility(inst) {
     }
     if (inst.lostAbilities && !inst.becameTreasure) return null;
     if (abilitiesGone(inst)) return null;
+  }
+  // Loot, the Pathfinder: "Exhaust — {G}, {T}: Add three mana of any one color." — pay {G} from the pool, once per game, by hand
+  {
+    const xm = oracle(inst).match(/(?:^|\n)Exhaust\s*[—-]\s*\{([WUBRG])\}, \{T\}: Add (two|three|four|five) mana of any one color\./);
+    if (xm) {
+      const key = 'mana:' + xm[0].trim();
+      if (inst.tapped || inst.phasedOut || (inst.usedAbilities && inst.usedAbilities[key] === 'ever') || (isCreature(inst) && inst.sick && !hasKw(inst, 'haste'))) return null;
+      return { colors: ['W', 'U', 'B', 'R', 'G'], amount: { two: 2, three: 3, four: 4, five: 5 }[xm[2]], oneColor: true, actColor: xm[1], exhaustKey: key, manualOnly: true };
+    }
+  }
+  // Springleaf Drum: "{T}, Tap an untapped creature you control: Add one mana of any color."
+  {
+    const dm = oracle(inst).match(/(?:^|\n)\{T\}, Tap an untapped ([a-z ]*?creature|[A-Z][\w-]+) you control: Add (one mana of any color|\{[WUBRGC]\})\./);
+    if (dm && !manaAbilityRaw(inst)) {
+      if (inst.tapped || inst.phasedOut || (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) || !tapFodder(inst.controller, dm[1], [inst.iid]).length) return null;
+      return withExtraC(inst, { colors: /any color/.test(dm[2]) ? ['W', 'U', 'B', 'R', 'G'] : [dm[2][1]], amount: 1, tapOther: dm[1] });
+    }
   }
   let r = manaAbilityRaw(inst);
   // Haven of the Spirit Dragon: "{T}: Add {C}." plus "{T}: Add one mana of any color. Spend this mana only to cast a Dragon creature spell."

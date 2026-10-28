@@ -22,7 +22,7 @@ import { DUNGEONS, venture, takeInitiative } from './dungeon.js';
 import {
   Cancelled, activatedAbilities, zoneAbilities, predictTargets,
 } from './effects.js';
-import { payCost, totalMana, sculptors, SECTORS, SECTOR_SIGN, manaAbility } from './rules.js';
+import { payCost, totalMana, sculptors, SECTORS, SECTOR_SIGN, manaAbility, tapFodder } from './rules.js';
 import { seats, isAI } from './state.js';
 import { isPlayer, multiplayer, seatName } from './state.js';
 import { opponents, goadersOf } from './state.js';
@@ -1241,7 +1241,7 @@ function renderPreview() {
       <div class="pv-head"><b>${esc(f.name)}</b><span>${manaSymbols(f.manaCost)}</span></div>
       <div class="pv-type">${esc(f.typeLine)}</div>
       <p>${esc(f.oracle).replace(/\n/g, '<br>')}</p>
-      ${f.power !== undefined && f.power !== null ? `<div class="pv-pt">${esc(f.power)}/${esc(f.toughness)}</div>` : ''}
+      ${f.power !== undefined && f.power !== null && f.power !== '' && f.toughness !== undefined ? `<div class="pv-pt">${esc(f.power)}/${esc(f.toughness)}</div>` : ''}
       ${f.loyalty ? `<div class="pv-pt">Loyalty ${esc(f.loyalty)}</div>` : ''}
       ${extras.length ? `<div class="pv-extra">${extras.join('')}</div>` : ''}
       ${d.faces.length > 1 ? `<div class="pv-faces">${d.faces.map((x, k) => `<span class="${k === fi ? 'on' : ''}">${esc(x.name)}</span>`).join(' // ')}</div>` : ''}
@@ -2075,6 +2075,9 @@ function toggleTap(iid) {
         const i = G.s.pool.p.lastIndexOf(x);
         if (i >= 0) G.s.pool.p.splice(i, 1);
       }
+      // Loot's exhaust and its {G}, Springleaf Drum's other creature: undone too
+      if (c.floated.exhaustKey && c.usedAbilities) { delete c.usedAbilities[c.floated.exhaustKey]; G.s.pool.p.push(...(c.floated.refund || [])); }
+      if (c.floated.other && card(c.floated.other)) card(c.floated.other).tapped = false;
       delete c.floated;
     }
     c.tapped = !c.tapped;
@@ -2116,6 +2119,11 @@ async function floatMana(c) {
     const pool = ((G.s.pool && G.s.pool.p) || []).filter((x) => !poolSym(x).onlyFor);
     if (pool.length < m.activation) return toast(`${cardName(c)} needs {${m.activation}} to activate — tap a land for mana first, then tap ${cardName(c)}.`);
   }
+  // Loot, the Pathfinder: "{G}, {T}: Add three mana…" — the {G} comes out of the pool
+  if (m.actColor) {
+    const pool = ((G.s.pool && G.s.pool.p) || []).filter((x) => !poolSym(x).onlyFor);
+    if (!pool.some((x) => poolSym(x).col === m.actColor || poolSym(x).col === 'ANY')) return toast(`${cardName(c)} needs {${m.actColor}} in your mana pool — tap a source of {${m.actColor}} first, then tap ${cardName(c)}. (Exhaust: once per game.)`);
+  }
   const names = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green', C: 'Colorless' };
   if (m.each) syms = [...m.each];
   else if (m.combo && (m.amount || 1) > 1) {
@@ -2136,6 +2144,15 @@ async function floatMana(c) {
   }
   // restricted mana keeps its restriction in the pool (Orb of Dragonkind: Dragon spells only)
   syms = syms.map((x) => tagPoolSym(x, m));
+  // Springleaf Drum: choose the creature to tap before anything happens
+  let drumPick = null;
+  let actPaid = [];
+  if (m.tapOther) {
+    const fod = tapFodder('p', m.tapOther, [c.iid]);
+    if (!fod.length) return;
+    [drumPick] = fod.length === 1 ? [fod[0].iid] : await playerChooser.pickCards({ prompt: `${cardName(c)}: tap which creature?`, cards: fod.map((x) => x.iid), min: 1, max: 1, purpose: 'tap', src: c });
+    if (!drumPick) return;
+  }
   act(() => {
     G.s.pool = G.s.pool || Object.fromEntries(seats().map((k) => [k, []]));
     if (m.activation) {
@@ -2151,9 +2168,20 @@ async function floatMana(c) {
       }
       log('p', `You pay {${m.activation}} to activate ${nameTag(c)}.`);
     }
+    if (m.actColor) {
+      const pool = G.s.pool.p;
+      let j = pool.findIndex((x) => !poolSym(x).onlyFor && poolSym(x).col === m.actColor);
+      if (j < 0) j = pool.findIndex((x) => !poolSym(x).onlyFor && poolSym(x).col === 'ANY');
+      if (j >= 0) actPaid = pool.splice(j, 1);
+      c.usedAbilities = c.usedAbilities || {};
+      c.usedAbilities[m.exhaustKey] = 'ever';
+      log('p', `You pay {${m.actColor}} to activate ${nameTag(c)} (exhaust).`);
+    }
+    // Springleaf Drum: tap another creature too
+    if (drumPick && card(drumPick)) { tapPerm(card(drumPick)); log('p', `You tap ${nameTag(card(drumPick))} for ${nameTag(c)}.`); }
     G.s.pool.p.push(...syms);
     tapPerm(c);
-    c.floated = { syms, step: G.s.step, turn: G.s.turn };
+    c.floated = { syms, step: G.s.step, turn: G.s.turn, ...(m.exhaustKey ? { exhaustKey: m.exhaustKey, refund: actPaid } : {}), ...(drumPick ? { other: drumPick } : {}) };
     log('p', `You tap ${nameTag(c)} for ${manaSymbols(syms.map((x) => `{${poolSym(x).col}}`).join(''))}${m.onlyFor ? ` (only for ${m.onlyFor === 'abilities' ? 'abilities' : m.onlyFor === 'artifactOrAbility' ? 'artifact spells and abilities' : m.onlyFor === 'fromExile' ? 'spells cast from exile' : m.onlyFor + ' spells' + (m.abilitiesOf ? ' or abilities' : '')})` : ''}.`);
     if (m.sac && hasSubtype(c, 'Treasure')) G.s.treasurePool = { pid: 'p', turn: G.s.turn }; // Rain of Riches
     queueEvent({ type: 'manaTapped', iid: c.iid, pid: 'p', land: isLand(c), artifact: isType(c, 'Artifact') });

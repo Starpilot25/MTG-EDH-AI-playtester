@@ -6,7 +6,7 @@
 import { DB } from './data.js';
 import {
   isLand, isCreature, isType, hasSubtype, oracle, face, hasKw, kwNum, kwCost, power, toughness, cardValue,
-  manaAbility, payCost, parseCost, isPermanentCard, typeLine, colorsOf, maxSpeedText, abilitiesGone,
+  manaAbility, tapFodder, payCost, parseCost, isPermanentCard, typeLine, colorsOf, maxSpeedText, abilitiesGone,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, move, draw, log, nameTag, toBattlefield, createToken, genericTokenDef, stateBased,
@@ -84,6 +84,7 @@ export function manaSources(pid, opts = {}) {
       const best = Object.entries(m.byColor).sort((a, b) => Math.min(b[1], pips(b[0])) - Math.min(a[1], pips(a[0])) || b[1] - a[1])[0];
       if (best) m = { ...m, colors: [best[0]], amount: best[1] };
     }
+    if (m.manualOnly) continue; // Loot, the Pathfinder's exhaust mana: only when tapped by hand
     out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, filterAlt: m.filterAlt, energy: m.energy, energyNeed: m.energyNeed, activation: m.activation || 0, restricted: !!m.onlyFor, noGeneric: !!m.noGeneric });
   }
   // Relic of Legends: "Tap an untapped legendary creature you control: Add one mana of any color." — each such creature is a source
@@ -142,6 +143,15 @@ export function applyPayment(pid, pay) {
     const c = !String(iid).startsWith('pool:') && card(iid);
     const rm = c && oracle(c).match(/\{T\}: Add [^.\n]+\. You get (two|three|one|a|\d+) rad counters?\./i);
     if (rm) { const k = { a: 1, one: 1, two: 2, three: 3 }[rm[1].toLowerCase()] || +rm[1] || 1; G.s.players[pid].counters.rad = (G.s.players[pid].counters.rad || 0) + k; log(pid, `${nameTag(c)}: ${pid === 'p' ? 'you get' : seatName(pid) + ' gets'} ${k} rad counters.`); }
+  }
+  // Springleaf Drum: tap another creature as part of the cost
+  for (const iid of new Set(pay.payers || [])) {
+    const c = !String(iid).startsWith('pool:') && card(iid);
+    const m = c && manaAbility(c);
+    const dm = c && oracle(c).match(/(?:^|\n)\{T\}, Tap an untapped ([a-z ]*?creature|[A-Z][\w-]+) you control: Add /);
+    if (!dm || (m && !m.tapOther && !/^\{T\}, Tap an untapped/m.test(oracle(c)))) continue;
+    const f = tapFodder(pid, dm[1], [c.iid])[0];
+    if (f) { tapPerm(f); log(pid, `${nameTag(c)}: ${pid === 'p' ? 'you tap' : seatName(pid) + ' taps'} ${nameTag(f)}.`); }
   }
   for (const sp of pay.special || []) {
     if (sp.kind === 'lifeC') { changeLife(pid, -1, false); continue; }

@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.167",
+    "title": "Springleaf Drum, Loot the Pathfinder",
+    "notes": [
+      "Springleaf Drum: now taps for one mana of any color by also tapping an untapped creature you control (summoning-sick creatures are fine). Tapping it by hand asks which creature; auto-pay picks your least useful one. Untapping it to take the mana back untaps that creature too.",
+      "Loot, the Pathfinder: its exhaust mana ability now costs {G} from your pool and works once per game (it was free and repeatable). Tap a green source first, then tap Loot and pick a color for three mana. Auto-pay doesn't use it.",
+      "Card zoom no longer shows '/undefined' under non-creature cards."
+    ]
+  },
+  {
     "version": "1.3.166",
     "title": "Mirror Entity",
     "notes": [
