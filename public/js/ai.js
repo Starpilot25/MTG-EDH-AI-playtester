@@ -1172,7 +1172,7 @@ async function useAbilities(h) {
       if (!(a.draw || a.transform || a.token || a.selfCounters || a.counters || a.investigate || a.drain || a.burn || prolif)) continue;
       if (a.transform && c.face) continue; // already transformed
       c.usedAbilities = c.usedAbilities || {};
-      if (c.usedAbilities[ab.raw] === G.s.turn) continue;
+      if (c.usedAbilities[ab.raw] === G.s.turn || c.usedAbilities[ab.raw] === 'ever') continue;
       if (ab.tap && (c.tapped || (isCreature(c) && c.sick && !hasKw(c, 'haste')))) continue;
       if (ab.untap || ab.removeCounters) continue;
       if (ab.mana && !payCost(ab.mana.replace(/\{X\}/g, ''), sources(AI).filter((m) => m.iid !== c.iid || !ab.tap))) continue;

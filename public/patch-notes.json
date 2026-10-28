@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.169",
+    "title": "Exhaust in the menu",
+    "notes": [
+      "Exhaust abilities are labelled 'Exhaust —' in the right-click menu and shown struck through (already used) once activated.",
+      "The AI no longer tries to re-activate an exhaust ability it already used."
+    ]
+  },
+  {
     "version": "1.3.168",
     "title": "Attack prompts no longer cover the attackers",
     "notes": [

@@ -1047,3 +1047,6 @@ body.pod #game-menu .pod-only { display: block; }
 .dice-result { text-align: center; min-height: 1.4em; }
 /* pods: the banner sits below the opponents (its top is set by the layout code), so their fields need no room for it */
 body.pod.banner-on .seat-field.field.opp.organized { padding-bottom: 6px; }
+
+.ab.spent { opacity: 0.45; text-decoration: line-through; }
+.ab.spent i { text-decoration: none; font-style: italic; }

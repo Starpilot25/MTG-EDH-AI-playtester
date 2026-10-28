@@ -2542,7 +2542,11 @@ function menuForCard(c, x, y) {
           : ab.kind === 'crew' ? `Crew ${ab.n}` : ab.kind === 'saddle' ? `Saddle ${ab.n}` : ab.kind === 'station' ? 'Station (tap creatures)'
           : ab.kind === 'craft' ? `Craft ${ab.mana} (exile ${ab.more ? ab.min + '+' : ab.min} ${ab.filter}s)` : ab.kind === 'levelup' ? `Level up ${ab.mana}` : ab.kind === 'classlevel' ? `${ab.mana}: Level ${ab.level}`
           : `${ab.costText}: ${ab.text}`).replace(/~/g, short);
-        items.push({ label: `<span class="ab">${esc(label.length > 70 ? label.slice(0, 68) + '…' : label)}</span>`, fn: () => activate(c, ab) });
+        // Exhaust: say so, and show it as spent once it's been used
+        const spent = ab.exhaust && c.usedAbilities && c.usedAbilities[ab.raw] === 'ever';
+        const lab = (ab.exhaust ? 'Exhaust — ' : '') + label;
+        if (spent) { items.push({ label: `<span class="ab spent">${esc(lab.length > 60 ? lab.slice(0, 58) + '…' : lab)} <i>(already used)</i></span>`, fn: () => toast('Exhaust abilities can only be activated once.') }); continue; }
+        items.push({ label: `<span class="ab">${esc(lab.length > 70 ? lab.slice(0, 68) + '…' : lab)}</span>`, fn: () => activate(c, ab) });
       }
       if (abs.length) items.push('-');
     }

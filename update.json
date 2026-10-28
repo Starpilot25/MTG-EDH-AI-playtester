@@ -1,10 +1,10 @@
 {
-  "version": "1.3.168",
+  "version": "1.3.169",
   "minAppVersion": "1.0.0",
   "files": {
-    "public/css/style.css": "b054eb9370a73ea839d7c8127080a7b9fe3787ac349061809ada194ece6e7b56",
+    "public/css/style.css": "c179bbc1ee0022b6c48d1a00dbbfa427432e2f743733afca9a6e78f4dc403eb8",
     "public/index.html": "62d65ac3c9669fbe67b9809ea22c1f75c50097d33cfd6b9b71ca8a16fdc67443",
-    "public/js/ai.js": "3fc81e9c634412fe6c02caa8c6086a5b87a43a017d31f6625f93d50219166119",
+    "public/js/ai.js": "b5527a400f60436ec6b223a1d91890d85a45d9895d179dc4135206b3bc6c9bba",
     "public/js/aicombat.js": "764e9bdb24e75f0ad8357c5a5429c4313ea46274f195c172f95fca2fbbc6815d",
     "public/js/cast.js": "bec25c23acb6f07f71b4d03aa2cfd2cef3243773c9c5eaf8030078be5447ce45",
     "public/js/data.js": "fb3a1eb4369d4a83de88bf57855b22703955fc9e7a25d02a5e6fed942aeeeec1",
@@ -16,8 +16,8 @@
     "public/js/state.js": "16bc22488da16e74a6502e8e00e7dee3df6f32c312f0d6a44887d54a9574d8af",
     "public/js/statics.js": "203a2749b0e300bddd808c9be01e3c3c027979d9118c6cc8095b9cb4136e4c26",
     "public/js/triggers.js": "78384597329b5dba21ef52f195d9209945b7853804b4adc0cbe5791d9a3351ed",
-    "public/js/ui.js": "2776cd7c32ff1e6e1f371ef5d3b789092833adb534b659a617ef4bea24f64b9a",
+    "public/js/ui.js": "f99b4019f26e54ca836dc2b7ea1fab1886e2e4a7c9552cbdacfb425568893fef",
     "public/js/voice.js": "4622a40593b7db7f8997e96207d0412fcbaa4fa4fe658247c91b3345de1dabe6",
-    "public/patch-notes.json": "2840fd60e996a5ecb495fee31236692908ba798094f5d16b1364f6af0a7b7d5c"
+    "public/patch-notes.json": "49ca32a477f0ce2ba583ed981b8499597d939948bd36c91dcab01b7f3cb8e29b"
   }
 }
