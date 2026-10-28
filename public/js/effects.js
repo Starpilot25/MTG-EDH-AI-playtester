@@ -13469,6 +13469,41 @@ on(/^(?:until end of turn, )?(creatures you control|other creatures you control)
   }
   env.did.push(`${objs.length} creature${objs.length === 1 ? '' : 's'} become${objs.length === 1 ? 's' : ''} ${p}/${t}${all ? ' and gain all creature types' : ''} until end of turn`);
 }, { first: true });
+// Mistbreath Elder: "return another creature you control to its owner's hand. If you do, put a +1/+1 counter on this creature.
+// Otherwise, you may return this creature to its owner's hand."
+on(/^return another creature you control to its owner's hand\. if you do, put an? \+1\/\+1 counter on ~\. otherwise, you may return ~ to its owner's hand\.?$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && (!me || c.iid !== me.iid));
+  if (pool.length) {
+    // the AI returns a cheap creature with an enters ability (to recast it), never a token if it can help it
+    const score = (c) => (c.token ? -50 : 0) + (/(?:^|\n)When (?:~|this creature) enters/i.test(oracle(c)) ? 6 : 0) - (DB[c.def].cmc || 0) - (c.counters && c.counters['+1/+1'] ? 3 : 0) - (c.isCommander ? 4 : 0);
+    const [pick] = await env.choosers[env.me].pickCards({ forced: true, prompt: `${me ? cardName(me) : 'Mistbreath Elder'}: return another creature you control to its owner's hand`, cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'bounce', src: env.src, aiScore: score });
+    const c = pick && card(pick);
+    if (c) {
+      move(c.iid, 'hand');
+      env.did.push(`returns ${nameTag(c)} to its owner's hand`);
+      if (me && me.zone === 'battlefield') { addCounters(me, '+1/+1', 1); env.did.push(`puts a +1/+1 counter on ${nameTag(me)}`); }
+      return;
+    }
+  }
+  if (!me || me.zone !== 'battlefield') return;
+  const yes = isAI(env.me) ? false : await env.choosers[env.me].confirm(cardName(me), `No other creature to return. Return ${cardName(me)} to your hand?`, {});
+  if (yes) { move(me.iid, 'hand'); env.did.push(`returns ${nameTag(me)} to its owner's hand`); } else env.did.push('returns nothing');
+}, { first: true, multi: true });
+// T-45 Power Armor: "untap equipped creature, then put your choice of a menace, trample, or lifelink counter on it"
+on(/^(?:then )?put your choice of an? ((?:[a-z+\/\d ]+?, )+or [a-z+\/\d ]+?|[a-z+\/\d ]+? or [a-z+\/\d ]+?) counter on (it|that creature|equipped creature|enchanted creature)$/, async (m, env) => {
+  const src = env.src && card(env.src.iid);
+  let t = null;
+  if (/equipped|enchanted/.test(m[2])) t = src && src.attachedTo && card(src.attachedTo);
+  else t = (env.it && env.it.iid && card(env.it.iid)) || (src && src.attachedTo && card(src.attachedTo));
+  if (!t || t.zone !== 'battlefield') return env.did.push('no creature to put a counter on');
+  const kinds = m[1].split(/, (?:or )?| or /).map((x) => x.trim()).filter(Boolean);
+  const have = t.counters || {};
+  const k = await env.choosers[env.me].choose({ prompt: `Put which counter on ${cardName(t)}?`, options: kinds.map((x) => ({ label: x })), aiPick: () => { const i = kinds.findIndex((x) => !have[x] && !hasKw(t, x)); return i >= 0 ? i : 0; } });
+  const kind = kinds[k] || kinds[0];
+  addCounters(t, kind, 1);
+  env.did.push(`puts a ${kind} counter on ${nameTag(t)}`);
+}, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {

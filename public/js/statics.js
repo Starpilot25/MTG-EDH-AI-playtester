@@ -324,6 +324,7 @@ function staticsOfRaw(c) {
   // flavor ability words before a static line (Inquisitor Greyfax: "Unquestionable Wisdom — Other creatures you control get +1/+0 …")
   text = text.replace(/(^|\n)(?!Max speed|Eminence|Lieutenant|Chapter|Station|Companion|Coven|Metalcraft|Threshold|Delirium|Ferocious|Domain|Hellbent|Spell mastery|Revolt|Raid|Morbid|Formidable|Undergrowth|Kinship|Imprint)[A-Z][A-Za-z' ,.!?-]{1,40} — (?=(?:Other |Creatures |Each |Spells |Artifacts |Lands |Enchantments |You |Your |Permanents |Equipped |Enchanted ))/g, '$1');
   text = text.replace(/(^|\n)Creatures you control also get /g, '$1Creatures you control get '); // Jetmir
+  text = text.replace(/(\b(?:Equipped|Enchanted) creature gets [+-]\d+\/[+-]\d+) and doesn't untap during its controller's untap step\./g, '$1.'); // T-45 Power Armor (the untap part lives in the untap step)
   const key = c.def + ':' + (c.face || 0) + ':' + c.zone + ':' + text.length + ':' + (c.chosenType || '');
   if (!parsedCache.has(key)) parsedCache.set(key, parseStatics(text, d.name));
   return parsedCache.get(key);

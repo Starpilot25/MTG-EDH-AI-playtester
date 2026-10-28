@@ -1256,7 +1256,7 @@ export function untapAll(pid) {
     // Auras: "Enchanted creature doesn't untap during its controller's untap step [unless that player is the monarch]"
     if (Object.values(G.s.cards).some((a) => {
       if (a.zone !== 'battlefield' || a.attachedTo !== c.iid || a.phasedOut) return false;
-      const um = oracle(a).match(/Enchanted (?:creature|permanent) doesn't untap during its controller's untap step( unless that player is the monarch)?/i);
+      const um = oracle(a).match(/(?:Enchanted|Equipped) (?:creature|permanent) (?:gets [+-]\d+\/[+-]\d+ and )?doesn't untap during its controller's untap step( unless that player is the monarch)?/i); // T-45 Power Armor
       if (!um) return false;
       return um[1] ? G.s.monarch !== c.controller : true;
     })) continue;

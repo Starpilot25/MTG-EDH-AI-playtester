@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.170",
+    "title": "Mistbreath Elder, T-45 Power Armor",
+    "notes": [
+      "Mistbreath Elder: at your upkeep it now returns another creature you control and gets a +1/+1 counter (it was bouncing itself). If it's your only creature, you're asked whether to return it.",
+      "T-45 Power Armor: equipped creature now gets +3/+3 and stays tapped in its untap step; at upkeep, pay {E} to untap it and pick a menace, trample, or lifelink counter for it."
+    ]
+  },
+  {
     "version": "1.3.169",
     "title": "Exhaust in the menu",
     "notes": [
