@@ -4701,6 +4701,8 @@ on(/^(?:then )?(?:you may )?pay (any amount of \{e\}|one or more \{e\}|an amount
   } else {
     k = m[2] ? amountOf('equal to ' + m[2], env) : m[3] ? n(m[3], env.x) : (w.match(/\{e\}/g) || []).length;
     if (have < k) return env.did.push(`can't pay ${k} energy (has ${have})`);
+    // T-45 Power Armor: "you may pay {E}. If you do, untap equipped creature…" — nothing to pay for while it isn't attached
+    { const sc0 = env.src && card(env.src.iid); if (sc0 && /you may pay (?:\{E\})+\. If you do, [^.\n]*\b(?:equipped|enchanted) creature\b/i.test(oracle(sc0)) && !(sc0.attachedTo && card(sc0.attachedTo) && card(sc0.attachedTo).zone === 'battlefield')) { env.lastMay = false; return env.did.push(`isn't attached to a creature, so pays no energy`); } }
     if (may && !(await env.choosers[env.me].confirm(cardName(env.src), `Pay ${k} energy? (you have ${have})`, env))) return env.did.push('pays no energy');
   }
   G.s.players[env.me].counters.energy -= k;
