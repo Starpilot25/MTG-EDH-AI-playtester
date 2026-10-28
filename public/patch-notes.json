@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.177",
+    "title": "Multiplayer prompts back in the middle of the table",
+    "notes": [
+      "Multiplayer: prompts are back to the full-size box over the middle of the table, as in 1v1. The prompt strip is gone, and the table no longer resizes when a prompt appears or when the turn passes."
+    ]
+  },
+  {
     "version": "1.3.176",
     "title": "Inga and Esika no longer restricts your mana creatures",
     "notes": [

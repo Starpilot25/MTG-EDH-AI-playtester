@@ -1202,26 +1202,10 @@ function renderBanner() {
   el.hidden = !html;
   // leave room at the middle seam for the banner, so it doesn't sit on top of the creatures
   const on = !!html;
-  // pods: prompts go in a fixed strip between the opponents and your board, so nothing on the table moves
-  // or changes size when one appears (and it never covers the attacking creatures)
-  const pod = multiplayer() && window.innerWidth > 1100;
-  let strip = document.getElementById('prompt-strip');
-  if (pod && !strip) {
-    strip = document.createElement('div');
-    strip.id = 'prompt-strip';
-    const board = document.querySelector('#table .board');
-    if (board) board.appendChild(strip);
-  }
-  if (pod && strip && strip.offsetParent) {
-    el.style.top = `${strip.offsetTop}px`;
-    el.style.left = `${strip.offsetLeft}px`;
-    el.style.right = `${strip.offsetParent.clientWidth - strip.offsetLeft - strip.offsetWidth}px`;
-    el.style.height = `${strip.offsetHeight}px`;
-  } else {
-    el.style.top = el.style.left = el.style.right = el.style.height = '';
-  }
-  const mf = document.getElementById('my-field');
-  if (mf && mf.style.paddingTop) mf.style.paddingTop = '';
+  // pods: centred over the seam between the opponents and your board (as in 1v1); nothing on the table resizes
+  const wrap = document.getElementById('pod-opps');
+  if (multiplayer() && wrap && !wrap.hidden && window.innerWidth > 1100) el.style.top = `${wrap.offsetTop + wrap.offsetHeight - 40}px`;
+  else el.style.top = '';
   const padChanged = false;
   if (document.body.classList.contains('banner-on') !== on || padChanged) {
     document.body.classList.toggle('banner-on', on);
