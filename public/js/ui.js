@@ -1202,7 +1202,19 @@ function renderBanner() {
   el.hidden = !html;
   // leave room at the middle seam for the banner, so it doesn't sit on top of the creatures
   const on = !!html;
-  if (document.body.classList.contains('banner-on') !== on) {
+  // pods: the opponents' creatures sit at the bottom of their row, so the banner goes just below that row,
+  // over the top of your battlefield, which makes room for it
+  let podPad = '';
+  const wrap = document.getElementById('pod-opps');
+  const pod = multiplayer() && wrap && !wrap.hidden && window.innerWidth > 1100;
+  if (pod) {
+    el.style.top = `${wrap.offsetTop + wrap.offsetHeight + 6}px`;
+    if (on) podPad = `${el.offsetHeight + 12}px`;
+  } else el.style.top = '';
+  const mf = document.getElementById('my-field');
+  const padChanged = mf && mf.style.paddingTop !== podPad;
+  if (mf) mf.style.paddingTop = podPad;
+  if (document.body.classList.contains('banner-on') !== on || padChanged) {
     document.body.classList.toggle('banner-on', on);
     for (const f of [$('#opp-field'), $('#my-field'), ...$$('.seat-field')]) if (f && f.classList.contains('organized')) fitLanes(f);
   }

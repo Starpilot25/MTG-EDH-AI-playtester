@@ -1045,3 +1045,5 @@ body.pod #game-menu .pod-only { display: block; }
 @keyframes d20-tumble { 0% { transform: rotate(0) scale(1); } 50% { transform: rotate(180deg) scale(0.9); } 100% { transform: rotate(360deg) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .d20.rolling { animation: none; } }
 .dice-result { text-align: center; min-height: 1.4em; }
+/* pods: the banner sits below the opponents (its top is set by the layout code), so their fields need no room for it */
+body.pod.banner-on .seat-field.field.opp.organized { padding-bottom: 6px; }

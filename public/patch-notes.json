@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.168",
+    "title": "Attack prompts no longer cover the attackers",
+    "notes": [
+      "In a multiplayer game, the prompt that tells you an AI is attacking (and lets you block) now sits just below the opponents, over the top of your own battlefield, so it no longer covers the attacking creatures. Your own cards move down to make room for it."
+    ]
+  },
+  {
     "version": "1.3.167",
     "title": "Springleaf Drum, Loot the Pathfinder",
     "notes": [
