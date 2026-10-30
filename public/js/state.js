@@ -853,6 +853,8 @@ export function addCounters(c, kind, n, opts = {}) {
     // Lae'zel: "If you would put one or more counters on a creature or planeswalker you control …, put that many plus one"
     const putter = opts.by || G.curActor || c.controller;
     if (putter === c.controller && (isCreature(c) || /Planeswalker/.test(typeLine(c)))) n += repl('counterPlusOneAll', c.controller);
+    // Optimization Annex: "If one or more charge counters would be put on an artifact you control, that many plus one … instead."
+    if (kind === 'charge' && isType(c, 'Artifact')) n += cardsIn(c.controller, 'battlefield').filter((x) => !x.phasedOut && !abilitiesGone(x) && /If one or more charge counters would be put on an artifact you control, that many plus one charge counters are put on it instead/i.test(oracle(x))).length;
     const dbl = repl('counterDouble', c.controller);
     for (let k = 0; k < dbl; k++) n *= 2;
   }
@@ -872,6 +874,8 @@ export function addCounters(c, kind, n, opts = {}) {
   if (n > 0) c.counterTurn = G.s.turn; // "if you put a counter on ~ this turn" 
   if (n > 0 && by && G.s.ts && G.s.ts[by] && c.zone === 'battlefield' && isCreature(c)) G.s.ts[by].counterOnCreature = true;
   if (n > 0 && !opts.silent) queueEvent({ type: 'counterPut', iid: c.iid, kind, n, controller: c.controller, by });
+  // counters can switch statics on (Spacecraft at 2+, levelers) — refresh the static-ability cache
+  if (c.zone === 'battlefield' && G.s) G.s.bfv = (G.s.bfv || 0) + 1;
   return n;
 }
 

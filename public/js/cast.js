@@ -42,6 +42,8 @@ function restrictedOk(onlyFor, abilitiesOf, spell, opts) {
   // (no spell being cast — ward, "unless you pay", abilities — is fine too)
   if (onlyFor === 'artifactOrAbility') return !!opts.ability || !spell || spell.zone === 'battlefield' || (/\bArtifact\b/.test((DB[spell.def].faces[spell.face || 0] || {}).typeLine || DB[spell.def].typeLine || '')); // Powerstone
   if (onlyFor === 'fromExile') return !!spell && spell.zone === 'exile' && !opts.ability;
+  if (onlyFor === 'spellNotHand') return !opts.ability && !!spell && spell.zone !== 'hand' && spell.zone !== 'battlefield'; // Mm'menon, the Right Hand
+  if (onlyFor === 'commander') return !opts.ability && !!spell && spell.zone !== 'battlefield' && !!spell.isCommander; // Queen's Diamond
   if (onlyFor === 'colorless') return !!spell && !opts.ability && spell.zone !== 'battlefield' && !(DB[spell.def].colors || []).length;
   if (opts.ability) return !!(abilitiesOf && spell && spell.zone === 'battlefield' && (/^[a-z]/.test(abilitiesOf) ? new RegExp(`\\b${abilitiesOf}\\b`, 'i').test(DB[spell.def].faces[spell.face || 0].typeLine || DB[spell.def].typeLine || '') : hasSubtype(spell, abilitiesOf)));
   if (!spell || spell.zone === 'battlefield') return false;
@@ -85,7 +87,7 @@ export function manaSources(pid, opts = {}) {
       if (best) m = { ...m, colors: [best[0]], amount: best[1] };
     }
     if (m.manualOnly) continue; // Loot, the Pathfinder's exhaust mana: only when tapped by hand
-    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, filterAlt: m.filterAlt, energy: m.energy, energyNeed: m.energyNeed, activation: m.activation || 0, restricted: !!m.onlyFor, noGeneric: !!m.noGeneric });
+    out.push({ iid: c.iid, colors: m.colors, amount: m.amount, sac: !!m.sac, each: m.each, pain: m.pain, filterAlt: m.filterAlt, ...(m.filterPair ? { filterPair: m.filterPair } : {}), energy: m.energy, energyNeed: m.energyNeed, activation: m.activation || 0, restricted: !!m.onlyFor, noGeneric: !!m.noGeneric });
   }
   // Relic of Legends: "Tap an untapped legendary creature you control: Add one mana of any color." — each such creature is a source
   {
@@ -531,6 +533,11 @@ function genericAdjust(pid, c, opt) {
   // Don & Raph: "the next noncreature spell you cast this turn has affinity for artifacts"
   else if (G.s.affinityNext && G.s.affinityNext[pid] === G.s.turn && !/\bCreature\b/.test((f.typeLine || d.typeLine || '').split('—')[0]) && !/\bLand\b/.test(f.typeLine || d.typeLine || '')) delta -= cardsIn(pid, 'battlefield').filter((x) => isType(x, 'Artifact')).length;
   if (/\bUndaunted\b/.test(o)) delta -= 1;
+  // Sami, Wildcat Captain: "Spells you cast have affinity for artifacts." (once per such permanent; not on top of the spell's own affinity)
+  if (!/Affinity for artifacts/i.test(o)) {
+    const giver = cardsIn(pid, 'battlefield').some((x) => !x.phasedOut && !abilitiesGone(x) && /(?:^|\n)Spells you cast have affinity for artifacts/i.test(oracle(x)));
+    if (giver) delta -= cardsIn(pid, 'battlefield').filter((x) => isType(x, 'Artifact')).length;
+  }
   if (opt.extraGeneric) delta += opt.extraGeneric;
   return delta;
 }
@@ -1977,6 +1984,9 @@ export async function activateAbility(pid, c, ab, env) {
       const total = picks.reduce((a, i) => a + Math.max(0, power(card(i))), 0);
       if (ab.kind !== 'station' && total < need) return env.say(`Not enough power (${total}/${need}).`);
       picks.forEach((i) => tapPerm(card(i)));
+      // the ability goes on the stack; triggers from paying its cost (Kilo: "Whenever Kilo becomes tapped") go above it and resolve first
+      await settle();
+      if (G.s !== s) return true;
       if (ab.kind === 'crew') c.crewedTurn = s.turn;
       else if (ab.kind === 'saddle') c.saddledTurn = s.turn;
       else {
@@ -2126,6 +2136,10 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.sac) sacrifice(c.iid);
   if (ab.returnToHand) move(c.iid, 'hand');
   if (ab.exileSelf && c.zone !== 'exile') move(c.iid, 'exile');
+  // The ability is on the stack now. Anything triggered by paying its costs or by activating it (a creature tapped or
+  // sacrificed for the cost, "whenever you activate an ability") goes on the stack above it, so it resolves first.
+  await settle();
+  if (G.s !== s) return true;
   const copiers = abilityCopiers(pid);
   const abText = ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim();
   if (await announceAbility(pid, srcSnap, abText, env)) return true;

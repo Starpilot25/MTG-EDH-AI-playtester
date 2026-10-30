@@ -2094,9 +2094,23 @@ async function floatMana(c) {
   // Shrine of the Forsaken Gods: the plain ability or the bigger, restricted one
   if (m.alts && m.alts.length) {
     const all = [m, ...m.alts];
-    const k = await playerChooser.choose({ prompt: `Tap ${cardName(c)} for…`, options: all.map((x) => ({ label: `${'{' + (x.colors[0] || 'C') + '}'}`.repeat(x.amount || 1) + (x.onlyFor ? ` (only for ${x.onlyFor} spells)` : '') })), aiPick: () => 0 });
+    const k = await playerChooser.choose({ prompt: `Tap ${cardName(c)} for…`, options: all.map((x) => ({ label: (x.colors.length > 1 ? `${x.amount > 1 ? x.amount + ' mana' : 'One mana'} of any of ${x.colors.map((q) => '{' + q + '}').join('')}` : `${'{' + (x.colors[0] || 'C') + '}'}`.repeat(x.amount || 1)) + (x.onlyFor ? ` (only for ${x.onlyFor} spells)` : '') })), aiPick: () => 0 });
     if (k === null || k === undefined || k < 0) return;
     m = { ...m, ...all[k], alts: undefined };
+  }
+  // Rugged Prairie & co.: {C}, or pay {R/W} from the pool for {R}{R}, {R}{W} or {W}{W}
+  if (m.filterPair) {
+    const [X, Y] = m.filterPair;
+    const pool = ((G.s.pool && G.s.pool.p) || []).filter((x) => !poolSym(x).onlyFor);
+    const canFilter = pool.some((x) => [X, Y, 'ANY'].includes(poolSym(x).col));
+    const pairs = [[X, X], [X, Y], [Y, Y]];
+    const opts = [...(m.amount ? [{ label: '{C}' }] : []), ...pairs.map((pp) => ({ label: `Pay {${X}/${Y}}: {${pp[0]}}{${pp[1]}}`, disabled: !canFilter, detail: canFilter ? '' : `needs {${X}} or {${Y}} in your pool` }))];
+    if (!canFilter && !m.amount) return toast(`${cardName(c)} needs {${X}} or {${Y}} in your mana pool — tap another land first.`);
+    if (!canFilter) toast(`${cardName(c)} taps for {C}. To get two colored mana, first put {${X}} or {${Y}} in your pool, then tap it.`);
+    const k = canFilter ? await playerChooser.choose({ prompt: `Tap ${cardName(c)} for…`, options: opts, aiPick: () => 0 }) : 0;
+    if (k === null || k === undefined || k < 0) return;
+    const pk = m.amount ? k - 1 : k;
+    m = pk < 0 ? { ...m, filterAlt: undefined, filterPair: undefined } : { ...m, filterAlt: undefined, filterPair: undefined, each: pairs[pk], colors: pairs[pk], amount: 2, actColors: [X, Y] };
   }
   // Prismatic Lens: plain {C}, or pay {1} from the pool for any color
   if (m.filterAlt) {
@@ -2172,6 +2186,14 @@ async function floatMana(c) {
         pool.splice(i, 1);
       }
       log('p', `You pay {${m.activation}} to activate ${nameTag(c)}.`);
+    }
+    if (m.actColors) {
+      // filter lands: spend one mana of either color from the pool
+      const pool = G.s.pool.p;
+      let j = pool.findIndex((x) => !poolSym(x).onlyFor && m.actColors.includes(poolSym(x).col));
+      if (j < 0) j = pool.findIndex((x) => !poolSym(x).onlyFor && poolSym(x).col === 'ANY');
+      if (j >= 0) pool.splice(j, 1);
+      log('p', `You pay {${m.actColors.join('/')}} to activate ${nameTag(c)}.`);
     }
     if (m.actColor) {
       const pool = G.s.pool.p;

@@ -123,6 +123,7 @@ export function typeLine(inst) {
   if (inst.becameLand && inst.zone === 'battlefield') t = /^Legendary/.test(t) ? 'Legendary Land' : 'Land'; // Princess Yue as Moon
   if (blighted(inst)) t = t.split(' — ')[0];
   if (inst.notLegendary) t = t.replace(/^Legendary /, '');
+  if (inst.makeLegendary && !/\bLegendary\b/.test(t)) t = 'Legendary ' + t; // Adagia: "except it's legendary"
   // Layer 4, in timestamp order (each one sees the result of the ones before it: Opalescence after March of the Machines…)
   for (const f of typeFxOf(inst, t)) {
     if (f.when && !f.when(t)) continue;
@@ -825,6 +826,31 @@ export function manaAbility(inst) {
     if (inst.lostAbilities && !inst.becameTreasure) return null;
     if (abilitiesGone(inst)) return null;
   }
+  // The Eternity Elevator (20+): "{T}: Add X mana of any one color, where X is the number of charge counters on ~."
+  // Queen's Diamond: "{T}: Choose a color. Add one mana of that color for each charge counter on ~. Spend this mana only to cast your commander."
+  {
+    const o2 = oracle(inst);
+    const ex = /\{T\}: Add X mana of any one color, where X is the number of charge counters on /.test(o2);
+    const qd = /\{T\}: Choose a color\. Add one mana of that color for each charge counter on [^.]+\. Spend this mana only to cast your commander/.test(o2);
+    if (ex || qd) {
+      if (inst.tapped || inst.phasedOut || (isCreature(inst) && inst.sick && !hasKw(inst, 'haste'))) return null;
+      const k = (inst.counters || {}).charge || 0;
+      const big = { colors: ['W', 'U', 'B', 'R', 'G'], amount: k, oneColor: true, ...(qd ? { onlyFor: 'commander' } : {}) };
+      const base = /(?:^|\n)\{T\}: Add \{C\}\{C\}\{C\}\./.test(o2) ? { colors: ['C'], amount: 3 } : null;
+      if (base) return k > 0 ? { ...base, alts: [big] } : base;
+      return k > 0 ? big : null;
+    }
+  }
+  // Shadowmoor/Eventide filter lands (Rugged Prairie, Cascade Bluffs, Mystic Gate…): "{T}: Add {C}." and
+  // "{R/W}, {T}: Add {R}{R}, {R}{W}, or {W}{W}." — the second spends one mana of either color to make two
+  {
+    const fm = oracle(inst).match(/(?:^|\n)\{([WUBRG])\/([WUBRG])\}, \{T\}: Add \{\1\}\{\1\}, \{\1\}\{\2\}, or \{\2\}\{\2\}\./);
+    if (fm) {
+      if (inst.tapped || inst.phasedOut || (isCreature(inst) && inst.sick && !hasKw(inst, 'haste'))) return null;
+      const base = /(?:^|\n)\{T\}: Add \{C\}\./.test(oracle(inst));
+      return { colors: base ? ['C'] : [], amount: base ? 1 : 0, filterAlt: { colors: [fm[1], fm[2]], amount: 2, activation: 1 }, filterPair: [fm[1], fm[2]] };
+    }
+  }
   // Loot, the Pathfinder: "Exhaust — {G}, {T}: Add three mana of any one color." — pay {G} from the pool, once per game, by hand
   {
     const xm = oracle(inst).match(/(?:^|\n)Exhaust\s*[—-]\s*\{([WUBRG])\}, \{T\}: Add (two|three|four|five) mana of any one color\./);
@@ -843,6 +869,15 @@ export function manaAbility(inst) {
     }
   }
   let r = manaAbilityRaw(inst);
+  // Mm'menon, the Right Hand: 'Artifacts you control have "{T}: Add {U}. Spend this mana only to cast a spell from anywhere other than your hand."'
+  if (r && inst.zone === 'battlefield' && /\{T\}: Add \{([WUBRGC])\}\. Spend this mana only to cast a spell from anywhere other than your hand/.test(grantedManaText(inst))) {
+    const col = grantedManaText(inst).match(/\{T\}: Add \{([WUBRGC])\}\. Spend this mana only to cast a spell from anywhere other than your hand/)[1];
+    noGrantFor = inst.iid;
+    let own = null;
+    try { own = manaAbilityRaw(inst); } finally { noGrantFor = null; }
+    const alt = { colors: [col], amount: 1, onlyFor: 'spellNotHand' };
+    r = own ? { ...own, alts: [...(own.alts || []), alt] } : alt;
+  }
   // Inga and Esika: a granted "Spend this mana only to cast a creature spell" ability mustn't replace the card's own
   // unrestricted one (Nightshade Dryad's any color, Llanowar Elves' {G}) — the restricted one becomes an alternative
   if (r && r.onlyFor && !r.alts && grantedManaText(inst)) {
@@ -1150,14 +1185,24 @@ function manaAbilityRaw(inst) {
     const cp = o.match(/\{T\}: Add one mana of any (color|type) that a land (an opponent controls|you control|your opponents control) could produce/i);
     if (cp) {
       if (!G.s) return { colors: produced, amount: 1 };
-      const pids = /you control/.test(cp[2]) && !/opponent/.test(cp[2]) ? [inst.controller] : opponents(inst.controller);
-      const set = new Set();
-      for (const iid of pids.flatMap((k) => G.s.players[k].zones.battlefield)) {
-        const x = G.s.cards[iid];
-        if (!x || x.phasedOut || !isLand(x) || /could produce/.test(oracle(x))) continue;
-        const r = manaAbility({ ...x, tapped: false, sick: false });
-        if (r) for (const col of r.colors || []) set.add(col);
-      }
+      // what a land could produce — another Exotic Orchard included (it can produce whatever its opponents' lands could)
+      const couldMake = (land, visiting) => {
+        const cq = oracle(land).match(/\{T\}: Add one mana of any (?:color|type) that a land (an opponent controls|you control|your opponents control) could produce/i);
+        const out = new Set();
+        if (!cq) {
+          const r = manaAbility({ ...land, tapped: false, sick: false });
+          if (r) for (const v of [r, ...(r.alts || []), ...(r.filterAlt ? [r.filterAlt] : [])]) for (const col of v.colors || []) out.add(col);
+          return out;
+        }
+        const ps = /you control/.test(cq[1]) && !/opponent/.test(cq[1]) ? [land.controller] : opponents(land.controller);
+        for (const iid of ps.flatMap((k) => G.s.players[k].zones.battlefield)) {
+          const x = G.s.cards[iid];
+          if (!x || x.phasedOut || !isLand(x) || visiting.has(x.iid)) continue;
+          for (const col of couldMake(x, new Set([...visiting, x.iid]))) out.add(col);
+        }
+        return out;
+      };
+      const set = couldMake(inst, new Set([inst.iid]));
       const cols = ['W', 'U', 'B', 'R', 'G', ...(cp[1] === 'type' ? ['C'] : [])].filter((x) => set.has(x));
       return cols.length ? { colors: cols, amount: 1 } : null;
     }
@@ -1250,6 +1295,8 @@ function manaAbilityPlain(inst, o, produced) {
     // Timeless Lotus, Jegantha: "{T}: Add {W}{U}{B}{R}{G}." — one of each, not five of any
     const noGeneric = /This mana can't be spent to pay generic mana costs/i.test(o) ? { noGeneric: true } : {};
     if (amount > 1 && syms && new Set(syms).size > 1) return { colors: produced, amount, each: syms.map((x) => x[1]), ...noGeneric };
+    // The Eternity Elevator: "{T}: Add {C}{C}{C}." is colorless even if a station section makes colors (Scryfall's produced list has both)
+    if (syms && new Set(syms).size === 1 && (o.match(/: Add /g) || []).length === 1 && /^(\{[WUBRGC]\})+$/.test(m[1].replace(/\s/g, ''))) return { colors: [syms[0][1]], amount, ...noGeneric };
     return { colors: produced, amount, ...noGeneric };
   }
   // Signets and filters: "{1}, {T}: Add {R}{G}." nets one extra mana of those colors
@@ -1349,7 +1396,10 @@ function payCostMana(cost, sources, opts = {}) {
     const on = filters.filter((_, k) => mask & (1 << k));
     const plainHere = plain.filter((p) => !on.some((o) => o.iid === p.iid));
     const extra = on.reduce((a, s) => a + s.activation, 0);
-    const r = payCostRaw(cost, [...plainHere, ...on.map((s) => ({ ...s, kind: '' }))], { ...opts, extraGeneric: (opts.extraGeneric || 0) + extra, signets: on.map((s) => s.iid), nodeCap: 4000 });
+    const tryPay = (strict) => payCostRaw(cost, [...plainHere, ...on.map((s) => ({ ...s, kind: '', ...(strict && s.filterPair ? { noGeneric: true } : {}) }))], { ...opts, extraGeneric: (opts.extraGeneric || 0) + extra, signets: on.map((s) => s.iid), nodeCap: 4000 });
+    // filter lands: their activation has to come from another source, so first try keeping their own mana off the generic part
+    let r = on.some((s) => s.filterPair) ? tryPay(true) : null;
+    if (!r || !signetChainOk(on, r.genericUnits || [])) r = tryPay(false);
     if (!r) continue;
     // a signet can't pay for its own activation, but it can pay for another one: a land pays signet A, A's mana pays
     // signet B, and so on. Activate them in order, paying each from the generic mana of lands and signets already on.
@@ -1418,6 +1468,7 @@ function payCostRaw(cost, sources, opts = {}) {
       if (u.multi) v -= (perSrc.get(u.iid) || 1) > needTotal ? -1.5 : 0.6; // one tap, several mana (Sol Ring, bounce lands) — unless most of it would go to waste
       if (u.restricted) v -= 8; // mana that can only pay for some things: spend it whenever it's allowed
       if (u.act) v -= 4;
+      if (u.noGeneric) v -= 10; // mana that can't pay generic (Jegantha, a filter land's own output) goes to colored pips first
     }
     srcCost.set(u.iid, v);
     return v;

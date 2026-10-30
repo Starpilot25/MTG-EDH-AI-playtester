@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.3.178",
+    "title": "Stack order for ability costs, filter lands, Exotic Orchard, spaceship deck",
+    "notes": [
+      "Activated abilities now go on the stack before anything their costs trigger: a creature tapped or sacrificed to pay (Kilo, Blood Artist with a sac outlet) or \"whenever you activate\" triggers resolve first, then the ability.",
+      "Filter lands (Rugged Prairie, Cascade Bluffs, Mystic Gate and the rest of the cycle): {C} on their own, or spend one mana of either color from your pool for two ({R}{R}, {R}{W} or {W}{W}). Auto-pay uses them correctly too.",
+      "Exotic Orchard can now produce the colors an opponent's Exotic Orchard could produce.",
+      "Whitemane Lion returns a creature you control (itself if it's the only one).",
+      "Spacecraft and Planets: threshold statics turn on as soon as the counters land (Lumen-Class Frigate's anthem); Uthros Research Craft's +1/+0 per artifact; Synthesizer Labship animates an artifact; The Eternity Elevator taps for {C}{C}{C} (any one color X at 20+); Queen's Diamond's mana only for your commander; Optimization Annex adds the extra charge counter; U.S.S. Enterprise-D's first-charge trigger; Adagia's copies are legendary.",
+      "Deep Space 9, Transwarp Hub, Dispatch's metalcraft, Padeem's upkeep draw, Depthshaker Titan's melee/trample/haste, Vraska's Sculpture tokens (1/1 creatures that sacrifice for mana), Sami's affinity for every spell, Mm'menon, the Right Hand's {U} (only for spells cast from outside your hand) now all work.",
+      "AI: proliferate now adds charge and other useful counters to its own permanents; 'can't be blocked' and similar helpful abilities target its own creatures."
+    ]
+  },
+  {
     "version": "1.3.177",
     "title": "Multiplayer prompts back in the middle of the table",
     "notes": [

@@ -163,6 +163,12 @@ function parseTriggerText(text, speed) {
         add('p:combatDamageAll', q[2], { pred: (c, ev) => { if (ev.controller !== c.controller) return false; const hit = Object.entries(ev.players || {}).filter(([v, srcs]) => opponents(c.controller).includes(v) && srcs.some((x) => card(x.iid) && hasSubtype(card(x.iid), sub))); return hit.length > 0 && { amount: hit.length }; } });
         continue;
       }
+      // U.S.S. Enterprise-D: "Whenever one or more charge counters are put on ~ for the first time each turn, …"
+      if ((q = line.match(/^Whenever one or more ([a-z+\/0-9-]+) counters are put on ~ for the first time each turn, (.+)$/i))) {
+        const kind = q[1].toLowerCase();
+        add('p:counterPut', q[2], { pred: (c, ev) => { if (ev.iid !== c.iid || ev.kind !== kind || !(ev.n > 0)) return false; const key = G.s.turn; if (c.firstCtrTurn === key) return false; c.firstCtrTurn = key; return true; } });
+        continue;
+      }
       // Coveted Jewel: "Whenever one or more creatures an opponent controls attack you and aren't blocked, that player draws three cards and gains control of ~. Untap it."
       if (/^Whenever one or more creatures an opponent controls attack you and aren't blocked, that player draws three cards and gains control of (?:~|this artifact)\. Untap it\.$/i.test(line)) {
         add('p:unblocked', '', { pred: (c, ev) => { const a = card(ev.iid); if (!a || ev.defender !== c.controller || a.controller === c.controller) return false; const key = G.s.turn + ':' + ((G.s.combatNo || {})[a.controller] || 0) + ':' + a.controller; if (c.jewelKey === key) return false; c.jewelKey = key; return { thatPlayer: a.controller }; },
@@ -1372,7 +1378,7 @@ function keywordTriggersRaw(c) {
     const choice = await ctx.choosers[c.controller].choose({ prompt: `Fabricate ${k}`, options: [{ label: `Put ${k} +1/+1 counter${k > 1 ? 's' : ''} on ${cardName(c)}` }, { label: `Create ${k} 1/1 Servo token${k > 1 ? 's' : ''}` }], aiPick: () => (isCreature(c) && cardsIn(c.controller, 'battlefield').filter(isCreature).length >= 3 ? 0 : 1) });
     if (choice === 0) {
       addCounters(c, '+1/+1', k);
-      return [`fabricates ${k} counters`];
+      return [`fabricate ${k}: puts ${k} +1/+1 counter${k > 1 ? "s" : ""} on itself`];
     }
     createToken(genericTokenDef(1, 1, 'Servo', [], { types: 'Artifact' }), c.controller, k);
     return [`fabricates ${k} Servo${k > 1 ? 's' : ''}`];

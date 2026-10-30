@@ -797,6 +797,14 @@ function turnHistoryCond(c, env) {
 }
 
 export function evalCond(cond, env) {
+  // Padeem: "if you control the artifact with the greatest mana value or tied for the greatest mana value"
+  if (/^you control the artifact with the greatest mana value or tied for the greatest mana value$/.test(String(cond).trim().toLowerCase())) {
+    const arts = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter((x) => isType(x, 'Artifact'));
+    if (!arts.length) return false;
+    const mv = (x) => (x.token ? 0 : DB[x.def].cmc || 0);
+    const top = Math.max(...arts.map(mv));
+    return arts.some((x) => x.controller === env.me && mv(x) === top);
+  }
   // Scouring Swarm: "seven or more land cards are in your graveyard" → "there are seven or more land cards in your graveyard"
   cond = String(cond).replace(/^(\w+ or (?:more|fewer) (?:[a-z]+ )?cards?) (?:are|is) in (your|a|an opponent's|their) graveyard$/i, 'there are $1 in $2 graveyard');
   const c = cond.toLowerCase().replace(/^it's |^it is /, "it's ").trim();
@@ -4369,6 +4377,7 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
     const tk = card(i);
     tk.face = orig.face || 0;
     if (/isn't legendary|is not legendary|it's not legendary/.test(except)) tk.notLegendary = true;
+    else if (/except it's legendary|except they're legendary|it's legendary/.test(except)) tk.makeLegendary = true;
     { const sl = except.match(/its starting loyalty is (\d+)/); if (sl) tk.counters.loyalty = +sl[1]; }
     if (/has haste|gains haste|have haste/.test(except)) tk.grants = [...(tk.grants || []), 'haste'];
     if (/it's 1\/1|it's a 1\/1|they're 1\/1|base power and toughness 1\/1/.test(except)) tk.setPT = { ts: nextStamp(), p: 1, t: 1 };
@@ -4496,7 +4505,7 @@ async function makeTokens(env, desc, attachPhrase) {
     }
   }
   let mm;
-  if (!defId && (mm = d.match(/\b(treasure|clue|food|blood|map|powerstone|gold|junk|shard|lander|mutagen)\b/))) defId = genericTokenDef(0, 0, mm[1][0].toUpperCase() + mm[1].slice(1));
+  if (!defId && !/(\d+|x)\/(\d+|x)\s+[a-z ]*?creature/.test(d) && (mm = d.match(/\b(treasure|clue|food|blood|map|powerstone|gold|junk|shard|lander|mutagen)\b/))) defId = genericTokenDef(0, 0, mm[1][0].toUpperCase() + mm[1].slice(1));
   if (!defId && (mm = d.match(/\b(monster|royal|sorcerer|virtuous|wicked|young hero|cursed) role\b/))) {
     defId = genericTokenDef(0, 0, mm[1].replace(/\b\w/g, (x) => x.toUpperCase()));
   }
@@ -4519,7 +4528,12 @@ async function makeTokens(env, desc, attachPhrase) {
   // a made-up token gets the quoted ability the card gives it (Teferi, Temporal Pilgrim's Spirit:
   // 'with vigilance and "Whenever you draw a card, put a +1/+1 counter on this token."')
   {
-    const q = String(env.sentence || '').match(/"([^"]+)"/);
+    let q = String(env.sentence || '').match(/"([^"]+)"/);
+    // keep the card's own capitalization ("{T}, Sacrifice this token: Add …" has to stay readable as a mana ability)
+    if (q && env.src) {
+      const orig2 = ((oracle(env.src) || '').match(/"([^"]+)"/g) || []).map((x) => x.slice(1, -1)).find((x) => x.toLowerCase().replace(/this (?:token|creature)/g, '~') === q[1].toLowerCase().replace(/this (?:token|creature)/g, '~'));
+      if (orig2) q = [q[0], orig2];
+    }
     if (q && /^gen-/.test(defId) && !(DB[defId].faces[0].oracle || '').includes(q[1].slice(0, 20))) for (const i of made) if (card(i)) card(i).extraText = ((card(i).extraText || '') + '\n' + q[1].replace(/this (?:token|creature)/gi, '~')).trim();
   }
   if (forcedPT) for (const i of made) if (card(i)) card(i).setPT = { ts: nextStamp(), ...forcedPT };
@@ -4613,6 +4627,13 @@ on(/^proliferate(?: (twice|thrice|\w+ times))?/, async (m, env) => {
     for (const [k, v] of Object.entries(P.counters || {})) if (v > 0 && PNAME[k]) out[k] = v;
     return out;
   };
+  // how much the AI wants to proliferate this permanent (above 0: yes)
+  const GOODK = ['charge', 'quest', 'oil', 'page', 'verse', 'ki', 'level', 'shield', 'flying', 'first strike', 'double strike', 'deathtouch', 'lifelink', 'trample', 'vigilance', 'menace', 'reach', 'hexproof', 'indestructible', 'study', 'growth', 'feather', 'luck', 'brick', 'spore', 'storage', 'mining', 'gem', 'ingredient', 'valor', 'fuse', 'hone', 'blood', 'coin', 'gold'];
+  const profScore = (c) => {
+    const good = (c.counters['+1/+1'] || 0) + (c.counters.loyalty || 0) + (c.counters.lore || 0) * 0.1 + GOODK.reduce((a, k) => a + ((c.counters[k] || 0) > 0 ? 1 : 0), 0);
+    const bad = (c.counters['-1/-1'] || 0) + (c.counters.stun || 0);
+    return c.controller === env.me ? good - bad : bad - good;
+  };
   for (let t = 0; t < times; t++) {
     const perms = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter((c) => Object.values(c.counters || {}).some((v) => v > 0));
     const players = seats().filter((pid) => Object.keys(pCounters(pid)).length).map((pid) => ({
@@ -4624,11 +4645,7 @@ on(/^proliferate(?: (twice|thrice|\w+ times))?/, async (m, env) => {
     const picks = total ? await env.choosers[env.me].pickCards({
       prompt: 'Proliferate: choose permanents and/or players to get one more of each kind of counter they already have', cards: perms.map((c) => c.iid), players, min: 0, max: total,
       purpose: 'proliferate', src: env.src, forced: env.forced,
-      aiScore: (c) => {
-        const good = (c.counters['+1/+1'] || 0) + (c.counters.loyalty || 0) + (c.counters.lore || 0) * 0.1;
-        const bad = (c.counters['-1/-1'] || 0) + (c.counters.stun || 0);
-        return c.controller === env.me ? good - bad : bad - good;
-      },
+      aiScore: (c) => profScore(c),
       aiPlayerScore: (key) => {
         const pid = key.slice(7);
         const cs = pCounters(pid);
@@ -4639,6 +4656,7 @@ on(/^proliferate(?: (twice|thrice|\w+ times))?/, async (m, env) => {
       },
     }) : [];
     const gotP = [];
+    let nDone = 0;
     for (const i of picks) {
       if (typeof i === 'string' && i.startsWith('player:')) {
         const pid = i.slice(7);
@@ -4650,10 +4668,11 @@ on(/^proliferate(?: (twice|thrice|\w+ times))?/, async (m, env) => {
       }
       const c = card(i);
       if (!c) continue;
-      if (isAI(env.me) && ((c.controller === env.me && !c.counters['+1/+1'] && !c.counters.loyalty) || (c.controller !== env.me && !c.counters['-1/-1'] && !c.counters.stun))) continue;
+      if (isAI(env.me) && profScore(c) <= 0) continue;
       for (const k of Object.keys(c.counters)) if (c.counters[k] > 0) addCounters(c, k, 1);
+      nDone++;
     }
-    const nP = picks.length - gotP.length;
+    const nP = nDone;
     env.did.push(`proliferates (${nP} permanent${nP === 1 ? '' : 's'}${gotP.length ? ', and ' + gotP.join(' and ') : ''})`);
   }
 });
@@ -13511,6 +13530,67 @@ on(/^(?:then )?put your choice of an? ((?:[a-z+\/\d ]+?, )+or [a-z+\/\d ]+?|[a-z
   addCounters(t, kind, 1);
   env.did.push(`puts a ${kind} counter on ${nameTag(t)}`);
 }, { first: true });
+// Whitemane Lion, Stonecloaker-likes: "return a creature you control to its owner's hand" (itself counts)
+on(/^return (?:a|another) creature you control to its owner's hand$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const other = /another/.test(env.sentence || m[0]);
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && !(other && me && c.iid === me.iid));
+  if (!pool.length) return env.did.push('has no creature to return');
+  // the AI picks a cheap creature whose enters ability is worth getting again, else the Lion itself
+  const score = (c) => {
+    if (me && c.iid === me.iid) return 2;
+    if (c.token) return -50;
+    const etb = /(?:^|\n)When (?:~|this creature|[A-Z][^,]*?) enters/i.test(oracle(c));
+    return (etb ? 6 : -3) - (DB[c.def].cmc || 0) * 0.8 - (c.counters && c.counters['+1/+1'] ? 3 : 0) - (c.isCommander ? 5 : 0) + (c.damage && c.damage >= toughness(c) - 1 ? 4 : 0);
+  };
+  const [pick] = pool.length === 1 ? [pool[0].iid] : await env.choosers[env.me].pickCards({ forced: true, prompt: `${me ? cardName(me) : 'Return'}: return a creature you control to its owner's hand`, cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'bounce', src: env.src, aiScore: score });
+  const c = pick && card(pick);
+  if (!c) return;
+  move(c.iid, 'hand');
+  env.it = { iid: c.iid };
+  env.did.push(`returns ${nameTag(c)} to its owner's hand`);
+}, { first: true });
+// Deep Space 9: "exile the top four cards of your library. Put all permanent cards exiled this way onto the battlefield."
+on(/^exile the top (\w+) cards of your library\. put all permanent cards exiled this way onto the battlefield$/, async (m, env) => {
+  const ids = exileTop(env.me, n(m[1], env.x));
+  const perms = ids.filter((i) => card(i) && isPermanentCard(DB[card(i).def]));
+  for (const i of perms) toBattlefield(i, env.me);
+  env.did.push(`exiles ${ids.length}; puts ${perms.map((i) => nameTag(card(i))).join(', ') || 'nothing'} onto the battlefield`);
+}, { first: true, multi: true });
+// Transwarp Hub: "mill five cards. You may put up to two artifact cards from among them into your hand."
+on(/^mill (\w+) cards\. you may put up to (\w+) ([a-z ]+?) cards? from among them into your hand$/, async (m, env) => {
+  const before = new Set(cardsIn(env.me, 'graveyard').map((c) => c.iid));
+  millCards(env.me, n(m[1], env.x));
+  const milled = cardsIn(env.me, 'graveyard').filter((c) => !before.has(c.iid));
+  const pool = milled.filter((c) => matchesFilter(c, m[3]));
+  const k = n(m[2], env.x);
+  const picks = pool.length ? await env.choosers[env.me].pickCards({ prompt: `Put up to ${k} ${m[3]} card${k === 1 ? '' : 's'} from among the milled cards into your hand`, cards: pool.map((c) => c.iid), min: 0, max: Math.min(k, pool.length), purpose: 'gyToHand', src: env.src, aiScore: (c) => cardValue(c) }) : [];
+  for (const i of picks || []) move(i, 'hand');
+  env.did.push(`mills ${milled.length}${(picks || []).length ? '; returns ' + picks.map((i) => nameTag(card(i))).join(', ') + ' to hand' : ''}`);
+}, { first: true, multi: true });
+// U.S.S. Enterprise-D: "exile the top card of your library. You may play that card this turn."
+on(/^exile the top card of your library\. (?:until end of turn, )?you may play (?:that card|it) this turn$/, async (m, env) => {
+  const ids = exileTop(env.me, 1);
+  grantPlay(ids, env.me, { until: G.s.turn });
+  env.did.push(`exiles ${ids.map((i) => nameTag(card(i))).join(', ') || 'nothing'} to play this turn`);
+}, { first: true, multi: true });
+// Synthesizer Labship 2+: "up to one other target artifact you control becomes an artifact creature with base power and
+// toughness 2/2 and gains flying until end of turn."
+on(/^up to one (other )?target (noncreature )?artifact you control becomes an artifact creature with base power and toughness (\d+)\/(\d+)(?: and gains ([a-z ,]+?))?(?: until end of turn)?$/, async (m, env) => {
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => isType(c, 'Artifact') && !(m[1] && env.src && c.iid === env.src.iid) && !(m[2] && isCreature(c)) && canTarget(c, env.me, env.src));
+  if (!pool.length) return env.did.push('has no artifact to animate');
+  const P = +m[3], Tn = +m[4];
+  // the AI animates an idle non-creature artifact (not a mana rock it still needs, not a land) — the biggest gain
+  const score = (c) => (isCreature(c) ? P + Tn - power(c) - toughness(c) : 4) - (isLand(c) ? 6 : 0) - (manaAbility(c) && !isCreature(c) ? 1 : 0) - (/Spacecraft/.test(typeLine(c)) ? 0 : 0);
+  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Up to one other artifact you control becomes a ${P}/${Tn} artifact creature${m[5] ? ' with ' + m[5] : ''} until end of turn`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'animate', src: env.src, aiScore: score });
+  const c = pick && card(pick);
+  if (!c) return env.did.push('animates nothing');
+  if (!isCreature(c)) addLayerFx(c, { until: 'eot', types: { add: 'Creature' } });
+  c.setPT = { ts: nextStamp(), p: P, t: Tn };
+  c.setPTUntil = 'eot';
+  if (m[5]) c.eotGrants = [...(c.eotGrants || []), ...kwList(m[5])];
+  env.did.push(`${nameTag(c)} becomes a ${P}/${Tn} artifact creature${m[5] ? ' with ' + m[5] : ''} until end of turn`);
+}, { first: true });
 // Teferi, Temporal Pilgrim −12 (anchor)
 // Berserker's Frenzy
 on(/^roll two d20 and ignore the lower roll\. 1—14 \| choose any number of creatures\. they block this turn if able\. 15—20 \| you choose which creatures block this turn and how those creatures block$/, async (m, env) => {
@@ -13691,6 +13771,7 @@ function prep(text, src) {
 }
 
 async function runText(text, env) {
+  text = text.replace(/(^|\n|\. )(?:Metalcraft) — (?=If )/g, '$1');
   // Zuko, Conflicted: "choose one that hasn't been chosen and you lose 2 life —"
   text = text.replace(/Choose one that hasn't been chosen and you lose (\w+) life ?—/i, "You lose $1 life. Choose one that hasn't been chosen —");
   // Shadrix Silverquill: "you may choose two. Each mode must target a different player."
@@ -14793,7 +14874,7 @@ export async function predictTargets(pid, c, face, choosers, x = 0, textOverride
       const blink = /exile [^.]*,? then return (?:it|that card|them|that permanent) to the battlefield/.test(sentence);
       // judge good/bad from this target's own clause (Blood Artist: "target player loses 1 life and you gain 1 life")
       const clause = sentence.slice(0, mm.index) + sentence.slice(mm.index).split(/ and you | and its controller | and that player |, then /)[0];
-      const harm = !blink && (!/(?:gets? \+|gains? (?!control)|untap|\+1\/\+1 counter|return [^.]* to the battlefield|hexproof|indestructible|protection)/.test(clause) || /destroy|exile|damage|sacrifice|loses? \d+ life|-\d/.test(clause));
+      const harm = !blink && (!/(?:gets? \+|gains? (?!control)|untap|\+1\/\+1 counter|return [^.]* to the battlefield|hexproof|indestructible|protection|can't be blocked|becomes? an? (?:\d+\/\d+ )?(?:artifact )?creature|charge counters?)/.test(clause) || /destroy|exile|damage|sacrifice|loses? \d+ life|-\d/.test(clause));
       // Sign in Blood: "target player draws two cards and loses 2 life" — card draw for yourself, unless the life loss finishes an opponent
       let harm2 = harm;
       // Will of the Temur: "Target player draws cards equal to …" — draw for yourself
