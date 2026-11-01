@@ -468,7 +468,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['voidCounter', 'harnessed', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
@@ -512,7 +512,8 @@ export function move(iid, zone, opts = {}) {
     if (c.exileIfLeaves) zone = 'exile';
     if (c.exileIfDiesTurn === s.turn && zone === 'graveyard') zone = requested = 'exile'; // The War Doctor: "would die this turn, exile it instead" (it doesn't die)
   }
-  if (zone === 'graveyard' && repl('gyExile', c.owner)) zone = 'exile';
+  let voidIt = false;
+  if (zone === 'graveyard' && repl('gyExile', c.owner)) { zone = 'exile'; voidIt = !!repl('gyVoid', c.owner); }
   // "Whenever one or more cards are put into exile …" (Laelia, The War Doctor): one batch per effect
   // "cards exiled with ~" (Koh, the Face Stealer…): remember what the resolving card exiled
   if (zone === 'exile' && fromZone && fromZone !== 'exile' && s.effectSrc && !c.exiledWith && s.effectSrc !== iid) {
@@ -638,6 +639,7 @@ export function move(iid, zone, opts = {}) {
     c.x = c.y = null;
     if (combatRef()) dropFromCombat(iid);
   }
+  if (voidIt) c.voidCounter = true; // Dauthi Voidwalker: exiled with a void counter
   if (zone === 'battlefield' && fromZone !== 'battlefield') {
     c.sick = true;
     c.enteredTurn = s.turn;

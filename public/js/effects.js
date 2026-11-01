@@ -160,7 +160,7 @@ export function spellText(c) {
     .split('\n')
     .filter((l) => !/^(?:When|Whenever|At)\b[^\n]*\b(?:return|put|exile) (?:~|this card) from your graveyard\b/i.test(l.trim()))
     .filter((l) => !/^[A-Z][A-Za-z' ]{1,30} — (?:This spell|~) costs\b/.test(l.trim())) // Own the Day: "Battlefront — This spell costs {1} less …"
-    .filter((l) => l.trim() && !KEYWORD_LINE.test(l.trim()) && !/^(As an additional cost|[A-Z][A-Za-z ]+ \d+ — When you cast|You may pay [^.]* rather than pay|You may [^.]* rather than pay (?:this spell's|~'s) mana cost|This spell costs|~ costs|You may cast ~|Spend only|This spell can't be countered|~ can't be countered|When you cast ~|When you cycle ~|Split second|Cast ~ only|Cast this spell only|Strive|Kicker|Flash$)/i.test(l.trim()))
+    .filter((l) => l.trim() && !KEYWORD_LINE.test(l.trim()) && !/^If [^,\n]+, you may pay (?:\{[^}]+\})+ rather than pay/.test(l.trim()) && !/^(As an additional cost|[A-Z][A-Za-z ]+ \d+ — When you cast|You may pay [^.]* rather than pay|You may [^.]* rather than pay (?:this spell's|~'s) mana cost|This spell costs|~ costs|You may cast ~|Spend only|This spell can't be countered|~ can't be countered|When you cast ~|When you cycle ~|Split second|Cast ~ only|Cast this spell only|Strive|Kicker|Flash$)/i.test(l.trim()))
     .join('\n');
 }
 
@@ -800,6 +800,16 @@ function turnHistoryCond(c, env) {
 }
 
 export function evalCond(cond, env) {
+  { const lc = String(cond).trim().toLowerCase(); let q;
+    // Chainer, Nightmare Adept: "if you didn't cast it from your hand"
+    if ((q = lc.match(/^you (did|didn't) cast (?:it|that creature) from your hand$/))) { const c = env.it && card(env.it.iid); if (!c) return null; const fromHand = c.castFrom === 'hand' && c.castTurn === G.s.turn; return q[1] === 'did' ? fromHand : !fromHand; }
+    // Mindbreak Trap: "an opponent cast three or more spells this turn"
+    if ((q = lc.match(/^an opponent cast (\w+) or more spells this turn$/))) return opponents(env.me).some((o) => ((G.s.ts && G.s.ts[o] && G.s.ts[o].spells) || 0) >= n(q[1]));
+    // Liberator: "the amount of mana spent to cast that spell is greater than ~'s power"
+    if ((q = lc.match(/^the amount of mana spent to cast that spell is greater than (?:~|this creature)'s power$/))) { const sp = env.it && card(env.it.iid); const me = env.src && card(env.src.iid); if (!sp || !me) return null; return (sp.manaSpent || 0) > power(me); }
+    // Summon: Fenrir III: "you control the creature with the greatest power or tied for the greatest power"
+    if (/^you control the creature with the greatest power or tied for the greatest power$/.test(lc)) { const all = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter(isCreature); if (!all.length) return false; const top = Math.max(...all.map(power)); return all.some((c) => c.controller === env.me && power(c) === top); }
+  }
   // Padeem: "if you control the artifact with the greatest mana value or tied for the greatest mana value"
   if (/^you control the artifact with the greatest mana value or tied for the greatest mana value$/.test(String(cond).trim().toLowerCase())) {
     const arts = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter((x) => isType(x, 'Artifact'));
@@ -15723,7 +15733,7 @@ on(/^exile target card from a graveyard\. (if it was a creature card, (?:put a \
   else if (/otherwise, you gain 3 life/.test(env.text || '')) { changeLife(env.me, 3); env.did.push('3 life'); }
 }, { first: true, multi: true });
 // Necrotic Hex: "Each player sacrifices six creatures of their choice. You create six tapped 2/2 black Zombie creature tokens."
-on(/^each player sacrifices (two|three|four|five|six|seven|\d+) creatures(?: of their choice)?$/, async (m, env) => {
+on(/^each player sacrifices (two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|\d+) creatures(?: of their choice)?$/, async (m, env) => {
   const k = n(m[1]);
   for (const p of turnOrderFrom(env.me).filter(inGame)) {
     const mine = cardsIn(p, 'battlefield').filter(isCreature);
@@ -17904,3 +17914,255 @@ on(/^put (a|an|one|two|three) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on an? (creatu
   env.it = { iid: c.iid };
   env.did.push(`puts ${n(m[1])} ${m[2]} counter${n(m[1]) === 1 ? '' : 's'} on ${nameTag(c)}`);
 }, { first: true });
+
+// ---------------------------------------------------------------- most-played Commander cards, batch 5
+// Valakut Awakening
+on(/^put any number of cards from your hand on the bottom of your library, then draw that many cards plus one$/, async (m, env) => {
+  const hand = cardsIn(env.me, 'hand').filter((c) => !env.src || c.iid !== env.src.iid);
+  const lands = cardsIn(env.me, 'battlefield').filter(isLand).length;
+  const picks = hand.length ? await env.choosers[env.me].pickCards({ prompt: 'Put any number of cards on the bottom of your library (then draw that many plus one)', cards: hand.map((c) => c.iid), min: 0, max: hand.length, purpose: 'bottom', src: env.src,
+    aiScore: (c) => (isLand(c) ? (lands >= 6 ? 3 : -2) : 4 - cardValue(c)) }) : [];
+  const keep = isAI(env.me) ? picks.filter((i) => { const c = card(i); return isLand(c) ? lands >= 6 : cardValue(c) < 4; }) : picks;
+  keep.forEach((i) => move(i, 'library', { to: 'bottom' }));
+  draw(env.me, keep.length + 1, true);
+  env.did.push(`bottoms ${keep.length} and draws ${keep.length + 1}`);
+}, { first: true });
+// Ripples of Undeath: "put a card from among those cards into your hand"
+on(/^put a card from among those cards into your hand$/, async (m, env) => {
+  const ids = (env.them_ || []).filter((i) => card(i) && card(i).zone === 'graveyard');
+  if (!ids.length) return env.did.push('none of those cards are left');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Put a card into your hand', cards: ids, min: 1, max: 1, forced: true, purpose: 'hand', src: env.src, aiScore: (c) => cardValue(c) });
+  move(p, 'hand');
+  env.did.push(`returns ${env.me === 'p' ? nameTag(card(p)) : 'a card'} to hand`);
+}, { first: true });
+// Flare of Fortitude
+on(/^until end of turn, your life total can't change, and permanents you control gain hexproof and indestructible$/, async (m, env) => {
+  G.s.players[env.me].lifeLocked = G.s.turn + 1;
+  for (const c of cardsIn(env.me, 'battlefield')) c.eotGrants = [...(c.eotGrants || []), 'hexproof', 'indestructible'];
+  env.did.push("life total can't change; permanents gain hexproof and indestructible until end of turn");
+}, { first: true });
+// Ranger-Captain of Eos
+on(/^your opponents can't cast noncreature spells this turn$/, async (m, env) => {
+  G.s.noNoncreatureTurn = { turn: G.s.turn, pids: opponents(env.me) };
+  env.did.push("opponents can't cast noncreature spells this turn");
+}, { first: true });
+// Vivi Ornitier: "Add X mana in any combination of {U} and/or {R}, where X is ~'s power."
+on(/^add (x|\w+) mana in any combination of \{([wubrgc])\} and\/or \{([wubrgc])\}(?:, where x is ~'s power)?$/, async (m, env) => {
+  const src = env.src && card(env.src.iid);
+  const total = m[1] === 'x' ? (src ? Math.max(0, power(src)) : env.x || 0) : n(m[1]);
+  const [a, b] = [m[2].toUpperCase(), m[3].toUpperCase()];
+  let ka;
+  if (isAI(env.me)) {
+    // split by what the hand wants
+    const want = (col) => cardsIn(env.me, 'hand').reduce((s, c) => s + ((DB[c.def].manaCost || '').match(new RegExp(`\\{${col}\\}`, 'g')) || []).length, 0);
+    const wa = want(a), wb = want(b);
+    ka = wa + wb ? Math.round(total * wa / (wa + wb)) : Math.ceil(total / 2);
+  } else ka = await env.choosers[env.me].chooseNumber({ prompt: `How much of the ${total} mana should be {${a}}? (the rest is {${b}})`, min: 0, max: total, ai: Math.ceil(total / 2) });
+  ka = Math.max(0, Math.min(total, ka));
+  addMana(env.me, [...Array(ka).fill(a), ...Array(total - ka).fill(b)]);
+  env.did.push(`adds ${ka} {${a}} and ${total - ka} {${b}}`);
+}, { first: true });
+// Horizon of Progress
+on(/^add one mana of any type that a land you control could produce$/, async (m, env) => {
+  const cols = [...new Set(cardsIn(env.me, 'battlefield').filter(isLand).flatMap((c) => (manaAbility(c) || { colors: [] }).colors || []))].filter((x) => /^[WUBRGC]$/.test(x));
+  if (!cols.length) return env.did.push('no land produces mana');
+  const k = cols.length === 1 ? 0 : await env.choosers[env.me].choose({ prompt: 'Add one mana of which type?', options: cols.map((x) => ({ label: `{${x}}` })), aiPick: () => 0 });
+  addMana(env.me, [cols[k] || cols[0]]);
+  env.did.push(`adds {${cols[k] || cols[0]}}`);
+}, { first: true });
+
+// Summon: Fenrir II: "When you next cast a creature spell this turn, that creature enters with an additional +1/+1 counter on it."
+on(/^(?:heavenward howl — )?when you next cast a creature spell this turn, that creature enters with an additional \+1\/\+1 counter on it$/, async (m, env) => {
+  G.s.nextCreatureCounter = { ...(G.s.nextCreatureCounter || {}), [env.me]: G.s.turn };
+  env.did.push('your next creature spell this turn enters with an extra +1/+1 counter');
+}, { first: true });
+// Chainer: "it gains haste until your next turn"
+on(/^(?:it|that creature) gains haste until your next turn$/, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  if (!c) return;
+  // haste only matters until it's no longer summoning sick, which is your next turn anyway
+  c.eotGrants = [...(c.eotGrants || []), 'haste'];
+  env.did.push(`${nameTag(c)} gains haste until ${env.me === 'p' ? 'your' : 'its'} next turn`);
+}, { first: true });
+// Agadeem's Awakening
+on(/^return from your graveyard to the battlefield any number of target creature cards that each have a different mana value x or less$/, async (m, env) => {
+  const x = env.x || 0;
+  const pool = cardsIn(env.me, 'graveyard').filter((c) => /Creature/.test(DB[c.def].faces[0].typeLine || '') && (DB[c.def].cmc || 0) <= x);
+  if (!pool.length) return env.did.push('no creature cards to return');
+  let picks;
+  if (isAI(env.me)) {
+    // the best creature at each mana value
+    const best = {};
+    for (const c of pool) { const mv = DB[c.def].cmc || 0; if (!best[mv] || cardValue(c) > cardValue(best[mv])) best[mv] = c; }
+    picks = Object.values(best).map((c) => c.iid);
+  } else {
+    picks = await env.choosers[env.me].pickCards({ prompt: `Return creature cards with different mana values (${x} or less)`, cards: pool.map((c) => c.iid), min: 0, max: pool.length, purpose: 'reanimate', src: env.src });
+    const seen = new Set();
+    picks = picks.filter((i) => { const mv = DB[card(i).def].cmc || 0; if (seen.has(mv)) return false; seen.add(mv); return true; });
+  }
+  for (const i of picks) toBattlefield(i, env.me);
+  env.did.push(`returns ${picks.map((i) => nameTag(card(i))).join(', ') || 'nothing'}`);
+}, { first: true });
+// Ojer cycle: "When ~ dies, return it to the battlefield tapped and transformed under its owner's control."
+on(/^return it to the battlefield tapped and transformed under its owner's control$/, async (m, env) => {
+  const c = (env.it && card(env.it.iid)) || (env.src && card(env.src.iid));
+  if (!c || c.zone !== 'graveyard') return env.did.push('the card is no longer in the graveyard');
+  toBattlefield(c.iid, c.owner);
+  const x = card(c.iid);
+  if (!x) return;
+  x.face = 1;
+  x.tapped = true;
+  env.did.push(`returns ${nameTag(x)} transformed`);
+}, { first: true });
+
+// Mindbreak Trap: "Exile any number of target spells." (the opposing spell on the stack)
+on(/^exile any number of target spells$/, async (m, env) => {
+  const slots = [G.s.stack, G.s.pstack].filter((x) => x && !x.ability && card(x.iid) && x.by !== env.me);
+  if (!slots.length) return env.did.push('there is no opposing spell to exile');
+  for (const st of slots) { st.countered = true; st.exileCountered = true; }
+  env.did.push(`exiles ${slots.map((x) => nameTag(card(x.iid))).join(', ')}`);
+}, { first: true });
+// Dauthi Voidwalker: "Choose an exiled card an opponent owns with a void counter on it. You may play it this turn without paying its mana cost."
+on(/^choose an exiled card an opponent owns with a void counter on it\. you may play it this turn without paying its mana cost$/, async (m, env) => {
+  const pool = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && c.voidCounter && c.owner !== env.me);
+  if (!pool.length) return env.did.push('there are no cards with void counters');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Choose an exiled card with a void counter (you may play it free this turn)', cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'cast', src: env.src, aiScore: (c) => cardValue(c) });
+  grantPlay([p], env.me, { free: true, until: G.s.turn });
+  env.did.push(`may play ${nameTag(card(p))} free this turn`);
+}, { first: true, multi: true });
+// Ancient Brass Dragon
+on(/^roll a d20\. when you do, put any number of target creature cards with total mana value x or less from graveyards onto the battlefield under your control(?:, where x is the result)?$/, async (m, env) => {
+  const x = rollD(20, env.me);
+  const pool = seats().flatMap((p) => cardsIn(p, 'graveyard')).filter((c) => /Creature/.test(DB[c.def].faces[0].typeLine || '') && (DB[c.def].cmc || 0) <= x);
+  let picks = [];
+  if (isAI(env.me)) {
+    // greedy: best value per mana first, within the total
+    let left = x;
+    for (const c of pool.slice().sort((a, b) => cardValue(b) - cardValue(a))) { const mv = DB[c.def].cmc || 0; if (mv <= left) { picks.push(c.iid); left -= mv; } }
+  } else if (pool.length) {
+    picks = await env.choosers[env.me].pickCards({ prompt: `Put creature cards with total mana value ${x} or less onto the battlefield`, cards: pool.map((c) => c.iid), min: 0, max: pool.length, purpose: 'reanimate', src: env.src });
+    let left = x;
+    picks = picks.filter((i) => { const mv = DB[card(i).def].cmc || 0; if (mv > left) return false; left -= mv; return true; });
+  }
+  for (const i of picks) toBattlefield(i, env.me);
+  env.did.push(`rolls ${x}; ${picks.length ? 'returns ' + picks.map((i) => nameTag(card(i))).join(', ') : 'returns nothing'}`);
+}, { first: true, multi: true });
+// Archway of Innovation
+on(/^the next spell you cast this turn has improvise$/, async (m, env) => {
+  G.s.improviseNext = { ...(G.s.improviseNext || {}), [env.me]: G.s.turn };
+  env.did.push('the next spell this turn has improvise');
+}, { first: true });
+// Avatar's Wrath
+on(/^choose up to one target creature, then airbend all other creatures$/, async (m, env) => {
+  const all = allBf().filter((c) => isCreature(c));
+  const pool = all.filter((c) => canTarget(c, env.me, env.src));
+  const [keep] = pool.length ? await env.choosers[env.me].pickCards({ prompt: 'Choose up to one creature to keep (all others are airbent)', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'keep', src: env.src, aiScore: (c) => (c.controller === env.me ? cardValue(c) + 10 : -cardValue(c)) }) : [];
+  noteBend(env.me, 'airbend');
+  const gone = all.filter((c) => c.iid !== keep);
+  for (const c of gone) {
+    const tok = c.token;
+    move(c.iid, 'exile');
+    if (!tok && card(c.iid)) Object.assign(card(c.iid), { mayPlay: card(c.iid).owner, mayPlayUntil: 1e9, castOnly: true, airbent: true });
+  }
+  env.did.push(`airbends ${gone.length} creature${gone.length === 1 ? '' : 's'}${keep ? `, keeping ${nameTag(card(keep))}` : ''}`);
+}, { first: true });
+on(/^until your next turn, your opponents can't cast spells from anywhere other than their hands$/, async (m, env) => {
+  G.s.handOnlyUntil = { pids: opponents(env.me), until: nextTurnNumber(env.me) };
+  env.did.push("opponents can only cast spells from their hands until your next turn");
+}, { first: true });
+// Aven Interrupter: "exile target spell. It becomes plotted."
+on(/^exile target spell\. it becomes plotted$/, async (m, env) => {
+  const slots = [G.s.stack, G.s.pstack].filter((x) => x && !x.ability && card(x.iid) && x.by !== env.me);
+  if (!slots.length) return env.did.push('there is no spell to exile');
+  const st = slots[0];
+  st.countered = true;
+  st.exileCountered = true;
+  const c = card(st.iid);
+  G.s.plotOnExile = { ...(G.s.plotOnExile || {}), [c.iid]: G.s.turn };
+  env.did.push(`exiles ${nameTag(c)}; it becomes plotted`);
+}, { first: true, multi: true });
+// Infinity Stones: "Harness ~."
+on(/^harness ~$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  if (!c) return;
+  c.harnessed = true;
+  env.did.push(`${nameTag(c)} is harnessed (its ∞ ability is active)`);
+}, { first: true });
+// Etali, Primal Conqueror
+on(/^each player exiles cards from the top of their library until they exile a nonland card\. you may cast any number of spells from among the nonland cards exiled this way without paying their mana costs$/, async (m, env) => {
+  const hits = [];
+  for (const p of turnOrderFrom(env.me).filter(inGame)) {
+    const { hit } = exileUntil(p, (c) => !isLand(c));
+    if (hit) hits.push(hit);
+  }
+  env.did.push(`exiles ${hits.length ? hits.map((i) => nameTag(card(i))).join(', ') : 'no nonland cards'}`);
+  if (hits.length) await castFromPool(env, hits, { free: true });
+}, { first: true, multi: true });
+// Buster Sword: "then you may cast a spell from your hand with mana value less than or equal to that damage without paying its mana cost"
+on(/^(?:then )?(?:you may )?cast a spell from your hand with mana value less than or equal to that damage without paying its mana cost$/, async (m, env) => {
+  const k = env.thatMuch || env.lastAmount || 0;
+  await castOneFree(env, cardsIn(env.me, 'hand').filter((c) => !isLand(c) && (DB[c.def].cmc || 0) <= k));
+}, { first: true });
+// Tibalt's Trickery (after "Counter target spell.")
+on(/^choose 1, 2, or 3 at random\. its controller mills that many cards, then exiles cards from the top of their library until they exile a nonland card with a different name than that spell\. they may cast that card without paying its mana cost\. then they put the exiled cards on the bottom of their library in a random order$/, async (m, env) => {
+  const slot = [G.s.stack, G.s.pstack].find((x) => x && card(x.iid) && x.countered) || [G.s.stack, G.s.pstack].find((x) => x && card(x.iid));
+  if (!slot) return env.did.push('there is no countered spell');
+  const sp = card(slot.iid);
+  const p = slot.by || sp.controller;
+  const k = 1 + Math.floor(Math.random() * 3);
+  millCards(p, k);
+  const nm = cardName(sp);
+  const { hit, all } = exileUntil(p, (c) => !isLand(c) && cardName(c) !== nm);
+  env.did.push(`${who(p)} ${s_(p, 'mill')} ${k} and ${s_(p, 'exile')} ${hit ? nameTag(card(hit)) : 'no card'}`);
+  if (hit) {
+    const yes = isAI(p) ? true : await env.choosers[p].confirm(cardName(card(hit)), `Cast ${cardName(card(hit))} without paying its mana cost?`, {});
+    if (yes && T.castFree) await T.castFree(p, hit, {});
+  }
+  all.filter((i) => card(i) && card(i).zone === 'exile').sort(() => Math.random() - 0.5).forEach((i) => move(i, 'library', { to: 'bottom' }));
+}, { first: true, multi: true });
+// Ardenn, Intrepid Archaeologist: "attach any number of Auras and Equipment you control to target permanent or player"
+on(/^(?:you may )?attach any number of auras and equipment you control to target permanent or player$/, async (m, env) => {
+  const gear = cardsIn(env.me, 'battlefield').filter((c) => (hasSubtype(c, 'Equipment') || hasSubtype(c, 'Aura')) && !(hasSubtype(c, 'Aura') && /^Enchant player/m.test(oracle(c))));
+  if (!gear.length) return env.did.push('has no Auras or Equipment');
+  const [t] = await objects(env, 'target creature', { harm: false, aiScore: (c) => (c.controller === env.me ? power(c) + (hasKw(c, 'flying') ? 3 : 0) + (c.sick && !hasKw(c, 'haste') ? -5 : 0) : -100) });
+  if (!t) return;
+  let picks;
+  // the AI moves Equipment that's idle or on a weaker creature of its own; Auras stay where they are
+  if (isAI(env.me)) picks = gear.filter((g) => hasSubtype(g, 'Equipment') && g.attachedTo !== t.iid && (!g.attachedTo || !card(g.attachedTo) || card(g.attachedTo).zone !== 'battlefield' || power(card(g.attachedTo)) < power(t))).map((g) => g.iid);
+  else picks = await env.choosers[env.me].pickCards({ prompt: `Attach which Auras and Equipment to ${cardName(t)}?`, cards: gear.map((g) => g.iid), min: 0, max: gear.length, purpose: 'attach', src: env.src });
+  for (const i of picks) attachTo(card(i), t);
+  env.did.push(picks.length ? `attaches ${picks.map((i) => nameTag(card(i))).join(', ')} to ${nameTag(t)}` : 'attaches nothing');
+}, { first: true });
+// Springheart Nantuko (landfall)
+on(/^(?:you may )?pay \{1\}\{g\} if ~ is attached to a creature you control\. if you do, create a token that's a copy of that creature\. if you didn't create a token this way, create a 1\/1 green insect creature token$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const host = me && me.attachedTo && card(me.attachedTo);
+  let copied = false;
+  if (host && host.controller === env.me && isCreature(host) && T.payMana) {
+    const want = isAI(env.me) ? cardValue(host) >= 3 : await env.choosers[env.me].confirm(cardName(me), `Pay {1}{G} to create a token copy of ${cardName(host)}?`, {});
+    if (want && await T.payMana(env.me, '{1}{G}', cardName(me))) {
+      const [t] = createToken(host.def, env.me, 1);
+      if (card(t)) card(t).face = host.face || 0;
+      copied = true;
+      env.did.push(`creates a token copy of ${nameTag(host)}`);
+    }
+  }
+  if (!copied) { createToken(genericTokenDef(1, 1, 'Insect', ['G']), env.me, 1); env.did.push('creates a 1/1 Insect'); }
+}, { first: true, multi: true });
+// Conduit of Worlds
+on(/^choose target nonland permanent card in your graveyard\. if you haven't cast a spell this turn, you may cast that card\. if you do, you can't cast additional spells this turn$/, async (m, env) => {
+  const pool = cardsIn(env.me, 'graveyard').filter((c) => isPermanentCard(DB[c.def]) && !/\bLand\b/.test((DB[c.def].faces[0].typeLine || '').split('—')[0]));
+  if (!pool.length) return env.did.push('no nonland permanent card in the graveyard');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Choose a nonland permanent card in your graveyard', cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'cast', src: env.src, aiScore: (c) => cardValue(c) });
+  const spells = (G.s.ts && G.s.ts[env.me] && G.s.ts[env.me].spells) || 0;
+  if (spells > 0) return env.did.push("can't cast it (a spell was already cast this turn)");
+  const c = card(p);
+  const yes = isAI(env.me) ? true : await env.choosers[env.me].confirm(cardName(c), `Cast ${cardName(c)} from your graveyard? (You can't cast other spells this turn.)`, {});
+  if (!yes || !T.castFree) return;
+  const cost = DB[c.def].faces[0].manaCost || DB[c.def].manaCost || '{0}';
+  const ok = await T.castFree(env.me, p, { cost, mode: 'impulse' });
+  if (ok !== false) {
+    G.s.noSpellsUntil = { ...(G.s.noSpellsUntil || {}), [env.me]: G.s.turn + 1 };
+    env.did.push(`casts ${nameTag(c)} from the graveyard; no more spells this turn`);
+  }
+}, { first: true, multi: true });

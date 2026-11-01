@@ -325,6 +325,9 @@ export function isLibraryTop(pid, c) {
 export function castOptions(pid, c) {
   const opts = castOptionsRaw(pid, c);
   if (!opts.length) return opts;
+  // Avatar's Wrath: "Until your next turn, your opponents can't cast spells from anywhere other than their hands."
+  const ho = G.s.handOnlyUntil;
+  if (ho && ho.pids.includes(pid) && G.s.turn < ho.until && c.zone !== 'hand') return opts.filter((x) => isLandFace((DB[c.def].faces[x.face || 0] || DB[c.def].faces[0])));
   const o = (DB[c.def].faces[0] || {}).oracle || '';
   if (/^Enchant creature with another Aura attached to it/m.test(o)) {
     const ok = seats().flatMap((k) => cardsIn(k, 'battlefield')).some((x) => isCreature(x) && !x.phasedOut && canTarget(x, pid, c) && Object.values(G.s.cards).some((a) => a.zone === 'battlefield' && a.attachedTo === x.iid && a.iid !== c.iid && hasSubtype(a, 'Aura')));
@@ -400,6 +403,13 @@ function castOptionsRaw(pid, c) {
         rest = rest.replace(pm[0], '').replace(/^,? ?and /i, '').trim();
       }
       if (altPayable(pid, c, rest)) add({ mode: 'altcost', label: `Alternative cost: ${m[1]}`, cost: mana, other: rest || undefined, free: !mana && !rest ? true : undefined });
+    }
+    // Mindbreak Trap and the other Traps: "If an opponent cast three or more spells this turn, you may pay {0} rather than pay this spell's mana cost."
+    if ((m = o0.match(/(?:^|\n)If ([^,\n]+), you may pay ((?:\{[^}]+\})+) rather than pay (?:this spell's|~'s|[^.\n]+?'s) mana cost\./i))) {
+      const cond = m[1].trim();
+      let ok = false;
+      try { ok = !!evalCond(cond.toLowerCase(), { me: pid, src: c }); } catch (e) { ok = false; }
+      if (ok) add({ mode: 'altcost', label: `Alternative cost: ${m[2]} (${cond})`, cost: m[2] === '{0}' ? '' : m[2], free: m[2] === '{0}' ? true : undefined });
     }
     // Deadly Rollick, Fierce Guardianship, Deflecting Swat: "If you control a commander, you may cast this spell without paying its mana cost."
     if ((m = o0.match(/(?:^|\n)If ([^,\n]+), you may cast (?:this spell|~) without paying its mana cost\./i))) {
@@ -613,6 +623,7 @@ export function effectiveCost(pid, c, opt) {
 export function timingOk(pid, c, opt) {
   const s = G.s;
   if (s.noSpellsUntil && s.noSpellsUntil[pid] > s.turn) return false; // Innocuous Researcher
+  if (s.noNoncreatureTurn && s.noNoncreatureTurn.turn === s.turn && s.noNoncreatureTurn.pids.includes(pid) && !/\bCreature\b/.test(((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '').split('—')[0])) return false; // Ranger-Captain of Eos
   if (s.noCreatureSpellsUntil && s.noCreatureSpellsUntil >= s.turn && /\b(?:Creature|Planeswalker)\b/.test(((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '').split('—')[0])) return false; // Single Combat
   if (s.flashNext && s.flashNext[pid] === s.turn && !opt.sorcery) return true; // Ride the Avalanche
   if (s.flashTurn && s.flashTurn[pid] === s.turn && !opt.sorcery) return true; // Emergence Zone, Alchemist's Refuge, Borne Upon a Wind
@@ -899,7 +910,7 @@ export async function castSpell(pid, iid, opt, env) {
   const eff = env.free || opt.free ? { generic: 0 } : effectiveCost(pid, c, opt);
   const extraGeneric = eff.generic + info.extraGeneric;
   const pay = await env.pay(pid, costStr, label, {
-    extraGeneric, convoke: hasKw(c, 'convoke') || ((s.convokeNext || {})[pid] === s.turn), improvise: hasKw(c, 'improvise'), delve: hasKw(c, 'delve'), self: c.iid, waterbend: info.waterbend || 0,
+    extraGeneric, convoke: hasKw(c, 'convoke') || ((s.convokeNext || {})[pid] === s.turn), improvise: hasKw(c, 'improvise') || ((s.improviseNext || {})[pid] === s.turn), delve: hasKw(c, 'delve'), self: c.iid, waterbend: info.waterbend || 0,
     xFixed: env.x,
   });
   if (!pay) throw new Cancelled();
@@ -944,6 +955,7 @@ export async function castSpell(pid, iid, opt, env) {
   }
   if (s.affinityNext && s.affinityNext[pid] === s.turn && !isCreature(c)) delete s.affinityNext[pid];
   if (s.convokeNext && s.convokeNext[pid] === s.turn && !opt.copy) delete s.convokeNext[pid];
+  if (s.improviseNext && s.improviseNext[pid] === s.turn && !opt.copy) delete s.improviseNext[pid]; // Archway of Innovation
   if (s.nextSpellLess && s.nextSpellLess[pid] && !opt.copy) delete s.nextSpellLess[pid];
   for (const x of s.noCounter || []) if (x.next && !x.iid && x.pid === pid && x.turn === s.turn && !opt.copy) x.iid = c.iid; // Mistrise Village
   if (s.undauntedNext && s.undauntedNext[pid] && !opt.copy) {
@@ -952,6 +964,11 @@ export async function castSpell(pid, iid, opt, env) {
   }
   // Opal Palace: "If you spend this mana to cast your commander, it enters with a number of additional +1/+1 counters on it
   // equal to the number of times it's been cast from the command zone this game."
+  // Summon: Fenrir: "When you next cast a creature spell this turn, that creature enters with an additional +1/+1 counter on it."
+  if (s.nextCreatureCounter && s.nextCreatureCounter[pid] === s.turn && !opt.copy && /\bCreature\b/.test(((DB[c.def].faces[fIdx] || DB[c.def].faces[0]).typeLine || '').split('—')[0])) {
+    delete s.nextCreatureCounter[pid];
+    c.enterExtra = { ...(c.enterExtra || {}), plus: ((c.enterExtra || {}).plus || 0) + 1 };
+  }
   if (fromZone === 'command' && c.isCommander && !env.free && !opt.free) {
     const opalText = /If you spend this mana to cast your commander, it enters with a number of additional \+1\/\+1 counters/i;
     const viaAuto = (pay.filtersOn || []).some((i) => card(i) && opalText.test(oracle(card(i))));
@@ -1098,6 +1115,8 @@ export async function castSpell(pid, iid, opt, env) {
   if (countered) {
     if (isAI(pid) && !counteredByEffect) log(opp(pid), `You counter ${nameTag(c)}.`);
     move(iid, bounced ? 'hand' : exileCountered || exileInstead(iid) || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard', { fromStack: true });
+    // Aven Interrupter: the exiled spell becomes plotted
+    if (s.plotOnExile && s.plotOnExile[iid] && card(iid) && card(iid).zone === 'exile') { Object.assign(card(iid), { plotted: true, plottedTurn: s.turn }); delete s.plotOnExile[iid]; }
     env.render();
     // Transcendent Dragon: "then you may cast it without paying its mana cost"
     if (stealCast && card(iid) && card(iid).zone === 'exile') {
@@ -1956,7 +1975,7 @@ export async function activateAbility(pid, c, ab, env) {
       queueEvent({ type: 'loyaltyActivated', iid: c.iid, controller: pid, cost });
       if (cost > 0) queueEvent({ type: 'counterPut', iid: c.iid, kind: 'loyalty', n: gained, controller: c.controller });
       await settle();
-      const copiers = abilityCopiers(pid);
+      const copiers = abilityCopiers(pid, c);
       // Leori, Sparktouched Hunter: copy abilities of planeswalkers of the chosen type this turn
       { const lo = (s.leori || {})[pid]; if (lo && lo.turn === s.turn && (typeLine(c).split('—')[1] || '').includes(lo.type)) copiers.push('Leori'); }
       // Repeated Reverberation: "…or activate a loyalty ability this turn, copy that spell or ability twice"
@@ -2213,7 +2232,7 @@ export async function activateAbility(pid, c, ab, env) {
   // sacrificed for the cost, "whenever you activate an ability") goes on the stack above it, so it resolves first.
   await settle();
   if (G.s !== s) return true;
-  const copiers = abilityCopiers(pid);
+  const copiers = abilityCopiers(pid, c);
   const abText = ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim();
   if (await announceAbility(pid, srcSnap, abText, env)) return true;
   if (env.render) env.render(); // show the costs as paid (the source tapped, mana spent) while the ability resolves
@@ -2280,9 +2299,12 @@ async function activationCopies(pid, src, ab, text, lifePaid) {
   return n;
 }
 // Locus of Enlightenment, Rowan Kenrith's emblem: "Whenever you activate an ability that isn't a mana ability, copy it."
-function abilityCopiers(pid) {
+function abilityCopiers(pid, c) {
   const RE = /Whenever you activate an ability that isn't a mana ability, copy it/i;
+  // Illusionist's Bracers: "Whenever an ability of equipped creature is activated, if it isn't a mana ability, copy that ability."
+  const bracers = c && G.s ? Object.values(G.s.cards).filter((x) => x.zone === 'battlefield' && x.attachedTo === c.iid && /Whenever an ability of equipped creature is activated, if it isn't a mana ability, copy that ability/i.test(oracle(x))).map((x) => nameTag(x)) : [];
   return [
+    ...bracers,
     ...cardsIn(pid, 'battlefield').filter((x) => RE.test(oracle(x).replace(/"[^"]*"/g, ''))).map((x) => nameTag(x)), // not Rowan's quoted emblem text
     ...(G.s.players[pid].emblems || []).filter((e) => RE.test(e)).map(() => 'The emblem'),
   ];

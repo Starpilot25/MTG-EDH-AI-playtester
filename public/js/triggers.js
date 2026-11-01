@@ -2,7 +2,7 @@
 // permanent whose rules text (or keyword) triggers on each event and resolves it.
 import { DB } from './data.js';
 import {
-  abilitiesGone, isCreature, sculptors, SECTORS, SECTOR_SIGN, isLand, isType, oracle, face, hasKw, kwNum, power, toughness, cardValue, hasSubtype, payCost, typeLine,
+  abilitiesGone, isCreature, sculptors, SECTORS, SECTOR_SIGN, isLand, isType, oracle, face, hasKw, kwNum, power, toughness, cardValue, hasSubtype, payCost, typeLine, basePT,
 } from './rules.js';
 import {
   G, card, cardsIn, zoneOf, log, nameTag, eventQueue, queueEvent, stateBased, cardName, move, toBattlefield, addCounters, changeLife,
@@ -69,6 +69,9 @@ export function triggersOf(c, defOverride) {
   let text = stripName(oracle(inst) || (d.faces[c.face || 0] || d.faces[0]).oracle || '', inst);
   if (c.zone === 'command') text = text.split('\n').filter((l) => /^Eminence — /.test(l)).join('\n');
   text = text.replace(/(^|\n)Eminence — /g, '$1').replace(/, if ~ is in the command zone or on the battlefield,/gi, ',').replace(/(^|\n)As long as ~ is in the command zone or on the battlefield, /gi, '$1');
+  // Infinity Stones: "∞ — …" abilities only work once the Stone is harnessed
+  text = text.split('\n').filter((l) => !/^∞ — /.test(l) || c.harnessed).map((l) => l.replace(/^∞ — /, '')).join('\n');
+  text = text.replace(/\bthis Siege\b/g, '~'); // Invasion of Ikoria: "When this Siege enters"
   text = text.replace(/\([^)]*\)/g, '').replace(/\n(?=•)/g, ' ¶');
   const speed = G.s && c.controller ? G.s.players[c.controller].speed : 0;
   // the parse only depends on the text (and max speed): remember it (hundreds of identical tokens share one entry)
@@ -206,6 +209,11 @@ function parseTriggerText(text, speed) {
       if (/^Whenever you or a permanent you control becomes the target of a spell or ability an opponent controls, counter that spell or ability unless that player pays (\d+) life\.$/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
       // Unbound Flourishing
       if ((q = line.match(/^Whenever you cast an instant or sorcery spell or activate an ability, if that spell's mana cost or that ability's activation cost contains \{X\}, (.+)$/i))) { add('cast', q[1], { spell: 'instant or sorcery', mine: true, hasX: true }); continue; }
+      // Talion: "Whenever an opponent casts a spell with mana value, power, or toughness equal to the chosen number"
+      if ((q = line.match(/^Whenever an opponent casts a spell with mana value, power, or toughness equal to the chosen number, (.+)$/i))) {
+        add('p:cast', q[1], { pred: (c, ev) => { if (c.chosenNumber == null || !opponents(c.controller).includes(ev.controller)) return false; const d = DB[ev.def || (card(ev.iid) || {}).def]; if (!d) return false; const f0 = d.faces[ev.face || 0] || d.faces[0]; const k = c.chosenNumber; return ((d.cmc || 0) === k || +f0.power === k || +f0.toughness === k) && { thatPlayer: ev.controller }; } });
+        continue;
+      }
       if ((q = line.match(/^Whenever you cast a permanent spell with a mana cost that contains \{X\}, (.+)$/i))) { add('cast', q[1], { spell: 'permanent', mine: true, hasX: true }); continue; }
       // Storm, Queen of Wakanda
       if ((q = line.match(/^Whenever a creature with flying attacks you, (.+)$/i))) { add('attacks', q[1], { attacksMeFlying: true }); continue; }
@@ -215,6 +223,7 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever an opponent draws their first card each turn, (.+)$/i))) { add('draw', q[1], { who: 'an opponent', nthDraw: 1 }); continue; }
       // Mirrorwing Dragon
       // Feather, Radiant Arbiter: copies chosen as the spell picks its target (effects.js pickTargets)
+      if (/^Whenever an ability of equipped creature is activated, if it isn't a mana ability, copy that ability\./i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; } // Illusionist's Bracers (cast.js abilityCopiers)
       if (/^Whenever you cast a noncreature spell that targets only ~, you may choose any number of other creatures that spell could target and pay \{2\} for each of those creatures\./i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
       // Mirrorwing Dragon / Zada: copied as the spell picks its target (effects.js pickTargets), not as a trigger
       if (/^Whenever (?:a player casts|you cast) an instant or sorcery spell that targets only ~, (?:that player copies|copy) that spell for each other creature (?:they|you) control that the spell could target\. Each copy targets a different one of those creatures\.$/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
@@ -302,10 +311,14 @@ function parseTriggerText(text, speed) {
     } else if ((m = line.match(/^When(?:ever)? ~ enters(?: the battlefield)? or is put into a graveyard from the battlefield, (.+)$/i))) {
       add('enters', m[1], { self: true });
       add('dies', m[1], { self: true, anyPermanent: true });
+    } else if ((m = line.match(/^When(?:ever)? enchanted (?:creature|permanent) dies or is put into exile, (.+)$/i))) {
+      add('dies', m[1], { attachedTo: true, orExile: true }); // Kaya's Ghostform
     } else if ((m = line.match(/^When(?:ever)? (?:enchanted|equipped) creature dies, (.+)$/i))) {
       add('dies', m[1], { attachedTo: true });
     } else if ((m = line.match(/^When(?:ever)? ~ is turned face up, (.+)$/i))) {
       add('turnedFaceUp', m[1], { self: true });
+    } else if ((m = line.match(/^Whenever a source deals damage to ~, (.+)$/i))) {
+      add('dealtDamage', m[1], { self: true }); // Phyrexian Obliterator
     } else if ((m = line.match(/^Whenever ~ is dealt damage, (.+)$/i))) {
       add('dealtDamage', m[1], { self: true });
     } else if ((m = line.match(/^Whenever (?:enchanted|equipped) creature is dealt damage, (.+)$/i))) {
@@ -879,6 +892,8 @@ function parseTriggerText(text, speed) {
       }
       // mana
       if ((q = line.match(/^Whenever fortified land is tapped for mana, (.+)$/i))) { add('p:manaTapped', q[1], { pred: (c, ev) => ev.iid === c.attachedTo && { it: { iid: ev.iid } } }); continue; }
+      if ((q = line.match(/^Whenever an opponent taps a land for mana, (.+)$/i))) { add('p:manaTapped', q[1], { pred: (c, ev) => ev.land && ev.pid !== c.controller && card(ev.iid) && card(ev.iid).zone === 'battlefield' && { it: { iid: ev.iid }, thatPlayer: ev.pid } }); continue; } // Vorinclex, Voice of Hunger
+      if ((q = line.match(/^Whenever one or more other creatures you control leave the battlefield without dying, (.+)$/i))) { add('leaves', q[1], { mine: true, kind: 'creature', notTo: 'graveyard', batchOnce: true }); continue; } // Dour Port-Mage
       if ((q = line.match(/^Whenever an opponent taps an artifact for mana, (.+)$/i))) { add('p:manaTapped', q[1], { pred: (c, ev) => ev.artifact && ev.pid !== c.controller && card(ev.iid) && card(ev.iid).zone === 'battlefield' && { it: { iid: ev.iid }, thatPlayer: ev.pid } }); continue; }
       // entering
       // Spot, Felis catus: "Whenever ~ or another nontoken legendary permanent you control enters"
@@ -930,6 +945,22 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever a creature deals damage to you, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => ev.player === c.controller && !!card(ev.iid) && { it: { iid: ev.iid } } }); continue; }
       // Mindcrank: "Whenever an opponent loses life, that player mills that many cards."
       if ((q = line.match(/^Whenever an opponent loses life, (.+)$/i))) { add('p:lifeLost', q[1], { pred: (c, ev) => ev.pid !== c.controller && opponents(c.controller).includes(ev.pid) && { thatPlayer: ev.pid, amount: ev.amount } }); continue; }
+      // Chronicle of Victory: "Whenever you cast a spell of the chosen type"
+      if ((q = line.match(/^Whenever you cast a spell of the chosen type, (.+)$/i))) { add('p:cast', q[1], { pred: (c, ev) => ev.controller === c.controller && !!c.chosenType && (P.tl(ev).includes(c.chosenType) || /Changeling/.test((DB[ev.def || (card(ev.iid) || {}).def] || { faces: [{}] }).faces[0].oracle || '')) }); continue; }
+      // Jin-Gitaxias, Progress Tyrant: "Whenever you cast an artifact, instant, or sorcery spell" / "Whenever an opponent casts …"
+      if ((q = line.match(/^Whenever (you cast|an opponent casts) an? ([A-Za-z]+), ([A-Za-z]+), or ([A-Za-z]+) spell, (.+)$/))) {
+        const tys = [q[2], q[3], q[4]].map((x) => x[0].toUpperCase() + x.slice(1).toLowerCase());
+        const mine = /you cast/.test(q[1]);
+        add('p:cast', q[5], { pred: (c, ev) => (mine ? ev.controller === c.controller : opponents(c.controller).includes(ev.controller)) && tys.some((t) => new RegExp('\\b' + t + '\\b').test(P.tl(ev))) && { it: { iid: ev.iid }, thatPlayer: ev.controller } });
+        continue;
+      }
+      // Call of the Ring: "Whenever you choose a creature as your Ring-bearer" (each time the Ring tempts you and you have a creature)
+      if ((q = line.match(/^Whenever you choose a creature as your Ring-bearer, (.+)$/i))) { add('p:ringTempts', q[1], { pred: (c, ev) => ev.pid === c.controller && cardsIn(c.controller, 'battlefield').some(isCreature) }); continue; }
+      // Kutzil: "Whenever one or more creatures you control each with power greater than its base power deals combat damage to a player"
+      if ((q = line.match(/^Whenever one or more creatures you control each with power greater than its base power deals? combat damage to a player, (.+)$/i))) {
+        add('p:combatDamagePlayer', q[1], { pred: (c, ev) => { const a2 = card(ev.iid); if (!a2 || a2.controller !== c.controller || !(power(a2) > basePT(a2).p)) return false; const key = `${G.s.turn}:${G.s.combatsThisTurn ? G.s.combatsThisTurn.n : 0}`; if (c.kutzilKey === key) return false; c.kutzilKey = key; return true; } });
+        continue;
+      }
       // Diamond Mare: "Whenever you cast a spell of the chosen color"
       if ((q = line.match(/^Whenever you cast a spell of the chosen color, (.+)$/i))) { add('p:cast', q[1], { pred: (c, ev) => ev.controller === c.controller && !!c.chosenColor && (DB[ev.def || (card(ev.iid) || {}).def] || { colors: [] }).colors.includes(c.chosenColor) }); continue; }
       // Staff of the Sun Magus: "Whenever you cast a white spell or a Plains you control enters"
@@ -1366,6 +1397,21 @@ function keywordTriggersRaw(c) {
         return [`chooses ${card(c.iid).chosenMode}`];
       }, 'Choose a mode', { self: true, asEnters: true });
   }
+  // Talion, the Kindly Lord: "As Talion enters, choose a number between 1 and 10."
+  { const nm = (DB[c.def].faces[c.face || 0].oracle || '').match(/(?:^|\n)As [^,\n]+ enters(?: the battlefield)?, choose a number between (\d+) and (\d+)\./);
+    if (nm && c.chosenNumber == null)
+      f('enters', async () => {
+        const lo = +nm[1], hi = +nm[2];
+        // the AI picks the most common mana value among opponents' cards it has seen (else 2)
+        const seen = opponents(c.controller).flatMap((o) => [...cardsIn(o, 'battlefield'), ...cardsIn(o, 'graveyard')]).filter((x) => !x.token && !isLand(x)).map((x) => DB[x.def].cmc || 0).filter((v) => v >= lo && v <= hi);
+        const counts = {}; for (const v of seen) counts[v] = (counts[v] || 0) + 1;
+        const best = Object.keys(counts).sort((a2, b2) => counts[b2] - counts[a2])[0];
+        const k = await (T.choosers[c.controller] || T.choosers.p).chooseNumber({ prompt: `${cardName(c)}: choose a number between ${lo} and ${hi}`, min: lo, max: hi, ai: best ? +best : Math.max(lo, Math.min(hi, 2)) });
+        if (!card(c.iid)) return [];
+        card(c.iid).chosenNumber = k;
+        return [`chooses ${k}`];
+      }, 'Choose a number', { self: true, asEnters: true });
+  }
   if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a creature type/i.test(o.split(DB[c.def].name).join('~')) && !c.chosenType)
     f('enters', async () => {
       const t = await chooseCreatureType(c.controller, `${cardName(c)}: choose a creature type`);
@@ -1374,7 +1420,7 @@ function keywordTriggersRaw(c) {
       return [`chooses ${t}`];
     }, 'Choose a creature type', { self: true, asEnters: true });
   // Squall, Gunblade Duelist: "As Squall enters, choose a number."
-  if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a number/i.test(o.split(DB[c.def].name).join('~').split(String(DB[c.def].name).split(',')[0]).join('~')) && c.chosenNumber === undefined)
+  if (/(?:^|\n|\. )As (?:~|this [a-z]+|it) enters(?: the battlefield)?, choose a number/i.test(o.split(DB[c.def].name).join('~').split(String(DB[c.def].name).split(',')[0]).join('~')) && c.chosenNumber === undefined && !/choose a number between \d+ and \d+/i.test(o))
     f('enters', async () => {
       const mine = cardsIn(c.controller, 'battlefield').concat(cardsIn(c.controller, 'library')).filter(isCreature);
       const counts = {};
@@ -1805,6 +1851,8 @@ function matches(ev) {
     }
     case 'leaves': {
       const gone = card(ev.iid) || { iid: ev.iid, def: ev.def, face: ev.face, controller: ev.controller, owner: ev.owner, zone: ev.to, counters: {}, grants: [] };
+      // Kaya's Ghostform: "When enchanted permanent dies or is put into exile"
+      if (ev.to === 'exile') for (const aid of ev.attached || []) { const a = card(aid); if (!a) continue; for (const trig of triggersOf({ ...a, zone: 'battlefield' })) if (trig.event === 'dies' && trig.attachedTo && trig.orExile) out.push({ src: a, trig, controller: a.controller, it: { iid: ev.iid } }); }
       for (const trig of triggersOf({ ...gone, zone: 'battlefield', controller: ev.controller }, ev.def)) if (trig.event === 'leaves' && trig.self && (!trig.toZone || trig.toZone === ev.to) && !(trig.minPower && !(ev.power >= trig.minPower))) out.push({ src: gone, trig, controller: ev.controller });
       const goneDef = DB[ev.def];
       each((c, trig) => {
@@ -1814,6 +1862,9 @@ function matches(ev) {
         if (trig.tokenOnly && !ev.token) return;
         if (trig.nontoken && (ev.token || (gone && gone.token))) return;
         if (trig.kind === 'creature' && goneDef && !/Creature/.test(goneDef.faces[ev.face || 0] ? goneDef.faces[ev.face || 0].typeLine : goneDef.typeLine)) return;
+        if (trig.notTo && ev.to === trig.notTo) return;
+        // "one or more … leave": one trigger for creatures leaving together (same moment)
+        if (trig.batchOnce) { const k = `${G.s.turn}:${G.s.log.length}`; c.batchSeen = c.batchSeen || {}; if (c.batchSeen[trig.raw] === k) return; c.batchSeen[trig.raw] = k; }
         out.push({ src: c, trig, it: { iid: ev.iid }, wasAttacking: ev.wasAttacking });
       });
       // championed / exiled-until cards come back; Oubliette's creature phases back in

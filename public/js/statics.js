@@ -290,6 +290,7 @@ function parseStatics(text, selfName) {
     // replacement effects
     if (/if a card or token would be put into a graveyard from anywhere, exile it instead/.test(l)) out.repl.gyExile = 'all';
     if (/if a (?:card|nontoken card) would be put into an opponent's graveyard from anywhere, exile it instead/.test(l)) out.repl.gyExile = out.repl.gyExile || 'opponents';
+    if (/if a card would be put into an opponent's graveyard from anywhere, instead exile it with a void counter on it/.test(l)) { out.repl.gyExile = out.repl.gyExile || 'opponents'; out.repl.gyVoid = 'opponents'; } // Dauthi Voidwalker
     if (/if an effect would create one or more tokens under your control, it creates twice that many/.test(l)) out.repl.tokenDouble = (out.repl.tokenDouble || 0) + 1;
     if (/would be put on [^,.]+ you control, (?:that many plus one|it puts that many plus one)/.test(l)) out.repl.counterPlusOne = (out.repl.counterPlusOne || 0) + 1;
     // Lae'zel, Vlaakith's Champion: any kind of counter, on your creatures/planeswalkers or on you
@@ -619,7 +620,7 @@ export function repl(kind, pid) {
   for (const src of field()) {
     const r = staticsOf(src).repl[kind];
     if (!r) continue;
-    if (kind === 'gyExile') {
+    if (kind === 'gyExile' || kind === 'gyVoid') {
       if (r === 'all' || (r === 'opponents' && pid && src.controller !== pid)) return true;
       continue;
     }

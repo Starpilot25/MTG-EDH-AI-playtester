@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.192",
+    "title": "Most-played Commander cards, part 3",
+    "notes": [
+      "Fixed: Blasphemous Edict, Valakut Awakening, Ripples of Undeath, Flare of Fortitude, Ranger-Captain of Eos, Vivi Ornitier, Horizon of Progress, Agadeem's Awakening, Ojer Taq, Ojer Axonil, Talion, Jin-Gitaxias Progress Tyrant, Vorinclex Voice of Hunger, Phyrexian Obliterator, Dour Port-Mage, Chainer Nightmare Adept, Kaya's Ghostform, Summon: Fenrir, Kutzil, Call of the Ring, Liberator, Mindbreak Trap, Dauthi Voidwalker, Ancient Brass Dragon, Avatar's Wrath, Aven Interrupter, Archway of Innovation, The Soul Stone, Etali Primal Conqueror, Buster Sword, Tibalt's Trickery, Ardenn, Springheart Nantuko, Conduit of Worlds, Illusionist's Bracers, Invasion of Ikoria.",
+      "Conditional alternative costs work (Mindbreak Trap's {0} once an opponent has cast three spells).",
+      "Dauthi Voidwalker exiles opponents' cards with void counters, and you can play one free.",
+      "Avatar's Wrath stops opponents casting from anywhere but their hands until your next turn.",
+      "Of the 1,147 most-played cards not in the preset decks, 1,145 now check out."
+    ]
+  },
+  {
     "version": "1.3.191",
     "title": "Redirects, Seasons and Classes",
     "notes": [
