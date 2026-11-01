@@ -474,6 +474,402 @@ const basics = (n, name) => `${n} ${name}`;
 
 // Official preconstructed Commander decks: { key: { label, set, text } } (same decklist format as the samples)
 export const PRECON_DECKS = {
+  trc_federation: {
+    label: "Federation Fleet (Jean-Luc Picard, Luminary)",
+    set: "Star Trek Commander",
+    bracket: 2,
+    text: `Commander
+1 Jean-Luc Picard, Luminary
+
+Deck
+1 Captain Janeway, Endgame
+1 Ambassador K'Ehleyr
+1 Beverly Crusher, Ship's Doctor
+1 Dr. Pulaski, Cynical Clinician
+1 Ensign Harry Kim, Operations
+1 Ezri Dax, Newly Joined
+1 Guinan, Ancient Advisor
+1 Julian Bashir, Frontier Doctor
+1 Spot, Felis catus
+1 U.S.S. Enterprise-E, Sovereign
+1 Chief Miles O'Brien
+1 Data, Exploring Humanity
+1 Geordi La Forge, Innovator
+1 Kes, Evolving Telepath
+1 On the Shoulders of Giants
+1 Seven of Nine, Tertiary Adjunct
+1 Temporal Tribulation
+1 Tuvok, Chief Tactical Officer
+1 Ro Laren, Double Agent
+1 Rom and Leeta, Unlikely Pair
+1 B'Elanna Torres, Scrapper
+1 Cmdr. Troi, Outgoing Empath
+1 Commander William Riker
+1 Reg Barclay, Fidgety Fantasist
+1 Tom Paris, Risk-Taker
+1 Unification
+1 Vic Fontaine, One Night Only
+1 Worf, Son of Mogh
+1 U.S.S. Defiant, Tough Little Ship
+1 U.S.S. Enterprise-C, Time-Tossed
+1 U.S.S. Prometheus, Prototype
+1 U.S.S. Stargazer, Here and There
+1 Grand Crescendo
+1 Loran of the Third Path
+1 Promise of Loyalty
+1 Cryptic Command
+1 Chain Reaction
+1 Fevered Visions
+1 Fractured Identity
+1 Supreme Verdict
+1 Alhammarret's Archive
+1 Howling Mine
+1 Battlefield Forge
+1 Clifftop Retreat
+1 Coastal Peak
+1 Command Beacon
+1 Desolate Lighthouse
+1 Exotic Orchard
+1 Fabled Passage
+1 Frostboil Snarl
+1 Furycalm Snarl
+1 Glacial Fortress
+1 Glittering Massif
+1 Irrigated Farmland
+1 Port Town
+1 Prairie Stream
+1 Radiant Summit
+1 Scorched Geyser
+1 Sulfur Falls
+1 Training Center
+1 Malfunctioning Holodeck
+1 Chronomantic Escape
+1 Swords to Plowshares
+1 Frantic Search
+1 Negate
+1 Pongify
+1 Abrade
+1 Thrill of Possibility
+1 Faithful Mending
+1 Arcane Signet
+1 Commander's Sphere
+1 Hedron Archive
+1 Mind Stone
+1 Sol Ring
+1 Stonespeaker Crystal
+1 Talisman of Conviction
+1 Talisman of Creativity
+1 Talisman of Progress
+1 Thought Vessel
+1 Command Tower
+1 Evolving Wilds
+1 Mystic Monastery
+1 Path of Ancestry
+1 Perilous Landscape
+1 Reliquary Tower
+1 Terramorphic Expanse
+5 Island
+4 Plains
+4 Mountain`,
+  },
+  trc_landing: {
+    label: "Landing Party (Commander Spock)",
+    set: "Star Trek Commander",
+    bracket: 2,
+    text: `Commander
+1 Commander Spock
+
+Deck
+1 Captain Kirk, Boldly Going
+1 Balance of Terror
+1 Merciful Mandate
+1 M'Ress, Crew Coordinator
+1 Shuttlecraft Galileo
+1 Tribble Cluster
+1 Colossal Clone Master
+1 Fleet Captain Christopher Pike
+1 Giant Space Amoeba
+1 Lieutenant Nyota Uhura
+1 Sam Kirk, Xenoanthropologist
+1 Temporal Tribulation
+1 Amanda Grayson, Logic's Link
+1 Christine Chapel, Combat Medic
+1 Janice Rand, Essential Aide
+1 Lieutenant Hikaru Sulu
+1 Chief Kyle, Transporter Tech
+1 Chief Montgomery Scott
+1 Lt. Arex, Ever-Adapting
+1 McCoy, Not a Bricklayer
+1 Pavel Chekov, First Posting
+1 T'Pring, Never Parted
+1 Command Chair
+1 The Guardian of Forever
+1 Jefferies Tube
+1 Planet Killer
+1 S.S. Botany Bay
+1 Starfleet Communicator
+1 Starship Enterprise
+1 U.S.S. Defiant, Mirror Migrant
+1 U.S.S. Farragut, Bold Explorer
+1 Shore Leave Planet
+1 Austere Command
+1 Sun Titan
+1 Wrath of God
+1 Echo of Eons
+1 Ancient Greenwarden
+1 Augur of Autumn
+1 Exploration
+1 Guardian Project
+1 Heroic Intervention
+1 Lotus Cobra
+1 Scute Swarm
+1 Tireless Tracker
+1 Canopy Vista
+1 Exotic Orchard
+1 Fabled Passage
+1 Fortified Village
+1 Glacial Fortress
+1 Hinterland Harbor
+1 Irrigated Farmland
+1 Mosswort Bridge
+1 Mutavault
+1 Port Town
+1 Prairie Stream
+1 Rain-Slicked Copse
+1 Scattered Groves
+1 Sea of Clouds
+1 Sodden Verdure
+1 Sunpetal Grove
+1 Temple of Enlightenment
+1 Temple of Mystery
+1 Temple of Plenty
+1 Vineglimmer Snarl
+1 Cold-Blooded Crew
+1 Syndicate Liquidators
+1 Earth, Sector 001
+1 Risa
+1 Vulcan
+1 Path to Exile
+1 Brainstorm
+1 Ponder
+1 Reality Shift
+1 Beast Within
+1 Cultivate
+1 Farseek
+1 Harmonize
+1 Nature's Lore
+1 Rampant Growth
+1 Satyr Wayfinder
+1 Growth Spiral
+1 Arcane Signet
+1 Sol Ring
+1 Command Tower
+1 Evolving Wilds
+1 Path of Ancestry
+1 Reliquary Tower
+1 Seaside Citadel
+1 Temple of the False God
+1 Terramorphic Expanse
+1 Tranquil Landscape
+4 Forest
+2 Plains
+2 Island`,
+  },
+  trc_klingon: {
+    label: "Klingon Fury (Worf, Defiant Commander)",
+    set: "Star Trek Commander",
+    bracket: 2,
+    text: `Commander
+1 Worf, Defiant Commander
+
+Deck
+1 Kor, Cause of Vengeance
+1 Ambassador K'Ehleyr
+1 Imperial Hullbreachers
+1 Indelicate Healer
+1 Korok, Liberated Rage
+1 Martok, Hero of the Empire
+1 Merciful Mandate
+1 Right of Vengeance
+1 Blood-Sport Champion
+1 Kurn, Son of Mogh
+1 The Promise of Kahless
+1 Voq, Torchbearer
+1 The Beacon of Kahless
+1 Ferocious Colonist
+1 Gagh Slinger
+1 Galvanizing Tenor
+1 Glory to the Empire!
+1 Gnarling Targ
+1 Grilka, Widowed Warrior
+1 Kang, Suspicious Captain
+1 Koloth, Tribble Hunter
+1 Own the Day
+1 Qo'noS Quartermaster
+1 Alexander, Ship's Fool
+1 Chancellor Gorkon
+1 Curzon Dax, Bound by Blood
+1 Rite of Ascension
+1 Sins of the Father
+1 I.K.S. Negh'Var, Imperial Flagship
+1 K't'inga-Class Battle Cruiser
+1 K'Vort-Class Raider
+1 The Sword of Kahless
+1 Concerted Effort
+1 Duelist's Heritage
+1 Vanquish the Horde
+1 Painful Truths
+1 Combat Celebrant
+1 Disrupt Decorum
+1 Professional Face-Breaker
+1 Shared Animosity
+1 World at War
+1 Pest Control
+1 Ruinous Ultimatum
+1 Vindicate
+1 Warleader's Call
+1 Sword of Light and Shadow
+1 Battlefield Forge
+1 Canyon Slough
+1 Clifftop Retreat
+1 Dragonskull Summit
+1 Eclipsed Steppe
+1 Exotic Orchard
+1 Foreboding Ruins
+1 Furycalm Snarl
+1 Glittering Massif
+1 Isolated Chapel
+1 Radiant Summit
+1 Shineshadow Snarl
+1 Smoldering Marsh
+1 Temple of Malice
+1 Umbral Expanse
+1 Vault of Champions
+1 Cha'DIch Investigator
+1 Path to Exile
+1 Return to Dust
+1 Valorous Stance
+1 Night's Whisper
+1 Rite of Oblivion
+1 Terminate
+1 Arcane Signet
+1 Herald's Horn
+1 Lightning Greaves
+1 Mind Stone
+1 Sol Ring
+1 Talisman of Conviction
+1 Talisman of Hierarchy
+1 Talisman of Indulgence
+1 Command Tower
+1 Evolving Wilds
+1 Nomad Outpost
+1 Path of Ancestry
+1 Rogue's Passage
+1 Shattered Landscape
+1 Terramorphic Expanse
+5 Mountain
+5 Plains
+5 Swamp`,
+  },
+  trc_borg: {
+    label: "We Are the Borg (The Borg Queen)",
+    set: "Star Trek Commander",
+    bracket: 2,
+    text: `Commander
+1 The Borg Queen
+
+Deck
+1 Locutus of Borg
+1 Borg Incursion
+1 Emergency Regeneration
+1 Join the Collective
+1 Korok, Liberated Rage
+1 Maturation Chamber
+1 Stratagem Emulator
+1 Supplementation Node
+1 Type-03 Borg Vessel
+1 Ambulatory Reactor
+1 Borg Scout Sphere
+1 Co-Option Adjutant
+1 Gift of Perfection
+1 Optimization Annex
+1 Seven of Nine, Tertiary Adjunct
+1 Transwarp Hub
+1 Võx, Child of the Collective
+1 Assimilate the Wounded
+1 Assimilation Assessor
+1 Battle of Wolf 359
+1 Extraction Integrant
+1 Reclamation Specialist
+1 The Best of Both Worlds
+1 Collective Override
+1 Deliver from Chaos
+1 Hugh, First of Many
+1 Jurati, Cordial Queen
+1 One, Borg Evolved
+1 Class-4 Tactical Cube
+1 Queen's Diamond
+1 Reconnaissance Partition
+1 Shore Leave Planet
+1 Tempered Steel
+1 Disallow
+1 Toxic Deluge
+1 Anguished Unmaking
+1 Astral Cornucopia
+1 Darksteel Plate
+1 Door of Destinies
+1 Forsaken Monument
+1 The Immortal Sun
+1 Skullclamp
+1 Unwinding Clock
+1 Academy Ruins
+1 Choked Estuary
+1 Drowned Catacomb
+1 Eclipsed Steppe
+1 Exotic Orchard
+1 Fetid Pools
+1 Glacial Fortress
+1 Irrigated Farmland
+1 Isolated Chapel
+1 Morphic Pool
+1 Port Town
+1 Prairie Stream
+1 Shineshadow Snarl
+1 Skycloud Expanse
+1 Spire of Industry
+1 Sunken Hollow
+1 Umbral Expanse
+1 Underground River
+1 Command Subadjunct
+1 Conquest Mission
+1 Hive Mind Coprocessor
+1 Locutus, the One Who Speaks
+1 Dispatch
+1 Return to Dust
+1 Thirst for Knowledge
+1 Thoughtcast
+1 Bitter Triumph
+1 Arcane Signet
+1 Commander's Sphere
+1 Everflowing Chalice
+1 Sol Ring
+1 Stonespeaker Crystal
+1 Swiftfoot Boots
+1 Talisman of Dominance
+1 Talisman of Hierarchy
+1 Talisman of Progress
+1 Wayfarer's Bauble
+1 Arcane Sanctum
+1 Command Tower
+1 Contaminated Landscape
+1 Evolving Wilds
+1 Path of Ancestry
+1 Rogue's Passage
+1 Terramorphic Expanse
+4 Plains
+4 Island
+4 Swamp`,
+  },
   rfc_multiverse: {
     label: "Multiverse Reforged (Jace, Multiverse Architect)",
     set: "Reality Fracture Commander",

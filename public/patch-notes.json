@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.179",
+    "title": "Star Trek Commander precons",
+    "notes": [
+      "Added the four Star Trek Commander precons to the Precon list: Federation Fleet (Jean-Luc Picard, Luminary), Landing Party (Commander Spock), Klingon Fury (Worf, Defiant Commander) and We Are the Borg (The Borg Queen)."
+    ]
+  },
+  {
     "version": "1.3.178",
     "title": "Stack order for ability costs, filter lands, Exotic Orchard, spaceship deck",
     "notes": [
