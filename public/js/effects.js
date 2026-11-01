@@ -16583,3 +16583,15 @@ on(/^each player sacrifices x creatures\. ~ enters with two \+1\/\+1 counters on
   if (me && k) me.enterExtra = { ...(me.enterExtra || {}), plus: ((me.enterExtra || {}).plus || 0) + 2 * k };
   env.did.push(`${k} creatures sacrificed; it enters with ${2 * k} counters`);
 }, { first: true, multi: true });
+// Plan enchantments (Political Triumph & co.): "When the fourth plan counter is put on this enchantment, sacrifice it, draw a card,
+// and put a +1/+1 counter on each creature you control."
+on(/^sacrifice (?:it|~), (.+)$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!me || me.zone !== 'battlefield') return 'pass';
+  // only where "it" is the permanent itself (Plans: "When the fourth plan counter is put on this enchantment, sacrifice it, …")
+  if (!/\bPlan\b/.test(typeLine(me)) && !/counter is put on (?:this [a-z]+|~)/i.test(stripName(oracle(me), me))) return 'pass';
+  sacrifice(me.iid);
+  env.did.push(`sacrifices ${nameTag(me)}`);
+  const parts = m[1].replace(/\.$/, '').split(/,? and (?=(?:put|create|draw|you|each|return|target|deal)\b)|, (?=(?:put|create|draw|you|each|return|deal)\b)/);
+  for (const p of parts) if (p.trim()) await runSentence(p.trim(), env);
+}, { first: true });
