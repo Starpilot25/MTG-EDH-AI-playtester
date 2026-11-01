@@ -84,6 +84,8 @@ function applyTypes(t, ty) {
   } else {
     if (ty.add && !new RegExp('\\b' + ty.add + '\\b').test(main)) main = (main.replace(/\bCreature\b/, '').trim() + ' ' + ty.add + (/\bCreature\b/.test(main) && ty.add !== 'Creature' ? ' Creature' : '')).replace(/\s+/g, ' ').trim();
     if (ty.subSet !== undefined) sub = ty.subSet;
+    if (ty.remove) main = main.replace(new RegExp('\\b' + ty.remove + '\\b'), '').replace(/\s+/g, ' ').trim(); // Weeping Angel: "isn't a creature until end of turn"
+    if (ty.legendary && !/\bLegendary\b/.test(main)) main = 'Legendary ' + main;
     if (ty.subAdd) for (const w of ty.subAdd.split(' ')) if (w && !new RegExp('\\b' + w + '\\b').test(sub)) sub = (sub + ' ' + w).trim();
   }
   return sub ? `${main} — ${sub}` : main;
@@ -124,7 +126,7 @@ export function treasured(inst) {
   return !!a && a.zone === 'battlefield' && a.attachedTo === inst.iid;
 }
 export function typeLine(inst) {
-  if (inst.faceDown) return 'Creature';
+  if (inst.faceDown) return inst.faceDownTypes || 'Creature'; // Doctor Who: "It's a 2/2 Cyberman artifact creature"
   if (treasured(inst)) return 'Artifact — Treasure'; // Vraska, Betrayal's Sting
   if (inst.bestowed && inst.zone === 'battlefield') return 'Enchantment — Aura'; // bestowed: an Aura, not a creature (702.103)
   let t = printedTypes(inst);
@@ -235,6 +237,7 @@ export function isCreature(i) {
   if (layered) {
     if (/\bCreature\b/.test(typeLine(i).split('—')[0])) return true;
     if ((i.layerFx || []).some((e) => e.types && e.types.set)) return false;
+    if ((i.layerFx || []).some((e) => e.types && e.types.remove === 'Creature')) return false; // Weeping Angel
   }
   const base = (face(i).typeLine || DB[i.def].typeLine).split('—')[0];
   if (/\bCreature\b/.test(base)) return true;
@@ -1726,6 +1729,8 @@ export function canBlock(blocker, attacker) {
 
 export function canAttack(inst) {
   if (!isCreature(inst) || inst.tapped || inst.pacifiedBy || inst.phasedOut) return false;
+  // Lovestruck Beast: "This creature can't attack unless you control a 1/1 creature."
+  if (G.s && /(?:^|\n)(?:~|This creature) can't attack unless you control a 1\/1 creature\./.test(oracle(inst).replace(new RegExp(DB[inst.def].faces[inst.face || 0].name.split(' // ')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '~')) && !G.s.players[inst.controller].zones.battlefield.some((i) => { const x = G.s.cards[i]; return x && isCreature(x) && power(x) === 1 && toughness(x) === 1; })) return false;
   // Call for Aid: "You can't attack that player this turn" (with one opponent, that's no attacks at all)
   if (G.s && (G.s.cantAttack || []).some((x) => x.turn === G.s.turn && x.by === inst.controller) && seats().filter((p) => p !== inst.controller && G.s.players[p] && !G.s.players[p].lost).every((p) => (G.s.cantAttack || []).some((x) => x.turn === G.s.turn && x.by === inst.controller && x.player === p))) return false;
   if (G.s && inst.detainedUntil && inst.detainedUntil > G.s.turn) return false;
