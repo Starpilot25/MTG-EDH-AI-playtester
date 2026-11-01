@@ -292,10 +292,12 @@ export function activatedAbilities(c) {
     });
     // Baru, Wurmspeaker: "This ability costs {X} less to activate, where X is the greatest power among Wurms you control."
     const ab = out[out.length - 1];
-    const red = ab.text.match(/\s*This ability costs \{(X|\d+)\} less to activate(?:, where X is ([^.]+))?\.?/i);
+    const red = ab.text.match(/\s*This ability costs \{(X|\d+)\} less to activate(?:, where X is ([^.]+)| for each ([^.]+))?\.?/i);
     if (red) {
       ab.text = ab.text.replace(red[0], '').trim();
-      const k = red[1] === 'X' ? (G.s && c.controller ? countPhrase(c.controller, red[2] || '', helpers, c.iid) || 0 : 0) : +red[1];
+      // Tamiyo's Logbook: "costs {1} less to activate for each other artifact you control"
+      const each = red[3] ? (G.s && c.controller ? countPhrase(c.controller, red[3].replace(/^other ([a-z]+) you control$/, (x, w) => `other ${w}s you control`), helpers, c.iid) || 0 : 0) : null;
+      const k = red[1] === 'X' ? (G.s && c.controller ? countPhrase(c.controller, red[2] || '', helpers, c.iid) || 0 : 0) : each !== null ? +red[1] * each : +red[1];
       const syms = ab.mana.match(/\{[^}]+\}/g) || [];
       const gen = syms.filter((x) => /^\{\d+\}$/.test(x)).reduce((a, x) => a + +x.slice(1, -1), 0);
       const rest = syms.filter((x) => !/^\{\d+\}$/.test(x)).join('');
@@ -16594,4 +16596,288 @@ on(/^sacrifice (?:it|~), (.+)$/, async (m, env) => {
   env.did.push(`sacrifices ${nameTag(me)}`);
   const parts = m[1].replace(/\.$/, '').split(/,? and (?=(?:put|create|draw|you|each|return|target|deal)\b)|, (?=(?:put|create|draw|you|each|return|deal)\b)/);
   for (const p of parts) if (p.trim()) await runSentence(p.trim(), env);
+}, { first: true });
+
+// ---------------------------------------------------------------- batch (Nov 1, afternoon)
+// The Toymaker's Trap
+on(/^secretly choose a number between 1 and 5 that hasn't been chosen\. if you do, an opponent guesses which number you chose, then you reveal the number you chose\. if they guessed wrong, they lose life equal to the number they guessed and you draw a card\. if they guessed right, sacrifice ~$/, async (m, env) => {
+  const src = env.src && card(env.src.iid);
+  if (!src) return;
+  const left = [1, 2, 3, 4, 5].filter((k) => !(src.chosenNums || []).includes(k));
+  if (!left.length) return env.did.push('every number has been chosen');
+  const pick = isAI(env.me) ? left[Math.floor(Math.random() * left.length)] : left[await env.choosers[env.me].choose({ prompt: 'Secretly choose a number', options: left.map((k) => ({ label: String(k) })), aiPick: () => 0 })];
+  src.chosenNums = [...(src.chosenNums || []), pick];
+  const os = opponents(env.me).filter(inGame);
+  const o = os.length === 1 ? os[0] : isAI(env.me) ? os[Math.floor(Math.random() * os.length)] : os[await env.choosers[env.me].choose({ prompt: 'Which opponent guesses?', options: os.map((p) => ({ label: seatName(p) })), aiPick: () => 0 })];
+  const guess = isAI(o) ? left[Math.floor(Math.random() * left.length)] : left[await env.choosers[o].choose({ prompt: `${cardName(src)}: guess the number (${left.join(', ')})`, options: left.map((k) => ({ label: String(k) })), aiPick: () => 0 })];
+  if (guess === pick) {
+    sacrifice(src.iid);
+    env.did.push(`${who(o)} guessed ${guess} — right; ${nameTag(src)} is sacrificed`);
+  } else {
+    changeLife(o, -guess);
+    draw(env.me, 1, true);
+    env.did.push(`${who(o)} guessed ${guess}, it was ${pick}: ${who(o)} ${s_(o, 'lose')} ${guess} life, ${who(env.me)} ${s_(env.me, 'draw')} a card`);
+  }
+}, { first: true, multi: true });
+// Gix's activated ability: "Exile the top X cards of target opponent's library. You may play lands and cast spells from among cards exiled this way without paying their mana costs."
+on(/^exile the top x cards of target opponent's library\. you may play lands and cast spells from among cards exiled this way without paying their mana costs$/, async (m, env) => {
+  const [o] = await playerTarget(env, 'target opponent');
+  const x = env.x || (env.discarded || []).length || 0;
+  if (!o || !x) return env.did.push('exiles nothing');
+  const ids = libTop(o, x);
+  ids.forEach((i) => move(i, 'exile'));
+  grantPlay(ids, env.me, { free: true, until: G.s.turn });
+  env.did.push(`exiles ${ids.length} from ${seatPoss(o)} library; ${who(env.me)} may play them free this turn`);
+}, { first: true, multi: true });
+// Neriv: "exile a number of cards from the top of your library equal to the number of differently named tokens you control.
+// During any turn you attacked with a commander, you may play those cards."
+on(/^exile a number of cards from the top of your library equal to the number of differently named tokens you control\. during any turn you attacked with a commander, you may play those cards$/, async (m, env) => {
+  const k = new Set(cardsIn(env.me, 'battlefield').filter((c) => c.token).map((c) => cardName(c))).size;
+  const ids = exileTop(env.me, k);
+  grantPlay(ids, env.me, {});
+  for (const i of ids) if (card(i)) card(i).playIfCmdAttacked = true;
+  env.did.push(`exiles ${ids.length}; playable on turns ${who(env.me)} attacked with a commander`);
+}, { first: true, multi: true });
+// Vislor Turlough: "you may have an opponent gain control of it. If you do, it's goaded for as long as they control it."
+on(/^(?:you may )?have an opponent gain control of (?:it|~)\. if you do, it's goaded for as long as they control it$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!me || me.zone !== 'battlefield') return;
+  const os = opponents(env.me).filter(inGame);
+  const yes = isAI(env.me) ? true : await env.choosers[env.me].confirm(cardName(me), 'Give it to an opponent (goaded while they control it)?', {});
+  if (!yes || !os.length) return;
+  const o = os.length === 1 ? os[0] : isAI(env.me) ? os.sort((a, b) => G.s.players[b].life - G.s.players[a].life)[0] : os[await env.choosers[env.me].choose({ prompt: 'Which opponent gets it?', options: os.map((p) => ({ label: seatName(p) })), aiPick: () => 0 })];
+  move(me.iid, 'battlefield', { controller: o });
+  goad(card(me.iid), env.me, 0);
+  card(me.iid).goadWhile = me.iid;
+  card(me.iid).goadWhileCtl = o;
+  env.did.push(`${who(o)} ${s_(o, 'gain')} control of ${nameTag(me)}; it's goaded`);
+}, { first: true, multi: true });
+// Moira and Teshar
+on(/^return target nonland permanent card from your graveyard to the battlefield\. it gains haste\. exile it at the beginning of the next end step\. if it would leave the battlefield, exile it instead of putting it anywhere else$/, async (m, env) => {
+  const pool = cardsIn(env.me, 'graveyard').filter((c) => isPermanentCard(DB[c.def]) && !/Land/.test(DB[c.def].faces[0].typeLine || ''));
+  if (!pool.length) return env.did.push('finds nothing to return');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Return a nonland permanent card (it has haste and is exiled at end of turn)', cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'reanimate', src: env.src, aiScore: (c) => cardValue(c) + (/When(?:ever)? [^\n]*enters/.test(DB[c.def].faces[0].oracle || '') ? 5 : 0) });
+  toBattlefield(p, env.me);
+  const c = card(p);
+  if (!c) return;
+  c.eotGrants = [...(c.eotGrants || []), 'haste'];
+  c.exileIfLeaves = true;
+  c.endOfTurn = 'exile';
+  env.did.push(`returns ${nameTag(c)} with haste until end of turn`);
+}, { first: true, multi: true });
+// Gate to the Afterlife
+on(/^search your graveyard, hand, and\/or library for a card named ([^.]+?) and put it onto the battlefield\. if you search your library this way, shuffle$/, async (m, env) => {
+  const nm = m[1].toLowerCase();
+  const found = [...cardsIn(env.me, 'graveyard'), ...cardsIn(env.me, 'hand'), ...zoneOf(env.me, 'library').map(card)].find((c) => cardName(c).toLowerCase() === nm);
+  if (!found) { shuffle(env.me); return env.did.push(`finds no ${m[1]}`); }
+  const fromLib = found.zone === 'library';
+  toBattlefield(found.iid, env.me);
+  if (fromLib) shuffle(env.me);
+  env.did.push(`puts ${nameTag(found)} onto the battlefield`);
+}, { first: true, multi: true });
+// Genesis Hydra (cast trigger)
+on(/^reveal the top x cards of your library\. you may put a nonland permanent card with mana value x or less from among them onto the battlefield\. then shuffle the rest into your library$/, async (m, env) => {
+  const src = env.src && card(env.src.iid);
+  const x = env.x || (src && src.xPaid) || 0;
+  const ids = libTop(env.me, x);
+  if (!ids.length) return;
+  log(env.me, `Revealed: ${ids.map((i) => nameTag(card(i))).join(', ')}.`);
+  const pool = ids.filter((i) => isPermanentCard(DB[card(i).def]) && !isLand(card(i)) && (DB[card(i).def].cmc || 0) <= x);
+  if (pool.length) {
+    const [p] = await env.choosers[env.me].pickCards({ prompt: `Put a nonland permanent with mana value ${x} or less onto the battlefield?`, cards: pool, min: 0, max: 1, purpose: 'cheat', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
+    if (p) { toBattlefield(p, env.me); env.did.push(`puts ${nameTag(card(p))} onto the battlefield`); }
+  }
+  shuffle(env.me);
+}, { first: true, multi: true });
+// Grist +1
+on(/^create a 1\/1 black and green insect creature token, then mill a card\. if an insect card was milled this way, put a loyalty counter on ~ and repeat this process$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  let k = 0;
+  for (let guard = 0; guard < 20; guard++) {
+    createToken(genericTokenDef(1, 1, 'Insect', ['B', 'G']), env.me, 1);
+    k++;
+    const [i] = millCards(env.me, 1) || [];
+    if (!i || !card(i) || !/\bInsect\b/.test(DB[card(i).def].faces[0].typeLine || '') && !/Grist/.test(cardName(card(i)))) break;
+    if (me) me.counters.loyalty = (me.counters.loyalty || 0) + 1;
+  }
+  env.did.push(`${k} Insect${k === 1 ? '' : 's'}`);
+}, { first: true, multi: true });
+// Eumidian Wastewaker
+on(/^you and defending player each discard a card or sacrifice a permanent\. you draw a card for each land card put into a graveyard this way$/, async (m, env) => {
+  const d = env.thatPlayer || (G.s.combat && G.s.combat.targets && env.src && G.s.combat.targets[env.src.iid]) || opp(env.me);
+  const dp = G.s.players[d] ? d : card(d) ? card(d).controller : opp(env.me);
+  let lands = 0;
+  for (const p of [env.me, dp]) {
+    const hand = cardsIn(p, 'hand');
+    const perms = cardsIn(p, 'battlefield');
+    const useHand = isAI(p) ? hand.length > 0 : hand.length > 0 && (!perms.length || await env.choosers[p].confirm(cardName(env.src), 'Discard a card? (No: sacrifice a permanent)', { yes: 'Discard', no: 'Sacrifice' }));
+    const pool = useHand ? hand : perms;
+    if (!pool.length) continue;
+    const [x] = await env.choosers[p].pickCards({ prompt: useHand ? 'Discard a card' : 'Sacrifice a permanent', cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: useHand ? 'discard' : 'sacrifice', src: env.src, aiScore: (c) => (isLand(c) && p === env.me ? 5 : 0) - cardValue(c) / 10 + (c.token ? 3 : 0) });
+    const c = card(x);
+    if (useHand) discardCard(x); else sacrifice(x);
+    if (isLand(c) && card(x).zone === 'graveyard') lands++;
+  }
+  if (lands) draw(env.me, lands, true);
+  env.did.push(`both players lose a card or permanent; ${who(env.me)} ${s_(env.me, 'draw')} ${lands}`);
+}, { first: true, multi: true });
+// Vihaan, Goldwaker
+on(/^(?:you may )?have treasures you control become 3\/3 construct assassin artifact creatures in addition to their other types until end of turn$/, async (m, env) => {
+  const ts = cardsIn(env.me, 'battlefield').filter((c) => hasSubtype(c, 'Treasure'));
+  for (const c of ts) c.animated = { ts: nextStamp(), p: 3, t: 3, types: 'Construct Assassin', until: 'eot', setsPT: true };
+  G.s.bfv = (G.s.bfv || 0) + 1;
+  env.did.push(`${ts.length} Treasure${ts.length === 1 ? '' : 's'} become 3/3 creatures`);
+}, { first: true });
+// Dead Before Sunrise
+on(/^until end of turn, outlaw creatures you control get \+1\/\+0 and gain "\{t\}: (?:~|this creature) deals damage equal to its power to target creature\."$/, async (m, env) => {
+  const OUT = ['Assassin', 'Mercenary', 'Pirate', 'Rogue', 'Warlock'];
+  const list = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && OUT.some((t) => hasSubtype(c, t)));
+  for (const c of list) { pumpEOT(c, { p: 1, t: 0 }); c.eotText = (c.eotText ? c.eotText + '\n' : '') + '{T}: ~ deals damage equal to its power to target creature.'; }
+  env.did.push(`${list.length} outlaw${list.length === 1 ? '' : 's'} get +1/+0 and a tap ability`);
+}, { first: true });
+// Whisperwood Elemental
+on(/^until end of turn, face-up nontoken creatures you control gain "when (?:~|this creature) dies, manifest the top card of your library\."$/, async (m, env) => {
+  const list = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && !c.faceDown && !c.token);
+  for (const c of list) c.eotText = (c.eotText ? c.eotText + '\n' : '') + 'When ~ dies, manifest the top card of your library.';
+  env.did.push(`${list.length} creature${list.length === 1 ? '' : 's'} will manifest when they die`);
+}, { first: true });
+// Time Reaper
+on(/^put target face-up card they own in exile on the bottom of their library\. if you do, you gain 3 life$/, async (m, env) => {
+  const p = env.thatPlayer || opp(env.me);
+  const pool = cardsIn(p, 'exile').filter((c) => !c.faceDown && c.owner === p);
+  if (!pool.length) return env.did.push('finds no face-up exiled card');
+  const [x] = await env.choosers[env.me].pickCards({ prompt: 'Put a face-up exiled card on the bottom of its owner\'s library', cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, src: env.src, purpose: 'exile', aiScore: (c) => (c.mayPlay || c.mayPlayFree || c.suspended ? 10 : 0) + cardValue(c) / 10 });
+  move(x, 'library', { to: 'bottom' });
+  changeLife(env.me, 3);
+  env.did.push(`puts ${nameTag(card(x))} on the bottom; gains 3 life`);
+}, { first: true, multi: true });
+// The Rani: "create a red Aura enchantment token named Mark of the Rani attached to another target creature …"
+on(/^create a red aura enchantment token named mark of the rani attached to another target creature\. that token has enchant creature and "enchanted creature gets \+2\/\+2 and is goaded\."$/, async (m, env) => {
+  const [t] = await objects(env, 'another target creature', { harm: true, aiScore: (c) => (c.controller !== env.me ? power(c) : -10) });
+  if (!t) return;
+  const id = 'gen-mark-of-the-rani';
+  if (!DB[id]) DB[id] = { id, name: 'Mark of the Rani', layout: 'token', cmc: 0, manaCost: '', typeLine: 'Token Enchantment — Aura', colors: ['R'], ci: [], keywords: [], produced: [], tokens: [], doubleFaced: false, isToken: true, faces: [{ name: 'Mark of the Rani', manaCost: '', typeLine: 'Token Enchantment — Aura', oracle: 'Enchant creature\nEnchanted creature gets +2/+2 and is goaded.', img: null, imgLarge: null }] };
+  const [tk] = createToken(id, env.me, 1);
+  if (card(tk)) attachTo(card(tk), t);
+  goad(t, env.me, 0);
+  t.goadWhile = tk;
+  env.did.push(`Mark of the Rani on ${nameTag(t)}`);
+}, { first: true, multi: true });
+// Midnight Crusader Shuttle (villainous choice)
+on(/^defending player faces a villainous choice — that player sacrifices a creature of their choice, or you gain control of a creature of your choice that player controls until end of turn\. if you gain control of a creature this way, tap it, and it's attacking that player$/, async (m, env) => {
+  const d0 = env.thatPlayer || (G.s.combat && G.s.combat.targets && env.src && G.s.combat.targets[env.src.iid]) || opp(env.me);
+  const d = G.s.players[d0] ? d0 : card(d0) ? card(d0).controller : opp(env.me);
+  const theirs = cardsIn(d, 'battlefield').filter(isCreature);
+  if (!theirs.length) return env.did.push(`${who(d)} has no creatures`);
+  const sac = isAI(d) ? true : await env.choosers[d].confirm(cardName(env.src), 'Sacrifice a creature? (No: they take one of your creatures and attack you with it)', { yes: 'Sacrifice', no: 'Let them take one' });
+  if (sac) {
+    const [x] = await env.choosers[d].pickCards({ prompt: 'Sacrifice a creature', cards: theirs.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'sacrifice', src: env.src, aiScore: (c) => -cardValue(c) });
+    sacrifice(x);
+    return env.did.push(`${who(d)} ${s_(d, 'sacrifice')} ${nameTag(card(x))}`);
+  }
+  const [x] = await env.choosers[env.me].pickCards({ prompt: 'Gain control of a creature (it attacks its owner)', cards: theirs.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'steal', src: env.src, aiScore: (c) => power(c) });
+  const c = card(x);
+  move(x, 'battlefield', { controller: env.me });
+  c.tapped = true;
+  G.s.delayed.push({ at: 'cleanup', kind: 'returnControl', iid: x, pid: d });
+  if (G.s.combat) { G.s.combat.attackers.push(x); G.s.combat.targets = { ...(G.s.combat.targets || {}), [x]: d }; c.attacking = true; }
+  env.did.push(`takes ${nameTag(c)}; it attacks ${who(d)}`);
+}, { first: true, multi: true });
+// Ajani's Chosen: "If that enchantment is an Aura, you may attach it to the token."
+on(/^create a 2\/2 white cat creature token\. if that enchantment is an aura, you may attach it to the token$/, async (m, env) => {
+  const [tk] = createToken(genericTokenDef(2, 2, 'Cat', ['W']), env.me, 1);
+  const a = env.it && card(env.it.iid);
+  if (a && hasSubtype(a, 'Aura') && card(tk)) {
+    const host = a.attachedTo && card(a.attachedTo);
+    const harmful = host && host.controller !== env.me;
+    if (!harmful) { attachTo(a, card(tk)); return env.did.push(`a Cat; ${nameTag(a)} moves onto it`); }
+  }
+  env.did.push('a 2/2 Cat');
+}, { first: true, multi: true });
+// Retether
+on(/^return each aura card from your graveyard to the battlefield\. only creatures can be enchanted this way$/, async (m, env) => {
+  const auras = cardsIn(env.me, 'graveyard').filter((c) => /Aura/.test(DB[c.def].faces[0].typeLine || ''));
+  let k = 0;
+  for (const a of auras) {
+    if (!allBf().some(isCreature)) break;
+    toBattlefield(a.iid, env.me);
+    const r = await attachAura(card(a.iid), env.me, env.choosers[env.me], { noTarget: true });
+    if (!card(a.iid).attachedTo) move(a.iid, 'graveyard'); else k++;
+    void r;
+  }
+  env.did.push(`returns ${k} Aura${k === 1 ? '' : 's'}`);
+}, { first: true, multi: true });
+// Field-Tested Frying Pan
+on(/^create a food token, then create a 1\/1 white halfling creature token and attach ~ to it$/, async (m, env) => {
+  createToken(genericTokenDef(0, 0, 'Food'), env.me, 1);
+  const [h] = createToken(genericTokenDef(1, 1, 'Halfling', ['W']), env.me, 1);
+  if (card(h) && env.src && card(env.src.iid)) attachTo(card(env.src.iid), card(h));
+  env.did.push('a Food and a Halfling wearing it');
+}, { first: true });
+// Firja's Retribution II
+on(/^until end of turn, angels you control gain "\{t\}: destroy target creature with power less than (?:~|this creature)'s power\."$/, async (m, env) => {
+  const list = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && hasSubtype(c, 'Angel'));
+  for (const c of list) c.eotText = (c.eotText ? c.eotText + '\n' : '') + "{T}: Destroy target creature with power less than ~'s power.";
+  env.did.push(`${list.length} Angel${list.length === 1 ? '' : 's'} gain a destroy ability`);
+}, { first: true });
+on(/^destroy target creature with power less than ~'s power$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const pw = me ? power(me) : 0;
+  const [t] = await objects(env, 'target creature', { harm: true, filter: (c) => power(c) < pw });
+  if (!t || power(t) >= pw) return;
+  destroy(t.iid);
+  env.did.push(`destroys ${nameTag(t)}`);
+}, { first: true });
+// Villainous Hideout: "Target Villain you control connives."
+on(/^target ([a-z]+) you control connives$/, async (m, env) => {
+  const [t] = await objects(env, `target ${m[1]} you control`, { harm: false });
+  if (!t) return;
+  await runSentence('it connives', { ...env, it: { iid: t.iid } });
+}, { first: true });
+// Zul Ashur: "You may cast target Zombie creature card from your graveyard this turn."
+on(/^(?:you may )?cast target ([a-z]+) creature card from your graveyard this turn$/, async (m, env) => {
+  const ty = capWords(m[1]);
+  const pool = cardsIn(env.me, 'graveyard').filter((c) => /Creature/.test(DB[c.def].faces[0].typeLine || '') && hasSubtype({ ...c, zone: 'hand' }, ty));
+  if (!pool.length) return env.did.push(`has no ${ty} creature card in the graveyard`);
+  const [p] = await env.choosers[env.me].pickCards({ prompt: `Choose a ${ty} creature card you may cast this turn`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, src: env.src, purpose: 'reanimate', aiScore: (c) => cardValue(c) });
+  Object.assign(card(p), { mayCastFromGy: env.me, mayCastFromGyTurn: G.s.turn });
+  env.did.push(`${nameTag(card(p))} may be cast from the graveyard this turn`);
+}, { first: true });
+// Continue?
+on(/^choose up to four target creature cards in your graveyard that were put there from the battlefield this turn\. return them to the battlefield$/, async (m, env) => {
+  const pool = cardsIn(env.me, 'graveyard').filter((c) => c.fromBfTurn === G.s.turn && /Creature/.test(DB[c.def].faces[0].typeLine || ''));
+  if (!pool.length) return env.did.push('nothing died this turn');
+  const picks = await env.choosers[env.me].pickCards({ prompt: 'Return up to four creature cards that died this turn', cards: pool.map((c) => c.iid), min: 0, max: 4, purpose: 'reanimate', src: env.src, aiScore: (c) => cardValue(c) });
+  picks.forEach((i) => toBattlefield(i, env.me));
+  env.did.push(`returns ${picks.length}`);
+}, { first: true, multi: true });
+// Shredder, Shadow Master
+on(/^for each other opponent, create a token that's a copy of ~ tapped and attacking that player, except it isn't legendary\. sacrifice those tokens at end of combat$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!me) return;
+  const hit = (G.s.combat && G.s.combat.targets && G.s.combat.targets[me.iid]) || env.thatPlayer;
+  const others = opponents(env.me).filter((o) => inGame(o) && o !== hit);
+  for (const o of others) {
+    const [tk] = createToken(me.def, env.me, 1, { tapped: true });
+    const t = card(tk);
+    if (!t) continue;
+    t.notLegendary = true;
+    t.endOfCombat = 'sacrifice';
+    if (G.s.combat) { G.s.combat.attackers.push(tk); G.s.combat.targets = { ...(G.s.combat.targets || {}), [tk]: o }; t.attacking = true; }
+  }
+  env.did.push(`${others.length} attacking cop${others.length === 1 ? 'y' : 'ies'}`);
+}, { first: true, multi: true });
+// Electric Seaweed
+on(/^until end of turn, whenever another creature dies, ~ deals 1 damage to each non-wall creature$/, async (m, env) => {
+  G.s.seaweed = [...(G.s.seaweed || []).filter((x) => x.turn === G.s.turn), { iid: env.src && env.src.iid, pid: env.me, turn: G.s.turn }];
+  env.did.push('this turn, each death pings every non-Wall creature');
+}, { first: true });
+// Gollum, Obsessed Stalker
+on(/^each opponent dealt combat damage this game by a creature named ~ loses life equal to the amount of life you gained this turn$/, async (m, env) => {
+  const gained = ((G.s.ts || {})[env.me] || {}).lifeGained || 0;
+  const hitBy = ((G.s.hitByName || {})[DB[(card(env.src.iid) || env.src).def].name]) || [];
+  const os = opponents(env.me).filter((o) => inGame(o) && hitBy.includes(o));
+  if (!gained || !os.length) return env.did.push('nobody loses life');
+  for (const o of os) changeLife(o, -gained);
+  env.did.push(`${os.length} opponent${os.length === 1 ? '' : 's'} lose ${gained} life`);
 }, { first: true });

@@ -898,6 +898,18 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever you tap ~ for mana, (.+)$/i))) { add('p:manaTapped', q[1], { pred: (c, ev) => ev.iid === c.iid }); continue; }
       // Deep Gnome Terramancer: "Whenever one or more lands enter under an opponent's control without being played"
       if ((q = line.match(/^Whenever one or more lands enter under an opponent's control without being played, (.+)$/i))) { add('p:enters', q[1], { pred: (c, ev) => { const x = card(ev.iid); if (!x || !isLand(x) || x.controller === c.controller) return false; if (G.s.lastLandPlay && G.s.lastLandPlay.iid === x.iid) return false; if (c.moldTurn === G.s.turn) return false; c.moldTurn = G.s.turn; return { thatPlayer: x.controller }; } }); continue; }
+      // Bandit's Haul: "Whenever you commit a crime"
+      if ((q = line.match(/^Whenever you commit a crime, (.+)$/i))) { add('p:crime', q[1], { pred: (c, ev) => ev.pid === c.controller }); continue; }
+      // Ironsoul Enforcer: "Whenever ~ or a commander you control attacks alone"
+      if ((q = line.match(/^Whenever ~ or a commander you control attacks alone, (.+)$/i))) { add('p:attacksAlone', q[1], { pred: (c, ev) => { const a = card(ev.iid); return !!a && a.controller === c.controller && (a.iid === c.iid || a.isCommander); } }); continue; }
+      // The Master, Mesmerist: "Whenever a creature with skulk deals combat damage to one of your opponents"
+      if ((q = line.match(/^Whenever a creature with ([a-z ]+) deals combat damage to one of your opponents, (.+)$/i))) { const kw = q[1].toLowerCase(); add('p:combatDamagePlayer', q[2], { pred: (c, ev) => { const a = card(ev.iid); return !!a && ev.player !== c.controller && opponents(c.controller).includes(ev.player) && hasKw(a, kw); } }); continue; }
+      // The Rani: "Whenever a goaded creature deals combat damage to one of your opponents"
+      if ((q = line.match(/^Whenever a goaded creature deals combat damage to one of your opponents, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => { const a = card(ev.iid); return !!a && opponents(c.controller).includes(ev.player) && isGoaded(a); } }); continue; }
+      // The Beast, Deathless Prince: "Whenever a creature deals combat damage to its owner"
+      if ((q = line.match(/^Whenever a creature deals combat damage to its owner, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => { const a = card(ev.iid); return !!a && a.owner === ev.player; } }); continue; }
+      // Siona: "Whenever an Aura you control becomes attached to a creature you control"
+      if ((q = line.match(/^Whenever an Aura you control becomes attached to a creature you control, (.+)$/i))) { add('p:enters', q[1], { pred: (c, ev) => { const x = card(ev.iid); if (!x || x.controller !== c.controller || !hasSubtype(x, 'Aura')) return false; const h = x.attachedTo && card(x.attachedTo); return !!h && isCreature(h) && h.controller === c.controller; } }); continue; }
       // Diamond Mare: "Whenever you cast a spell of the chosen color"
       if ((q = line.match(/^Whenever you cast a spell of the chosen color, (.+)$/i))) { add('p:cast', q[1], { pred: (c, ev) => ev.controller === c.controller && !!c.chosenColor && (DB[ev.def || (card(ev.iid) || {}).def] || { colors: [] }).colors.includes(c.chosenColor) }); continue; }
       // Staff of the Sun Magus: "Whenever you cast a white spell or a Plains you control enters"
@@ -2588,6 +2600,8 @@ export async function settle() {
       if (!ev) continue;
       if (G.s !== s0) break;
       if (await specialEvent(ev)) continue;
+      // Electric Seaweed: "until end of turn, whenever another creature dies, ~ deals 1 damage to each non-Wall creature"
+      if (ev.type === 'dies') for (const sw of (G.s.seaweed || []).filter((x) => x.turn === G.s.turn && x.iid !== ev.iid)) { const src = card(sw.iid); if (!src || src.zone !== 'battlefield') continue; const { damagePermanent } = await import('./effects.js'); for (const k of seats()) for (const x of cardsIn(k, 'battlefield')) if (isCreature(x) && !hasSubtype(x, 'Wall')) damagePermanent({ me: sw.pid, did: [] }, src, x, 1); log(sw.pid, `${nameTag(src)} deals 1 damage to each non-Wall creature.`); stateBased(); }
       // Infested Thrinax: "until end of turn, whenever a nontoken creature you control dies, create … Saprolings equal to that creature's power"
       if (ev.type === 'dies' && !ev.token) for (const tx of (G.s.thrinax || []).filter((x) => x.turn === G.s.turn && x.pid === ev.controller)) { const k = Math.max(0, ev.power || 0); if (k) { createToken(genericTokenDef(1, 1, 'Saproling', ['G']), tx.pid, k); log(tx.pid, `Infested Thrinax: ${k} Saproling${k === 1 ? '' : 's'}.`); } }
       // Together Forever: "When that creature dies this turn, return that card to its owner's hand."

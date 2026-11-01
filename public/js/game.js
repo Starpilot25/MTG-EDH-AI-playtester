@@ -1205,6 +1205,7 @@ function fireAttacks(attackers, controller, defender) {
       const a = card(iid);
       a.attackedTurn = G.s.turn;
       if (a.token && G.s.ts[controller]) G.s.ts[controller].tokenAttacked = true; // Neyali
+      if (a.isCommander && G.s.ts[controller]) G.s.ts[controller].cmdAttacked = true; // Neriv
       { const al = (G.s.attackLog = G.s.attackLog || {}); if (!al[controller] || al[controller].turn !== G.s.turn) al[controller] = { turn: G.s.turn, targets: [] }; if (!al[controller].targets.includes(defOf(iid))) al[controller].targets.push(defOf(iid)); } // O-Kagachi
       const n = (G.s.combatNo || {})[controller] || 0;
       if (!a.attackLog || a.attackLog.n !== n) a.attackLog = { n, players: [] };
@@ -1328,6 +1329,8 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
         if (card(ev.from)) (G.s.ts[victim].combatDmgFromTypes = G.s.ts[victim].combatDmgFromTypes || []).push(typeLine(card(ev.from)));
       }
       if (card(ev.from)) card(ev.from).dmgPlayerTurn = G.s.turn;
+      // Gollum, Obsessed Stalker: "each opponent dealt combat damage this game by a creature named …"
+      if (card(ev.from)) { const nm = DB[card(ev.from).def].name; s.hitByName = s.hitByName || {}; s.hitByName[nm] = [...new Set([...(s.hitByName[nm] || []), victim])]; }
       if (s.rebuke && s.rebuke.some((x) => x.turn === s.turn && x.pid === victim)) import('./effects.js').then((m) => m.rebukeCheck(card(ev.from), victim));
       // toxic N / poisonous N: extra poison on top of the damage
       const o = oracle(src);
