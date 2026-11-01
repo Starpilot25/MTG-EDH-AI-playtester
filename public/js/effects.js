@@ -160,6 +160,7 @@ export function spellText(c) {
     .split('\n')
     .filter((l) => !/^(?:When|Whenever|At)\b[^\n]*\b(?:return|put|exile) (?:~|this card) from your graveyard\b/i.test(l.trim()))
     .filter((l) => !/^[A-Z][A-Za-z' ]{1,30} — (?:This spell|~) costs\b/.test(l.trim())) // Own the Day: "Battlefront — This spell costs {1} less …"
+    .filter((l) => !/^(?:\{[^}]+\}(?:, )?)*,? ?Discard (?:~|this card): /i.test(l.trim())) // Magma Opus: its hand ability isn't part of the spell
     .filter((l) => l.trim() && !KEYWORD_LINE.test(l.trim()) && !/^If [^,\n]+, you may pay (?:\{[^}]+\})+ rather than pay/.test(l.trim()) && !/^(As an additional cost|[A-Z][A-Za-z ]+ \d+ — When you cast|You may pay [^.]* rather than pay|You may [^.]* rather than pay (?:this spell's|~'s) mana cost|This spell costs|~ costs|You may cast ~|Spend only|This spell can't be countered|~ can't be countered|When you cast ~|When you cycle ~|Split second|Cast ~ only|Cast this spell only|Strive|Kicker|Flash$)/i.test(l.trim()))
     .join('\n');
 }
@@ -286,14 +287,16 @@ export function activatedAbilities(c) {
       costText: cost,
       text: unjoin(m[2]),
       raw: line,
-      sorcery: /Activate only as a sorcery/i.test(m[2]),
+      sorcery: /Activate only as a sorcery|only your opponents may activate this ability and only as a sorcery/i.test(m[2]),
       once: /Activate only once each turn|Activate this ability only once each turn|and only once each turn/i.test(m[2]) || /^\s*Exhaust\b/i.test(raw),
       exhaust: /^\s*Exhaust\b/i.test(raw),
     });
     // Baru, Wurmspeaker: "This ability costs {X} less to activate, where X is the greatest power among Wurms you control."
     const ab = out[out.length - 1];
-    const red = ab.text.match(/\s*This ability costs \{(X|\d+)\} less to activate(?:, where X is ([^.]+)| for each ([^.]+))?\.?/i);
-    if (red) {
+    const red = ab.text.match(/\s*This ability costs \{(X|\d+)\} less to activate(?:, where X is ([^.]+)| for each ([^.]+)| if ([^.]+))?\.?/i);
+    // Razorlash Transmogrant: "This ability costs {4} less to activate if an opponent controls four or more nonbasic lands."
+    if (red && red[4]) { ab.text = ab.text.replace(red[0], '').trim(); let ok = false; try { ok = !!(G.s && c.controller && evalCond(red[4].toLowerCase(), { me: c.owner || c.controller, src: c })); } catch (e) { ok = false; } if (!ok) red.length = 0; else red[4] = undefined; }
+    if (red && red.length) {
       ab.text = ab.text.replace(red[0], '').trim();
       // Tamiyo's Logbook: "costs {1} less to activate for each other artifact you control"
       const each = red[3] ? (G.s && c.controller ? countPhrase(c.controller, red[3].replace(/^other ([a-z]+) you control$/, (x, w) => `other ${w}s you control`), helpers, c.iid) || 0 : 0) : null;
@@ -803,6 +806,8 @@ export function evalCond(cond, env) {
   { const lc = String(cond).trim().toLowerCase(); let q;
     // Chainer, Nightmare Adept: "if you didn't cast it from your hand"
     if ((q = lc.match(/^you (did|didn't) cast (?:it|that creature) from your hand$/))) { const c = env.it && card(env.it.iid); if (!c) return null; const fromHand = c.castFrom === 'hand' && c.castTurn === G.s.turn; return q[1] === 'did' ? fromHand : !fromHand; }
+    // Razorlash Transmogrant: "an opponent controls four or more nonbasic lands"
+    if ((q = lc.match(/^an opponent controls (\w+) or more nonbasic lands$/))) return opponents(env.me).some((o) => cardsIn(o, 'battlefield').filter((c) => isLand(c) && !/\bBasic\b/.test(typeLine(c))).length >= n(q[1]));
     // Mindbreak Trap: "an opponent cast three or more spells this turn"
     if ((q = lc.match(/^an opponent cast (\w+) or more spells this turn$/))) return opponents(env.me).some((o) => ((G.s.ts && G.s.ts[o] && G.s.ts[o].spells) || 0) >= n(q[1]));
     // Liberator: "the amount of mana spent to cast that spell is greater than ~'s power"
@@ -14338,7 +14343,7 @@ async function runSentence(sentence, env) {
     return runSentence(s.slice(s.indexOf(',', m[1].length + 2) + 1).replace(/ instead$/i, '').trim(), env) || (instead ? undefined : undefined);
   }
   // "Draw a card if it was attacking." — a trailing condition the engine can check
-  if ((m = low.match(/^(.+?) if (.+)$/)) && !/^(?:counter|destroy|exile|return|you may)\b/.test(low)) {
+  if ((m = low.match(/^(.+?) if (.+)$/)) && !/^(?:counter|destroy|exile|return|you may)\b/.test(low) && !(/\. if /.test(low) && H.some((h) => h.multi && !h.never && h.re.test(low)))) {
     let c = null;
     try {
       c = evalCond(m[2], env);
@@ -14451,9 +14456,13 @@ async function runSentence(sentence, env) {
     if (!mm) continue;
     if (h.skipIf && h.skipIf.test(low)) continue;
     const before = env.did.length;
+    // Baral, Chief of Compliance: notice when this sentence counters a spell
+    const cBefore = [G.s.stack, G.s.pstack].map((x) => !!(x && x.countered && !x.ability));
+    const cIids = (G.s.counteredIids || []).length;
     // a handler can pass (return 'pass') to let the next one that matches take the sentence
     if ((await h.run(mm, env, s)) === 'pass') continue;
     matched = true;
+    if (/\bcounter\b/.test(low) && ([G.s.stack, G.s.pstack].some((x, i) => x && x.countered && !x.ability && !cBefore[i]) || (G.s.counteredIids || []).length > cIids)) queueEvent({ type: 'counteredSpell', pid: env.me });
     if (h.consumesRest) return 'rest';
     void before;
     break;
@@ -18296,3 +18305,93 @@ function skipNextUntapTurn(c) {
   if (!multiplayer()) return G.s.turn + (c.controller === G.s.active ? 3 : 2);
   return nextTurnNumber(c.controller) + 1;
 }
+
+on(/^only your opponents may activate this ability(?: and only as a sorcery)?$/, async () => {}, { first: true });
+// Oft-Nabbed Goat: "Gain control of this creature and put a -1/-1 counter on it."
+on(/^gain control of (?:~|this creature) and put an? ([+-]\d+\/[+-]\d+) counter on it$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  if (!c || c.zone !== 'battlefield') return;
+  if (c.controller !== env.me) { move(c.iid, 'battlefield', { controller: env.me }); c.zone = 'battlefield'; }
+  addCounters(c, m[1], 1);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'gain')} control of ${nameTag(c)} and ${s_(env.me, 'put')} a ${m[1]} counter on it`);
+}, { first: true });
+
+// Queen's Diamond, Astral Cornucopia: "Choose a color. Add one mana of that color for each charge counter on ~."
+on(/^choose a colou?r\. add one mana of that colou?r for each ([a-z]+) counter on ~(?:\. spend this mana only to cast your commander)?$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const k = me ? (me.counters || {})[m[1]] || 0 : 0;
+  const names = ['white', 'blue', 'black', 'red', 'green'];
+  // the AI picks the color its hand (or commander) needs most
+  const want = (col) => [...cardsIn(env.me, 'hand'), ...cardsIn(env.me, 'command')].reduce((a, c) => a + ((DB[c.def].manaCost || '').match(new RegExp(`\\{${col}\\}`, 'g')) || []).length, 0);
+  const sc = names.map((w) => want(COLOR_WORD[w]));
+  const i = await env.choosers[env.me].choose({ prompt: `${cardName(env.src)}: choose a color`, options: names.map((x) => ({ label: x })), aiPick: () => sc.indexOf(Math.max(...sc)) });
+  const col = COLOR_WORD[names[i] || 'white'];
+  addMana(env.me, Array(k).fill(col));
+  env.did.push(`adds ${k} {${col}}`);
+}, { first: true, multi: true });
+
+// Ib Halfheart: "sacrifice it. If you do, it deals 4 damage to each creature blocking it."
+on(/^sacrifice it\. if you do, it deals (\d+) damage to each creature blocking it$/, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  if (!c || c.zone !== 'battlefield') return;
+  const blockers = (((G.s.combat && G.s.combat.blocks) || {})[c.iid] || []).map(card).filter(Boolean);
+  const snap = { ...c };
+  sacrifice(c.iid);
+  for (const b of blockers) if (b.zone === 'battlefield') damagePermanent(env, snap, b, +m[1]);
+  env.did.push(`sacrifices ${nameTag(snap)}; ${m[1]} damage to ${blockers.length} blocker${blockers.length === 1 ? '' : 's'}`);
+}, { first: true, multi: true });
+
+// Yedora, Grave Gardener: "return it to the battlefield face down under its owner's control. It's a Forest land."
+on(/^return it to the battlefield face down under its owner's control\. it's a forest land$/, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  if (!c || c.zone !== 'graveyard') return env.did.push('the card is no longer in the graveyard');
+  toBattlefield(c.iid, c.owner, { faceDown: true });
+  const x = card(c.iid);
+  if (!x) return;
+  x.faceDown = true;
+  x.faceDownTypes = 'Land — Forest';
+  G.s.bfv = (G.s.bfv || 0) + 1;
+  env.did.push('returns it face down as a Forest');
+}, { first: true, multi: true });
+
+// Zygon Infiltrator: "Tap another target creature and put a stun counter on it. This creature becomes a copy of that creature for as long as that creature remains tapped."
+on(/^tap another target creature and put a stun counter on it\. (?:this creature|~) becomes a copy of that creature for as long as that creature remains tapped$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const [t] = await objects(env, 'another target creature', { harm: true, aiScore: (c) => (c.controller === env.me ? -10 : cardValue(c)) });
+  if (!t || !me) return;
+  tapPerm(t);
+  addCounters(t, 'stun', 1);
+  if (!me.origDef) { me.origDef = me.def; me.origFace = me.face || 0; }
+  me.def = t.def;
+  me.face = t.face || 0;
+  me.copyWhileTapped = t.iid;
+  G.s.bfv = (G.s.bfv || 0) + 1;
+  env.did.push(`taps ${nameTag(t)} (stun counter); becomes a copy of it while it stays tapped`);
+}, { first: true, multi: true });
+// The Flood of Mars
+on(/^put a flood counter on another target creature or land\. if it's a creature, it becomes a copy of (?:this creature|~)\. if it's a land, it becomes an island in addition to its other types$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const [t] = await objects(env, 'another target creature or land', { harm: true, aiScore: (c) => (c.controller === env.me ? -10 : cardValue(c) + (isCreature(c) ? 3 : 0)) });
+  if (!t || !me) return;
+  addCounters(t, 'flood', 1);
+  if (isCreature(t)) {
+    if (!t.origDef) { t.origDef = t.def; t.origFace = t.face || 0; }
+    t.def = me.origDef || me.def;
+    t.face = 0;
+    env.did.push(`${nameTag(t)} becomes a copy of ${cardName(me)}`);
+  } else if (isLand(t)) {
+    addLayerFx(t, { until: true, types: { subAdd: 'Island' } });
+    env.did.push(`${nameTag(t)} becomes an Island in addition to its other types`);
+  }
+  G.s.bfv = (G.s.bfv || 0) + 1;
+}, { first: true, multi: true });
+// The Master, Gallifrey's End: "choose an opponent with the most life among your opponents"
+on(/^choose an opponent with the most life among your opponents$/, async (m, env) => {
+  const os = opponents(env.me).filter(inGame);
+  if (!os.length) return;
+  const top = Math.max(...os.map((o) => G.s.players[o].life));
+  const ps = os.filter((o) => G.s.players[o].life === top);
+  const k = ps.length === 1 ? 0 : await env.choosers[env.me].choose({ prompt: 'Choose an opponent with the most life', options: ps.map((x) => ({ label: seatName(x) })), aiPick: () => 0 });
+  env.thatPlayer = ps[k] || ps[0];
+  env.did.push(`chooses ${seatName(env.thatPlayer)}`);
+}, { first: true });

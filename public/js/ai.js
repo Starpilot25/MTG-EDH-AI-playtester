@@ -1133,6 +1133,23 @@ async function upgrades(h) {
 // Spend leftover mana on simple activated abilities (draw, transform, tokens, counters).
 async function useAbilities(h) {
   const s0 = G.s;
+  // Oft-Nabbed Goat: an opponent's permanent whose ability only its opponents may activate (draw a card, take the Goat)
+  if (G.s.active === AI && /main/.test(G.s.step) && !G.s.stack) {
+    for (const c of FOES().flatMap((o) => cardsIn(o, 'battlefield'))) {
+      if (G.s !== s0) return;
+      for (const ab of activatedAbilities(c)) {
+        if (!/Only your opponents may activate this ability/i.test(ab.raw || ab.text || '')) continue;
+        if (ab.mana && !payCost(ab.mana, sources(AI))) continue;
+        c.aiNabTurn = c.aiNabTurn || {};
+        if (c.aiNabTurn[AI] === G.s.turn) continue;
+        c.aiNabTurn[AI] = G.s.turn;
+        await safely(h, () => activateAbility(AI, c, ab, aiEnv(h)));
+        h.render();
+        await h.wait(G.settings.aiSpeed);
+        break;
+      }
+    }
+  }
   for (const c of cardsIn(AI, 'battlefield')) {
     if (G.s !== s0) return;
     // Currency Converter & co.: cash in cards exiled with it before using its other {T} ability

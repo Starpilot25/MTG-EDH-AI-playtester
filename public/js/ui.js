@@ -2620,6 +2620,14 @@ function menuForCard(c, x, y) {
       items.push({ label: G.s.combat.attackers.includes(c.iid) ? 'Remove from attack' : 'Attack with this', fn: () => toggleAttacker(c.iid) });
     items.push('-');
   }
+  // Oft-Nabbed Goat: "Only your opponents may activate this ability"
+  if (c.zone === 'battlefield' && !mine && G.settings.arenaMode) {
+    for (const ab of activatedAbilities(c)) {
+      if (!/Only your opponents may activate this ability/i.test(ab.raw || ab.text || '')) continue;
+      const lab = `${ab.costText || ab.mana || ''}: ${(ab.text || '').replace(/\s*Only your opponents may activate this ability[^.]*\./i, '')}`;
+      items.push({ label: `<span class="ab">${esc(lab.length > 70 ? lab.slice(0, 68) + '…' : lab)}</span>`, fn: () => activate(c, ab) });
+    }
+  }
   if ((mine || c.mayPlay === 'p' || c.mayPlayFree === 'p' || c.mayCastFromGy === 'p') && (['hand', 'command', 'graveyard', 'exile'].includes(c.zone) || (c.zone === 'library' && isLibraryTop('p', c))) && G.settings.arenaMode) {
     const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p') && (!c.playIfTokenAttacked || (G.s.ts.p || {}).tokenAttacked)) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) || (c.zone === 'graveyard' && c.owner === 'p' && gyLandsOk('p')) ? landOptions('p', c) : [];
     for (const l of lands) items.push({ label: esc(l.label), fn: () => castByPlayer(c.iid, { option: { ...l, land: true } }) });

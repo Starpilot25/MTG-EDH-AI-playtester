@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.194",
+    "title": "Temple of the False God, Heraldic Banner and more",
+    "notes": [
+      "Temple of the False God only taps for mana once you control five or more lands.",
+      "Heraldic Banner taps only for the color you chose.",
+      "Oft-Nabbed Goat: opponents can use its ability (right-click the Goat on their side of the board); its owner can't. The AI uses it on yours.",
+      "Also fixed: Queen's Diamond, Astral Cornucopia, Magma Opus (its discard ability no longer shows up when the spell resolves), Razorlash Transmogrant's cost reduction, Baral, Ib Halfheart, Breena, Yedora (face-down Forests that tap for {G}), Zygon Infiltrator, The Flood of Mars, The Master."
+    ]
+  },
+  {
     "version": "1.3.193",
     "title": "Preset-deck card fixes",
     "notes": [

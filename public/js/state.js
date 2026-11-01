@@ -468,7 +468,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['voidCounter', 'harnessed', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['voidCounter', 'harnessed', 'copyWhileTapped', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
@@ -1389,6 +1389,12 @@ export function sacrifice(iid) {
 // State-based actions
 export function stateBased() {
   const s = G.s;
+  // Zygon Infiltrator: "becomes a copy of that creature for as long as that creature remains tapped"
+  for (const c of Object.values(s.cards)) {
+    if (!c.copyWhileTapped || c.zone !== 'battlefield') continue;
+    const t = s.cards[c.copyWhileTapped];
+    if (!t || t.zone !== 'battlefield' || !t.tapped) { endCopy(c); delete c.copyWhileTapped; }
+  }
   // rule 704.5q: +1/+1 and -1/-1 counters on the same permanent cancel out, however they got there
   // (wither/infect damage, counters added by hand, delayed returns…)
   for (const c of Object.values(s.cards)) {

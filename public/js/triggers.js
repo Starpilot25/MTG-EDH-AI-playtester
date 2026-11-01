@@ -228,6 +228,8 @@ function parseTriggerText(text, speed) {
         add('p:tapped', q[1], { pred: (c, ev) => { const x = card(ev.iid); if (!x || x.controller !== c.controller || G.s.active !== c.controller || !isCreature(x)) return false; if (x.capFirstTap === G.s.turn) return false; x.capFirstTap = G.s.turn; return { it: { iid: x.iid } }; } });
         continue;
       }
+      // Baral, Chief of Compliance
+      if ((q = line.match(/^Whenever a spell or ability you control counters a spell, (.+)$/i))) { add('p:counteredSpell', q[1], { pred: (c, ev) => ev.pid === c.controller }); continue; }
       if (/^Whenever an ability of equipped creature is activated, if it isn't a mana ability, copy that ability\./i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; } // Illusionist's Bracers (cast.js abilityCopiers)
       if (/^Whenever you cast a noncreature spell that targets only ~, you may choose any number of other creatures that spell could target and pay \{2\} for each of those creatures\./i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
       // Mirrorwing Dragon / Zada: copied as the spell picks its target (effects.js pickTargets), not as a trigger
@@ -579,8 +581,8 @@ function parseTriggerText(text, speed) {
       add('combatDamagedMe', m[1], { monarch: true });
     else if ((m = line.match(/^Whenever ~ is dealt damage for the first time each turn, (.+)$/i)))
       add('dealtDamage', m[1], { self: true, oncePerTurn: true });
-    else if ((m = line.match(/^Whenever (?:a|an) ([A-Z][\w-]+) you control becomes blocked, (.+)$/)))
-      add('blocked', m[2], { anyOfMine: true, kind: m[1].toLowerCase() });
+    else if ((m = line.match(/^Whenever (another |)(?:an? )?([A-Z][\w-]+) you control becomes blocked, (.+)$/)))
+      add('blocked', m[3], { anyOfMine: true, kind: m[2].toLowerCase(), ...(m[1] ? { other: true } : {}) });
     else if ((m = line.match(/^Whenever (?:a|an) ((?:[\w-]+ )*?)creature you control (?:of the chosen type )?enters or attacks, (.+)$/i))) {
       const kind = /of the chosen type/i.test(line) ? 'chosen type' : m[1].trim().toLowerCase();
       add('attacks', m[2], { anyOfMine: true, kind, chosenType: kind === 'chosen type' });
@@ -1021,6 +1023,18 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever equipped creature attacks or blocks, (.+)$/i))) { add('attacks', q[1], { attachedTo: true }); add('p:blocks', q[1], { pred: (c, ev) => ev.iid === c.attachedTo && { it: { iid: ev.iid } } }); continue; }
       if ((q = line.match(/^Whenever a player attacks you(?: or a planeswalker you control)?, (.+)$/i))) { add('youAttack', q[1], { defend: true }); continue; }
       if ((q = line.match(/^Whenever a player attacks, (.+)$/i))) { add('youAttack', q[1], { anyAttacker: true }); continue; }
+      // Breena, the Demagogue
+      if (/^Whenever a player attacks one of your opponents, if that opponent has more life than another of your opponents, that attacking player draws a card and you put two \+1\/\+1 counters on a creature you control\.?$/i.test(line)) {
+        add('p:youAttack', 'Breena', { pred: (c, ev) => { const ds = P.defenders(ev).filter((d) => d !== c.controller && opponents(c.controller).includes(d) && d !== ev.controller); return ds.some((d) => opponents(c.controller).some((o) => o !== d && G.s.players[o] && !G.s.players[o].lost && G.s.players[o].life < G.s.players[d].life)) && { thatPlayer: ev.controller }; },
+          fn: async (ctx, hit, ev) => {
+            drawCards(ev.controller, 1, true);
+            const mine = cardsIn(hit.src.controller, 'battlefield').filter(isCreature);
+            const out = [`${seatName(ev.controller)} draws a card`];
+            if (mine.length) { const best = mine.slice().sort((a, b) => cardValue(b) - cardValue(a))[0]; const [p] = await (T.choosers[hit.src.controller] || T.choosers.p).pickCards({ prompt: 'Put two +1/+1 counters on a creature you control', cards: mine.map((x) => x.iid), min: 1, max: 1, forced: true, purpose: 'counters', src: hit.src, aiScore: (x) => (x.iid === best.iid ? 1 : 0) }); if (p && card(p)) { addCounters(card(p), '+1/+1', 2); out.push(`two +1/+1 counters on ${nameTag(card(p))}`); } }
+            return out;
+          } });
+        continue;
+      }
       if ((q = line.match(/^Whenever (a player|an opponent) attacks (one|one or more|another one) of your opponents, (.+)$/i))) {
         const oppOnly = q[1] === 'an opponent';
         const t = q[3];
@@ -2135,7 +2149,7 @@ function matches(ev) {
           return;
         }
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, thatPlayer: ev.defender, amount: (ev.blockers || []).length });
-        else if (trig.anyOfMine && card(ev.iid) && card(ev.iid).controller === c.controller && (!trig.kind || matchesFilter(card(ev.iid), trig.kind))) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid }, amount: (ev.blockers || []).length });
+        else if (trig.anyOfMine && card(ev.iid) && card(ev.iid).controller === c.controller && !(trig.other && c.iid === ev.iid) && (!trig.kind || matchesFilter(card(ev.iid), trig.kind))) out.push({ src: c, trig, thatPlayer: ev.defender, it: { iid: ev.iid }, amount: (ev.blockers || []).length });
       });
       break;
     case 'upkeep':

@@ -228,7 +228,7 @@ export const isLand = (i) => isType(i, 'Land');
 
 export function isCreature(i) {
   if (!i) return false;
-  if (i.faceDown) return true; // morph / manifest / disguise / cloak: a 2/2 creature
+  if (i.faceDown) return !i.faceDownTypes || /\bCreature\b/.test(i.faceDownTypes); // morph / manifest / disguise / cloak: a 2/2 creature (Yedora's face-down Forests aren't)
   if (i.bestowed && i.zone === 'battlefield') return false; // bestowed: an Aura until what it enchants leaves
   if (i.becameLand && i.zone === 'battlefield') return false; // Princess Yue as Moon
   if (i.impending && (i.counters || {}).time > 0) return false;
@@ -829,6 +829,8 @@ export function tapFodder(pid, kind, exclude = []) {
   return pool.sort((a, b) => busy(a) - busy(b) || power(a) - power(b));
 }
 export function manaAbility(inst) {
+  // Yedora, Grave Gardener: a face-down Forest land
+  if (inst.faceDown && inst.faceDownTypes && /\bLand\b/.test(inst.faceDownTypes)) { const cols = Object.entries(BASIC_COLOR).filter(([k]) => inst.faceDownTypes.includes(k)).map(([, v]) => v); return inst.tapped || inst.phasedOut || !cols.length ? null : { colors: cols, amount: 1 }; }
   if (inst.becameLand && inst.zone === 'battlefield') return inst.tapped || inst.phasedOut ? null : withExtraC(inst, { colors: ['C'], amount: 1 });
   if (blighted(inst)) return inst.tapped || inst.phasedOut ? null : withExtraC(inst, { colors: ['C'], amount: 1 });
   // an effect that gave it a mana ability (Imprisoned in the Moon: "{T}: Add {C}")
@@ -1106,6 +1108,25 @@ function manaAbilityRaw(inst) {
       const has = (t) => mine.some((x) => typeLine(x).toLowerCase().includes(t.toLowerCase().replace('power plant', 'power-plant')));
       const k = has(um[1]) && has(um[2]) ? (um[3].match(/\{C\}/g) || []).length : 1;
       return { colors: ['C'], amount: k };
+    }
+  }
+  // Temple of the False God: "{T}: Add {C}{C}. Activate only if you control five or more lands." (its only mana ability)
+  {
+    const tg = o.match(/(?:^|\n)\{T\}: Add ((?:\{[WUBRGC]\})+)\. Activate only if you control (\w+) or more lands\./i);
+    if (tg && (o.match(/\{T\}: Add/g) || []).length === 1) {
+      const lands = G.s ? G.s.players[inst.controller].zones.battlefield.filter((i) => G.s.cards[i] && isLand(G.s.cards[i])).length : 0;
+      const need = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8 }[tg[2].toLowerCase()] || +tg[2] || 5;
+      if (lands < need || inst.tapped || inst.phasedOut) return null;
+      const each = (tg[1].match(/\{([WUBRGC])\}/g) || []).map((x) => x[1]);
+      return { colors: [...new Set(each)], amount: each.length, each };
+    }
+  }
+  // Heraldic Banner, Gate to the Afterlife-likes: "{T}: Add one mana of the chosen color."
+  {
+    const cc = /(?:^|\n)\{T\}: Add one mana of the chosen color\./.test(o) && !/\{T\}: Add \{/.test(o);
+    if (cc && inst.chosenColor) {
+      if (inst.tapped || inst.phasedOut || (isCreature(inst) && inst.sick && !hasKw(inst, 'haste'))) return null;
+      return withExtraC(inst, { colors: [inst.chosenColor], amount: 1 });
     }
   }
   // Shrine of the Forsaken Gods: "{T}: Add {C}." plus "{T}: Add {C}{C}. Spend this mana only to cast colorless spells. Activate only if you control seven or more lands."

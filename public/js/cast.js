@@ -2117,6 +2117,7 @@ export async function activateAbility(pid, c, ab, env) {
   // generic activated ability
   if (ab.tap && (c.tapped || (!ab.ignoreSick && isCreature(c) && c.sick && !hasKw(c, 'haste')))) return env.say(`${name} can't tap right now.`);
   if (ab.untap && !c.tapped) return env.say(`${name} must be tapped.`);
+  if (/Only your opponents may activate this ability/i.test(ab.raw || ab.text || '') && pid === c.controller) return env.say('Only your opponents may activate that ability.'); // Oft-Nabbed Goat
   if (ab.sorcery && !(s.active === pid && (s.step === 'main1' || s.step === 'main2'))) return env.say('Activate only as a sorcery.');
   // "Activate only if you control a legendary creature." (Rivendell, Inventors' Fair, Cephalid Coliseum, Barad-dûr …)
   { const oi = (ab.raw || ab.text || '').match(/Activate only (?:as a sorcery and only |during your turn and only )?if ([^.]+)\./i);
