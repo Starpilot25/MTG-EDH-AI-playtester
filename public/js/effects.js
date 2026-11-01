@@ -287,7 +287,7 @@ export function activatedAbilities(c) {
       text: unjoin(m[2]),
       raw: line,
       sorcery: /Activate only as a sorcery/i.test(m[2]),
-      once: /Activate only once each turn|Activate this ability only once each turn/i.test(m[2]) || /^\s*Exhaust\b/i.test(raw),
+      once: /Activate only once each turn|Activate this ability only once each turn|and only once each turn/i.test(m[2]) || /^\s*Exhaust\b/i.test(raw),
       exhaust: /^\s*Exhaust\b/i.test(raw),
     });
     // Baru, Wurmspeaker: "This ability costs {X} less to activate, where X is the greatest power among Wurms you control."
@@ -16972,11 +16972,13 @@ on(/^each opponent chooses a permanent they control of each permanent type and s
   }
 }, { first: true });
 // Jace, Wielder of Mysteries −8
-on(/^(?:then )?if your library has no cards in it, you win the game$/, async (m, env) => {
+const emptyLibWin = async (m, env) => {
   if (zoneOf(env.me, 'library').length) return;
   winGame(env.me, nameTag(env.src));
   env.did.push('wins the game');
-}, { first: true });
+};
+on(/^if your library has no cards in it, you win the game$/, emptyLibWin, { first: true });
+on(/^then if your library has no cards in it, you win the game$/, emptyLibWin, { first: true });
 // Resplendent Angel / "Until end of turn, ~ gets +N/+N and gains …"
 on(/^until end of turn, ~ gets \+(\d+)\/\+(\d+) and gains ([a-z ,]+)$/, async (m, env) => {
   const c = env.src && card(env.src.iid);
@@ -17608,4 +17610,102 @@ on(/^choose a colou?r$/, async (m, env) => {
   env.chosenColorWord = names[k] || 'black';
   env.chosenColor = COLOR_WORD[env.chosenColorWord];
   env.did.push(`chooses ${env.chosenColorWord}`);
+}, { first: true });
+
+// activation restrictions are checked before paying (cast.js); as text they do nothing
+on(/^activate only (?:as a sorcery and only |during your turn and only )?if .+$/, async () => {}, { first: true });
+on(/^activate only during your turn(?: and only once each turn)?$/, async () => {}, { first: true });
+on(/^activate only as an instant$/, async () => {}, { first: true });
+on(/^spend only mana of the chosen colou?r to activate this ability$/, async () => {}, { first: true });
+
+// Nykthos, Three Tree City, Nyx Lotus: "Choose a color. Add an amount of mana of that color equal to …"
+const amountForColor = (env, what, w) => {
+  const ph = what.replace(/that colou?r/g, w);
+  if (/^the number of creatures you control of the chosen type$/.test(ph)) {
+    const src = env.src && card(env.src.iid);
+    const ty = src && src.chosenType;
+    return ty ? cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && hasSubtype(c, ty)).length : 0;
+  }
+  return countPhrase(env.me, ph, helpers, env.src && env.src.iid) || 0;
+};
+on(/^choose a colou?r\. add an amount of mana of that colou?r equal to (.+)$/, async (m, env) => {
+  const names = ['white', 'blue', 'black', 'red', 'green'];
+  const vals = names.map((w) => amountForColor(env, m[1], w));
+  const k = await env.choosers[env.me].choose({ prompt: `${cardName(env.src)}: choose a color`, options: names.map((x, i) => ({ label: `${x} (${vals[i]})` })), aiPick: () => vals.indexOf(Math.max(...vals)) });
+  const w = names[k] || 'white';
+  addMana(env.me, Array(vals[k] || 0).fill(COLOR_WORD[w]));
+  env.did.push(`adds ${vals[k] || 0} ${w} mana`);
+}, { first: true, multi: true });
+on(/^add an amount of mana of that colou?r equal to (.+)$/, async (m, env) => {
+  const w = env.chosenColorWord || 'green';
+  const v = amountForColor(env, m[1], w);
+  addMana(env.me, Array(v).fill(COLOR_WORD[w]));
+  env.did.push(`adds ${v} ${w} mana`);
+}, { first: true });
+
+// Final Fortune / Last Chance: the extra turn's end step loses the game
+on(/^at the beginning of that turn's end step, you lose the game$/, async (m, env) => {
+  G.s.delayed.push({ at: 'endStep', kind: 'loseGame', pid: env.me, whoseEnd: env.me, afterTurn: G.s.turn, src: env.src && env.src.iid, why: cardName(env.src) });
+  env.did.push('loses the game at the end of that turn');
+}, { first: true });
+// Angel's Grace
+on(/^you can't lose the game this turn and your opponents can't win the game this turn$/, async (m, env) => {
+  G.s.players[env.me].cantLoseTurn = G.s.turn;
+  env.did.push("can't lose the game this turn");
+}, { first: true });
+on(/^until end of turn, damage that would reduce your life total to less than 1 reduces it to 1 instead$/, async (m, env) => {
+  G.s.players[env.me].lifeFloorTurn = G.s.turn;
+  env.did.push("life can't go below 1 from damage this turn");
+}, { first: true });
+
+// Hoarding Broodlord: "For as long as that card remains exiled, you may play it."
+on(/^for as long as that card remains exiled, you may play it$/, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  if (!c || c.zone !== 'exile') return;
+  grantPlay([c.iid], env.me, { hidden: !!c.faceDown });
+  env.did.push('may play the exiled card');
+}, { first: true });
+// Tergrid: "you may put that card from a graveyard onto the battlefield under your control"
+on(/^put that card from a graveyard onto the battlefield under your control$/, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  if (!c || c.zone !== 'graveyard') return env.did.push('the card is no longer in a graveyard');
+  toBattlefield(c.iid, env.me);
+  env.did.push(`puts ${nameTag(c)} onto the battlefield under ${env.me === 'p' ? 'your' : 'its'} control`);
+}, { first: true });
+
+// Kambal, Profiteering Mayor
+on(/^for each of them, create a tapped token that's a copy of it$/, async (m, env) => {
+  const ids = (env.them_ && env.them_.length ? env.them_ : env.it ? [env.it.iid] : []).filter((i) => card(i));
+  for (const i of ids) {
+    const c = card(i);
+    const [t] = createToken(c.def, env.me, 1);
+    if (card(t)) { card(t).face = c.face || 0; card(t).tapped = true; }
+  }
+  env.did.push(`copies ${ids.length} token${ids.length === 1 ? '' : 's'}`);
+}, { first: true });
+// Hedge Shredder: "put them onto the battlefield tapped"
+on(/^put them onto the battlefield tapped$/, async (m, env) => {
+  const ids = (env.them_ || env.milled || []).filter((i) => card(i) && card(i).zone === 'graveyard');
+  for (const i of ids) { toBattlefield(i, env.me); if (card(i)) card(i).tapped = true; }
+  env.did.push(`puts ${ids.length} land${ids.length === 1 ? '' : 's'} onto the battlefield tapped`);
+}, { first: true });
+
+// Hoarding Broodlord: "search your library for a card, exile it face down, then shuffle. For as long as that card remains exiled, you may play it."
+on(/^search your library for a card, exile it face down, then shuffle(?:\. for as long as that card remains exiled, you may play it)?$/, async (m, env) => {
+  const lib = zoneOf(env.me, 'library').map(card);
+  if (!lib.length) return;
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Search for a card to exile face down', cards: lib.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'tutor', src: env.src, aiScore: (c) => cardValue(c) });
+  move(p, 'exile');
+  Object.assign(card(p), { faceDown: true });
+  if (/you may play it/.test(m[0])) grantPlay([p], env.me, { hidden: true });
+  else card(p).hiddenExile = env.me;
+  env.it = { iid: p };
+  shuffle(env.me);
+  env.did.push('exiles a card face down');
+}, { first: true, multi: true });
+
+// Emergence Zone, Alchemist's Refuge, Borne Upon a Wind
+on(/^(?:you may )?cast spells this turn as though they had flash$/, async (m, env) => {
+  G.s.flashTurn = { ...(G.s.flashTurn || {}), [env.me]: G.s.turn };
+  env.did.push('may cast spells this turn as though they had flash');
 }, { first: true });

@@ -615,6 +615,7 @@ export function timingOk(pid, c, opt) {
   if (s.noSpellsUntil && s.noSpellsUntil[pid] > s.turn) return false; // Innocuous Researcher
   if (s.noCreatureSpellsUntil && s.noCreatureSpellsUntil >= s.turn && /\b(?:Creature|Planeswalker)\b/.test(((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '').split('—')[0])) return false; // Single Combat
   if (s.flashNext && s.flashNext[pid] === s.turn && !opt.sorcery) return true; // Ride the Avalanche
+  if (s.flashTurn && s.flashTurn[pid] === s.turn && !opt.sorcery) return true; // Emergence Zone, Alchemist's Refuge, Borne Upon a Wind
   if (s.sorceryFlash && (s.sorceryFlash[pid] || 0) >= s.turn && /\bSorcery\b/.test((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '')) return true; // Teferi, Time Raveler +1
   const d = DB[c.def];
   const f = d.faces[opt.face || 0] || d.faces[0];
@@ -2096,6 +2097,10 @@ export async function activateAbility(pid, c, ab, env) {
   if (ab.tap && (c.tapped || (!ab.ignoreSick && isCreature(c) && c.sick && !hasKw(c, 'haste')))) return env.say(`${name} can't tap right now.`);
   if (ab.untap && !c.tapped) return env.say(`${name} must be tapped.`);
   if (ab.sorcery && !(s.active === pid && (s.step === 'main1' || s.step === 'main2'))) return env.say('Activate only as a sorcery.');
+  // "Activate only if you control a legendary creature." (Rivendell, Inventors' Fair, Cephalid Coliseum, Barad-dûr …)
+  { const oi = (ab.raw || ab.text || '').match(/Activate only (?:as a sorcery and only |during your turn and only )?if ([^.]+)\./i);
+    if (oi && evalCond(oi[1], { me: pid, src: c, choosers: env.choosers }) === false) return env.say(`Activate only if ${oi[1].replace(/~/g, name)}.`); }
+  if (/Activate only during your turn/i.test(ab.raw || ab.text || '') && s.active !== pid) return env.say('Activate only during your turn.');
   c.usedAbilities = c.usedAbilities || {};
   if (ab.once && c.usedAbilities[ab.raw] === (ab.exhaust ? 'ever' : s.turn)) return env.say('Already used.');
   const lifeCost = ab.payLife === 'identity' ? identityColors(pid) : +ab.payLife || 0;

@@ -745,6 +745,8 @@ function parseTriggerText(text, speed) {
       // Ghost-Spider
       add('landfall', m[1], { playedFrom: 'exile' });
       add('cast', m[1], { spell: '', mine: true, from: 'exile' });
+    } else if ((m = line.match(/^When(?:ever)? you play another land, (.+)$/i))) {
+      add('landfall', m[1], { playedFrom: 'any', otherLand: true }); // City of Traitors
     } else if ((m = line.match(/^Whenever you play a land from (exile|your graveyard), (.+)$/i)))
       add('landfall', m[2], { playedFrom: m[1].toLowerCase() === 'exile' ? 'exile' : 'graveyard' });
     else if ((m = line.match(/^Whenever a land (?:you control enters|enters(?: the battlefield)? under your control)[^,]*, (.+)$/i)))
@@ -2181,7 +2183,8 @@ function matches(ev) {
     case 'landfall':
       each((c, trig) => trig.event === 'landfall' && trig.theirs && c.controller !== ev.controller && G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: ev.controller }));
       each((c, trig) => trig.event === 'landfall' && !trig.theirs && c.controller === ev.controller
-        && (!trig.playedFrom || (G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && (trig.playedFrom === 'notHand' ? G.s.lastLandPlay.from !== 'hand' : G.s.lastLandPlay.from === trig.playedFrom)))
+        && (!trig.playedFrom || (G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && (trig.playedFrom === 'any' || (trig.playedFrom === 'notHand' ? G.s.lastLandPlay.from !== 'hand' : G.s.lastLandPlay.from === trig.playedFrom))))
+        && (!trig.otherLand || ev.iid !== c.iid)
         && (!trig.enteredFrom || (trig.enteredFrom === 'notHand' ? ev.from !== 'hand' : ev.from === trig.enteredFrom))
         && out.push({ src: c, trig, it: { iid: ev.iid } }));
       break;

@@ -1163,6 +1163,8 @@ export function changeLife(pid, delta, reason) {
     const dbl = cardsIn(pid, 'battlefield').filter((c) => !c.phasedOut && /If you would gain life, you gain twice that much life instead/i.test(oracle(c))).length;
     delta *= 2 ** dbl;
   }
+  // Angel's Grace: "damage that would reduce your life total to less than 1 reduces it to 1 instead"
+  if (delta < 0 && G.s && G.s.damageNow && G.s.players[pid].lifeFloorTurn === G.s.turn) delta = Math.max(delta, Math.min(0, 1 - G.s.players[pid].life));
   setLife(pid, G.s.players[pid].life + delta, reason);
 }
 

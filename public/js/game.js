@@ -452,8 +452,10 @@ async function endStepThings(pid) {
       if (card(c.iid)) card(c.iid).warped = true;
     }
   }
-  for (const d of s.delayed.filter((x) => x.at === 'endStep' && (!x.whoseEnd || x.whoseEnd === s.active))) {
+  for (const d of s.delayed.filter((x) => x.at === 'endStep' && (!x.whoseEnd || x.whoseEnd === s.active) && (!x.afterTurn || s.turn > x.afterTurn))) {
     s.delayed.splice(s.delayed.indexOf(d), 1);
+    // Final Fortune: "At the beginning of that turn's end step, you lose the game."
+    if (d.kind === 'loseGame') { log(d.pid, `${nameTag(card(d.src) || { def: null })} — ${d.pid === 'p' ? 'you lose' : seatName(d.pid) + ' loses'} the game.`); loseGame(d.pid, d.why); continue; }
     // Synthetic Destiny: reveal until that many creature cards, put them onto the battlefield
     if (d.kind === 'revealCreatures') {
       const { revealCreaturesOnto } = await import('./effects.js');

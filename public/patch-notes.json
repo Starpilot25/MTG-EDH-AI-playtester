@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.190",
+    "title": "Most-played Commander cards, part 2",
+    "notes": [
+      "Fixed more of the most-played Commander cards: Nykthos, Nyx Lotus, Three Tree City, Final Fortune, Angel's Grace, City of Traitors, Hedge Shredder, Kambal Profiteering Mayor, Tergrid, Hoarding Broodlord, Jace Wielder of Mysteries, Rivendell, Inventors' Fair, Shifting Woodland, Minas Tirith, Cephalid Coliseum, Weathered Wayfarer, Barad-dûr, Matzalantli, Urabrask, Vivi Ornitier, Lion's Eye Diamond, Throne of Eldraine, Emergence Zone, Alchemist's Refuge, Borne Upon a Wind.",
+      "\"Activate only if …\" restrictions (Rivendell, Inventors' Fair, Cephalid Coliseum and similar) are now checked before you pay, and abilities limited to your turn can't be used on an opponent's turn.",
+      "Angel's Grace's life floor applies to damage only, as printed."
+    ]
+  },
+  {
     "version": "1.3.189",
     "title": "Most-played Commander cards, part 1",
     "notes": [
