@@ -496,6 +496,8 @@ export function move(iid, zone, opts = {}) {
   if (fromZone === 'battlefield' && zone === 'graveyard' && /\bCurse\b/.test(DB[c.def].typeLine || '') && Object.values(s.cards).some((x) => x.zone === 'battlefield' && x.controller === c.owner && /Whenever a Curse is put into your graveyard from the battlefield, return it to the battlefield attached to you/i.test(DB[x.def].faces[0].oracle || ''))) (s.delayed = s.delayed || []).push({ at: 'endStep', kind: 'returnAura', iid: c.iid, pid: c.owner, player: c.owner });
   // Xira: "When that creature dies, if it has an egg counter on it, draw a card and create a 1/1 black Insect creature token with flying."
   if (fromZone === 'battlefield' && zone === 'graveyard' && (c.counters || {}).egg > 0 && c.eggFor) { const ep = c.eggFor; queueMicrotask(() => { if (G.s !== s) return; draw(ep, 1, true); createToken(genericTokenDef(1, 1, 'Insect', ['B'], { keywords: ['flying'] }), ep, 1); log(ep, `Xira: ${ep === 'p' ? 'you draw' : 'draws'} a card and ${ep === 'p' ? 'create' : 'creates'} an Insect.`); }); }
+  // Ugin, the Ineffable: "When that token leaves the battlefield, put the exiled card into your hand."
+  if (fromZone === 'battlefield' && zone !== 'battlefield' && c.leaveToHand) { const x = s.cards[c.leaveToHand]; const who = c.leaveToHandPid; delete c.leaveToHand; if (x && x.zone === 'exile') queueMicrotask(() => { if (G.s !== s || !s.cards[x.iid] || s.cards[x.iid].zone !== 'exile') return; move(x.iid, 'hand'); s.cards[x.iid].faceDown = false; log(who, `${who === 'p' ? 'You put' : seatName(who) + ' puts'} the card exiled with the Spirit into ${who === 'p' ? 'your' : 'its'} hand.`); }); }
   // Cass, Hand of Vengeance: remember what was attached as it left
   if (fromZone === 'battlefield' && zone !== 'battlefield') c.lastAttached = Object.values(s.cards).filter((x) => x.attachedTo === iid && x.zone === 'battlefield').map((x) => x.iid);
   // replacements: finality counters, "exile it if it would leave", Rest in Peace and friends
@@ -1258,6 +1260,7 @@ function leaveGame(pid) {
 
 // Untap step: stun counters and "doesn't untap" effects
 export function untapAll(pid) {
+  const untappedNow = [];
   // Endbringer, Seedborn Muse-style: "Untap ~ during each other player's untap step."
   for (const c of seats().filter((k) => k !== pid).flatMap((k) => cardsIn(k, 'battlefield'))) {
     if (!c.tapped || c.phasedOut) continue;
@@ -1268,6 +1271,7 @@ export function untapAll(pid) {
       continue;
     }
     c.tapped = false;
+    untappedNow.push(c.iid);
   }
   for (const c of cardsIn(pid, 'battlefield')) {
     c.sick = false;
@@ -1289,7 +1293,10 @@ export function untapAll(pid) {
       return um[1] ? G.s.monarch !== c.controller : true;
     })) continue;
     c.tapped = false;
+    untappedNow.push(c.iid);
   }
+  // Mesmeric Orb: "Whenever a permanent becomes untapped, …"
+  if (untappedNow.length) queueEvent({ type: 'untapped', ids: untappedNow });
 }
 
 // "becomes a copy of it until end of turn": put the original card back

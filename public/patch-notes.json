@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.3.191",
+    "title": "Redirects, Seasons and Classes",
+    "notes": [
+      "Change-target spells work against the AI's spells and abilities: Misdirection, Redirect Lightning and Bolt Bend let you pick a new legal target; Spellskite and Hydroelectric Specimen pull the target onto themselves.",
+      "Season of Gathering: choose up to five {P} worth of modes, repeats allowed.",
+      "Wheel of Misfortune: everyone picks a number in secret; the highest takes that much damage, and everyone who didn't pick the lowest wheels.",
+      "Ugin, the Ineffable's +1 exiles a card face down, and you get it back when the Spirit leaves the battlefield.",
+      "Class level-up triggers work (Wizard, Cleric, Druid Class, Caretaker's Talent). Druid Class level 3 makes a land into a hasty creature sized by your land count.",
+      "Mesmeric Orb mills for each permanent that untaps during an untap step.",
+      "Gleaming Splendor and Scheming Symmetry let you pick both players in multiplayer.",
+      "Torment of Hailfire: the AI now weighs its life total against the cards and permanents it would give up, and pitches spare lands once it has plenty out."
+    ]
+  },
+  {
     "version": "1.3.190",
     "title": "Most-played Commander cards, part 2",
     "notes": [

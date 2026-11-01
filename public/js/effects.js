@@ -17240,11 +17240,20 @@ on(/^repeat the following process x times\. each opponent loses 3 life unless th
       const hand = cardsIn(o, 'hand');
       let done = false;
       if (isAI(o)) {
+        // weigh each option: 3 life matters more the lower the life total; a card or permanent by what it's worth
         const life = G.s.players[o].life;
-        const cheap = perms.filter((c) => c.token || cardValue(c) < 3).sort((a, b) => cardValue(a) - cardValue(b))[0];
-        if (life > 12 && !cheap && !hand.length) done = false;
-        else if (hand.length && (life <= 15 || !cheap)) { discardCard(hand.slice().sort((a, b) => cardValue(a) - cardValue(b))[0].iid); done = true; }
-        else if (cheap && life <= 20) { sacrifice(cheap.iid); done = true; }
+        const lifeCost = life <= 3 ? Infinity : 3 * (20 / life) * 1.2;
+        const cheap = perms.slice().sort((a, b) => cardValue(a) - cardValue(b))[0];
+        const handLands = cardsIn(o, 'battlefield').filter(isLand).length >= 6; // spare lands in hand are cheap once it has six out
+        // a card in hand is worth more than its mana value says; a spare land once six are out is worth little
+        const hv = (c) => (isLand(c) ? (handLands ? 1 : 2.5) : 2 + cardValue(c) * 0.5);
+        const worst = hand.slice().sort((a, b) => hv(a) - hv(b))[0];
+        const sacCost = cheap ? Math.max(0.5, cardValue(cheap)) * (cheap.isCommander ? 3 : 1) : Infinity;
+        const discCost = worst ? hv(worst) : Infinity;
+        const best = Math.min(lifeCost, sacCost, discCost);
+        if (best === Infinity) done = false;
+        else if (best === discCost) { discardCard(worst.iid); done = true; }
+        else if (best === sacCost) { sacrifice(cheap.iid); done = true; }
       } else if (perms.length || hand.length) {
         const k = await env.choosers[o].choose({ prompt: `Torment of Hailfire (${i + 1}/${x}): lose 3 life, sacrifice a nonland permanent, or discard?`, options: [{ label: 'Lose 3 life' }, ...(perms.length ? [{ label: 'Sacrifice a nonland permanent' }] : []), ...(hand.length ? [{ label: 'Discard a card' }] : [])], aiPick: () => 0 });
         const lbl = ['Lose 3 life', ...(perms.length ? ['sac'] : []), ...(hand.length ? ['disc'] : [])][k];
@@ -17432,8 +17441,19 @@ on(/^create a token that's a copy of another target creature you control\. it ga
   env.did.push(`a hasty copy of ${nameTag(t)}`);
 }, { first: true, multi: true });
 // Gleaming Splendor
+async function pickTwoPlayers(env, prompt, aiOrder) {
+  const all = seats().filter((p) => inGame(p));
+  if (all.length <= 2) return all;
+  if (isAI(env.me)) return aiOrder(all).slice(0, 2);
+  const first = await env.choosers[env.me].choose({ prompt: `${prompt} — first player`, options: all.map((p) => ({ label: seatName(p) })), aiPick: () => 0 });
+  const rest = all.filter((_, i) => i !== first);
+  const second = await env.choosers[env.me].choose({ prompt: `${prompt} — second player`, options: rest.map((p) => ({ label: seatName(p) })), aiPick: () => 0 });
+  return [all[first], rest[second]].filter(Boolean);
+}
+// Gleaming Splendor
 on(/^two target players each draw a card$/, async (m, env) => {
-  const ps = opponents(env.me).filter(inGame).slice(0, 1).concat([env.me]);
+  // the AI draws itself and gives the other card to the opponent with the smallest hand
+  const ps = await pickTwoPlayers(env, `${cardName(env.src)}: choose two players to draw`, (all) => [env.me, ...all.filter((p) => p !== env.me).sort((a, b) => cardsIn(a, 'hand').length - cardsIn(b, 'hand').length)]);
   for (const p of ps) draw(p, 1, true);
   env.did.push(`${ps.map((p) => who(p)).join(' and ')} each draw a card`);
 }, { first: true });
@@ -17467,7 +17487,7 @@ on(/^target player searches their library for a card, then shuffles and puts tha
   env.did.push(`${who(who_)} ${s_(who_, 'tutor')} a card to the top`);
 }, { first: true });
 on(/^choose two target players\. each of them searches their library for a card, then shuffles and puts that card on top$/, async (m, env) => {
-  const ps = [env.me, ...opponents(env.me).filter(inGame).slice(0, 1)];
+  const ps = await pickTwoPlayers(env, `${cardName(env.src)}: choose two players`, (all) => [env.me, ...all.filter((p) => p !== env.me).sort((a, b) => G.s.players[a].life - G.s.players[b].life)]);
   for (const p of ps) {
     const lib = zoneOf(p, 'library').map(card);
     if (!lib.length) continue;
@@ -17708,4 +17728,179 @@ on(/^search your library for a card, exile it face down, then shuffle(?:\. for a
 on(/^(?:you may )?cast spells this turn as though they had flash$/, async (m, env) => {
   G.s.flashTurn = { ...(G.s.flashTurn || {}), [env.me]: G.s.turn };
   env.did.push('may cast spells this turn as though they had flash');
+}, { first: true });
+
+// ---------------------------------------------------------------- change the target of a spell or ability on the stack
+// The AI's spells and abilities announce their targets when they go on the stack (G.s.stack.targets, held to by its
+// chooser's plan), so a redirect swaps that pick for a new legal one.
+const PRIMARY_TYPES = ['Creature', 'Planeswalker', 'Battle', 'Artifact', 'Enchantment', 'Land'];
+async function redirectStack(env, o = {}) {
+  const st = G.s.stack;
+  if (!st || !card(st.iid) || st.by === env.me && !o.own) return env.did.push('there is no spell or ability to redirect');
+  if (o.spellOnly && st.ability) return env.did.push('that is an ability, not a spell');
+  const sc = card(st.iid);
+  if (o.instSorc && (st.ability || !/\b(?:Instant|Sorcery)\b/.test(typeLine(sc)))) return env.did.push('that is not an instant or sorcery spell');
+  const tg = st.targets || [];
+  if (!tg.length) return env.did.push(`${nameTag(sc)} has no targets to change`);
+  if (o.single && tg.length !== 1) return env.did.push(`${nameTag(sc)} doesn't have a single target`);
+  let idx = 0;
+  if (tg.length > 1) {
+    const k = await env.choosers[env.me].choose({ prompt: 'Change which target?', options: tg.map((t) => ({ label: t.player ? seatName(t.player) : cardName(card(t.iid)) })), aiPick: () => Math.max(0, tg.findIndex((t) => (t.player || (card(t.iid) && card(t.iid).controller)) === env.me)) });
+    idx = k >= 0 ? k : 0;
+  }
+  const old = tg[idx];
+  const text = String(st.ability || spellText(sc) || '').toLowerCase();
+  const anyTarget = /any (?:other )?target/.test(text);
+  const oldCard = old.iid && card(old.iid);
+  const oldTypes = oldCard ? PRIMARY_TYPES.filter((t) => isType(oldCard, t)) : [];
+  // a new target has to be one the original could have chosen: the same kind of object (or anything "any target" allows)
+  const fits = (c) => c.zone === 'battlefield' && c.iid !== old.iid && c.iid !== st.iid && canTarget(c, st.by, sc) && !tg.some((t) => t.iid === c.iid)
+    && (anyTarget ? isCreature(c) || isType(c, 'Planeswalker') || isType(c, 'Battle') : oldTypes.some((t) => isType(c, t)));
+  const players = (old.player || anyTarget) ? seats().filter((p) => inGame(p) && p !== old.player && !playerHexproof(p, st.by, sc) && !tg.some((t) => t.player === p)) : [];
+  let pick = null;
+  if (o.toSelf) {
+    const me = env.src && card(env.src.iid);
+    if (me && fits(me)) pick = { iid: me.iid };
+    else return env.did.push(`${cardName(env.src)} isn't a legal target for ${nameTag(sc)}`);
+  } else {
+    const cands = allBf().filter(fits).map((c) => c.iid);
+    if (!cands.length && !players.length) return env.did.push('there is no other legal target');
+    const aimedAtMe = (old.player || (oldCard && oldCard.controller)) === env.me;
+    const r = await env.choosers[env.me].target({ prompt: `New target for ${cardName(sc)}`, candidates: cands, players, harm: aimedAtMe || !!old.player, src: env.src, forced: true });
+    if (!r || (!r.iid && !r.player)) return env.did.push('keeps the target');
+    pick = r.player ? { player: r.player } : { iid: r.iid };
+  }
+  tg[idx] = pick;
+  const ch = env.choosers[st.by];
+  if (ch && ch.plan) {
+    const k = ch.plan.findIndex((w) => (old.player && w.player === old.player) || (old.iid && w.iid === old.iid));
+    if (k >= 0) ch.plan[k] = pick; else ch.plan.push(pick);
+  } else if (ch) ch.plan = [pick];
+  env.did.push(`${nameTag(sc)} now targets ${pick.player ? seatName(pick.player) : nameTag(card(pick.iid))}`);
+}
+// Misdirection, Redirect Lightning, Bolt Bend
+on(/^change the target of target spell with a single target$/, async (m, env) => redirectStack(env, { spellOnly: true, single: true }), { first: true });
+on(/^change the target of target spell or ability with a single target$/, async (m, env) => redirectStack(env, { single: true }), { first: true });
+// Spellskite
+on(/^change a target of target spell or ability to ~$/, async (m, env) => redirectStack(env, { toSelf: true }), { first: true });
+// Hydroelectric Specimen
+on(/^change the target of target instant or sorcery spell with a single target to ~$/, async (m, env) => redirectStack(env, { instSorc: true, single: true, toSelf: true }), { first: true });
+
+// Druid Class level 3: "target land you control becomes a creature with haste and "~'s power and toughness are each equal to the number of lands you control." It's still a land."
+on(/^target land you control becomes a creature with haste and "(?:~|this creature)'s power and toughness are each equal to the number of lands you control\.?"\.?(?: it's still a land\.?)?$/, async (m, env) => {
+  const [t] = await objects(env, 'target land you control', { harm: false, aiScore: (c) => (c.tapped ? 0 : 1) + (/Basic/.test(typeLine(c)) ? 1 : 0) });
+  if (!t) return;
+  addLayerFx(t, { until: true, types: { add: 'Creature' } });
+  t.grants = [...(t.grants || []), 'haste'];
+  t.extraText = ((t.extraText || '') + "\n~'s power and toughness are each equal to the number of lands you control.").trim();
+  env.did.push(`${nameTag(t)} becomes a creature with haste`);
+}, { first: true, multi: true });
+// Mesmeric Orb
+on(/^that permanent's controller mills (a|one|two|three|\d+) cards?$/, async (m, env) => {
+  const p = env.thatPlayer || (env.it && card(env.it.iid) && card(env.it.iid).controller);
+  if (!p) return;
+  millCards(p, n(m[1]));
+  env.did.push(`${who(p)} ${s_(p, 'mill')} ${n(m[1])}`);
+}, { first: true });
+// Bloomburrow Seasons: "Choose up to five {P} worth of modes. You may choose the same mode more than once." then "{P} — …" lines
+on(/^choose up to (\w+) \{p\} worth of modes/, async (m, env) => {
+  const src = env.src && card(env.src.iid) || env.src;
+  const o = (DB[src.def].faces[src.face || 0] || DB[src.def].faces[0]).oracle || '';
+  const modes = [...o.matchAll(/^((?:\{P\})+) — (.+)$/gm)].map((x) => ({ cost: x[1].length / 3, text: x[2].replace(new RegExp(DB[src.def].name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '~') }));
+  if (!modes.length) return 'rest';
+  let budget = n(m[1]);
+  const picks = [];
+  if (isAI(env.me)) {
+    // the AI takes the most expensive mode that does something worthwhile, then fills the rest
+    const worth = (md) => {
+      const t = md.text.toLowerCase();
+      if (/destroy all permanents of the chosen type/.test(t)) {
+        const val = (pid, ty) => cardsIn(pid, 'battlefield').filter((c) => isType(c, ty)).reduce((a, c) => a + cardValue(c), 0);
+        const best = ['Artifact', 'Enchantment'].map((ty) => opponents(env.me).reduce((a, p) => a + val(p, ty), 0) - val(env.me, ty) * 1.5);
+        return Math.max(...best) > 3;
+      }
+      if (/greatest power among creatures you control/.test(t)) return Math.max(0, ...cardsIn(env.me, 'battlefield').filter(isCreature).map(power)) >= 3;
+      if (/creature you control/.test(t)) return cardsIn(env.me, 'battlefield').some(isCreature);
+      return true;
+    };
+    const order = modes.slice().sort((a, b) => b.cost - a.cost);
+    let guard = 0;
+    while (budget > 0 && guard++ < 10) {
+      const md = order.find((x) => x.cost <= budget && worth(x) && !(x.cost >= 2 && picks.includes(x)));
+      if (!md) break;
+      picks.push(md);
+      budget -= md.cost;
+    }
+  } else {
+    while (budget > 0) {
+      const ok = modes.filter((x) => x.cost <= budget);
+      if (!ok.length) break;
+      const k = await env.choosers[env.me].choose({ prompt: `${cardName(src)}: choose a mode (${budget} {P} left)${picks.length ? ' — chosen: ' + picks.map((x) => x.cost).join(', ') : ''}`, options: [...ok.map((x) => ({ label: `${'{P}'.repeat(x.cost)} — ${x.text}` })), { label: 'Done' }], aiPick: () => 0 });
+      if (k < 0 || k >= ok.length) break;
+      picks.push(ok[k]);
+      budget -= ok[k].cost;
+    }
+  }
+  // modes resolve in the printed order
+  picks.sort((a, b) => modes.indexOf(a) - modes.indexOf(b));
+  for (const md of picks) await runText(md.text, env);
+  if (!picks.length) env.did.push('chooses no modes');
+  return 'rest';
+}, { first: true, consumesRest: true });
+// Season of Gathering: "Choose artifact or enchantment. Destroy all permanents of the chosen type."
+on(/^choose artifact or enchantment\. destroy all permanents of the chosen type$/, async (m, env) => {
+  const val = (pid, ty) => cardsIn(pid, 'battlefield').filter((c) => isType(c, ty)).reduce((a, c) => a + cardValue(c), 0);
+  const tys = ['Artifact', 'Enchantment'];
+  const score = tys.map((ty) => opponents(env.me).reduce((a, p) => a + val(p, ty), 0) - val(env.me, ty) * 1.5);
+  const k = await env.choosers[env.me].choose({ prompt: 'Destroy all artifacts or all enchantments?', options: tys.map((t) => ({ label: t })), aiPick: () => score.indexOf(Math.max(...score)) });
+  const ty = tys[k] || 'Artifact';
+  const gone = allBf().filter((c) => isType(c, ty));
+  gone.forEach((c) => destroy(c.iid));
+  env.did.push(`destroys all ${ty.toLowerCase()}s (${gone.length})`);
+}, { first: true, multi: true });
+// Wheel of Misfortune
+on(/^each player secretly chooses a number 0 or greater, then all players reveal those numbers simultaneously and determine the highest and lowest numbers revealed this way\. ~ deals damage equal to the highest number to each player who chose that number\. each player who didn't choose the lowest number discards their hand, then draws seven cards$/, async (m, env) => {
+  const ps = turnOrderFrom(env.me).filter(inGame);
+  const chosen = {};
+  for (const p of ps) {
+    if (isAI(p)) {
+      // the AI decides without seeing anyone else's number: it wants a new hand when its own is small, and only risks a little damage
+      const h = cardsIn(p, 'hand').length;
+      const life = G.s.players[p].life;
+      chosen[p] = h <= 2 && life > 10 ? 1 + Math.floor(Math.random() * Math.min(4, Math.floor(life / 8))) : 0;
+    } else {
+      chosen[p] = await env.choosers[p].chooseNumber({ prompt: `${cardName(env.src)}: secretly choose a number (0 or greater). The highest number deals that much damage to whoever chose it; everyone who didn't choose the lowest number wheels their hand.`, min: 0, max: 99, ai: 0 });
+    }
+  }
+  const vals = ps.map((p) => chosen[p]);
+  const hi = Math.max(...vals);
+  const lo = Math.min(...vals);
+  env.did.push(`numbers revealed: ${ps.map((p) => `${seatName(p)} ${chosen[p]}`).join(', ')}`);
+  const src = (env.src && card(env.src.iid)) || env.src;
+  if (hi > 0) for (const p of ps.filter((p) => chosen[p] === hi)) damagePlayer(env, src, p, hi);
+  for (const p of ps.filter((p) => chosen[p] !== lo)) {
+    const hand = cardsIn(p, 'hand');
+    hand.forEach((c) => discardCard(c.iid));
+    draw(p, 7, true);
+    env.did.push(`${who(p)} ${s_(p, 'discard')} ${hand.length} and ${s_(p, 'draw')} seven`);
+  }
+}, { first: true, multi: true });
+// Ugin, the Ineffable +1
+on(/^exile the top card of your library face down and look at it\. create a 2\/2 colorless spirit creature token\. when that token leaves the battlefield, put the exiled card into your hand$/, async (m, env) => {
+  const [x] = exileTop(env.me, 1);
+  if (x && card(x)) Object.assign(card(x), { faceDown: true, hiddenExile: env.me });
+  const [t] = createToken(genericTokenDef(2, 2, 'Spirit', []), env.me, 1);
+  if (card(t) && x) Object.assign(card(t), { leaveToHand: x, leaveToHandPid: env.me });
+  env.did.push(`exiles ${env.me === 'p' && x ? nameTag(card(x)) : 'a card'} face down and creates a 2/2 Spirit`);
+}, { first: true, multi: true });
+// "Put a +1/+1 counter on a creature you control." (not targeted: chosen on resolution); "it" is then that creature
+on(/^put (a|an|one|two|three) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on an? (creature|artifact|permanent|creature or vehicle) you control$/, async (m, env) => {
+  const kind = m[3] === 'permanent' ? null : m[3];
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => (kind === 'creature' ? isCreature(c) : kind === 'artifact' ? isType(c, 'Artifact') : kind === 'creature or vehicle' ? isCreature(c) || hasSubtype(c, 'Vehicle') : true));
+  if (!pool.length) return env.did.push(`no ${m[3]} to put a counter on`);
+  const [p] = await env.choosers[env.me].pickCards({ prompt: `Put ${m[1]} ${m[2]} counter on a ${m[3]} you control`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'counters', src: env.src, aiScore: (c) => cardValue(c) + (c.tapped ? 0 : 1) });
+  const c = card(p);
+  addCounters(c, m[2], n(m[1]));
+  env.it = { iid: c.iid };
+  env.did.push(`puts ${n(m[1])} ${m[2]} counter${n(m[1]) === 1 ? '' : 's'} on ${nameTag(c)}`);
 }, { first: true });

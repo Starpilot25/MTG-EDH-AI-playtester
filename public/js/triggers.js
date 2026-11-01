@@ -796,10 +796,12 @@ function parseTriggerText(text, speed) {
       add('monstrous', m[1], { self: true });
     else if ((m = line.match(/^When ~ exploits a creature, (.+)$/i)))
       add('exploited', m[1], { self: true });
+    else if ((m = line.match(/^When (?:this Class|~) becomes level (\d+), (.+)$/i)))
+      add('classLevel', m[2], { self: true, level: +m[1] });
     else if ((m = line.match(/^When(?:ever)? ~ (?:transforms into|becomes) (?!tapped,)[^,]+, (.+)$/i)))
       add('transformed', m[1], { self: true });
-    else if ((m = line.match(/^When this Class becomes level (\d+), (.+)$/i)))
-      add('classLevel', m[2], { self: true, level: +m[1] });
+    else if ((m = line.match(/^Whenever a permanent becomes untapped, (.+)$/i)))
+      add('untapped', m[1], { anyPlayer: true }); // Mesmeric Orb
     else if ((m = line.match(/^Whenever the Ring tempts you, (.+)$/i)))
       add('ringTempts', m[1]);
     else if ((m = line.match(/^Whenever players finish voting, (.+)$/i)))
@@ -2363,6 +2365,12 @@ function matches(ev) {
     case 'transformed':
     case 'mutates':
       each((c, trig) => trig.event === ev.type && (trig.self ? c.iid === ev.iid : c.controller === ev.controller) && out.push({ src: c, trig, it: { iid: ev.iid } }));
+      break;
+    case 'untapped':
+      each((c, trig) => {
+        if (trig.event !== 'untapped') return;
+        for (const i of ev.ids || []) { const x = card(i); if (x && x.zone === 'battlefield') out.push({ src: c, trig, it: { iid: i }, thatPlayer: x.controller }); }
+      });
       break;
     case 'classLevel': {
       const c = card(ev.iid);
