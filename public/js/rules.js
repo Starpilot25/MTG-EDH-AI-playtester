@@ -497,6 +497,8 @@ export function hasKw(inst, kw) {
   if (!inst) return false;
   kw = kw.toLowerCase();
   if (kw === 'indestructible' && G.s && inst.loseIndestructibleTurn === G.s.turn) return false; // Exterminatus, Smite the Deathless
+  // Shadowspear / Arcane Lighthouse: "Permanents your opponents control lose hexproof and indestructible until end of turn"
+  if ((kw === 'hexproof' || kw === 'indestructible' || kw === 'shroud') && G.s && (G.s.loseKw || []).some((x) => x.turn === G.s.turn && x.kws.includes(kw) && inst.controller && inst.controller !== x.by && (!x.creatures || isCreature(inst)))) return false;
   if (readCache.on) {
     const twin = cacheTwin(inst);
     if (twin && twin.grants === inst.grants && twin.eotGrants === inst.eotGrants && twin.auraBuffs === inst.auraBuffs) {
@@ -1703,6 +1705,8 @@ export function canBlock(blocker, attacker) {
   // Whispersilk Cloak, Rogue's Passage-style grants: "Equipped creature can't be blocked and has shroud." / "Enchanted creature can't be blocked."
   if (G.s && Object.values(G.s.cards).some((x) => x.attachedTo === attacker.iid && x.zone === 'battlefield' && !abilitiesGone(x) && /(?:^|\n)(?:Equipped|Enchanted) creature (?:gets [+-]\d+\/[+-]\d+,? (?:and )?)?can't be blocked(?:\.| and )/i.test(oracle(x)))) return false;
   if (attacker.unblockableTurn === (G.s && G.s.turn) && !(attacker.unblockableExcept && hasKw(blocker, attacker.unblockableExcept))) return false;
+  if (attacker.unblockableColor && G.s && attacker.unblockableColor.turn === G.s.turn && colorsOf(blocker).includes({ white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }[attacker.unblockableColor.color])) return false; // Skrelv
+  if (attacker.unblockableBy && G.s && attacker.unblockableBy.turn === G.s.turn && attacker.unblockableBy.pid === blocker.controller) return false; // The Black Gate
   let m;
   // "can't be blocked as long as it's attacking alone" (Yuan-Ti Malison), "... as long as you're the monarch / have the initiative"
   if ((m = ao.match(/can't be blocked as long as ([^.\n]+)/i))) {

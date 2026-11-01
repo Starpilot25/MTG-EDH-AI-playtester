@@ -615,6 +615,7 @@ export function timingOk(pid, c, opt) {
   if (s.noSpellsUntil && s.noSpellsUntil[pid] > s.turn) return false; // Innocuous Researcher
   if (s.noCreatureSpellsUntil && s.noCreatureSpellsUntil >= s.turn && /\b(?:Creature|Planeswalker)\b/.test(((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '').split('—')[0])) return false; // Single Combat
   if (s.flashNext && s.flashNext[pid] === s.turn && !opt.sorcery) return true; // Ride the Avalanche
+  if (s.sorceryFlash && (s.sorceryFlash[pid] || 0) >= s.turn && /\bSorcery\b/.test((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '')) return true; // Teferi, Time Raveler +1
   const d = DB[c.def];
   const f = d.faces[opt.face || 0] || d.faces[0];
   if (opt.sorcery || !(instantFace(f) || hasKw(c, 'flash') || opt.mode === 'faceDown' && false)) {
@@ -943,6 +944,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (s.affinityNext && s.affinityNext[pid] === s.turn && !isCreature(c)) delete s.affinityNext[pid];
   if (s.convokeNext && s.convokeNext[pid] === s.turn && !opt.copy) delete s.convokeNext[pid];
   if (s.nextSpellLess && s.nextSpellLess[pid] && !opt.copy) delete s.nextSpellLess[pid];
+  for (const x of s.noCounter || []) if (x.next && !x.iid && x.pid === pid && x.turn === s.turn && !opt.copy) x.iid = c.iid; // Mistrise Village
   if (s.undauntedNext && s.undauntedNext[pid] && !opt.copy) {
     const slot = undauntedSlot(s.undauntedNext[pid], (DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || DB[c.def].typeLine || '');
     if (slot) s.undauntedNext[pid] = { ...s.undauntedNext[pid], [slot]: false };
@@ -1130,6 +1132,8 @@ export async function castSpell(pid, iid, opt, env) {
 
 function cantBeCountered(c) {
   if (/(?:This spell|~) can't be countered|can't be countered\./i.test(face(c).oracle || '')) return true;
+  // Veil of Summer: "Spells you control can't be countered this turn." / Mistrise Village: "The next spell you cast this turn can't be countered."
+  if (G.s && (G.s.noCounter || []).some((x) => x.turn === G.s.turn && x.pid === c.controller && (!x.next || x.iid === c.iid))) return true;
   return cardsIn(c.owner, 'battlefield').some((p) => /^(?:Spells|Creature spells|Noncreature spells) you control can't be countered/m.test(oracle(p)));
 }
 
@@ -1486,6 +1490,8 @@ export async function payOtherCost(pid, text, src, env) {
       if (pool.length < k) return false;
       const picks = await ch.pickCards({ prompt: `Sacrifice ${k === 1 ? 'a' : k} ${m[2]}`, cards: pool.map((x) => x.iid), min: k, max: k, purpose: 'sacrifice', src, aiScore: (x) => -cardValue(x) + (x.token ? 3 : 0) });
       if (picks.length < k) return false;
+      // remember what was sacrificed for the cost (Altar of Dementia: "the sacrificed creature's power")
+      G.s.lastSacCost = { pid, turn: G.s.turn, iids: picks.slice(), power: picks.map((i) => (card(i) && isCreature(card(i)) ? power(card(i)) : 0)), mv: picks.map((i) => (card(i) ? DB[card(i).def].cmc || 0 : 0)) };
       picks.forEach((i) => sacrifice(i));
       continue;
     }
@@ -1858,6 +1864,7 @@ export async function activateAbility(pid, c, ab, env) {
     return p;
   };
   const ctx = (extra = {}) => ({ me: pid, choosers: env.choosers, castFree: (p, i) => castFree(p, i, env), stackTarget: pid === 'p' && s.stack ? s.stack.iid : null, ...extra });
+  if (c && c.noAbilitiesTurn === s.turn && ab.kind !== 'mana') return env.say("That permanent's activated abilities can't be activated this turn.");
   if (s.noAbilities && (s.noAbilities.pids || [s.noAbilities.pid]).includes(pid) && s.noAbilities.turn === s.turn && ab.kind !== 'mana') {
     return env.say(`${pid === 'p' ? "You" : 'The AI'} can't activate abilities this turn.`);
   }

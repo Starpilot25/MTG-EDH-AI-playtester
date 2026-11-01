@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.189",
+    "title": "Most-played Commander cards, part 1",
+    "notes": [
+      "Fixed about 80 of the most-played Commander cards (EDHREC top 2000) that weren't working or were only partly working, including: Ragavan, the Enduring cycle, Altar of Dementia, Whip of Erebos, Sneak Attack, Priest of Forgotten Gods, Liliana of the Veil, Jace (Thassa's Oracle-style win), Resplendent Angel, Nezahal, Teferi Time Raveler, Spelunking, Elixir of Immortality, Hydroid Krasis, Winds of Abandon, Stubborn Denial, Grab the Prize, Scroll Rack, Bonehoard Dracosaur, Lion Sash, Virtue of Persistence, Summon: Titan, Herd Heirloom, Legion Leadership, Full Throttle, Mistrise and Veil, Shadowspear, Arcane Lighthouse, Liquimetal Torque, Not Dead After All, Phelia, Unstoppable Slasher, Chainer, Karlach, Genji Glove, Mindcrank, Marionette Master, Archivist of Oghma, Wan Shi Tong, Magda, Haliya, Vaultborn Tyrant, Aurelia the Law Above, No Mercy.",
+      "Also: Torment of Hailfire, Urza Lord High Artificer, Field of Ruin, Crackle with Power, The Black Gate, Peer into the Abyss, Agatha's Soul Cauldron, Koma, Sea Gate Restoration, Ancient Silver Dragon, Arid Archway, Resourceful Defense, Ulamog the Defiler, Goblin Welder, Parting Gust, Praetor's Grasp, Tannuk, Ashling Flame Dancer, Jaxis, Gleaming Splendor, Phyrexian Obliterator, Teferi's Puzzle Box, Varragoth, Scheming Symmetry, Rise of the Witch-king, Wild Magic Surge, Demonic Counsel, Tezzeret Cruel Captain, Tyrite Sanctum, Mount Doom, Reconnaissance, Beseech the Mirror, Lazotep Quarry, The Darkness Crystal, Skrelv.",
+      "Koma's tap ability now actually stops the tapped permanent's activated abilities for the turn; The Black Gate and Skrelv's blocking restrictions are enforced."
+    ]
+  },
+  {
     "version": "1.3.188",
     "title": "About 30 more cards",
     "notes": [

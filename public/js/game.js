@@ -568,6 +568,8 @@ async function endStepThings(pid) {
     }
     if (d.kind === 'returnFromExile' && (c.zone === 'exile' || c.zone === 'graveyard')) {
       toBattlefield(d.iid, d.pid || c.owner);
+      // Phelia: "If it entered under your control, put a +1/+1 counter on Phelia."
+      if (d.pheliaSrc && card(d.iid) && card(d.iid).controller === d.pheliaCtl && card(d.pheliaSrc) && card(d.pheliaSrc).zone === 'battlefield') addCounters(card(d.pheliaSrc), '+1/+1', 1);
       if (d.tapped && card(d.iid)) card(d.iid).tapped = true;
       if (d.counter && card(d.iid)) {
         const r = card(d.iid);
@@ -772,6 +774,9 @@ function untapForExtraCombat(pid) {
     for (const x of cardsIn(pid, 'battlefield')) if (isCreature(x)) x.tapped = false;
     log(pid, 'Creatures untap for the additional combat.');
   }
+  // Full Throttle: "At the beginning of each combat this turn, untap all creatures that attacked this turn."
+  const ue = G.s.untapEachCombat;
+  if (ue && ue.turn === G.s.turn && ue.pid === pid) for (const x of cardsIn(pid, 'battlefield')) if (x.attackedTurn === G.s.turn) x.tapped = false;
   const u = G.s.untapForExtraCombat;
   if (!u || u.turn !== G.s.turn || u.pid !== pid) return;
   G.s.untapForExtraCombat = null;

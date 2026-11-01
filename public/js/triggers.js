@@ -910,6 +910,22 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever a creature deals combat damage to its owner, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => { const a = card(ev.iid); return !!a && a.owner === ev.player; } }); continue; }
       // Siona: "Whenever an Aura you control becomes attached to a creature you control"
       if ((q = line.match(/^Whenever an Aura you control becomes attached to a creature you control, (.+)$/i))) { add('p:enters', q[1], { pred: (c, ev) => { const x = card(ev.iid); if (!x || x.controller !== c.controller || !hasSubtype(x, 'Aura')) return false; const h = x.attachedTo && card(x.attachedTo); return !!h && isCreature(h) && h.controller === c.controller; } }); continue; }
+      // Marionette Apprentice, Tarrian's Soulcleaver: "another creature or artifact (you control) is put into a graveyard from the battlefield"
+      if ((q = line.match(/^Whenever another (creature or artifact|artifact or creature) (you control )?is put into a graveyard from the battlefield, (.+)$/i))) { const mine = !!q[2]; add('p:toGraveyard', q[3], { pred: (c, ev) => ev.from === 'battlefield' && ev.iid !== c.iid && (!mine || ev.controller === c.controller) && /Creature|Artifact/.test(((DB[ev.def] || {}).faces || [{}])[0].typeLine || '') }); continue; }
+      // Archivist of Oghma, Wan Shi Tong: "Whenever an opponent searches their library"
+      if ((q = line.match(/^Whenever an opponent searches their library, (.+)$/i))) { add('p:searched', q[1], { pred: (c, ev) => ev.pid !== c.controller && opponents(c.controller).includes(ev.pid) }); continue; }
+      // Magda: "Whenever a Dwarf you control becomes tapped"
+      if ((q = line.match(/^Whenever an? ([A-Z][\w-]+) you control becomes tapped, (.+)$/))) { const ty = q[1]; add('p:tapped', q[2], { pred: (c, ev) => { const x = card(ev.iid); return !!x && x.controller === c.controller && hasSubtype(x, ty) && { it: { iid: x.iid } }; } }); continue; }
+      // Haliya: "Whenever ~ or another creature or artifact you control enters"
+      if ((q = line.match(/^Whenever ~ or another creature or artifact you control enters, (.+)$/i))) { add('p:enters', q[1], { pred: (c, ev) => { const x = card(ev.iid); return !!x && x.controller === c.controller && (x.iid === c.iid || isCreature(x) || isType(x, 'Artifact')) && { it: { iid: x.iid } }; } }); continue; }
+      // Vaultborn Tyrant: "Whenever ~ or another creature you control with power 4 or greater enters"
+      if ((q = line.match(/^Whenever ~ or another creature you control with power (\d+) or greater enters, (.+)$/i))) { const k = +q[1]; add('p:enters', q[2], { pred: (c, ev) => { const x = card(ev.iid); return !!x && x.controller === c.controller && isCreature(x) && (x.iid === c.iid || power(x) >= k) && { it: { iid: x.iid } }; } }); continue; }
+      // Aurelia, the Law Above: "Whenever a player attacks with three or more creatures"
+      if ((q = line.match(/^Whenever a player attacks with (three|four|five|six|\d+) or more creatures, (.+)$/i))) { const k = { three: 3, four: 4, five: 5, six: 6 }[q[1].toLowerCase()] || +q[1]; add('youAttack', q[2], { anyPlayerMin: k }); continue; }
+      // No Mercy: "Whenever a creature deals damage to you, destroy it."
+      if ((q = line.match(/^Whenever a creature deals damage to you, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => ev.player === c.controller && !!card(ev.iid) && { it: { iid: ev.iid } } }); continue; }
+      // Mindcrank: "Whenever an opponent loses life, that player mills that many cards."
+      if ((q = line.match(/^Whenever an opponent loses life, (.+)$/i))) { add('p:lifeLost', q[1], { pred: (c, ev) => ev.pid !== c.controller && opponents(c.controller).includes(ev.pid) && { thatPlayer: ev.pid, amount: ev.amount } }); continue; }
       // Diamond Mare: "Whenever you cast a spell of the chosen color"
       if ((q = line.match(/^Whenever you cast a spell of the chosen color, (.+)$/i))) { add('p:cast', q[1], { pred: (c, ev) => ev.controller === c.controller && !!c.chosenColor && (DB[ev.def || (card(ev.iid) || {}).def] || { colors: [] }).colors.includes(c.chosenColor) }); continue; }
       // Staff of the Sun Magus: "Whenever you cast a white spell or a Plains you control enters"
@@ -1964,6 +1980,11 @@ function matches(ev) {
             if (a && a.controller === c.controller && opponents(c.controller).includes(d) && (power(a) === c.chosenNumber || toughness(a) === c.chosenNumber)) defs.add(d);
           }
           for (const d of defs) out.push({ src: c, trig, thatPlayer: d });
+          return;
+        }
+        if (trig.anyPlayerMin) {
+          const atk = ((G.s.combat && G.s.combat.attackers) || []).filter((i) => card(i) && card(i).controller === ev.controller);
+          if (atk.length >= trig.anyPlayerMin) out.push({ src: c, trig, thatPlayer: ev.controller });
           return;
         }
         if (trig.minMine) {
