@@ -1062,6 +1062,7 @@ export function evalCond(cond, env) {
     return it ? !isLand(it) : false;
   }
   if (/you won the flip|you win the flip/.test(c)) return !!env.wonFlip;
+  if (/^you (?:lose|lost) the flip$/.test(c)) return env.wonFlip === undefined ? null : !env.wonFlip;
   if (/(?:~|it) has no -1\/-1 counters? on it|it had no -1\/-1 counters/.test(c)) return !(env.deadCounters || {})['-1/-1'];
   if (/(?:~|it) has no \+1\/\+1 counters? on it|it had no \+1\/\+1 counters/.test(c)) return !(env.deadCounters || {})['+1/+1'];
   if (/~ (?:isn't|is not) renowned/.test(c)) return !(env.src && env.src.renowned);
@@ -5519,18 +5520,18 @@ on(/^suspect (.+)$/, async (m, env) => {
 });
 
 // --- tap / untap / phasing / stun
-on(/^(tap|untap) (.+?)(?:\. (?:it|that creature|they) (?:doesn't|don't) untap during (?:its|their) controllers?'? next untap steps?)?$/, async (m, env) => {
+on(/^(tap|untap) (.+?)(?:\. (?:it|that creature|they) (?:doesn't|don't) untap during (?:its|their) controller(?:'s|s'|s)? next untap steps?)?$/, async (m, env) => {
   const objs = await objects(env, m[2], { harm: m[1] === 'tap' });
   const freeze = /doesn't untap|don't untap/.test(env.sentence);
   for (const c of objs) {
     if (m[1] === 'tap') tapPerm(c); else c.tapped = false;
-    if (freeze) c.noUntapUntil = G.s.turn + (c.controller === G.s.active ? 3 : 2);
+    if (freeze) c.noUntapUntil = skipNextUntapTurn(c);
   }
   if (objs.length) env.did.push(`${m[1]}s ${objs.length > 3 ? objs.length + ' permanents' : objs.map(nameTag).join(', ')}`);
 });
-on(/^(.+?) (?:doesn't|don't) untap during (?:its|their) controllers?'? next untap steps?/, async (m, env) => {
+on(/^(.+?) (?:doesn't|don't) untap during (?:its|their) controller(?:'s|s'|s)? next untap steps?/, async (m, env) => {
   const objs = await objects(env, m[1]);
-  objs.forEach((c) => (c.noUntapUntil = G.s.turn + (c.controller === G.s.active ? 3 : 2)));
+  objs.forEach((c) => (c.noUntapUntil = skipNextUntapTurn(c)));
 });
 on(/^(.+?) phases? out/, async (m, env) => {
   const until = /until ~ leaves the battlefield/.test(env.sentence);
@@ -6130,7 +6131,7 @@ on(/^(?:(?:sacrifice|exile) (it|them|that creature|those creatures|that token|th
 });
 on(/^(that creature|it|that permanent|those creatures|target creature|that land) (?:doesn't|don't) untap during (?:its|their) controller'?s'? next untap step$/, async (m, env) => {
   const objs = await objects(env, m[1]);
-  for (const c of objs) c.noUntapUntil = G.s.turn + (c.controller === G.s.active ? 3 : 2);
+  for (const c of objs) c.noUntapUntil = skipNextUntapTurn(c);
   if (objs.length) env.did.push(`${objs.map(nameTag).join(', ')} won't untap next turn`);
 });
 // --- bare life changes ("…and gain 3 life")
@@ -18166,3 +18167,132 @@ on(/^choose target nonland permanent card in your graveyard\. if you haven't cas
     env.did.push(`casts ${nameTag(c)} from the graveyard; no more spells this turn`);
   }
 }, { first: true, multi: true });
+
+// Pemmin's Aura: "Enchanted creature gets +1/-1 or -1/+1 until end of turn."
+on(/^enchanted creature gets \+1\/-1 or -1\/\+1 until end of turn$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const c = me && me.attachedTo && card(me.attachedTo);
+  if (!c) return;
+  // the AI shores up toughness when it's in danger, otherwise hits harder
+  const k = await env.choosers[env.me].choose({ prompt: `${cardName(c)} gets…`, options: [{ label: '+1/-1' }, { label: '-1/+1' }], aiPick: () => (toughness(c) - (c.damage || 0) <= 1 || G.s.active !== env.me ? 1 : 0) });
+  const [dp, dt] = k === 1 ? [-1, 1] : [1, -1];
+  c.eot = { p: (c.eot ? c.eot.p : 0) + dp, t: (c.eot ? c.eot.t : 0) + dt };
+  env.did.push(`${nameTag(c)} gets ${dp > 0 ? '+1/-1' : '-1/+1'} until end of turn`);
+}, { first: true });
+// Tezzeret the Seeker −5
+on(/^artifacts you control become artifact creatures with base power and toughness (\d+)\/(\d+) until end of turn$/, async (m, env) => {
+  const arts = cardsIn(env.me, 'battlefield').filter((c) => isType(c, 'Artifact'));
+  for (const c of arts) addLayerFx(c, { until: 'eot', types: { add: 'Creature' }, base: { p: +m[1], t: +m[2] } });
+  env.did.push(`${arts.length} artifacts become ${m[1]}/${m[2]} artifact creatures until end of turn`);
+}, { first: true });
+// Talon Gates of Madara: "{4}: Put this card from your hand onto the battlefield."
+on(/^put ~ from your hand onto the battlefield$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  if (!c || c.zone !== 'hand') return;
+  toBattlefield(c.iid, env.me);
+  env.did.push(`puts ${nameTag(c)} onto the battlefield`);
+}, { first: true });
+// Armed and Armored: "Choose a Dwarf you control. Attach any number of Equipment you control to it."
+on(/^attach any number of equipment you control to it$/, async (m, env) => {
+  const t = env.it && card(env.it.iid);
+  if (!t || t.zone !== 'battlefield') return env.did.push('nothing to attach to');
+  const gear = cardsIn(env.me, 'battlefield').filter((c) => hasSubtype(c, 'Equipment') && c.attachedTo !== t.iid);
+  if (!gear.length) return;
+  const picks = isAI(env.me) ? gear.map((g) => g.iid) : await env.choosers[env.me].pickCards({ prompt: `Attach which Equipment to ${cardName(t)}?`, cards: gear.map((g) => g.iid), min: 0, max: gear.length, purpose: 'attach', src: env.src });
+  for (const i of picks) attachTo(card(i), t);
+  if (picks.length) env.did.push(`attaches ${picks.length} Equipment to ${nameTag(t)}`);
+}, { first: true });
+// Demonic Consultation
+on(/^choose a card name\. exile the top six cards of your library, then reveal cards from the top of your library until you reveal a card with the chosen name\. put that card into your hand and exile all other cards revealed this way$/, async (m, env) => {
+  const lib = zoneOf(env.me, 'library').map(card);
+  if (!lib.length) return env.did.push('has no library');
+  // naming: pick from the cards in your deck (one of each name)
+  const seen = new Set();
+  const uniq = lib.filter((c) => { const nm = cardName(c); if (seen.has(nm)) return false; seen.add(nm); return true; });
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Choose a card name (Demonic Consultation)', cards: uniq.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'name', src: env.src, hiddenOrder: true, aiScore: (c) => (/Thassa's Oracle|Laboratory Maniac|Jace, Wielder of Mysteries/.test(cardName(c)) && cardsIn(env.me, 'hand').length < 10 ? 50 : 0) + cardValue(c) });
+  const nm = cardName(card(p));
+  exileTop(env.me, 6);
+  const { hit, all } = exileUntil(env.me, (c) => cardName(c) === nm);
+  if (hit) move(hit, 'hand');
+  env.did.push(`names ${nm}; ${hit ? 'finds it' : 'never finds it'} (${all.length + 6 - (hit ? 1 : 0)} cards exiled)`);
+}, { first: true, multi: true });
+// The Ozolith: "if it had counters on it, put those counters on ~." / "move all counters from ~ onto target creature"
+on(/^if it had counters on it, put those counters on ~$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const cs = env.leftCounters || null;
+  if (!me || !cs) return;
+  let k = 0;
+  for (const [kind, v] of Object.entries(cs)) if (v > 0) { addCounters(me, kind, v); k += v; }
+  if (k) env.did.push(`${nameTag(me)} gets ${k} counter${k === 1 ? '' : 's'}`);
+}, { first: true });
+on(/^(?:you may )?move all counters from ~ onto target creature$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!me || !Object.values(me.counters || {}).some((v) => v > 0)) return;
+  const [t] = await objects(env, 'target creature', { harm: Object.keys(me.counters).some((k) => /^-/.test(k)) });
+  if (!t) return;
+  let k = 0;
+  for (const [kind, v] of Object.entries(me.counters)) if (v > 0) { addCounters(t, kind, v); k += v; }
+  me.counters = {};
+  env.did.push(`moves ${k} counter${k === 1 ? '' : 's'} onto ${nameTag(t)}`);
+}, { first: true });
+
+// Progenitor's Icon: "The next spell of the chosen type you cast this turn can be cast as though it had flash." (oracle shows the chosen type)
+on(/^the next (?:spell of the chosen type|([a-z]+) spell) you cast this turn can be cast as though it had flash$/, async (m, env) => {
+  const src = env.src && card(env.src.iid);
+  const ty = m[1] ? capWords(m[1]) : src && src.chosenType;
+  if (!ty) return env.did.push('no type was chosen');
+  G.s.flashNextType = { ...(G.s.flashNextType || {}), [env.me]: { turn: G.s.turn, type: ty } };
+  env.did.push(`the next ${ty} spell this turn has flash`);
+}, { first: true });
+// Renewed Solidarity: "for each token you control of the chosen type that entered this turn, create a token that's a copy of it"
+on(/^for each token you control of (?:the chosen type|([a-z]+)) that entered this turn, create a token that's a copy of it$/, async (m, env) => {
+  const src = env.src && card(env.src.iid);
+  const ty = m[1] ? capWords(m[1]) : src && src.chosenType;
+  if (!ty) return;
+  const toks = cardsIn(env.me, 'battlefield').filter((c) => c.token && c.enteredTurn === G.s.turn && hasSubtype(c, ty));
+  for (const c of toks) { const [t] = createToken(c.def, env.me, 1); if (card(t)) card(t).face = c.face || 0; }
+  env.did.push(`copies ${toks.length} token${toks.length === 1 ? '' : 's'}`);
+}, { first: true });
+// Chain Lightning: the hit player (or the permanent's controller) may pay {R}{R} to copy it back
+on(/^~ deals 3 damage to any target\. then that player or that permanent's controller may pay \{r\}\{r\}\. if the player does, they may copy this spell and may choose a new target for that copy$/, async (m, env) => {
+  const src = (env.src && card(env.src.iid)) || env.src;
+  let caster = env.me;
+  for (let hop = 0; hop < 6; hop++) {
+    const cenv = hop === 0 ? env : { ...env, me: caster, did: env.did };
+    const [t] = await pickTargets(cenv, 'any target', { harm: true, amount: 3 });
+    if (!t) return;
+    await damageTargetPick(cenv, src, t, 3);
+    const p = t.player || (card(t.iid) && card(t.iid).controller);
+    if (!p || !inGame(p) || !T.payMana) return;
+    const canRR = castMod ? payCost('{R}{R}', castMod.manaSources(p)) : null;
+    const want = isAI(p) ? !!canRR : await env.choosers[p].confirm(cardName(src), `Pay {R}{R} to copy ${cardName(src)} and choose a new target?`, {});
+    if (!want) return;
+    if (!(await T.payMana(p, '{R}{R}', cardName(src)))) return;
+    env.did.push(`${who(p)} ${s_(p, 'pay')} {R}{R} and ${s_(p, 'copy')} it`);
+    caster = p;
+  }
+}, { first: true, multi: true });
+// Knickknack Ouphe
+on(/^reveal the top x cards of your library\. you may put any number of aura cards with mana value x or less from among them onto the battlefield\. then put all cards revealed this way that weren't put onto the battlefield on the bottom of your library in a random order$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const x = env.x || (me && me.xPaid) || (me && (me.counters || {})['+1/+1']) || 0;
+  const ids = libTop(env.me, x);
+  const auras = ids.filter((i) => hasSubtype({ ...card(i), zone: 'hand' }, 'Aura') && (DB[card(i).def].cmc || 0) <= x);
+  const picks = auras.length ? await env.choosers[env.me].pickCards({ prompt: `Put any number of Auras (mana value ${x} or less) onto the battlefield`, cards: auras, min: 0, max: auras.length, purpose: 'battlefield', src: env.src, aiScore: (c) => cardValue(c) + 1 }) : [];
+  for (const i of picks) toBattlefield(i, env.me);
+  await attachLooseAuras(picks, env.me, env.choosers);
+  ids.filter((i) => !picks.includes(i) && card(i) && card(i).zone === 'library').sort(() => Math.random() - 0.5).forEach((i) => move(i, 'library', { to: 'bottom' }));
+  env.did.push(`reveals ${ids.length}; puts ${picks.length} Aura${picks.length === 1 ? '' : 's'} onto the battlefield`);
+}, { first: true, multi: true });
+// Tamiyo, Field Researcher −2 (and similar): "Tap up to two target nonland permanents. They don't untap during their controller's next untap step."
+on(/^tap (up to (?:one|two|three) target [a-z ]+?|target [a-z ]+?)\. (?:it doesn't|they don't) untap during (?:its|their) controller(?:'s|s'|s)? next untap steps?$/, async (m, env) => {
+  const objs = await objects(env, m[1], { harm: true });
+  for (const c of objs) { tapPerm(c); c.noUntapUntil = skipNextUntapTurn(c); }
+  if (objs.length) env.did.push(`taps ${objs.map(nameTag).join(', ')}; ${objs.length === 1 ? "it doesn't" : "they don't"} untap next untap step`);
+}, { first: true, multi: true });
+
+// the turn number after the controller's next untap step ("doesn't untap during its controller's next untap step")
+function skipNextUntapTurn(c) {
+  if (!multiplayer()) return G.s.turn + (c.controller === G.s.active ? 3 : 2);
+  return nextTurnNumber(c.controller) + 1;
+}

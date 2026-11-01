@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.193",
+    "title": "Preset-deck card fixes",
+    "notes": [
+      "Fixed: Tamiyo Field Researcher, Pemmin's Aura, Tezzeret the Seeker, Goblin Kaboomist, Talon Gates of Madara, Armed and Armored, Demonic Consultation, The Ozolith, Progenitor's Icon, Renewed Solidarity, Captain America Living Legend, Chain Lightning, Knickknack Ouphe, Utopia Sprawl.",
+      "Chain Lightning: whoever gets hit may pay {R}{R} to copy it back.",
+      "\"Doesn't untap during its controller's next untap step\" now lasts until that player's next untap step in multiplayer too, instead of a fixed two turns."
+    ]
+  },
+  {
     "version": "1.3.192",
     "title": "Most-played Commander cards, part 3",
     "notes": [

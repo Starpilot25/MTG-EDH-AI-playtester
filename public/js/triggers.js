@@ -223,6 +223,11 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever an opponent draws their first card each turn, (.+)$/i))) { add('draw', q[1], { who: 'an opponent', nthDraw: 1 }); continue; }
       // Mirrorwing Dragon
       // Feather, Radiant Arbiter: copies chosen as the spell picks its target (effects.js pickTargets)
+      // Captain America, Living Legend: "Whenever a creature you control becomes tapped during your turn, if it's the first time that creature has become tapped this turn, untap it."
+      if ((q = line.match(/^Whenever a creature you control becomes tapped during your turn, if it's the first time that creature has become tapped this turn, (.+)$/i))) {
+        add('p:tapped', q[1], { pred: (c, ev) => { const x = card(ev.iid); if (!x || x.controller !== c.controller || G.s.active !== c.controller || !isCreature(x)) return false; if (x.capFirstTap === G.s.turn) return false; x.capFirstTap = G.s.turn; return { it: { iid: x.iid } }; } });
+        continue;
+      }
       if (/^Whenever an ability of equipped creature is activated, if it isn't a mana ability, copy that ability\./i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; } // Illusionist's Bracers (cast.js abilityCopiers)
       if (/^Whenever you cast a noncreature spell that targets only ~, you may choose any number of other creatures that spell could target and pay \{2\} for each of those creatures\./i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
       // Mirrorwing Dragon / Zada: copied as the spell picks its target (effects.js pickTargets), not as a trigger
@@ -844,7 +849,7 @@ function parseTriggerText(text, speed) {
       }
       // static mana abilities written as triggers (rules.js manaAbility applies them)
       if (/^Whenever you tap a permanent for \{C\}, add an additional \{C\}/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; } // Forsaken Monument (rules.js manaAbility)
-      if (/^Whenever (?:you tap an? (?:Plains|Island|Swamp|Mountain|Forest) for mana, add an additional|a player taps a (?:basic )?land for mana, that player adds one mana|you tap a land for mana, add one mana of any type|a land's ability causes you to add one or more mana of the chosen color|enchanted land is tapped for mana, its controller adds an additional|a basic land is tapped for mana of the chosen color|you tap a land for mana while you're the monarch, add an additional|a land with the same name as the exiled card is tapped for mana)/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
+      if (/^Whenever (?:you tap an? (?:Plains|Island|Swamp|Mountain|Forest) for mana, add an additional|a player taps a (?:basic )?land for mana, that player adds one mana|you tap a land for mana, add one mana of any type|a land's ability causes you to add one or more mana of the chosen color|enchanted (?:land|Forest|[A-Z][a-z]+) is tapped for mana, its controller adds an additional|a basic land is tapped for mana of the chosen color|you tap a land for mana while you're the monarch, add an additional|a land with the same name as the exiled card is tapped for mana)/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
       // ability copiers (cast.js activationCopies), Grafted Exoskeleton (state.js), Selfless Squire (state.inkshieldFlush)
       if (/^Whenever (?:you activate an ability|an ability of equipped creature is activated)\b[^,]*, if (?:it isn't a mana ability|one or more permanents were sacrificed to activate it|life was paid to activate it), you may (?:pay|copy)/i.test(line)
         || /^Whenever damage that would be dealt to you is prevented, put that many \+1\/\+1 counters on/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
@@ -1865,7 +1870,7 @@ function matches(ev) {
         if (trig.notTo && ev.to === trig.notTo) return;
         // "one or more … leave": one trigger for creatures leaving together (same moment)
         if (trig.batchOnce) { const k = `${G.s.turn}:${G.s.log.length}`; c.batchSeen = c.batchSeen || {}; if (c.batchSeen[trig.raw] === k) return; c.batchSeen[trig.raw] = k; }
-        out.push({ src: c, trig, it: { iid: ev.iid }, wasAttacking: ev.wasAttacking });
+        out.push({ src: c, trig, it: { iid: ev.iid }, wasAttacking: ev.wasAttacking, leftCounters: ev.counters });
       });
       // championed / exiled-until cards come back; Oubliette's creature phases back in
       for (const x of Object.values(G.s.cards)) {
@@ -3039,6 +3044,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
     ctx.thatMuch = hit.amount;
   }
   if (hit.them) ctx.them_ = ctx.trigThem = hit.them;
+  if (hit.leftCounters) ctx.leftCounters = hit.leftCounters; // The Ozolith
   if (hit.counterKind) ctx.counterKind = hit.counterKind;
   if (trig.fn) {
     const did = await trig.fn(ctx, hit, ev);

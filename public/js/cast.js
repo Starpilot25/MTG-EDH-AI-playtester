@@ -626,6 +626,7 @@ export function timingOk(pid, c, opt) {
   if (s.noNoncreatureTurn && s.noNoncreatureTurn.turn === s.turn && s.noNoncreatureTurn.pids.includes(pid) && !/\bCreature\b/.test(((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '').split('—')[0])) return false; // Ranger-Captain of Eos
   if (s.noCreatureSpellsUntil && s.noCreatureSpellsUntil >= s.turn && /\b(?:Creature|Planeswalker)\b/.test(((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '').split('—')[0])) return false; // Single Combat
   if (s.flashNext && s.flashNext[pid] === s.turn && !opt.sorcery) return true; // Ride the Avalanche
+  if (s.flashNextType && s.flashNextType[pid] && s.flashNextType[pid].turn === s.turn && !opt.sorcery && ((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '').split('—')[1] && ((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '').split('—')[1].includes(s.flashNextType[pid].type)) return true; // Progenitor's Icon
   if (s.flashTurn && s.flashTurn[pid] === s.turn && !opt.sorcery) return true; // Emergence Zone, Alchemist's Refuge, Borne Upon a Wind
   if (s.sorceryFlash && (s.sorceryFlash[pid] || 0) >= s.turn && /\bSorcery\b/.test((DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || '')) return true; // Teferi, Time Raveler +1
   const d = DB[c.def];
@@ -944,6 +945,7 @@ export async function castSpell(pid, iid, opt, env) {
   c.castTurn = s.turn;
   if (s.nukaRad && s.nukaRad[pid] >= s.turn && !opt.copy) { s.players[pid].counters.rad = (s.players[pid].counters.rad || 0) + 2; log(pid, `${pid === 'p' ? 'You get' : seatName(pid) + ' gets'} two rad counters (Nuka-Nuke Launcher).`); }
   if (s.flashNext && s.flashNext[pid] === s.turn && !opt.copy) delete s.flashNext[pid];
+  if (s.flashNextType && s.flashNextType[pid] && s.flashNextType[pid].turn === s.turn && !opt.copy && ((d.faces[fIdx] || d.faces[0]).typeLine || '').includes(s.flashNextType[pid].type)) delete s.flashNextType[pid];
   if (s.avalanche && s.avalanche[pid] === s.turn && !opt.copy) {
     delete s.avalanche[pid];
     const k = DB[c.def].cmc || 0;
