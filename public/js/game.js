@@ -1507,6 +1507,11 @@ export async function runAiTurn(pid = 'ai') {
       if (!ended()) await aiCombat(pid);
       while (!ended() && G.s === s && !s.winner && inGame(pid) && s.extraCombats > 0) {
         s.extraCombats--;
+        // "an additional combat phase followed by an additional main phase": the AI gets a main phase between combats
+        setStep('main2');
+        hooks.render();
+        await aiMainPhase(hooks, true);
+        if (over() || ended()) break;
         untapForExtraCombat(pid);
         log('sys', 'An additional combat phase begins.');
         await aiCombat(pid);

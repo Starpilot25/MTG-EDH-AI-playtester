@@ -18,7 +18,7 @@ import { tapPerm } from './state.js';
 import {
   resolveEffects, spellText, etbText, costOf, attachAura, attachTo, activatedAbilities, zoneAbilities, Cancelled,
   matchesFilter, analyze, stripName, spellFilterOk,
-  predictTargets, enterAsCopy, attachLooseAuras, evalCond,
+  predictTargets, enterAsCopy, attachLooseAuras, evalCond, canTarget,
 } from './effects.js';
 import { costDelta, countPhrase, repl } from './statics.js';
 import { helpers } from './rules.js';
@@ -320,7 +320,18 @@ export function isLibraryTop(pid, c) {
   const lib = zoneOf(pid, 'library');
   return !!c && c.zone === 'library' && c.owner === pid && lib[lib.length - 1] === c.iid;
 }
+// An Aura spell needs something it can enchant to be cast (Daybreak Coronet: "Enchant creature with another Aura attached to it")
 export function castOptions(pid, c) {
+  const opts = castOptionsRaw(pid, c);
+  if (!opts.length) return opts;
+  const o = (DB[c.def].faces[0] || {}).oracle || '';
+  if (/^Enchant creature with another Aura attached to it/m.test(o)) {
+    const ok = seats().flatMap((k) => cardsIn(k, 'battlefield')).some((x) => isCreature(x) && !x.phasedOut && canTarget(x, pid, c) && Object.values(G.s.cards).some((a) => a.zone === 'battlefield' && a.attachedTo === x.iid && a.iid !== c.iid && hasSubtype(a, 'Aura')));
+    if (!ok) return opts.filter((x) => x.mode === 'bestow');
+  }
+  return opts;
+}
+function castOptionsRaw(pid, c) {
   const d = DB[c.def];
   const zone = c.zone;
   const f0 = d.faces[0];

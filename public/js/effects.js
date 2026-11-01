@@ -15195,6 +15195,15 @@ on(/^if it's a combat phase, you may end the combat phase$/, async (m, env) => {
   G.s.combat.attackers = [];
   G.s.combat.blocks = {};
   G.s.combat.ended = true;
+  // "Exile all spells and abilities from the stack, including this spell."
+  for (const slot of ['stack', 'pstack']) {
+    const st = G.s[slot];
+    if (!st || (env.src && st.iid === env.src.iid)) continue;
+    st.countered = true;
+    st.exileCountered = true;
+    if (!st.ability && card(st.iid)) G.s.counteredIids = [...(G.s.counteredIids || []), st.iid];
+  }
+  if (env.src) G.s.exileOnResolve = { ...(G.s.exileOnResolve || {}), [env.src.iid]: true };
   env.did.push('ends the combat phase');
 }, { first: true });
 
@@ -15379,9 +15388,21 @@ on(/^target opponent whose turn it is may cast a spell from their hand without p
   let pick = null;
   if (pool.length) {
     if (isAI(o)) {
-      // the AI takes a free spell only when it's a big one (you get a copy too)
-      const best = pool.slice().sort((a, b) => (DB[b.def].cmc || 0) - (DB[a.def].cmc || 0))[0];
-      if ((DB[best.def].cmc || 0) >= 4) pick = best.iid;
+      // The AI weighs it like a player would: the free spell is worth its mana value to the AI, the copy is worth the same to
+      // Troi's controller (only one of its opponents in a pod, so it counts for less), and saying no gives them a card.
+      // Spells that would hurt the AI when copied back (removal, wipes, burn, theft) count double against it.
+      const nOpp = Math.max(1, opponents(o).filter(inGame).length);
+      const lands = cardsIn(o, 'battlefield').filter(isLand).length;
+      const scoreOf = (c) => {
+        const mv = DB[c.def].cmc || 0;
+        const a = analyze(stripName(DB[c.def].faces[0].oracle || '', c));
+        const harmful = !!(a.removal || a.wipe || a.burn || a.massDamage || a.steal || a.edict || a.bounce);
+        const copyCost = (harmful ? 2 : 1) * mv / nOpp;
+        const tempo = mv > lands ? mv * 1.25 : mv; // cards it can't cast yet are worth more for free
+        return tempo - copyCost;
+      };
+      const ranked = pool.map((c) => [c, scoreOf(c)]).sort((x, y) => y[1] - x[1]);
+      if (ranked.length && ranked[0][1] > 1.5) pick = ranked[0][0].iid; // a card drawn by the other side is worth about 1.5
     } else {
       [pick] = await env.choosers[o].pickCards({ prompt: `${cardName(env.src)}: cast a spell from your hand for free? (${seatName(env.me)} copies it; if you don't, they draw a card)`, cards: pool.map((c) => c.iid), min: 0, max: 1, src: env.src, purpose: 'cast', okLabel: "Don't cast" });
     }

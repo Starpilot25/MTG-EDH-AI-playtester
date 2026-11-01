@@ -1138,7 +1138,18 @@ function manaAbilityRaw(inst) {
       return { colors: [...new Set(each)], amount: each.length, each, activation: +sg[1] };
     }
   }
-  if (/\{T\}: Add one mana of any color in your commander's color identity/i.test(o)) {
+  // Opal Palace: "{T}: Add {C}." and "{1}, {T}: Add one mana of any color in your commander's color identity." — a paid filter
+  {
+    const om = o.match(/(?:^|\n)\{(\d)\}, \{T\}: Add one mana of any color in your commander's color identity\./i);
+    if (om) {
+      if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
+      const cols = commanderIdentity(inst.controller);
+      const base = /(?:^|\n)\{T\}: Add \{C\}\./.test(o);
+      if (!cols.length) return base ? { colors: ['C'], amount: 1 } : null;
+      return { colors: base ? ['C'] : [], amount: base ? 1 : 0, filterAlt: { colors: cols, amount: 1, activation: +om[1] } };
+    }
+  }
+  if (/(?:^|\n)\{T\}: Add one mana of any color in your commander's color identity/i.test(o)) {
     const cols = commanderIdentity(inst.controller);
     if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
     return cols.length ? { colors: cols, amount: 1 } : null;

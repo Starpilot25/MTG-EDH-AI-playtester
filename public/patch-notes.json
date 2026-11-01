@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.181",
+    "title": "Daybreak Coronet, Opal Palace, extra combats, Cmdr. Troi, Merciful Mandate",
+    "notes": [
+      "Daybreak Coronet can't be cast unless a creature already has another Aura on it.",
+      "Opal Palace: {T} for {C}, or pay {1} and {T} for a color in your commander's identity (it no longer gives free colored mana).",
+      "Extra combats (Own the Day, World at War, Relentless Assault-style): the AI now gets a main phase between combats, as the cards say.",
+      "Cmdr. Troi: an AI opponent decides whether to take the free spell by weighing its value against the copy you get and the card you'd draw (less likely with removal, more likely in pods and with cards it can't afford yet).",
+      "Merciful Mandate: ending the combat phase also exiles the spell or ability it was cast in response to, and Merciful Mandate itself goes to exile."
+    ]
+  },
+  {
     "version": "1.3.180",
     "title": "Star Trek precon cards, Miku/Giada angels deck, Herald's Horn, Daybreak Coronet",
     "notes": [
