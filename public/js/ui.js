@@ -2122,6 +2122,8 @@ async function floatMana(c) {
       const k = await playerChooser.choose({ prompt: `Tap ${cardName(c)} for…`, options: opts, aiPick: () => 0 });
       if (k === null || k === undefined || k < 0) return;
       m = k === 0 ? { ...m, filterAlt: undefined } : { ...m, colors: [fa.colors[k - 1]], amount: 1, activation: fa.activation, filterAlt: undefined };
+      // Opal Palace: remember its colored mana is in the pool (cast.js gives the commander its counters)
+      if (k > 0 && /If you spend this mana to cast your commander/i.test(oracle(c))) G.s.opalPool = { ...(G.s.opalPool || {}), p: ((G.s.opalPool || {}).p || 0) + 1 };
     } else m = { ...m, filterAlt: undefined };
   }
   // Nyx Lotus: any color, as much as your devotion to it

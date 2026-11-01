@@ -194,6 +194,7 @@ export function applyPayment(pid, pay) {
 export { anyColorCost };
 export function emptyPools(endOfTurn = false) {
   if (!G.s || !G.s.pool) return;
+  if (G.s.opalPool) G.s.opalPool = {};
   const next = Object.fromEntries(seats().map((k) => [k, []]));
   for (const pid of seats()) {
     const left = G.s.pool[pid] || [];
@@ -946,6 +947,19 @@ export async function castSpell(pid, iid, opt, env) {
     const slot = undauntedSlot(s.undauntedNext[pid], (DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || DB[c.def].typeLine || '');
     if (slot) s.undauntedNext[pid] = { ...s.undauntedNext[pid], [slot]: false };
   }
+  // Opal Palace: "If you spend this mana to cast your commander, it enters with a number of additional +1/+1 counters on it
+  // equal to the number of times it's been cast from the command zone this game."
+  if (fromZone === 'command' && c.isCommander && !env.free && !opt.free) {
+    const opalText = /If you spend this mana to cast your commander, it enters with a number of additional \+1\/\+1 counters/i;
+    const viaAuto = (pay.filtersOn || []).some((i) => card(i) && opalText.test(oracle(card(i))));
+    const viaPool = !!(s.opalPool && s.opalPool[pid] > 0) && (pay.special || []).some((x) => x.kind === 'pool');
+    if (viaAuto || viaPool) {
+      const n = (s.players[pid].tax[c.iid] || 0) + 1; // counting this cast
+      c.enterExtra = { ...(c.enterExtra || {}), plus: ((c.enterExtra || {}).plus || 0) + n };
+      log(pid, `Opal Palace: ${nameTag(c)} will enter with ${n} additional +1/+1 counter${n === 1 ? '' : 's'}.`);
+    }
+    if (viaPool) s.opalPool[pid] = 0;
+  }
   c.manaSpent = env.free || opt.free ? 0 : ((pay.payers || []).length + (pay.special || []).filter((x) => x.kind === 'pool' || x.kind === 'convoke').length);
   if (opt.removeCounters) removeCountersAmong(pid, opt.removeCounters, c);
   c.convokedBy = (pay.special || []).filter((x) => x.kind === 'convoke').map((x) => x.iid); // Lethal Scheme: "each creature that convoked it"
@@ -1268,6 +1282,12 @@ async function resolveSpell(pid, c, opt, info, env) {
     // haste from how it was cast: Thundermane Dragon (from the top of the library), Carnelian Orb's mana
     if (card(c.iid) && isCreature(c) && (c.hasteOnEnter || (c.castFrom === 'library' && topAccess(pid).haste))) c.eotGrants = [...(c.eotGrants || []), 'haste'];
     delete c.hasteOnEnter;
+    // "enters with N additional +1/+1 counters" set while it was on the stack (Opal Palace, Ezuri-style)
+    if (!copied && card(c.iid) && card(c.iid).enterExtra) {
+      const x = card(c.iid);
+      if (x.enterExtra.plus && isCreature(x)) addCounters(x, '+1/+1', x.enterExtra.plus, { silent: true });
+      delete x.enterExtra;
+    }
     if (copied && card(c.iid)) {
       const x = card(c.iid);
       if (x.enterExtra && x.enterExtra.plus) addCounters(x, '+1/+1', x.enterExtra.plus, { silent: true });

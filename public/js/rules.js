@@ -1439,7 +1439,7 @@ function payCostMana(cost, sources, opts = {}) {
     // a signet can't pay for its own activation, but it can pay for another one: a land pays signet A, A's mana pays
     // signet B, and so on. Activate them in order, paying each from the generic mana of lands and signets already on.
     if (!signetChainOk(on, r.genericUnits || [])) continue;
-    best = r;
+    best = { ...r, filtersOn: on.map((s2) => s2.iid) }; // Opal Palace: which sources were used in their paid (colored) mode
   }
   return best;
 }

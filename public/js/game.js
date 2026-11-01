@@ -1099,8 +1099,13 @@ export async function resolvePlayerCombat() {
 
 async function endCombat(pid) {
   const s = G.s;
-  fire({ type: 'endCombat', active: pid });
+  // Merciful Mandate: "end the combat phase" skips the end of combat step — no "at end of combat" triggers, and
+  // "at end of combat" exiles/returns wait for the next combat
+  const skipped = !!(s.combat && s.combat.ended);
+  if (skipped) log('sys', 'The combat phase ended early: no end of combat step.');
+  if (!skipped) fire({ type: 'endCombat', active: pid });
   for (const c of seats().flatMap(allOnField)) {
+    if (skipped) { c.attacking = false; c.blocking = false; delete c.provokedBy; continue; }
     if (c.endOfCombat === 'hand' && c.zone === 'battlefield') {
       delete c.endOfCombat;
       log(c.controller, `${nameTag(c)} returns to its owner's hand at end of combat.`);
