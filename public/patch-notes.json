@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.196",
+    "title": "Casual AI leaves your new commander alone",
+    "notes": [
+      "Casual AI no longer kills your commander the turn it comes down. A commander that entered since the AI's last turn is low on its removal list unless it's about to kill the AI with commander damage.",
+      "Fixed in multiplayer pods: the AI counted every player's turn as a full round, so by turn 9 of a 4-player game (round 3) it thought it was round 5 and stopped holding back removal on commanders.",
+      "Casual AI is also much less likely to counter your commander spell."
+    ]
+  },
+  {
     "version": "1.3.195",
     "title": "Last of the preset-deck cards",
     "notes": [

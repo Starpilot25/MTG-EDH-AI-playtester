@@ -190,6 +190,13 @@ function casualAdjust(t) {
   }
   if (t.lastHitTurn && t.lastHitPlayer === AI && G.s.turn - t.lastHitTurn <= seats().length) adj += 1.5;
   if (t.token && threat(t) < 4) adj -= 2;
+  // a commander that just came down: let it do something first (it isn't a threat yet, and killing it on sight is a feel-bad)
+  if (t.isCommander && t.controller !== AI && isCreature(t)) {
+    const n = Math.max(2, seats().filter((k) => !G.s.players[k].lost).length);
+    const dmg = G.s.players[AI].cmdDmg[t.iid] || 0;
+    const fresh = t.enteredTurn != null && G.s.turn - t.enteredTurn < n; // since this seat's last turn
+    if (fresh && dmg + Math.max(0, power(t)) * 2 < 21) adj -= 6;
+  }
   if (isCreature(t) && !t.isCommander && power(t) <= 1 && !isType(t, 'Planeswalker')) adj -= 1.5;
   return adj;
 }
@@ -204,7 +211,8 @@ function removalWorthRaw(t) {
   const dmg = G.s.players[AI].cmdDmg[t.iid] || 0;
   if (isCreature(t) && dmg + Math.max(0, power(t)) * 2 >= 21) return w + 2; // two more hits kill: deal with it now
   const tax = (G.s.players[t.owner].tax || {})[t.iid] || 0; // times it was already cast from the command zone
-  const round = Math.ceil((G.s.turn || 1) / 2) + tax * 2 + (dmg >= 8 ? 3 : 0); // each recast and real damage make it "later"
+  // G.s.turn counts every player's turn: a game round is one turn per seat (in a pod, turn 9 is only round 3)
+  const round = Math.ceil((G.s.turn || 1) / Math.max(2, seats().filter((k) => !G.s.players[k].lost).length)) + tax * 2 + (dmg >= 8 ? 3 : 0); // each recast and real damage make it "later"
   if (round <= 4) return Math.min(w * 0.35, 3); // early game: hold the removal (blocks and attack responses still use it)
   if (round <= 7) return w * 0.6 - 2;
   return w - 3; // it comes back, but by now recasting it costs them a turn
@@ -438,7 +446,8 @@ async function maybeCounterOne(spell, h, caster) {
   const text = (isPermanentCard(d) ? etbText(spell) : spellText(spell)).toLowerCase();
   const a = analyze(text);
   // how much the AI cares about this spell (in a pod, less when it's someone else's problem)
-  let worth = d.cmc + (spell.isCommander ? 3 : 0) + (a.edict ? 3 : 0);
+  // casual: don't counter a commander on sight (it just goes back to the command zone, and it's the deck's whole point)
+  let worth = d.cmc + (spell.isCommander ? (casualAI() ? -3 : 3) : 0) + (a.edict ? 3 : 0);
   if (isCreature(spell)) worth += threat({ ...spell, zone: 'battlefield', controller: caster }) / 2;
   if (a.wipe) worth += threatLevel(AI) > threatLevel(caster) ? 10 : -4; // only fight wipes that hurt us
   if (a.removal || a.bounce) worth += cardsIn(AI, 'battlefield').some((c) => !isLand(c) && threat(c) >= 6) ? 4 : 0;
