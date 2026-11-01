@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.183",
+    "title": "About 80 more cards from the built-in and precon decks",
+    "notes": [
+      "Manlands: Restless Anchorage, Restless Spire, Raging Ravine, Creeping Tar Pit, Shambling Vent and Cactus Preserve animate with their colors, keywords and quoted abilities.",
+      "Face-up payoffs trigger when your creatures are turned face up: Experiment Twelve, Printlifter Ooze, Mastery of the Unseen, Deathmist Raptor, Temur War Shaman, Trail of Mystery, Salt Road Ambushers, True Identity.",
+      "Graveyard and dies triggers: Syr Konrad, Centaur Vinecrasher, Crawling Sensation, Scrap Trawler, Boggart Shenanigans, Nether Traitor, Felisa, Angelic Sleuth, Infested Thrinax, Murderous Rider.",
+      "Other triggers: Landroval, Forbidden Orchard, Deep Gnome Terramancer, Josu Vess (kicked), Battle Cry Goblin and Minion of the Mighty (pack tactics), Reckless Bushwhacker (surge).",
+      "Spells and abilities: Tree of Perdition, Nesting Grounds, Defy Death, Cemetery Recruitment, Liliana Death's Majesty −3, Scavenging Ooze, Misfortune Teller, Necrotic Hex, Overwhelming Stampede, Braids Arisen Nightmare, Moraug, Windgrace's Judgment, Unexplained Absence, Tempt with Vengeance, Kaya Geist Hunter −2, Dread Summons, Second Harvest, Noxious Gearhulk, Teferi Hero of Dominaria +1, Mana Drain, Pact of Negation, Necropotence, Goblin Arsonist, Gempalm Incinerator, Skirk Commando, Volley Veteran, Goblin War Strike, Skyfisher Spider, Barrowgoyf, Phyrexian Scriptures, Aerial Surveyor, Mirri, Victimize, Saw in Half, Gonti, Winding Way, Nantuko Cultivator, Loamcrafter Faun, Worldsoul's Rage, Deadbridge Chant, Perpetual Timepiece, The Mending of Dominaria, Ad Nauseam, Tainted Pact, Lobelia, Meren of Clan Nel Toth, Aetherborn Marauder, Bounty Board, Sarkhan Dragon Ascendant."
+    ]
+  },
+  {
     "version": "1.3.182",
     "title": "Opal Palace commander counters, Merciful Mandate skips end of combat",
     "notes": [

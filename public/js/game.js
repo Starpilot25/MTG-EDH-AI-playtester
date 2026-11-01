@@ -9,7 +9,7 @@ import {
 import {
   G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, aiSlaved, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
   freshTurnStats, changeLife, setLife, sacrifice, addCounters, toBattlefield, cardName, queueEvent, discard as discardCard,
-  tappedHook, inkshieldFlush, destroy, createToken, genericTokenDef,
+  tappedHook, inkshieldFlush, destroy, createToken, genericTokenDef, loseGame,
 } from './state.js';
 import { maxHandSize } from './statics.js';
 import { fire, settle, T } from './triggers.js';
@@ -188,6 +188,12 @@ async function beginMain1(pid) {
       s.pool[pid].push(...Array.from({ length: d.n }, () => 'ANY'));
       log(pid, `${d.why}: ${pid === 'p' ? 'you add' : 'adds'} ${d.n} mana of any colors.`);
     }
+    // Mana Drain: "add an amount of {C} equal to that spell's mana value"
+    if (d.kind === 'addC') {
+      s.pool = s.pool || Object.fromEntries(seats().map((k) => [k, []]));
+      s.pool[pid].push(...Array.from({ length: d.n }, () => 'C'));
+      log(pid, `${d.why}: ${pid === 'p' ? 'you add' : 'adds'} {C}×${d.n}.`);
+    }
   }
   fire({ type: 'mainPhase', active: pid });
   await settle();
@@ -334,7 +340,17 @@ async function upkeepKeywords(pid) {
   }
   // Arcane Denial & co.: draws at the beginning of the next turn's upkeep
   for (const d of s.delayed.filter((x) => x.at === 'nextUpkeep' && x.after < s.turn)) {
+    if (d.kind === 'pactPay' && d.pid !== pid) continue; // "your next upkeep"
     s.delayed.splice(s.delayed.indexOf(d), 1);
+    // Pact of Negation & co.: pay or lose the game
+    if (d.kind === 'pactPay') {
+      let paid = false;
+      try { paid = !!(T.payMana && (await T.payMana(d.pid, d.cost, d.why))); } catch (e) { paid = false; }
+      if (paid) log(d.pid, `${d.pid === 'p' ? 'You pay' : seatName(d.pid) + ' pays'} ${d.cost} for ${d.why}.`);
+      else { log(d.pid, `${d.pid === 'p' ? "You don't pay" : seatName(d.pid) + " doesn't pay"} for ${d.why} and ${d.pid === 'p' ? 'lose' : 'loses'} the game.`); loseGame(d.pid); }
+      if (G.s !== s) return;
+      continue;
+    }
     // The Eagles Are Coming! (tokens) / Aang, at the Crossroads (transform)
     if (d.kind === 'tokens' || d.kind === 'transform') {
       const src = card(d.iid) || null;
@@ -469,6 +485,15 @@ async function endStepThings(pid) {
       }
       continue;
     }
+    // Teferi, Hero of Dominaria: "untap up to two lands"
+    if (d.kind === 'untapLands') {
+      const lands = cardsIn(d.pid, 'battlefield').filter((x) => isLand(x) && x.tapped);
+      let pick = lands.slice(0, d.n || 2).map((x) => x.iid);
+      if (d.pid === 'p' && lands.length > (d.n || 2) && T.choosers && T.choosers.p) pick = await T.choosers.p.pickCards({ prompt: `Untap up to ${d.n || 2} lands`, cards: lands.map((x) => x.iid), min: 0, max: d.n || 2, src: card(d.iid) || null, purpose: 'untap' });
+      pick.forEach((i) => card(i) && (card(i).tapped = false));
+      if (pick.length) log(d.pid, `${pick.length} land${pick.length === 1 ? '' : 's'} untap.`);
+      continue;
+    }
     const c = card(d.iid);
     if (!c) continue;
     // Satya: "sacrifice that token unless you pay an amount of {E} equal to its mana value"
@@ -525,6 +550,11 @@ async function endStepThings(pid) {
       if (d.player) { toBattlefield(d.iid, d.pid); card(d.iid).enchantedPlayer = d.player; log(d.pid, `${nameTag(c)} returns attached to ${d.player === 'p' ? 'you' : seatName(d.player)}.`); }
       else if (d.host && card(d.host) && card(d.host).zone === 'battlefield') { toBattlefield(d.iid, d.pid); card(d.iid).attachedTo = d.host; log(d.pid, `${nameTag(c)} returns attached to ${nameTag(card(d.host))}.`); }
       else { await attachAura(c, d.pid, T.choosers[d.pid], {}); }
+      continue;
+    }
+    // Necropotence: the face-down exiled card goes to its owner's hand
+    if (d.kind === 'toHandFromExile') {
+      if (c.zone === 'exile') { c.faceDown = false; delete c.hiddenExile; move(d.iid, 'hand'); log(d.pid, `${d.pid === 'p' ? 'You put' : seatName(d.pid) + ' puts'} a card exiled with Necropotence into ${d.pid === 'p' ? 'your' : 'its'} hand.`); }
       continue;
     }
     // U.S.S. Farragut: "At the beginning of the next end step, put it on the bottom of your library. When you do, draw a card."
@@ -735,12 +765,38 @@ export async function extraBeginningPhases(pid) {
 
 // World at War: "At the beginning of that combat, untap all creatures that attacked this turn."
 function untapForExtraCombat(pid) {
+  // Moraug: "At the beginning of that combat, untap all creatures you control."
+  const ua = G.s.untapAllForExtraCombat;
+  if (ua && ua.turn === G.s.turn && ua.pid === pid) {
+    G.s.untapAllForExtraCombat = null;
+    for (const x of cardsIn(pid, 'battlefield')) if (isCreature(x)) x.tapped = false;
+    log(pid, 'Creatures untap for the additional combat.');
+  }
   const u = G.s.untapForExtraCombat;
   if (!u || u.turn !== G.s.turn || u.pid !== pid) return;
   G.s.untapForExtraCombat = null;
   const list = Object.values(G.s.cards).filter((c) => c.zone === 'battlefield' && c.tapped && c.attackedTurn === G.s.turn && c.controller === pid);
   list.forEach((c) => (c.tapped = false));
   if (list.length) log(pid, `${list.length} creature${list.length === 1 ? '' : 's'} that attacked this turn untap.`);
+}
+// Mirri, Weatherlight Duelist: "each opponent can't block with more than one creature this combat"
+function maxBlockersRule(cb) {
+  const mb = G.s.maxBlockers;
+  if (!mb || mb.turn !== G.s.turn || !cb || !cb.blocks) return;
+  const used = {};
+  for (const a of Object.keys(cb.blocks)) {
+    const keep = [];
+    for (const b of cb.blocks[a] || []) {
+      const bc = card(b);
+      if (!bc) continue;
+      const ctl = bc.controller;
+      if (ctl === mb.by) { keep.push(b); continue; }
+      if ((used[ctl] || 0) >= mb.n) { bc.blocking = false; log(ctl, `${nameTag(bc)} can't block (Mirri: one blocker per opponent).`); continue; }
+      used[ctl] = (used[ctl] || 0) + 1;
+      keep.push(b);
+    }
+    if (keep.length) cb.blocks[a] = keep; else delete cb.blocks[a];
+  }
 }
 // After a combat: another combat if one was granted, otherwise the second main phase.
 function afterCombat() {
@@ -1087,6 +1143,7 @@ export async function resolvePlayerCombat() {
       if (plan) cb.assign[aid] = plan;
     }
   }
+  maxBlockersRule(cb);
   applyCombat(cb.attackers, cb.blocks, opp('p'), cb.targets);
   hooks.render();
   await settle();
@@ -1484,6 +1541,7 @@ async function aiCombat(pid = 'ai') {
   if (hooks.combatWindow && bl.length) await hooks.combatWindow('afterBlocks');
   if (G.s !== s || !s.combat) return;
   cb.attackers = cb.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
+  maxBlockersRule(cb);
   applyCombat(cb.attackers, cb.blocks, opp(pid), cb.targets);
   hooks.render();
   await settle();

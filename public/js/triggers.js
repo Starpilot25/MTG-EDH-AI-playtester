@@ -107,6 +107,9 @@ function parseTriggerText(text, speed) {
       line = line.replace(/^Max speed — /i, '');
     }
     line = line.replace(/^[A-Z][A-Za-z0-9',.!?&\-:/ ]{1,40} — (?=When|At|Whenever|As )/, ''); // ability words: "Landfall — …", "Allons-y! — …"
+    // "is put into a graveyard from the battlefield" said of a creature is "dies" (Boggart Shenanigans, Nether Traitor)
+    line = line.replace(/^Whenever (another (?:[A-Z][\w-]+|creature|nontoken creature)) you control is put into (?:a|your) graveyard from the battlefield, /, 'Whenever $1 you control dies, ')
+      .replace(/^Whenever another creature is put into your graveyard from the battlefield, /, 'Whenever another creature you own dies, ');
     if (/^"/.test(line)) continue;
     let m;
     const add = (event, effect, extra = {}) => {
@@ -119,6 +122,17 @@ function parseTriggerText(text, speed) {
       const fromGy = !extra.self && !extra.attachedTo && /\b(?:return|put|exile) (?:~|this card) from your graveyard\b|\bif (?:~|this card) is in your graveyard\b/i.test(t) && !/return it to the battlefield tapped and attacking/i.test(t);
       out.push({ event, text: t, optional: /^you may\b/i.test(t), raw: line, oncePerTurn, ...(/Do this only once each turn/i.test(effect) ? { doOnce: true } : {}), ...(fromGy ? { fromGy } : {}), ...extra });
     };
+    {
+      let q;
+      // Syr Konrad, the Grim
+      if ((q = line.match(/^Whenever another creature dies, or a creature card is put into a graveyard from anywhere other than the battlefield, or a creature card leaves your graveyard, (.+)$/i))) {
+        const isCr = (def) => /Creature/.test(((DB[def] || {}).faces || [{}])[0].typeLine || '');
+        add('p:dies', q[1], { pred: (c, ev) => ev.iid !== c.iid });
+        add('p:toGraveyard', q[1], { pred: (c, ev) => ev.from !== 'battlefield' && isCr(ev.def) });
+        add('p:leftGraveyard', q[1], { pred: (c, ev) => ev.owner === c.controller && (ev.defs || [ev.def]).some(isCr) });
+        continue;
+      }
+    }
     // Animate Dead: the leaves part is written inside the enters paragraph
     if (/^When ~ enters/.test(line) && /When ~ leaves the battlefield, that creature's controller sacrifices it\./.test(line)) add('leaves', "that creature's controller sacrifices it.", { self: true });
     // ---- scene-box sweep forms (checked first) ----
@@ -865,6 +879,25 @@ function parseTriggerText(text, speed) {
       // entering
       // Spot, Felis catus: "Whenever ~ or another nontoken legendary permanent you control enters"
       if ((q = line.match(/^Whenever ~ or another (nontoken )?legendary (permanent|creature|artifact) you control enters, (.+)$/i))) { const nt = !!q[1]; const kind = q[2].toLowerCase(); add('p:enters', q[3], { pred: (c, ev) => { const nc = card(ev.iid); if (!nc || nc.zone !== 'battlefield') return false; if (nc.iid === c.iid) return true; return nc.controller === c.controller && (!nt || !nc.token) && /Legendary/.test(typeLine(nc)) && (kind === 'permanent' || isType(nc, kind[0].toUpperCase() + kind.slice(1))) && { it: { iid: nc.iid } }; } }); continue; }
+      // Morph/manifest/disguise payoffs: "Whenever ~ or another creature you control is turned face up", "Whenever a permanent you control is turned face up, if it's a creature, …"
+      if ((q = line.match(/^Whenever (~ or )?(another )?(?:a )?(permanent|creature) you control is turned face up(, if it's a creature)?, (.+)$/i))) {
+        const selfOk = !!q[1] || !q[2];
+        const creatureOnly = /creature/i.test(q[3]) || !!q[4];
+        add('p:turnedFaceUp', q[5], { pred: (c, ev) => { const x = card(ev.iid); if (!x || x.controller !== c.controller || x.zone !== 'battlefield') return false; if (x.iid === c.iid && !selfOk) return false; if (creatureOnly && !isCreature(x)) return false; return { it: { iid: x.iid } }; } });
+        continue;
+      }
+      // Centaur Vinecrasher: "Whenever a land card is put into a graveyard from anywhere, … return ~ from your graveyard to your hand"
+      if ((q = line.match(/^Whenever a land card is put into a graveyard from anywhere, (.+)$/i))) { add('p:toGraveyard', q[1], { pred: (c, ev) => /Land/.test(((DB[ev.def] || {}).faces || [{}])[0].typeLine || '') && ev.iid !== c.iid }); continue; }
+      // Crawling Sensation: "Whenever one or more land cards are put into your graveyard from anywhere for the first time each turn"
+      if ((q = line.match(/^Whenever one or more land cards are put into your graveyard from anywhere for the first time each turn, (.+)$/i))) { add('p:toGraveyard', q[1], { pred: (c, ev) => { if (ev.owner !== c.controller || !/Land/.test(((DB[ev.def] || {}).faces || [{}])[0].typeLine || '')) return false; if (c.crawlTurn === G.s.turn) return false; c.crawlTurn = G.s.turn; return true; } }); continue; }
+      // Scrap Trawler: "Whenever ~ dies or another artifact you control is put into a graveyard from the battlefield"
+      if ((q = line.match(/^Whenever ~ dies or another artifact you control is put into a graveyard from the battlefield, (.+)$/i))) { add('p:toGraveyard', q[1], { pred: (c, ev) => ev.from === 'battlefield' && ev.controller === c.controller && ev.iid !== c.iid && /Artifact/.test(((DB[ev.def] || {}).faces || [{}])[0].typeLine || '') && { it: { iid: ev.iid } } }); add('dies', q[1], { self: true }); continue; }
+      // Landroval: "Whenever two or more creatures you control attack a player"
+      if ((q = line.match(/^Whenever two or more creatures you control attack a player, (.+)$/i))) { add('youAttack', q[1], { minMine: 2 }); continue; }
+      // Forbidden Orchard: "Whenever you tap ~ for mana, …"
+      if ((q = line.match(/^Whenever you tap ~ for mana, (.+)$/i))) { add('p:manaTapped', q[1], { pred: (c, ev) => ev.iid === c.iid }); continue; }
+      // Deep Gnome Terramancer: "Whenever one or more lands enter under an opponent's control without being played"
+      if ((q = line.match(/^Whenever one or more lands enter under an opponent's control without being played, (.+)$/i))) { add('p:enters', q[1], { pred: (c, ev) => { const x = card(ev.iid); if (!x || !isLand(x) || x.controller === c.controller) return false; if (G.s.lastLandPlay && G.s.lastLandPlay.iid === x.iid) return false; if (c.moldTurn === G.s.turn) return false; c.moldTurn = G.s.turn; return { thatPlayer: x.controller }; } }); continue; }
       // Diamond Mare: "Whenever you cast a spell of the chosen color"
       if ((q = line.match(/^Whenever you cast a spell of the chosen color, (.+)$/i))) { add('p:cast', q[1], { pred: (c, ev) => ev.controller === c.controller && !!c.chosenColor && (DB[ev.def || (card(ev.iid) || {}).def] || { colors: [] }).colors.includes(c.chosenColor) }); continue; }
       // Staff of the Sun Magus: "Whenever you cast a white spell or a Plains you control enters"
@@ -1921,6 +1954,11 @@ function matches(ev) {
           for (const d of defs) out.push({ src: c, trig, thatPlayer: d });
           return;
         }
+        if (trig.minMine) {
+          const mine = ((G.s.combat && G.s.combat.attackers) || []).filter((i) => card(i) && card(i).controller === c.controller);
+          if (c.controller === ev.controller && mine.length >= trig.minMine) out.push({ src: c, trig });
+          return;
+        }
         if (trig.otherAttacks2NotMe) {
           const cb = G.s.combat || {};
           const atk = (cb.attackers || []).filter((i) => card(i) && card(i).controller === ev.controller);
@@ -2550,6 +2588,8 @@ export async function settle() {
       if (!ev) continue;
       if (G.s !== s0) break;
       if (await specialEvent(ev)) continue;
+      // Infested Thrinax: "until end of turn, whenever a nontoken creature you control dies, create … Saprolings equal to that creature's power"
+      if (ev.type === 'dies' && !ev.token) for (const tx of (G.s.thrinax || []).filter((x) => x.turn === G.s.turn && x.pid === ev.controller)) { const k = Math.max(0, ev.power || 0); if (k) { createToken(genericTokenDef(1, 1, 'Saproling', ['G']), tx.pid, k); log(tx.pid, `Infested Thrinax: ${k} Saproling${k === 1 ? '' : 's'}.`); } }
       // Together Forever: "When that creature dies this turn, return that card to its owner's hand."
       if (ev.type === 'dies') { const dc = card(ev.iid); if (dc && dc.zone === 'graveyard' && dc.diesToHandTurn === G.s.turn) { delete dc.diesToHandTurn; move(dc.iid, 'hand'); log(dc.owner, `${nameTag(dc)} returns to ${dc.owner === 'p' ? 'your' : seatName(dc.owner) + "'s"} hand (Together Forever).`); } }
       // a copy of an Aura that entered without being cast (token copies, clones, Copy Enchantment): it goes on something
@@ -2914,7 +2954,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
   if (trig.optional) {
     text = text.replace(/^you may /i, '');
     // the AI takes optional triggers unless they cost it something
-    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^sacrifice up to (?:one|two|three) [A-Za-z]+\. When you sacrifice/i.test(text) /* Ravenous Rotbelly: the handler decides */ || /^draw cards equal to the number of opponents dealt damage this way/i.test(text) /* Hordewing Skaab: looting */ || (/^pay life equal to its mana value\. If you do, put it onto the battlefield/i.test(text) && G.s.players[controller].life >= 20) /* Lorcan */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
+    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^sacrifice up to (?:one|two|three) [A-Za-z]+\. When you sacrifice/i.test(text) /* Ravenous Rotbelly: the handler decides */ || /^draw cards equal to the number of opponents dealt damage this way/i.test(text) /* Hordewing Skaab: looting */ || /^discard (?:any number of|one or more) land cards\./i.test(text) /* Nantuko Cultivator, Loamcrafter Faun: the handler decides */ || /^remove a counter from a creature or planeswalker you control\. If you do, draw/i.test(text) /* Sanctuary Warden */ || /^sacrifice an artifact, creature, enchantment, land, or planeswalker\. If you do, each opponent/i.test(text) /* Braids */ || (/^pay life equal to its mana value\. If you do, put it onto the battlefield/i.test(text) && G.s.players[controller].life >= 20) /* Lorcan */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
     if (!yes) return;
     ctx.lastMay = true; // "you may discard a card. If you do, draw two cards."
   }

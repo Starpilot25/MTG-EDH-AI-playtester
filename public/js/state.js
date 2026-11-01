@@ -1673,6 +1673,8 @@ export function createToken(defId, pid, n = 1, opts = {}) {
   const add = opts.noDouble || opts.noAdd ? { same: 0, other: [] } : tokenAdditions(defId, pid, n);
   count += add.same;
   if (!opts.noDouble) for (let k = 0; k < repl('tokenDouble', pid); k++) count *= 2;
+  // Kaya, Geist Hunter −2: "Until end of turn, if one or more tokens would be created under your control, twice that many …"
+  if (!opts.noDouble && G.s) for (const d of G.s.tokenDoubler || []) if (d.pid === pid && d.turn === G.s.turn) count *= 2;
 
   // safety valve: Scute Swarm doubling, token loops — stop at TOKEN_CAP tokens per player so the game can't grind to a halt
   const have = G.s ? cardsIn(pid, 'battlefield').filter((c) => c.token).length : 0;
