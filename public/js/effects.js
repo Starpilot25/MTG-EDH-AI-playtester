@@ -18263,7 +18263,7 @@ on(/^for each token you control of (?:the chosen type|([a-z]+)) that entered thi
   env.did.push(`copies ${toks.length} token${toks.length === 1 ? '' : 's'}`);
 }, { first: true });
 // Chain Lightning: the hit player (or the permanent's controller) may pay {R}{R} to copy it back
-on(/^~ deals 3 damage to any target\. then that player or that permanent's controller may pay \{r\}\{r\}\. if the player does, they may copy this spell and may choose a new target for that copy$/, async (m, env) => {
+on(/^~ deals 3 damage to any target\. then that player or that permanent's controller may pay \{r\}\{r\}\. if the player does, they may copy (?:this spell|~) and may choose a new target for that copy$/, async (m, env) => {
   const src = (env.src && card(env.src.iid)) || env.src;
   let caster = env.me;
   for (let hop = 0; hop < 6; hop++) {
@@ -18342,7 +18342,7 @@ on(/^sacrifice it\. if you do, it deals (\d+) damage to each creature blocking i
 }, { first: true, multi: true });
 
 // Yedora, Grave Gardener: "return it to the battlefield face down under its owner's control. It's a Forest land."
-on(/^return it to the battlefield face down under its owner's control\. it's a forest land$/, async (m, env) => {
+on(/^(?:you may )?return it to the battlefield face down under its owner's control\. it's a forest land$/, async (m, env) => {
   const c = env.it && card(env.it.iid);
   if (!c || c.zone !== 'graveyard') return env.did.push('the card is no longer in the graveyard');
   toBattlefield(c.iid, c.owner, { faceDown: true });
@@ -18394,4 +18394,112 @@ on(/^choose an opponent with the most life among your opponents$/, async (m, env
   const k = ps.length === 1 ? 0 : await env.choosers[env.me].choose({ prompt: 'Choose an opponent with the most life', options: ps.map((x) => ({ label: seatName(x) })), aiPick: () => 0 });
   env.thatPlayer = ps[k] || ps[0];
   env.did.push(`chooses ${seatName(env.thatPlayer)}`);
+}, { first: true });
+
+// ---------------------------------------------------------------- preset-deck cards, batch 6
+// Liberated Livestock: "For each of those tokens, you may put an Aura card from your hand and/or graveyard onto the battlefield attached to it."
+on(/^for each of those tokens, you may put an aura card from your hand and\/or graveyard onto the battlefield attached to it$/, async (m, env) => {
+  let toks = (env.them_ || []).map(card).filter((c) => c && c.token && c.zone === 'battlefield');
+  if (!toks.length) toks = cardsIn(env.me, 'battlefield').filter((c) => c.token && c.enteredTurn === G.s.turn).slice(-3);
+  let n0 = 0;
+  for (const t of toks) {
+    const pool = [...cardsIn(env.me, 'hand'), ...cardsIn(env.me, 'graveyard')].filter((c) => hasSubtype({ ...c, zone: 'hand' }, 'Aura') && /^Enchant (?:creature|permanent)/m.test(DB[c.def].faces[0].oracle || ''));
+    if (!pool.length) break;
+    const [p] = await env.choosers[env.me].pickCards({ prompt: `Put an Aura onto the battlefield attached to ${cardName(t)}?`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'attach', src: env.src, aiScore: (c) => (/gets \+|gains|has /i.test(DB[c.def].faces[0].oracle || '') && !/can't attack|can't block|doesn't untap/i.test(DB[c.def].faces[0].oracle || '') ? cardValue(c) + 1 : -5) });
+    if (!p) continue;
+    toBattlefield(p, env.me);
+    if (card(p)) attachTo(card(p), t);
+    n0++;
+  }
+  env.did.push(n0 ? `attaches ${n0} Aura${n0 === 1 ? '' : 's'} to the new tokens` : 'attaches no Auras');
+}, { first: true });
+// Marshland Bloodcaster: "Rather than pay the mana cost of the next spell you cast this turn, you may pay life equal to that spell's mana value."
+on(/^rather than pay the mana cost of the next spell you cast this turn, you may pay life equal to that spell's mana value$/, async (m, env) => {
+  G.s.lifeCostNext = { ...(G.s.lifeCostNext || {}), [env.me]: G.s.turn };
+  env.did.push('may pay life instead of mana for the next spell this turn');
+}, { first: true });
+// Panoptic Projektor: "The next face-down creature spell you cast this turn costs {3} less to cast."
+on(/^the next face-down creature spell you cast this turn costs \{(\d+)\} less to cast$/, async (m, env) => {
+  G.s.faceDownDiscount = { ...(G.s.faceDownDiscount || {}), [env.me]: { turn: G.s.turn, n: +m[1] } };
+  env.did.push(`the next face-down creature spell this turn costs {${m[1]}} less`);
+}, { first: true });
+// Don't Blink: "Until end of turn, if one or more creatures would enter from exile or after being cast from exile, their owners shuffle them into their libraries instead."
+on(/^until end of turn, if one or more creatures would enter from exile or after being cast from exile, their owners shuffle them into their libraries instead$/, async (m, env) => {
+  G.s.dontBlinkTurn = G.s.turn;
+  env.did.push('creatures entering from exile this turn are shuffled into their libraries instead');
+}, { first: true });
+// Carpet of Flowers
+on(/^if you haven't added mana with this ability this turn, you may add x mana of any one color(?:, where x is the number of islands target opponent controls)?$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (me && me.carpetTurn === G.s.turn) return;
+  const os = opponents(env.me).filter(inGame);
+  if (!os.length) return;
+  const isl = (o) => cardsIn(o, 'battlefield').filter((c) => isLand(c) && hasSubtype(c, 'Island')).length;
+  const best = os.slice().sort((a, b) => isl(b) - isl(a))[0];
+  const o = os.length === 1 ? os[0] : os[await env.choosers[env.me].choose({ prompt: 'Carpet of Flowers: choose an opponent (Islands they control)', options: os.map((x) => ({ label: `${seatName(x)} (${isl(x)} Islands)` })), aiPick: () => os.indexOf(best) })];
+  const x = isl(o);
+  if (!x) return env.did.push(`${seatName(o)} controls no Islands`);
+  const names = ['white', 'blue', 'black', 'red', 'green'];
+  const want = (col) => cardsIn(env.me, 'hand').reduce((a, c) => a + ((DB[c.def].manaCost || '').match(new RegExp(`\\{${col}\\}`, 'g')) || []).length, 0);
+  const sc = names.map((w) => want(COLOR_WORD[w]));
+  const k = await env.choosers[env.me].choose({ prompt: `Add ${x} mana of one color`, options: names.map((w) => ({ label: w })), aiPick: () => sc.indexOf(Math.max(...sc)) });
+  if (me) me.carpetTurn = G.s.turn;
+  addMana(env.me, Array(x).fill(COLOR_WORD[names[k] || 'green']));
+  env.did.push(`adds ${x} ${names[k] || 'green'} mana`);
+}, { first: true });
+// Tempt with Mayhem
+on(/^(?:tempting offer — )?choose target instant or sorcery spell\. each opponent may copy that spell and may choose new targets for the copy they control\. you copy that spell once plus an additional time for each opponent who copied the spell this way\. you may choose new targets for the copies you control$/, async (m, env) => {
+  const slot = [G.s.stack, G.s.pstack].find((x) => x && !x.ability && card(x.iid) && /\b(?:Instant|Sorcery)\b/.test(typeLine(card(x.iid))) && (!env.src || x.iid !== env.src.iid));
+  if (!slot) return env.did.push('there is no instant or sorcery spell to copy');
+  const target = card(slot.iid);
+  const copyAs = async (pid) => {
+    const did = await resolveEffects(spellText({ ...target, face: target.castFace || 0 }), { ...target, face: target.castFace || 0, controller: pid }, { me: pid, choosers: env.choosers, castFree: env.castFree, x: target.xPaid || 0, kicked: target.kicked });
+    env.did.push(`${who(pid)} ${s_(pid, 'copy')} ${nameTag(target)}${did.length ? ': ' + did.join('; ') : ''}`);
+  };
+  // the AI takes the offer when the spell does something it can aim (damage, removal, cards)
+  const good = /damage|destroy|exile|draw|return|counter|create/i.test(spellText(target));
+  let took = 0;
+  for (const o of opponents(env.me).filter(inGame)) {
+    const yes = isAI(o) ? good : await env.choosers[o].confirm(cardName(env.src), `Copy ${cardName(target)} (you choose new targets)?`, {});
+    if (!yes) continue;
+    took++;
+    queueEvent({ type: 'copySpell', controller: o, iid: target.iid });
+    await copyAs(o);
+  }
+  for (let k = 0; k < 1 + took; k++) { queueEvent({ type: 'copySpell', controller: env.me, iid: target.iid }); await copyAs(env.me); }
+}, { first: true, multi: true });
+// Exterminator Magmarch: copy the spell aimed at one opponent's permanent at another opponent's permanent
+on(/^if another opponent controls one or more nonland permanents that spell could target, choose one of those permanents\. copy that spell\. the copy targets the chosen permanent$/, async (m, env) => {
+  const sp = env.it && card(env.it.iid);
+  const slot = [G.s.stack, G.s.pstack].find((x) => x && sp && x.iid === sp.iid);
+  const tg = (slot && slot.targets) || [];
+  const first = tg.length === 1 && tg[0].iid && card(tg[0].iid);
+  // the original target is chosen as the spell resolves when you cast it yourself: aim at the most valuable permanent of the other opponents
+  const fromOpp = first ? first.controller : null;
+  const pool = opponents(env.me).filter((o) => inGame(o) && o !== fromOpp).flatMap((o) => cardsIn(o, 'battlefield')).filter((c) => !isLand(c) && canTarget(c, env.me, sp));
+  if (!sp || !pool.length) return env.did.push('no other opponent has a permanent to target');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: `Copy ${cardName(sp)}: choose another opponent's nonland permanent for the copy`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'target', src: env.src, aiScore: (c) => cardValue(c) });
+  queueEvent({ type: 'copySpell', controller: env.me, iid: sp.iid });
+  const did = await resolveEffects(spellText({ ...sp, face: sp.castFace || 0 }), { ...sp, face: sp.castFace || 0, controller: env.me }, { me: env.me, choosers: env.choosers, castFree: env.castFree, x: sp.xPaid || 0, kicked: sp.kicked, forcePick: p });
+  env.did.push(`copies ${nameTag(sp)} at ${nameTag(card(p))}${did.length ? ': ' + did.join('; ') : ''}`);
+}, { first: true, multi: true });
+// Boltbender: "you may choose new targets for any number of other spells and/or abilities"
+on(/^(?:you may )?choose new targets for any number of other spells and\/or abilities$/, async (m, env) => {
+  const st = G.s.stack;
+  if (!st || st.by === env.me || !(st.targets || []).length) return env.did.push('there is nothing to redirect');
+  await redirectStack(env, {});
+}, { first: true });
+
+// Jeweled Amulet: "Note the type of mana spent to pay this activation cost." / "Add one mana of ~'s last noted type."
+on(/^note the type of mana spent to pay this activation cost$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!me) return;
+  me.notedMana = (G.s.lastPayColors || [])[0] || 'C';
+  env.did.push(`notes {${me.notedMana}}`);
+}, { first: true });
+on(/^add one mana of (?:~|this artifact)'s last noted type$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const col = (me && me.notedMana) || 'C';
+  addMana(env.me, [col]);
+  env.did.push(`adds {${col}}`);
 }, { first: true });

@@ -468,7 +468,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['voidCounter', 'harnessed', 'copyWhileTapped', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['voidCounter', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
@@ -500,6 +500,13 @@ export function move(iid, zone, opts = {}) {
   if (fromZone === 'battlefield' && zone !== 'battlefield' && c.leaveToHand) { const x = s.cards[c.leaveToHand]; const who = c.leaveToHandPid; delete c.leaveToHand; if (x && x.zone === 'exile') queueMicrotask(() => { if (G.s !== s || !s.cards[x.iid] || s.cards[x.iid].zone !== 'exile') return; move(x.iid, 'hand'); s.cards[x.iid].faceDown = false; log(who, `${who === 'p' ? 'You put' : seatName(who) + ' puts'} the card exiled with the Spirit into ${who === 'p' ? 'your' : 'its'} hand.`); }); }
   // Cass, Hand of Vengeance: remember what was attached as it left
   if (fromZone === 'battlefield' && zone !== 'battlefield') c.lastAttached = Object.values(s.cards).filter((x) => x.attachedTo === iid && x.zone === 'battlefield').map((x) => x.iid);
+  // Don't Blink: "if one or more creatures would enter from exile or after being cast from exile, their owners shuffle them into their libraries instead"
+  if (zone === 'battlefield' && s.dontBlinkTurn === s.turn && !c.token && (fromZone === 'exile' || (fromZone === 'stack' && c.castFrom === 'exile')) && /\bCreature\b/.test(((DB[c.def].faces[c.face || 0] || DB[c.def].faces[0]).typeLine || '').split('—')[0])) {
+    move(iid, 'library');
+    shuffle(c.owner);
+    log(c.owner, `${nameTag(c)} is shuffled into ${c.owner === 'p' ? 'your' : 'its owner\'s'} library instead (Don't Blink).`);
+    return;
+  }
   // replacements: finality counters, "exile it if it would leave", Rest in Peace and friends
   if (fromZone === 'battlefield' && zone !== 'battlefield') {
     if ((c.counters || {}).finality && zone === 'graveyard') zone = 'exile';

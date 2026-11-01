@@ -123,6 +123,8 @@ export function applyPayment(pid, pay) {
     changeLife(pid, -pay.phyLife, false);
     log(pid, `${pid === 'p' ? 'You pay' : 'The AI pays'} ${pay.phyLife} life for Phyrexian mana.`);
   }
+  // Jeweled Amulet: remember what kind of mana paid for this
+  try { G.s.lastPayColors = (pay.payers || []).map((iid) => (String(iid).startsWith('pool:') ? ((G.s.pool || {})[pid] || [])[+String(iid).slice(5)] : ((manaAbility(card(iid)) || { colors: [] }).colors || [])[0])).filter(Boolean); } catch (e) { G.s.lastPayColors = []; }
   const usedPool = [];
   for (const iid of new Set(pay.payers || [])) {
     const g = !String(iid).startsWith('pool:') && card(iid) && !card(iid).tapped ? manaLifeGain(card(iid)) : 0;
@@ -436,6 +438,8 @@ function castOptionsRaw(pid, c) {
     if ((m = o0.match(/(?:^|\n)Awaken (\d+)—((?:\{[^}]+\})+)/))) add({ mode: 'awaken', label: `Awaken ${m[1]} — ${m[2]}`, cost: m[2], awaken: +m[1] });
     if ((m = o0.match(/(?:^|\n)Impending (\d+)—((?:\{[^}]+\})+)/))) add({ mode: 'impending', label: `Impending ${m[1]} — ${m[2]}`, cost: m[2], impending: +m[1] });
     if (/(?:^|\n)(?:Morph|Megamorph|Disguise) /.test(o0)) add({ mode: 'faceDown', label: 'Cast face down for {3}', cost: '{3}' });
+    // Marshland Bloodcaster: "Rather than pay the mana cost of the next spell you cast this turn, you may pay life equal to that spell's mana value."
+    if (s.lifeCostNext && s.lifeCostNext[pid] === s.turn && !isLandFace(f0)) { const mv = DB[c.def].cmc || 0; if (s.players[pid].life > mv) add({ mode: 'altcost', label: `Pay ${mv} life instead of its mana cost`, cost: '', free: true, payLife: mv }); }
   }
   if (zone === 'graveyard') {
     let a;
@@ -545,6 +549,8 @@ function genericAdjust(pid, c, opt) {
   const o = stripName(f.oracle || '', c).replace(/\([^)]*\)/g, '');
   let delta = costDelta(pid, c, c.zone, opt.face || 0);
   if (c.zone === 'command' && c.isCommander) delta += commanderTax(pid, c.iid);
+  // Panoptic Projektor: "The next face-down creature spell you cast this turn costs {3} less to cast."
+  if (opt.mode === 'faceDown' && G.s.faceDownDiscount && G.s.faceDownDiscount[pid] && G.s.faceDownDiscount[pid].turn === G.s.turn) delta -= G.s.faceDownDiscount[pid].n;
   let m;
   if ((m = o.match(/(?:This spell|~) costs \{(\d+)\} less to cast for each ([^.]+)\./i))) delta -= +m[1] * (countPhrase(pid, m[2], helpers, c.iid) || 0);
   else if ((m = o.match(/(?:This spell|~) costs \{X\} less to cast, where X is (?:the number of |your |the total )?([^.]+)\./i))) delta -= countPhrase(pid, m[1], helpers, c.iid) || 0;
@@ -945,6 +951,8 @@ export async function castSpell(pid, iid, opt, env) {
   c.castTurn = s.turn;
   if (s.nukaRad && s.nukaRad[pid] >= s.turn && !opt.copy) { s.players[pid].counters.rad = (s.players[pid].counters.rad || 0) + 2; log(pid, `${pid === 'p' ? 'You get' : seatName(pid) + ' gets'} two rad counters (Nuka-Nuke Launcher).`); }
   if (s.flashNext && s.flashNext[pid] === s.turn && !opt.copy) delete s.flashNext[pid];
+  if (s.lifeCostNext && s.lifeCostNext[pid] === s.turn && !opt.copy) delete s.lifeCostNext[pid]; // Marshland Bloodcaster: only the next spell
+  if (opt.mode === 'faceDown' && s.faceDownDiscount && s.faceDownDiscount[pid] && !opt.copy) delete s.faceDownDiscount[pid]; // Panoptic Projektor
   if (s.flashNextType && s.flashNextType[pid] && s.flashNextType[pid].turn === s.turn && !opt.copy && ((d.faces[fIdx] || d.faces[0]).typeLine || '').includes(s.flashNextType[pid].type)) delete s.flashNextType[pid];
   if (s.avalanche && s.avalanche[pid] === s.turn && !opt.copy) {
     delete s.avalanche[pid];
