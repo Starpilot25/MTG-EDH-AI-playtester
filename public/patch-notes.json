@@ -1,5 +1,21 @@
 [
   {
+    "version": "1.3.180",
+    "title": "Star Trek precon cards, Miku/Giada angels deck, Herald's Horn, Daybreak Coronet",
+    "notes": [
+      "Star Trek precons: the Borg's assimilate (The Borg Queen, Gift of Perfection, Assimilate the Wounded, Assimilation Assessor, The Best of Both Worlds), Join the Collective and Deliver from Chaos make the right number of Borg tokens.",
+      "Star Trek: 'differently named lands' (Lt. Arex, Christine Chapel, Chief Scott, Colossal Clone Master) and Battlefront 'opponents you attacked this turn' (Kurn, Korok, Galvanizing Tenor, Own the Day's discount, The Beacon of Kahless) are counted.",
+      "Star Trek: Kang goads himself and the target while you control him and triggers when goaded creatures attack; Koloth's Tribbles are +1/+0 and goaded; T'Pring fights and draws when a fighter dies; Kes draws for the new counter and leaves at nine; Commander Beacon, Concerted Effort, Guinan, Harry Kim, Fevered Visions, Merciful Mandate, Right of Vengeance, Tuvok, Unification, U.S.S. Farragut, World at War, Seven of Nine, Stonespeaker Crystal, S.S. Botany Bay, Cmdr. Troi, Ambassador K'Ehleyr, Alexander, B'Elanna Torres, Chief O'Brien, Chronomantic Escape, Võx (undaunted for the next artifact creature and Spacecraft), Spot, Lieutenant Sulu, Enterprise-C, Astral Cornucopia.",
+      "Star Trek statics: I.K.S. Negh'Var (Klingons and Warriors have vigilance), K'Vort-Class Raider (hexproof during your turn), Geordi La Forge (unblockable with a Spacecraft), Gagh Slinger (Klingon or Warrior spells cost less).",
+      "Copies: Reg Barclay and Shore Leave Planet copies are Illusion/Robot artifacts; Voq and Ezri Dax copy a creature card in a graveyard; Colossal Clone Master's copy gets its land-count power and toughness.",
+      "Undaunted now counts every opponent (it was always {1} less).",
+      "Herald's Horn: you see the top card. If it's a creature of the chosen type you can reveal it into your hand; if not, the only button is OK.",
+      "Daybreak Coronet can only go on a creature that already has another Aura.",
+      "Giada/Miku deck: Minimus Containment turns the permanent into a Treasure; Soul Foundry imprints and copies for the right X; Astelli Reclaimer counts mana spent; Lightstall Inquisitor (exiled card costs {1} more, lands enter tapped); Sanctuary Warden; Together Forever; Windshaper Planetar; Steel Seraph's choice; Cut a Deal; Lay Down Arms; Abzan Battle Priest and Inspiring Paladin grants; Diamond Mare, Staff of the Sun Magus and Firemane Commando triggers.",
+      "'Create a number of tokens equal to the number of opponents you have' counts every opponent in pods (Glory to the Empire!, Chittering Witch)."
+    ]
+  },
+  {
     "version": "1.3.179",
     "title": "Star Trek Commander precons",
     "notes": [

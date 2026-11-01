@@ -115,9 +115,17 @@ function typeFxOf(inst, base) {
 }
 // Ultima, Origin of Oblivion: "For as long as that land has a blight counter on it, it loses all land types and abilities and has "{T}: Add {C}.""
 export const blighted = (inst) => !!(inst && inst.blightLand && ((inst.counters || {}).blight || 0) > 0);
+// Minimus Containment: "Enchanted permanent is a Treasure artifact with "{T}, Sacrifice this artifact: Add one mana of any color," and it loses all other abilities."
+export function treasured(inst) {
+  if (!inst) return false;
+  if (inst.becameTreasure) return true;
+  if (!inst.minimusBy || !G.s) return false;
+  const a = G.s.cards[inst.minimusBy];
+  return !!a && a.zone === 'battlefield' && a.attachedTo === inst.iid;
+}
 export function typeLine(inst) {
   if (inst.faceDown) return 'Creature';
-  if (inst.becameTreasure) return 'Artifact — Treasure'; // Vraska, Betrayal's Sting
+  if (treasured(inst)) return 'Artifact — Treasure'; // Vraska, Betrayal's Sting
   if (inst.bestowed && inst.zone === 'battlefield') return 'Enchantment — Aura'; // bestowed: an Aura, not a creature (702.103)
   let t = printedTypes(inst);
   if (inst.becameLand && inst.zone === 'battlefield') t = /^Legendary/.test(t) ? 'Legendary Land' : 'Land'; // Princess Yue as Moon
@@ -317,7 +325,7 @@ export function pairGrantText(inst) {
 }
 function oracleRaw(inst) {
   const f = face(inst);
-  if (inst.becameTreasure) return inst.extraText || '';
+  if (treasured(inst)) return inst.becameTreasure ? inst.extraText || '' : '{T}, Sacrifice this artifact: Add one mana of any color.';
   let text = f.oracle || '';
   // a Room on the battlefield has the abilities of its unlocked doors ("this door" → which one)
   if (inst.zone === 'battlefield' && inst.unlocked && isRoomCard(DB[inst.def])) {
@@ -623,7 +631,7 @@ function cda(inst) {
   const nm = DB[inst.def].faces[inst.face || 0].name;
   const short = nm.split(',')[0];
   const first = (nm.match(/^([A-Z][\w'-]{2,}) (?:of|the|from|and)\b/) || [])[1];
-  let o = (face(inst).oracle || '').split(nm).join('~');
+  let o = ((face(inst).oracle || '') + (inst.extraText ? '\n' + inst.extraText : '')).split(nm).join('~'); // Colossal Clone Master grants one in quotes
   if (short !== nm && short.length > 2) o = o.split(short + "'s").join("~'s");
   if (first) o = o.split(first + "'s").join("~'s");
   o = o.replace(/\bthis (?:creature|vehicle|artifact)'s\b/gi, "~'s");
@@ -688,6 +696,11 @@ export function basePT(inst) {
   }
   let p = num(f.power);
   let t = num(f.toughness);
+  // Colossal Clone Master: a copy that "has 'This creature's power and toughness are each equal to …'" (granted CDA wins over the copied numbers)
+  if (G.s && inst.extraText && /power and toughness are each equal to/i.test(inst.extraText)) {
+    const c = cda(inst);
+    if (c && c.p !== null && c.t !== null) return { p: c.p, t: c.t };
+  }
   if ((p === null || t === null) && (f.power !== undefined || f.toughness !== undefined)) {
     const c = G.s ? cda(inst) : null;
     if (c) {
@@ -817,13 +830,13 @@ export function manaAbility(inst) {
   for (const e of inst.layerFx || []) if (e.mana) return isCreature(inst) && inst.sick && !hasKw(inst, 'haste') ? null : { colors: e.mana, amount: 1 };
   // it lost all abilities: no mana abilities of its own (Vraska's Treasure keeps the one it was given) — but a land with a
   // basic land type taps for that color (Blood Moon's Mountains, Song of the Dryads' Forest)
-  if ((inst.lostAbilities && !inst.becameTreasure) || (!inst.becameTreasure && abilitiesGone(inst)) || (inst.layerFx || []).some((e) => e.types && e.types.set)) {
+  if ((inst.lostAbilities && !treasured(inst)) || (!treasured(inst) && abilitiesGone(inst)) || (inst.layerFx || []).some((e) => e.types && e.types.set)) {
     const tl = typeLine(inst);
     if (/\bLand\b/.test(tl.split('—')[0])) {
       const cols = Object.entries(BASIC_COLOR).filter(([k]) => new RegExp('\\b' + k + '\\b').test(tl.split('—')[1] || '')).map(([, v]) => v);
       if (cols.length && (abilitiesGone(inst) || (inst.layerFx || []).some((e) => e.types && e.types.set))) return { colors: cols, amount: 1 };
     }
-    if (inst.lostAbilities && !inst.becameTreasure) return null;
+    if (inst.lostAbilities && !treasured(inst)) return null;
     if (abilitiesGone(inst)) return null;
   }
   // The Eternity Elevator (20+): "{T}: Add X mana of any one color, where X is the number of charge counters on ~."
@@ -832,7 +845,9 @@ export function manaAbility(inst) {
     const o2 = oracle(inst);
     const ex = /\{T\}: Add X mana of any one color, where X is the number of charge counters on /.test(o2);
     const qd = /\{T\}: Choose a color\. Add one mana of that color for each charge counter on [^.]+\. Spend this mana only to cast your commander/.test(o2);
-    if (ex || qd) {
+    // Astral Cornucopia: the same, with no restriction
+    const ac = !qd && /(?:^|\n)\{T\}: Choose a color\. Add one mana of that color for each charge counter on [^.\n]+\.(?:$|\n)/.test(o2);
+    if (ex || qd || ac) {
       if (inst.tapped || inst.phasedOut || (isCreature(inst) && inst.sick && !hasKw(inst, 'haste'))) return null;
       const k = (inst.counters || {}).charge || 0;
       const big = { colors: ['W', 'U', 'B', 'R', 'G'], amount: k, oneColor: true, ...(qd ? { onlyFor: 'commander' } : {}) };
@@ -840,6 +855,15 @@ export function manaAbility(inst) {
       if (base) return k > 0 ? { ...base, alts: [big] } : base;
       return k > 0 ? big : null;
     }
+  }
+  // The Beacon of Kahless: "{T}: Add one mana of any color." / "Battlefront — {T}: Choose a color. Add an amount of mana of that color
+  // equal to the number of opponents you attacked this turn."
+  if (/(?:^|\n)Battlefront — \{T\}: Choose a color\. Add an amount of mana of that color equal to the number of opponents you attacked this turn\./.test(oracle(inst))) {
+    if (inst.tapped || inst.phasedOut) return null;
+    const base = { colors: ['W', 'U', 'B', 'R', 'G'], amount: 1 };
+    const al = G.s && (G.s.attackLog || {})[inst.controller];
+    const k = al && al.turn === G.s.turn ? al.targets.filter((t) => t && t !== inst.controller && G.s.players[t]).length : 0;
+    return k > 1 ? { ...base, alts: [{ colors: ['W', 'U', 'B', 'R', 'G'], amount: k, oneColor: true }] } : base;
   }
   // Shadowmoor/Eventide filter lands (Rugged Prairie, Cascade Bluffs, Mystic Gate…): "{T}: Add {C}." and
   // "{R/W}, {T}: Add {R}{R}, {R}{W}, or {W}{W}." — the second spends one mana of either color to make two
@@ -1674,6 +1698,8 @@ export function canBlock(blocker, attacker) {
     if (/you(?:'re| are) the monarch/.test(cond) && G.s && G.s.monarch === attacker.controller) return false;
     if (/you have the initiative/.test(cond) && G.s && G.s.initiative === attacker.controller) return false;
   }
+  // Geordi La Forge: "~ can't be blocked if you control a Spacecraft."
+  if (G.s && (m = ao.match(/can't be blocked if you control an? ([A-Z][\w-]+)\./)) && G.s.players[attacker.controller].zones.battlefield.some((i) => G.s.cards[i] && !G.s.cards[i].phasedOut && (hasSubtype(G.s.cards[i], m[1]) || isType(G.s.cards[i], m[1])))) return false;
   if ((m = ao.match(/can't be blocked by creatures with power (\d+) or less/i)) && power(blocker) <= +m[1]) return false;
   if ((m = ao.match(/can't be blocked by creatures with power (\d+) or greater/i)) && power(blocker) >= +m[1]) return false;
   if (/can't be blocked except by creatures with flying/i.test(ao) && !hasKw(blocker, 'flying')) return false;

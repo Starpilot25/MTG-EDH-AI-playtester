@@ -812,6 +812,7 @@ function parseTriggerText(text, speed) {
         continue;
       }
       // static mana abilities written as triggers (rules.js manaAbility applies them)
+      if (/^Whenever you tap a permanent for \{C\}, add an additional \{C\}/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; } // Forsaken Monument (rules.js manaAbility)
       if (/^Whenever (?:you tap an? (?:Plains|Island|Swamp|Mountain|Forest) for mana, add an additional|a player taps a (?:basic )?land for mana, that player adds one mana|you tap a land for mana, add one mana of any type|a land's ability causes you to add one or more mana of the chosen color|enchanted land is tapped for mana, its controller adds an additional|a basic land is tapped for mana of the chosen color|you tap a land for mana while you're the monarch, add an additional|a land with the same name as the exiled card is tapped for mana)/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
       // ability copiers (cast.js activationCopies), Grafted Exoskeleton (state.js), Selfless Squire (state.inkshieldFlush)
       if (/^Whenever (?:you activate an ability|an ability of equipped creature is activated)\b[^,]*, if (?:it isn't a mana ability|one or more permanents were sacrificed to activate it|life was paid to activate it), you may (?:pay|copy)/i.test(line)
@@ -862,6 +863,25 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever fortified land is tapped for mana, (.+)$/i))) { add('p:manaTapped', q[1], { pred: (c, ev) => ev.iid === c.attachedTo && { it: { iid: ev.iid } } }); continue; }
       if ((q = line.match(/^Whenever an opponent taps an artifact for mana, (.+)$/i))) { add('p:manaTapped', q[1], { pred: (c, ev) => ev.artifact && ev.pid !== c.controller && card(ev.iid) && card(ev.iid).zone === 'battlefield' && { it: { iid: ev.iid }, thatPlayer: ev.pid } }); continue; }
       // entering
+      // Spot, Felis catus: "Whenever ~ or another nontoken legendary permanent you control enters"
+      if ((q = line.match(/^Whenever ~ or another (nontoken )?legendary (permanent|creature|artifact) you control enters, (.+)$/i))) { const nt = !!q[1]; const kind = q[2].toLowerCase(); add('p:enters', q[3], { pred: (c, ev) => { const nc = card(ev.iid); if (!nc || nc.zone !== 'battlefield') return false; if (nc.iid === c.iid) return true; return nc.controller === c.controller && (!nt || !nc.token) && /Legendary/.test(typeLine(nc)) && (kind === 'permanent' || isType(nc, kind[0].toUpperCase() + kind.slice(1))) && { it: { iid: nc.iid } }; } }); continue; }
+      // Diamond Mare: "Whenever you cast a spell of the chosen color"
+      if ((q = line.match(/^Whenever you cast a spell of the chosen color, (.+)$/i))) { add('p:cast', q[1], { pred: (c, ev) => ev.controller === c.controller && !!c.chosenColor && (DB[ev.def || (card(ev.iid) || {}).def] || { colors: [] }).colors.includes(c.chosenColor) }); continue; }
+      // Staff of the Sun Magus: "Whenever you cast a white spell or a Plains you control enters"
+      if ((q = line.match(/^Whenever you cast an? (white|blue|black|red|green) spell or an? (Plains|Island|Swamp|Mountain|Forest) you control enters, (.+)$/))) {
+        const col = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }[q[1]];
+        const land = q[2];
+        add('p:cast', q[3], { pred: (c, ev) => ev.controller === c.controller && (DB[ev.def || (card(ev.iid) || {}).def] || { colors: [] }).colors.includes(col) });
+        add('p:enters', q[3], { pred: (c, ev) => { const nc = card(ev.iid); return !!nc && nc.controller === c.controller && hasSubtype(nc, land); } });
+        continue;
+      }
+      // Firemane Commando: "Whenever another player attacks with two or more creatures, they draw a card if none of those creatures attacked you."
+      if ((q = line.match(/^Whenever another player attacks with two or more creatures, they draw a card if none of those creatures attacked you\.$/i))) {
+        add('youAttack', 'that player draws a card.', { otherAttacks2NotMe: true });
+        continue;
+      }
+      // Kang, Suspicious Captain: "Whenever one or more goaded creatures attack" (anyone's)
+      if ((q = line.match(/^Whenever one or more goaded creatures attack, (.+)$/i))) { add('youAttack', q[1], { goadedAtk: true }); continue; }
       if ((q = line.match(/^When ~ enters from a graveyard, (.+)$/i))) { add('p:enters', q[1], { pred: (c, ev) => ev.iid === c.iid && card(c.iid) && card(c.iid).enteredFrom === 'graveyard' }); continue; }
       if ((q = line.match(/^Whenever ~ or another creature enters from your graveyard, (.+)$/i))) { add('p:enters', q[1], { pred: (c, ev) => { const nc = card(ev.iid); return nc && isCreature(nc) && nc.controller === c.controller && nc.owner === c.controller && nc.enteredFrom === 'graveyard' && { it: { iid: nc.iid } }; } }); continue; }
       if ((q = line.match(/^Whenever ~ or another permanent enters from a graveyard, (.+)$/i))) { add('p:enters', q[1], { pred: (c, ev) => { const nc = card(ev.iid); return nc && nc.enteredFrom === 'graveyard' && { it: { iid: nc.iid } }; } }); continue; }
@@ -1901,6 +1921,18 @@ function matches(ev) {
           for (const d of defs) out.push({ src: c, trig, thatPlayer: d });
           return;
         }
+        if (trig.otherAttacks2NotMe) {
+          const cb = G.s.combat || {};
+          const atk = (cb.attackers || []).filter((i) => card(i) && card(i).controller === ev.controller);
+          if (ev.controller === c.controller || atk.length < 2) return;
+          const hitMe = atk.some((i) => { const t = (cb.targets || {})[i] || ev.defender; return t === c.controller || (card(t) && card(t).controller === c.controller); });
+          if (!hitMe) out.push({ src: c, trig, thatPlayer: ev.controller });
+          return;
+        }
+        if (trig.goadedAtk) {
+          if (((G.s.combat && G.s.combat.attackers) || []).some((i) => card(i) && isGoaded(card(i)))) out.push({ src: c, trig });
+          return;
+        }
         // Fangorn: "Whenever one or more Treefolk you control attack" — that much = how many
         if (trig.kindCount) {
           if (c.controller !== ev.controller) return;
@@ -2518,6 +2550,8 @@ export async function settle() {
       if (!ev) continue;
       if (G.s !== s0) break;
       if (await specialEvent(ev)) continue;
+      // Together Forever: "When that creature dies this turn, return that card to its owner's hand."
+      if (ev.type === 'dies') { const dc = card(ev.iid); if (dc && dc.zone === 'graveyard' && dc.diesToHandTurn === G.s.turn) { delete dc.diesToHandTurn; move(dc.iid, 'hand'); log(dc.owner, `${nameTag(dc)} returns to ${dc.owner === 'p' ? 'your' : seatName(dc.owner) + "'s"} hand (Together Forever).`); } }
       // a copy of an Aura that entered without being cast (token copies, clones, Copy Enchantment): it goes on something
       if (ev.type === 'enters') { const ac = card(ev.iid); if (ac && ac.zone === 'battlefield' && !ac.attachedTo && !ac.enchantedPlayer && hasSubtype(ac, 'Aura') && !isCreature(ac)) { try { const { attachLooseAuras } = await import('./effects.js'); const d = await attachLooseAuras([ac.iid], ac.controller, T.choosers); if (d.length) log(ac.controller, d.join('; ') + '.'); } catch (e) { if (!(e instanceof Cancelled)) console.error(e); } } }
       let hits = withReadCache(() => matches(ev)); // finding who triggers only reads the board

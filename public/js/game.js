@@ -9,7 +9,7 @@ import {
 import {
   G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, aiSlaved, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
   freshTurnStats, changeLife, setLife, sacrifice, addCounters, toBattlefield, cardName, queueEvent, discard as discardCard,
-  tappedHook, inkshieldFlush,
+  tappedHook, inkshieldFlush, destroy, createToken, genericTokenDef,
 } from './state.js';
 import { maxHandSize } from './statics.js';
 import { fire, settle, T } from './triggers.js';
@@ -527,6 +527,15 @@ async function endStepThings(pid) {
       else { await attachAura(c, d.pid, T.choosers[d.pid], {}); }
       continue;
     }
+    // U.S.S. Farragut: "At the beginning of the next end step, put it on the bottom of your library. When you do, draw a card."
+    if (d.kind === 'bottomDraw') {
+      if (c.zone === 'battlefield') {
+        move(d.iid, 'library', { to: 'bottom' });
+        draw(d.pid, 1, true);
+        log(d.pid, `${nameTag(c)} goes to the bottom of ${d.pid === 'p' ? 'your' : 'its'} library; ${d.pid === 'p' ? 'you draw' : 'draws'} a card.`);
+      }
+      continue;
+    }
     if (d.kind === 'returnFromExile' && (c.zone === 'exile' || c.zone === 'graveyard')) {
       toBattlefield(d.iid, d.pid || c.owner);
       if (d.tapped && card(d.iid)) card(d.iid).tapped = true;
@@ -673,6 +682,13 @@ export async function playerNextStep() {
     await endCombat('p');
     if (G.s !== s) return;
     afterCombat();
+  } else if (s.step === 'main2' && s.extraCombats > 0) {
+    // an additional combat granted during the second main phase (World at War, Relentless Assault cast late)
+    s.extraCombats--;
+    untapForExtraCombat('p');
+    log('sys', 'An additional combat phase begins.');
+    setStep('main1');
+    return playerNextStep();
   } else if (s.step === 'main2') {
     await extraBeginningPhases('p');
     if (G.s !== s) return;
@@ -717,12 +733,22 @@ export async function extraBeginningPhases(pid) {
   }
 }
 
+// World at War: "At the beginning of that combat, untap all creatures that attacked this turn."
+function untapForExtraCombat(pid) {
+  const u = G.s.untapForExtraCombat;
+  if (!u || u.turn !== G.s.turn || u.pid !== pid) return;
+  G.s.untapForExtraCombat = null;
+  const list = Object.values(G.s.cards).filter((c) => c.zone === 'battlefield' && c.tapped && c.attackedTurn === G.s.turn && c.controller === pid);
+  list.forEach((c) => (c.tapped = false));
+  if (list.length) log(pid, `${list.length} creature${list.length === 1 ? '' : 's'} that attacked this turn untap.`);
+}
 // After a combat: another combat if one was granted, otherwise the second main phase.
 function afterCombat() {
   const s = G.s;
   s.combat = null;
   if (s.extraCombats > 0) {
     s.extraCombats--;
+    untapForExtraCombat(s.active);
     log('sys', 'An additional combat phase begins.');
     setStep('main1');
     if (s.active === 'p') return playerNextStep();
@@ -1226,6 +1252,14 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     }
     if (ev.amount > 0) {
       fire({ type: 'combatDamagePlayer', iid: ev.from, controller: ev.controller, player: victim, amount: ev.amount });
+      // Right of Vengeance: "Until end of turn, whenever a creature deals combat damage to you, destroy that creature and create a 2/1 red Klingon Warrior creature token with haste."
+      for (const v of (s.vengeance || []).filter((x) => x.turn === s.turn && x.pid === victim)) {
+        const from = card(ev.from);
+        if (from && from.zone === 'battlefield') destroy(ev.from);
+        createToken(genericTokenDef(2, 1, 'Klingon Warrior', ['R'], { keywords: ['haste'] }), victim, 1);
+        log(victim, `Right of Vengeance: ${from ? nameTag(from) + ' is destroyed; ' : ''}a 2/1 Klingon Warrior with haste.`);
+        void v;
+      }
       if (G.s.ts[victim]) {
         G.s.ts[victim].dmgTaken = (G.s.ts[victim].dmgTaken || 0) + ev.amount;
         G.s.ts[victim].combatDmgTaken = true;
@@ -1473,6 +1507,7 @@ export async function runAiTurn(pid = 'ai') {
       if (!ended()) await aiCombat(pid);
       while (!ended() && G.s === s && !s.winner && inGame(pid) && s.extraCombats > 0) {
         s.extraCombats--;
+        untapForExtraCombat(pid);
         log('sys', 'An additional combat phase begins.');
         await aiCombat(pid);
       }

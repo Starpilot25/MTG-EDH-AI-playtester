@@ -144,6 +144,21 @@ function parseStatics(text, selfName) {
         continue;
       }
     }
+    // Inspiring Paladin: "During your turn, this creature has first strike."
+    if ((m = sl.match(/^during your turn, ~ has ([a-z ,]+?)\.?$/))) {
+      const g = kwList(m[1]);
+      if (g.length) { out.self.push({ cond: "it's your turn", p: 0, t: 0, grants: g }); continue; }
+    }
+    // K'Vort-Class Raider: "During your turn, ~ and creatures you control have hexproof."
+    if ((m = sl.match(/^during your turn, (~ and )?((?:other )?(?:[\w-]+ )*?creatures you control(?: with [^.]+?)? (?:get|have) .+)$/))) {
+      const sub = parseStatics(m[2], selfName);
+      if (sub.anthems.length) {
+        for (const a of sub.anthems) pushAnthem({ ...a, cond: "it's your turn" });
+        const gm = m[2].match(/ have (.+?)\.?$/);
+        if (m[1] && gm) out.self.push({ cond: "it's your turn", p: 0, t: 0, grants: kwList(gm[1]) });
+        continue;
+      }
+    }
     // conditional anthems: "As long as you have at least 7 life more than your starting life total, creatures you control get +2/+2."
     if ((m = l.match(/^as long as (.+?), ((?:other |all |each )?[\w -]*?(?:creatures|tokens|[\w-]+s) (?:you control |your opponents control )?(?:get|have) .+)$/))) {
       const sub = parseStatics(m[2], selfName);
@@ -198,7 +213,7 @@ function parseStatics(text, selfName) {
     }
     // Sephara: "Other creatures you control with flying have indestructible."
     // Tesak, Judith's Hellhound: "Creatures you control with counters on them have haste." (+1/+1 counters: Rishkar-style)
-    if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control with (a \+1\/\+1 counter|one or more \+1\/\+1 counters|counters) on (?:it|them) (?:have|get ([+-]\d+)\/([+-]\d+)(?: and have)?) ?(.*?)\.?$/))) {
+    if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control with (a \+1\/\+1 counter|one or more \+1\/\+1 counters|\+1\/\+1 counters|counters) on (?:it|them) (?:have|get ([+-]\d+)\/([+-]\d+)(?: and have)?) ?(.*?)\.?$/))) {
       pushAnthem({ who: 'mine', other: !!m[1], f: { ...filterFrom(m[2]), withCounters: /\+1/.test(m[3]) ? '+1/+1' : 'any' }, p: m[4] ? +m[4] : 0, t: m[5] ? +m[5] : 0, grants: kwList(m[6] || '') });
       continue;
     }
@@ -208,6 +223,16 @@ function parseStatics(text, selfName) {
     }
     if ((m = l.match(/^(other )?((?:[\w-]+ ){0,3}?)creatures you control have (.+?)\.?$/))) {
       pushAnthem({ who: 'mine', other: !!m[1], f: filterFrom(m[2]), p: 0, t: 0, grants: kwList(m[3]) });
+      continue;
+    }
+    // Koloth, Tribble Hunter: "All Tribbles get +1/+0 and are goaded." (the goad lives in state.js isGoaded)
+    if ((m = l.match(/^all ([\w-]+?)s get ([+-]\d+)\/([+-]\d+)(?: and are goaded)?\.?$/)) && !/^(creature|permanent|artifact|land)$/.test(m[1])) {
+      pushAnthem({ who: 'all', f: { subtypes: [m[1]] }, p: +m[2], t: +m[3], grants: [] });
+      continue;
+    }
+    // I.K.S. Negh'Var: "Klingons and Warriors you control have vigilance." (either type)
+    if ((m = l.match(/^(other )?([\w-]+?)s and ([\w-]+?)s you control (?:get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?|have (.+?))\.?$/))) {
+      pushAnthem({ who: 'mine', other: !!m[1], f: { subtypes: [m[2], m[3]] }, p: m[4] ? +m[4] : 0, t: m[5] ? +m[5] : 0, grants: kwList(m[6] || m[7] || '') });
       continue;
     }
     if ((m = l.match(/^(other )?([\w-]+?)s you control have (.+?)\.?$/)) && !/^(spell|land|permanent)$/.test(m[2])) {
@@ -245,6 +270,8 @@ function parseStatics(text, selfName) {
       continue;
     }
     // cost changes
+    // Gagh Slinger: "Klingon spells and Warrior spells you cast cost {1} less" — either type (spellFits reads "a-or-b")
+    l = l.replace(/^([a-z]+) spells and ([a-z]+) spells you cast/, '$1-or-$2 spells you cast');
     if ((m = l.match(/^(during your turn, )?((?:[\w-]+ ){0,4}?)spells you cast(?: of the chosen type)?(?: from (your graveyard|exile|anywhere other than your hand))?(?: with (power|toughness|mana value) (\d+) or (greater|less))? cost \{(\d+)\} less to cast(?: for each ([^.]+?))?\.?$/))) {
       // Goreclaw: "Creature spells you cast with power 4 or greater cost {2} less to cast."
       // Temur Battlecrier: "During your turn, spells you cast cost {1} less to cast for each creature you control with power 4 or greater."
@@ -325,6 +352,7 @@ function staticsOfRaw(c) {
   text = text.replace(/(^|\n)(?!Max speed|Eminence|Lieutenant|Chapter|Station|Companion|Coven|Metalcraft|Threshold|Delirium|Ferocious|Domain|Hellbent|Spell mastery|Revolt|Raid|Morbid|Formidable|Undergrowth|Kinship|Imprint)[A-Z][A-Za-z' ,.!?-]{1,40} — (?=(?:Other |Creatures |Each |Spells |Artifacts |Lands |Enchantments |You |Your |Permanents |Equipped |Enchanted ))/g, '$1');
   text = text.replace(/(^|\n)Creatures you control also get /g, '$1Creatures you control get '); // Jetmir
   text = text.replace(/(^|\n)Each ((?:[a-z]+ )*?)(creature|artifact|land|permanent|enchantment)( you control) has /g, '$1$2$3s$4 have '); // Depthshaker Titan: "Each artifact creature you control has …"
+  text = text.replace(/(^|\n)Each ((?:[a-z]+ )*?)creature you control with (a|one or more) \+1\/\+1 counters? on it has /g, '$1$2creatures you control with a +1/+1 counter on them have '); // Abzan Battle Priest
   text = text.replace(/(\b(?:Equipped|Enchanted) creature gets [+-]\d+\/[+-]\d+) and doesn't untap during its controller's untap step\./g, '$1.'); // T-45 Power Armor (the untap part lives in the untap step)
   const key = c.def + ':' + (c.face || 0) + ':' + c.zone + ':' + text.length + ':' + (c.chosenType || '');
   if (!parsedCache.has(key)) parsedCache.set(key, parseStatics(text, d.name));
@@ -522,6 +550,7 @@ function spellFits(filter, d, faceIdx = 0) {
   // the half being cast: an Omen or Adventure half is an instant/sorcery, not a Dragon spell (The Ur-Dragon)
   const tl = (d.faces[faceIdx] || d.faces[0]).typeLine || d.faces[0].typeLine;
   return filter.replace(/\b(?:other|another)\b/g, '').split(/\s+(?:and|or)\s+|\s+/).filter(Boolean).every((w) => {
+    if (/-or-/.test(w)) return w.split('-or-').some((x) => spellFits(x, d, faceIdx));
     if (w === 'noncreature') return !/Creature/.test(tl);
     if (w === 'nonartifact') return !/Artifact/.test(tl);
     if (/^non/.test(w)) return !new RegExp(w.slice(3), 'i').test(tl);
@@ -623,6 +652,15 @@ export function playerFlag(pid, flag) {
 export function countPhrase(pid, phrase, helpers, srcIid) {
   let p = String(phrase || '').toLowerCase().replace(/^(?:the )?(?:total )?number of /, '').replace(/\.$/, '').trim()
     .replace(/\b(?:defending player|that player|the defending player) controls$/, 'an opponent controls'); // two players: the only one it can be
+  // Battlefront (Star Trek): "the number of opponents you attacked this turn"
+  if (/^opponents? you attacked this turn$/.test(p)) {
+    const al = G.s && (G.s.attackLog || {})[pid];
+    return al && al.turn === G.s.turn ? al.targets.filter((t) => t && t !== pid && G.s.players[t]).length : 0;
+  }
+  // Strange new worlds (Star Trek): "the number of differently named lands you control"
+  if (/^differently named lands you control$/.test(p) && G.s) {
+    return new Set(G.s.players[pid].zones.battlefield.map((i) => G.s.cards[i]).filter((c) => c && !c.phasedOut && /\bLand\b/.test(helpers.typeLine(c))).map((c) => (c.faceDown ? '' : DB[c.def].name))).size;
+  }
   // Tesak: "add {R} for each attacking creature"; "for each other attacking creature"
   {
     const am = p.match(/^(other )?attacking (creature|[a-z-]+)s?( you control)?$/);

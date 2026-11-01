@@ -511,6 +511,11 @@ function anyColorCost(cost) {
 }
 
 // Generic mana added or removed by the card itself and the battlefield.
+function undauntedSlot(u, tl) {
+  if (u.art && /\bArtifact\b/.test(tl) && /\bCreature\b/.test(tl)) return 'art';
+  if (u.space && /\bSpacecraft\b/.test(tl)) return 'space';
+  return null;
+}
 function genericAdjust(pid, c, opt) {
   const d = DB[c.def];
   const f = d.faces[opt.face || 0] || d.faces[0];
@@ -532,13 +537,17 @@ function genericAdjust(pid, c, opt) {
   if (G.s.nextSpellLess && G.s.nextSpellLess[pid] && G.s.nextSpellLess[pid].turn === G.s.turn) delta -= G.s.nextSpellLess[pid].n;
   // Don & Raph: "the next noncreature spell you cast this turn has affinity for artifacts"
   else if (G.s.affinityNext && G.s.affinityNext[pid] === G.s.turn && !/\bCreature\b/.test((f.typeLine || d.typeLine || '').split('—')[0]) && !/\bLand\b/.test(f.typeLine || d.typeLine || '')) delta -= cardsIn(pid, 'battlefield').filter((x) => isType(x, 'Artifact')).length;
-  if (/\bUndaunted\b/.test(o)) delta -= 1;
+  const nOpp = opponents(pid).filter((k) => G.s.players[k] && !G.s.players[k].lost).length;
+  if (/\bUndaunted\b/.test(o)) delta -= nOpp; // "This spell costs {1} less to cast for each opponent you have."
+  // Võx: "the next artifact creature spell and the next Spacecraft spell you cast this turn have undaunted"
+  else if (G.s.undauntedNext && G.s.undauntedNext[pid] && G.s.undauntedNext[pid].turn === G.s.turn && undauntedSlot(G.s.undauntedNext[pid], f.typeLine || d.typeLine || '')) delta -= nOpp;
   // Sami, Wildcat Captain: "Spells you cast have affinity for artifacts." (once per such permanent; not on top of the spell's own affinity)
   if (!/Affinity for artifacts/i.test(o)) {
     const giver = cardsIn(pid, 'battlefield').some((x) => !x.phasedOut && !abilitiesGone(x) && /(?:^|\n)Spells you cast have affinity for artifacts/i.test(oracle(x)));
     if (giver) delta -= cardsIn(pid, 'battlefield').filter((x) => isType(x, 'Artifact')).length;
   }
   if (opt.extraGeneric) delta += opt.extraGeneric;
+  if (c.playTax && c.zone === 'exile' && opt.mode === 'impulse') delta += c.playTax; // Lightstall Inquisitor: "Each spell cast this way costs {1} more"
   return delta;
 }
 
@@ -922,6 +931,10 @@ export async function castSpell(pid, iid, opt, env) {
   if (s.affinityNext && s.affinityNext[pid] === s.turn && !isCreature(c)) delete s.affinityNext[pid];
   if (s.convokeNext && s.convokeNext[pid] === s.turn && !opt.copy) delete s.convokeNext[pid];
   if (s.nextSpellLess && s.nextSpellLess[pid] && !opt.copy) delete s.nextSpellLess[pid];
+  if (s.undauntedNext && s.undauntedNext[pid] && !opt.copy) {
+    const slot = undauntedSlot(s.undauntedNext[pid], (DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || DB[c.def].typeLine || '');
+    if (slot) s.undauntedNext[pid] = { ...s.undauntedNext[pid], [slot]: false };
+  }
   c.manaSpent = env.free || opt.free ? 0 : ((pay.payers || []).length + (pay.special || []).filter((x) => x.kind === 'pool' || x.kind === 'convoke').length);
   if (opt.removeCounters) removeCountersAmong(pid, opt.removeCounters, c);
   c.convokedBy = (pay.special || []).filter((x) => x.kind === 'convoke').map((x) => x.iid); // Lethal Scheme: "each creature that convoked it"
@@ -1595,7 +1608,9 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
   G.s.ts[pid].landsPlayed++;
   if (c.zone === 'library') fourthDoctorUsed(pid, c);
   G.s.lastLandPlay = { iid, from: c.zone, pid }; // Ghost-Spider: "whenever you play a land from exile"
+  const tapIt = c.zone === 'exile' && c.playTapped; // Lightstall Inquisitor: "Each land played this way enters tapped."
   toBattlefield(iid, pid, pos);
+  if (tapIt && card(iid)) { card(iid).tapped = true; delete card(iid).playTapped; }
   // Vesuva: "You may have ~ enter tapped as a copy of any land on the battlefield."
   if (/You may have [^.\n]+ enter(?: tapped)? as a copy of/i.test(DB[c.def].faces[0].oracle || '') && T.choosers)
     enterAsCopy(pid, card(iid), T.choosers).then((model) => {
@@ -2064,7 +2079,22 @@ export async function activateAbility(pid, c, ab, env) {
     if (avail.length < tapK) return env.say(`You need ${tapK} untapped ${what}.`);
   }
   let x = 0;
-  if (/\{X\}/.test(ab.mana)) {
+  // Soul Foundry: "{X}, {T}: Create a token that's a copy of the exiled card. X is the mana value of that card." — X is fixed
+  let fixedX = null;
+  if (/\{X\}/.test(ab.mana) && /X is the mana value of (?:that card|the exiled card)/i.test(ab.text || '')) {
+    const ex = Object.values(s.cards).find((y) => y.zone === 'exile' && (y.exiledWith === c.iid || y.exiledBy === c.iid || y.exiledLinked === c.iid));
+    if (!ex) return env.say(`${name} has no exiled card.`);
+    fixedX = DB[ex.def].cmc || 0;
+  }
+  if (fixedX !== null) {
+    const cost = ab.mana.replace(/\{X\}/, fixedX ? `{${fixedX}}` : '');
+    if (cost) {
+      const p = await env.pay(pid, cost, name, { ability: true, exclude: ab.tap ? [c.iid] : [] });
+      if (!p) return false;
+      applyPayment(pid, p);
+    }
+    x = fixedX;
+  } else if (/\{X\}/.test(ab.mana)) {
     const p = await env.pay(pid, ab.mana, name, { ability: true, exclude: ab.tap ? [c.iid] : [], waterbend: /Waterbend/i.test(ab.costText || '') ? +((ab.costText.match(/Waterbend \{(\d+)\}/i) || [])[1] || 0) : 0, self: ab.tap ? c.iid : undefined });
     if (!p) return false;
     applyPayment(pid, p);

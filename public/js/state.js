@@ -357,16 +357,35 @@ export function goad(c, by, until = goadUntil(by)) {
   from[by] = Math.max(from[by] || 0, until);
   c.goaded = { by, until: Math.max(...Object.values(from)), from };
 }
+// Koloth, Tribble Hunter: "All Tribbles get +1/+0 and are goaded." — goaded by that permanent's controller while it's out
+let goadSrcCache = { bfv: -1, s: null, list: [] };
+function staticGoaders(c) {
+  if (!c || !G.s || c.zone !== 'battlefield') return [];
+  if (goadSrcCache.s !== G.s || goadSrcCache.bfv !== G.s.bfv || G.s.bfv === undefined) {
+    const list = [];
+    for (const k of Object.keys(G.s.players)) for (const i of G.s.players[k].zones.battlefield) {
+      const x = G.s.cards[i];
+      if (!x || x.phasedOut || abilitiesGone(x)) continue;
+      const m = oracle(x).match(/(?:^|\n)All ([A-Z][\w-]+?)s get [+-]\d+\/[+-]\d+ and are goaded/);
+      if (m) list.push({ type: m[1], by: x.controller });
+    }
+    goadSrcCache = { bfv: G.s.bfv, s: G.s, list };
+  }
+  return goadSrcCache.list.filter((g) => hasSubtype(c, g.type)).map((g) => g.by);
+}
 // is it goaded right now?
 export function isGoaded(c) {
-  if (c && c.goadWhile && G.s && (!G.s.cards[c.goadWhile] || G.s.cards[c.goadWhile].zone !== 'battlefield')) return false; // Hot Pursuit
+  if (staticGoaders(c).length) return true;
+  if (c && c.goadWhile && G.s && (!G.s.cards[c.goadWhile] || G.s.cards[c.goadWhile].zone !== 'battlefield' || (c.goadWhileCtl && G.s.cards[c.goadWhile].controller !== c.goadWhileCtl))) return false; // Hot Pursuit, Kang
   return !!(c && c.goaded && (!c.goaded.until || G.s.turn <= c.goaded.until));
 }
 // the players who goaded it (whose goad is still in effect)
 export function goadersOf(c) {
   if (!isGoaded(c)) return [];
+  const st = staticGoaders(c);
+  if (!c.goaded) return [...new Set(st)];
   const from = c.goaded.from || { [c.goaded.by]: c.goaded.until };
-  return Object.entries(from).filter(([, u]) => !u || G.s.turn <= u).map(([k]) => k);
+  return [...new Set(Object.entries(from).filter(([, u]) => !u || G.s.turn <= u).map(([k]) => k).concat(st))];
 }
 // End of turn: drop goads that have run out (each goader separately).
 export function expireGoads() {
@@ -453,10 +472,10 @@ const RESET = ['chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', '
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
-  'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'kohChosen', 'allTypesTurn', 'lastHitTurn', 'lastHitPlayer', 'pairedWith', 'forcedBlockOn', 'chosenPlayers', 'dmgBy', 'dmgByTurn', 'grantedText', 'grantedBy', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
+  'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'kohChosen', 'allTypesTurn', 'lastHitTurn', 'lastHitPlayer', 'pairedWith', 'forcedBlockOn', 'chosenPlayers', 'dmgBy', 'dmgByTurn', 'grantedText', 'grantedBy', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'minimusBy', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'dutyVs', 'vowVs', 'raggerVs', 'eggFor', 'secretOpp', 'grantedUnearth', 'grantedUnearthTurn', 'grantedFlashback', 'grantedFlashbackTurn', 'kodamaPut', 'mustBlockTurn', 'loseIndestructibleTurn', 'monarchOnDeath', 'enlistedTurn', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'dutyVs', 'vowVs', 'raggerVs', 'eggFor', 'secretOpp', 'grantedUnearth', 'grantedUnearthTurn', 'grantedFlashback', 'grantedFlashbackTurn', 'kodamaPut', 'mustBlockTurn', 'loseIndestructibleTurn', 'monarchOnDeath', 'enlistedTurn', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'goadWhileCtl', 'playTax', 'playTapped', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -514,6 +533,8 @@ export function move(iid, zone, opts = {}) {
     if (!isLand(c)) s.ts.nonlandLeft = true;
     const attachedHere = Object.values(s.cards).filter((a) => a.attachedTo === iid && a.zone === 'battlefield');
     if (requested === 'graveyard' && isCreature(c)) {
+      // T'Pring: "Whenever a creature that fought this way dies this turn, you draw a card."
+      if (c.tpringDraw && c.tpringDraw.turn === s.turn) { const tp = c.tpringDraw.pid; delete c.tpringDraw; draw(tp, 1, true); log(tp, `T'Pring: ${tp === 'p' ? 'you draw' : seatName(tp) + ' draws'} a card.`); }
       s.ts.creatureDied = true;
       s.ts.creaturesDiedN = (s.ts.creaturesDiedN || 0) + 1;
       queueEvent({

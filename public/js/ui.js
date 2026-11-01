@@ -1732,7 +1732,7 @@ function pickCardsDialog(req, resolve, reject) {
     const ok = $('#pk-ok', dlg);
     const bad = req.validate ? req.validate([...chosen]) : '';
     ok.disabled = chosen.length < min || chosen.length > max || !!bad;
-    ok.textContent = chosen.length ? `Choose ${chosen.length}` : min === 0 ? 'Choose none' : 'Choose';
+    ok.textContent = chosen.length ? (req.chosenLabel || `Choose ${chosen.length}`) : req.okLabel || (min === 0 ? 'Choose none' : 'Choose');
     $('#pk-n', dlg).textContent = bad || (req.summary ? req.summary([...chosen]) : '') || (max > 1 ? `Pick ${min === max ? max : `up to ${max}`}. Identical cards are stacked: click a stack again (or use +) to take another copy.` : '');
   };
   dlg.addEventListener('click', (e) => {
