@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.185",
+    "title": "Emancipation Angel",
+    "notes": [
+      "Emancipation Angel (and other \"return a permanent / creature / artifact you control to its owner's hand\" effects) now let you pick any permanent of that kind, not just lands. The AI takes back something cheap with an enters ability or a tapped land, never a token."
+    ]
+  },
+  {
     "version": "1.3.184",
     "title": "Cybermen, balance effects and more staples",
     "notes": [

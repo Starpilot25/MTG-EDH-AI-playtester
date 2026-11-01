@@ -3483,10 +3483,14 @@ on(/^choose an? ([a-z]+) card at random from target opponent's graveyard\. put t
 }, { first: true, multi: true });
 // Bounce lands: "return a land you control to its owner's hand" / Coral Atoll: "sacrifice it unless you return an untapped Island you control to its owner's hand"
 async function bounceOwnLand(env, kind, untapped, optional) {
-  const pool = cardsIn(env.me, 'battlefield').filter((c) => isLand(c) && (!untapped || !c.tapped) && (kind === 'land' || hasSubtype(c, kind) || matchesFilter(c, kind)));
+  // "a land" / "a Forest" are lands; "a permanent" (Emancipation Angel), "a creature", "an artifact" are anything of that kind
+  const landKind = kind === 'land' || /^(?:plains|island|swamp|mountain|forest|desert|gate|cave|town|sphere|locus|lair)$/.test(kind);
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => (!untapped || !c.tapped) && (landKind ? isLand(c) && (kind === 'land' || hasSubtype(c, kind)) : kind === 'permanent' || matchesFilter(c, kind)));
   if (!pool.length) return null;
-  // the AI returns a tapped basic first (it can replay it), never the new land unless it must
-  const score = (c) => (env.src && c.iid === env.src.iid ? -5 : 0) + (c.tapped ? 3 : 0) + (/Basic/.test(typeLine(c)) ? 2 : 0) - (manaAbility({ ...c, tapped: false }) || { amount: 1 }).amount;
+  // the AI returns a tapped basic first (it can replay it), never the new land unless it must; with a choice of any permanent it
+  // takes back something cheap with an enters ability (or a tapped land), never a token
+  const etb = (c) => /(?:^|\n)When(?:ever)? (?:~|this [a-z]+|[^,\n]*?) enters/i.test(oracle(c)) ? 4 : 0;
+  const score = (c) => (c.token ? -20 : 0) + (env.src && c.iid === env.src.iid ? -5 : 0) + (c.tapped ? 3 : 0) + (isLand(c) ? (/Basic/.test(typeLine(c)) ? 2 : 0) - (manaAbility({ ...c, tapped: false }) || { amount: 1 }).amount : etb(c) - (DB[c.def].cmc || 0) * 0.5);
   const [pick] = await env.choosers[env.me].pickCards({ forced: !optional, prompt: `Return ${untapped ? 'an untapped ' : 'a '}${kind} you control to its owner's hand`, cards: pool.map((c) => c.iid), min: optional ? 0 : 1, max: 1, purpose: 'bounceLand', src: env.src, aiScore: score });
   if (!pick) return null;
   const c = card(pick);
@@ -3494,6 +3498,7 @@ async function bounceOwnLand(env, kind, untapped, optional) {
   env.did.push(`returns ${nameTag(c)} to ${who(env.me) === 'you' ? 'your' : "the AI's"} hand`);
   return c;
 }
+// (kept name: it's used for any "return a <kind> you control to its owner's hand")
 on(/^return (?:a|an) (untapped )?(land|[a-z]+) you control to its owner's hand$/, async (m, env) => {
   const c = await bounceOwnLand(env, m[2], !!m[1], false);
   env.it = c ? { iid: c.iid } : null;
