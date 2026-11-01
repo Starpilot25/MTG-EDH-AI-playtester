@@ -14700,8 +14700,31 @@ export const aiHelpers = { landScore: () => 0 };
 async function tutor(t, me, choose, src, did, env) {
   const m = t.match(/search your library (?:and graveyard )?for (?:a|an|up to (\w+)|two|three) ([^.,]*?)cards?(?: with ([^,.]+))?/);
   const count = m && m[1] ? n(m[1]) : /for two /.test(t) ? 2 : /for three /.test(t) ? 3 : 1;
-  const phrase = m ? (m[2] + ' ' + (m[3] || '')).trim() : '';
+  let phrase = m ? (m[2] + ' ' + (m[3] || '')).trim() : '';
+  // "a basic Plains card or a creature card with mana value 1 or less" (Starfield Shepherd): either description fits
+  const desc = (t.match(/search your library (?:and graveyard )?for (?:a|an) ([^.]+?)(?:, reveal|, put|, exile|\.|$)/) || [])[1] || '';
+  const alts = /\bcards? or an? /.test(desc) ? desc.split(/(?<=\bcards?(?: with [^,]+?)?) or an? /) : null;
+  const altOk = (c, a) => {
+    const tl = DB[c.def].typeLine || '';
+    const am = a.match(/^(.*?)\s*cards?(?: with (.+))?$/);
+    const words = (am ? am[1] : a).trim().split(/\s+/).filter(Boolean);
+    for (const w of words) {
+      if (w === 'basic') { if (!/\bBasic\b/.test(tl)) return false; continue; }
+      if (/^non/.test(w)) { if (new RegExp('\\b' + w.slice(3), 'i').test(tl)) return false; continue; }
+      if (!new RegExp('\\b' + w.replace(/s$/, ''), 'i').test(tl)) return false;
+    }
+    const w2 = am && am[2] ? am[2] : '';
+    const mv = w2.match(/mana value (\d+|x) or less/);
+    if (mv && DB[c.def].cmc > (mv[1] === 'x' ? (env && env.x) || 0 : +mv[1])) return false;
+    const mvG = w2.match(/mana value (\d+) or greater/);
+    if (mvG && DB[c.def].cmc < +mvG[1]) return false;
+    return true;
+  };
+  if (alts) phrase = desc.replace(/\s*cards?\b/g, '').trim();
   const lib = [...zoneOf(me, 'library'), ...(/and graveyard/.test(t) ? zoneOf(me, 'graveyard') : [])].map(card).filter((c) => {
+    if (alts) return alts.some((a) => altOk(c, a.trim()));
+    if (/\bbasic\b/.test(phrase) && !/\bBasic\b/.test(DB[c.def].typeLine)) return false;
+    { const lt = phrase.match(/\b(plains|island|swamp|mountain|forest)\b/); if (lt && !new RegExp('\\b' + lt[1], 'i').test(DB[c.def].typeLine)) return false; }
     if (/creature/.test(phrase) && !/Creature/.test(DB[c.def].typeLine)) return false;
     if (/artifact/.test(phrase) && !/Artifact/.test(DB[c.def].typeLine)) return false;
     if (/enchantment/.test(phrase) && !/Enchantment/.test(DB[c.def].typeLine)) return false;
@@ -14723,7 +14746,7 @@ async function tutor(t, me, choose, src, did, env) {
     return true;
   });
   const picks = await choose.pickCards({
-    prompt: `Search your library for ${count > 1 ? count : 'a'} ${phrase ? phrase.trim() : ''} card${count > 1 ? 's' : ''}`, cards: lib.map((c) => c.iid),
+    prompt: alts ? `Search your library for a ${desc.replace(/\b(plains|island|swamp|mountain|forest)\b/g, (w) => w[0].toUpperCase() + w.slice(1))}` : `Search your library for ${count > 1 ? count : 'a'} ${phrase ? phrase.trim() : ''} card${count > 1 ? 's' : ''}`, cards: lib.map((c) => c.iid),
     min: 0, max: count, purpose: 'tutor', src, aiScore: (c) => (isLand(c) ? -5 : DB[c.def].cmc),
   });
   const dest = /onto the battlefield/.test(t) ? 'battlefield' : /on top of your library|on top\b/.test(t) ? 'top' : /into your graveyard/.test(t) ? 'graveyard' : 'hand';

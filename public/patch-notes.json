@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.186",
+    "title": "Starfield Shepherd",
+    "notes": [
+      "Starfield Shepherd (and other searches for \"a X card or a Y card\") now only offer cards that fit one of the descriptions — a basic Plains or a creature with mana value 1 or less — instead of your whole library. Searches for \"a basic Plains card\" alone also check the card is a basic Plains."
+    ]
+  },
+  {
     "version": "1.3.185",
     "title": "Emancipation Angel",
     "notes": [
