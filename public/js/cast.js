@@ -1662,7 +1662,7 @@ export function landsAllowed(pid) {
 }
 function useOneOf(c) {
   if (!c || !c.playOneOf) return;
-  for (const i of c.playOneOf.split(',')) if (i !== c.iid && card(i)) Object.assign(card(i), { mayPlay: null, playOneOf: null });
+  for (const i of c.playOneOf.split(',')) if (i !== c.iid && card(i)) Object.assign(card(i), { mayPlay: null, mayPlayFree: null, playOneOf: null });
   c.playOneOf = null;
 }
 export function playLand(pid, iid, faceIdx = 0, pos = {}) {

@@ -18504,3 +18504,13 @@ on(/^add one mana of (?:~|this artifact)'s last noted type$/, async (m, env) => 
   addMana(env.me, [col]);
   env.did.push(`adds {${col}}`);
 }, { first: true });
+
+// Lobelia, Defender of Bag End: "Until end of turn, you may play a card exiled with ~ without paying its mana cost." (one of them)
+on(/^(?:until end of turn, you may play a card exiled with ~ without paying its mana cost|(?:you may )?play a card exiled with ~ without paying its mana cost until end of turn)$/, async (m, env) => {
+  const ids = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && env.src && c.exiledWith === env.src.iid).map((c) => c.iid);
+  if (!ids.length) return env.did.push('nothing is exiled with it');
+  const group = ids.join(',');
+  // lands are played (no cost anyway); spells only free
+  for (const i of ids) Object.assign(card(i), { mayPlay: /\bLand\b/.test((DB[card(i).def].faces[0].typeLine || '').split('—')[0]) ? env.me : null, mayPlayUntil: G.s.turn, mayPlayFree: env.me, mayPlayFreeUntil: G.s.turn, playOneOf: group, hiddenExile: card(i).faceDown ? env.me : card(i).hiddenExile });
+  env.did.push(`may play one of the ${ids.length} card${ids.length === 1 ? '' : 's'} exiled with it free this turn`);
+}, { first: true });

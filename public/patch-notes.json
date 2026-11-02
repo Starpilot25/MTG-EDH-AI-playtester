@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.199",
+    "title": "Lobelia, Defender of Bag End",
+    "notes": [
+      "Lobelia's first mode works: until end of turn you may play one of the cards exiled with her without paying its mana cost (a spell is cast for free, a land is played). Once you play one, the others can't be played."
+    ]
+  },
+  {
     "version": "1.3.198",
     "title": "Optimization Annex fix",
     "notes": [
