@@ -384,11 +384,22 @@ function initSetup() {
       .map((set) => `<optgroup label="${esc(set)}">${precons.filter(([, v]) => (v.set || 'Other') === set).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</optgroup>`)
       .join('');
     $('.in-precon', el).hidden = !precons.length;
+    $('.rand-precon', el).hidden = !precons.length;
     $('.precon-tip', el).hidden = !!precons.length;
     if (precons.length) $('.in-precon', el).value = store.get(pid + ':precon', precons[0][0]);
     { const m0 = store.get(pid + ':mode', pid === 'p' ? 'paste' : 'sample'); setMode(pid, m0 === 'link' ? 'paste' : m0); }
     $$('.seg button', el).forEach((b) => b.addEventListener('click', () => setMode(pid, b.dataset.mode)));
     $('.load', el).addEventListener('click', () => loadSlot(pid));
+    // Random precon: pick one (not one another seat already has loaded, when there's a choice) and load it
+    $('.rand-precon', el).addEventListener('click', () => {
+      const keys = Object.keys(PRECON_DECKS);
+      if (!keys.length) return;
+      const taken = SLOT_IDS.filter((k) => k !== pid && slots[k] && /^precon:/.test(slots[k].source || '')).map((k) => slots[k].source.slice(7));
+      const pool = keys.filter((k) => !taken.includes(k) && k !== $('.in-precon', el).value);
+      const pick = (pool.length ? pool : keys)[Math.floor(Math.random() * (pool.length || keys.length))];
+      $('.in-precon', el).value = pick;
+      loadSlot(pid);
+    });
     $('.in-saved', el).addEventListener('change', () => loadSlot(pid));
     $('.del-saved', el).addEventListener('click', async () => {
       const id = $('.in-saved', el).value;

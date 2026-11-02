@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.200",
+    "title": "Random precon button",
+    "notes": [
+      "The Precon tab has a Random button next to the deck list: it picks a random precon and loads it. It won't pick a precon another seat already has loaded, or the one already selected."
+    ]
+  },
+  {
     "version": "1.3.199",
     "title": "Lobelia, Defender of Bag End",
     "notes": [
