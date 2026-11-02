@@ -925,6 +925,9 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .pod-pick { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; }
 .pod-lbl { font: 700 14px var(--f-display); color: var(--brass); letter-spacing: 0.06em; text-transform: uppercase; }
 .pod-seg button { min-width: 38px; }
+.rand-all-precons { margin-left: auto; }
+.precon-row { flex-wrap: wrap; }
+.precon-row select { min-width: 180px; }
 .opp-slots { --opps: 1; display: grid; grid-template-columns: repeat(var(--opps), minmax(0, 1fr)); gap: 14px; align-items: start; min-width: 0; }
 .opp-slots > .deck-slot[hidden] { display: none; }
 body.pod-setup .slots { grid-template-columns: minmax(280px, 0.9fr) auto minmax(0, 2.4fr); }

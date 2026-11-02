@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.201",
+    "title": "Random precons for all AIs",
+    "notes": [
+      "New \"Random precons for AIs\" button next to the opponent count: every AI seat gets a different random precon and loads it in one click (never the precon you're playing)."
+    ]
+  },
+  {
     "version": "1.3.200",
     "title": "Random precon button",
     "notes": [

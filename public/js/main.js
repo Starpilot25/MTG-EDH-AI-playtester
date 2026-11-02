@@ -366,6 +366,24 @@ function readSettings() {
 
 function initSetup() {
   buildExtraSlots();
+  // Random precons for every AI seat (all different, and not the one you're playing if it's a precon)
+  { const btn = $('.rand-all-precons');
+    if (btn) {
+      btn.hidden = !Object.keys(PRECON_DECKS).length;
+      btn.addEventListener('click', async () => {
+        const keys = Object.keys(PRECON_DECKS).sort(() => Math.random() - 0.5);
+        const mine = slots.p && /^precon:/.test(slots.p.source || '') ? slots.p.source.slice(7) : null;
+        const pool = keys.filter((k) => k !== mine);
+        const seats = aiSlots();
+        seats.forEach((pid, i) => {
+          setMode(pid, 'precon');
+          $('.in-precon', slotEl(pid)).value = (pool.length >= seats.length ? pool : keys)[i % (pool.length || keys.length)];
+        });
+        btn.disabled = true;
+        try { for (const pid of seats) await loadSlot(pid); } finally { btn.disabled = false; }
+      });
+    }
+  }
   for (const pid of SLOT_IDS) {
     const el = slotEl(pid);
     const BRACKETS = { 1: 'Bracket 1 · Exhibition', 2: 'Bracket 2 · Core', 3: 'Bracket 3 · Upgraded', 4: 'Bracket 4 · Optimized', 5: 'Bracket 5 · cEDH' };
