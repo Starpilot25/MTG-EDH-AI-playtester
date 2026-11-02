@@ -15499,7 +15499,8 @@ on(/^destroy all creatures\. create x 1\/1 colorless borg artifact creature toke
   const all = allBf().filter(isCreature);
   const nonArt = new Set(all.filter((c) => !isType(c, 'Artifact')).map((c) => c.iid));
   let k = 0;
-  for (const c of all) { destroy(c.iid); if (card(c.iid).zone !== 'battlefield' && nonArt.has(c.iid)) k++; }
+  // a destroyed token stops existing (card() is gone), so check for that too
+  for (const c of all) { destroy(c.iid); const x = card(c.iid); if ((!x || x.zone !== 'battlefield') && nonArt.has(c.iid)) k++; }
   stateBased();
   if (k) createToken(genericTokenDef(1, 1, 'Borg', [], { types: 'Artifact' }), env.me, k);
   env.did.push(`destroys ${all.length} creature${all.length === 1 ? '' : 's'}; ${k} Borg token${k === 1 ? '' : 's'}`);
@@ -15868,7 +15869,7 @@ on(/^(?:you may )?destroy another target creature\. if a creature is destroyed t
   if (!t) return;
   const tg = toughness(t);
   destroy(t.iid);
-  if (card(t.iid).zone !== 'battlefield') { changeLife(env.me, tg); env.did.push(`destroys ${nameTag(t)}; gains ${tg} life`); }
+  if (!card(t.iid) || card(t.iid).zone !== 'battlefield') { changeLife(env.me, tg); env.did.push(`destroys ${nameTag(t)}; gains ${tg} life`); }
   else env.did.push(`${nameTag(t)} survives`);
 }, { first: true, multi: true });
 // Teferi, Hero of Dominaria +1
@@ -16022,7 +16023,7 @@ on(/^destroy target creature\. if that creature dies this way, its controller cr
   const p = Math.ceil(power(t) / 2), tg = Math.ceil(toughness(t) / 2);
   const ctl = t.controller;
   destroy(t.iid);
-  if (card(t.iid).zone !== 'graveyard') return env.did.push(`${nameTag(t)} didn't die`);
+  if (!card(t.iid) || card(t.iid).zone !== 'graveyard') return env.did.push(`${nameTag(t)} didn't die`);
   const ids = createToken(t.def, ctl, 2);
   for (const i of ids) if (card(i)) card(i).setPT = { ts: nextStamp(), p, t: tg };
   env.did.push(`destroys ${nameTag(t)}; ${who(ctl)} ${s_(ctl, 'get')} two ${p}/${tg} copies`);

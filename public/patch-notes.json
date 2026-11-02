@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.197",
+    "title": "Join the Collective fix",
+    "notes": [
+      "Join the Collective: with a token creature on the battlefield it stopped partway through (destroying only some creatures) and the spell went back to your hand. It now destroys every creature and makes the right number of Borg tokens.",
+      "Same fix for another card that checked a destroyed token afterwards."
+    ]
+  },
+  {
     "version": "1.3.196",
     "title": "Casual AI leaves your new commander alone",
     "notes": [
