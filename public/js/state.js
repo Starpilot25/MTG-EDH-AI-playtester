@@ -885,6 +885,7 @@ export function addCounters(c, kind, n, opts = {}) {
     // Lae'zel: "If you would put one or more counters on a creature or planeswalker you control …, put that many plus one"
     const putter = opts.by || G.curActor || c.controller;
     if (putter === c.controller && (isCreature(c) || /Planeswalker/.test(typeLine(c)))) n += repl('counterPlusOneAll', c.controller);
+    if (isCreature(c) || isType(c, 'Artifact')) n += repl('counterPlusOneArtCre', c.controller); // Winding Constrictor
     // Optimization Annex: "If one or more charge counters would be put on an artifact you control, that many plus one … instead."
     if (kind === 'charge' && isType(c, 'Artifact')) n += cardsIn(c.controller, 'battlefield').filter((x) => !x.phasedOut && !abilitiesGone(x) && /If one or more charge counters would be put on an artifact you control, that many plus one charge counters are put on it instead/i.test(oracle(x))).length;
     const dbl = repl('counterDouble', c.controller);

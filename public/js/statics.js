@@ -292,7 +292,10 @@ function parseStatics(text, selfName) {
     if (/if a (?:card|nontoken card) would be put into an opponent's graveyard from anywhere, exile it instead/.test(l)) out.repl.gyExile = out.repl.gyExile || 'opponents';
     if (/if a card would be put into an opponent's graveyard from anywhere, instead exile it with a void counter on it/.test(l)) { out.repl.gyExile = out.repl.gyExile || 'opponents'; out.repl.gyVoid = 'opponents'; } // Dauthi Voidwalker
     if (/if an effect would create one or more tokens under your control, it creates twice that many/.test(l)) out.repl.tokenDouble = (out.repl.tokenDouble || 0) + 1;
-    if (/would be put on [^,.]+ you control, (?:that many plus one|it puts that many plus one)/.test(l)) out.repl.counterPlusOne = (out.repl.counterPlusOne || 0) + 1;
+    // Hardened Scales & co. (+1/+1 counters only — Optimization Annex's charge counters are handled in addCounters)
+    if (/\+1\/\+1 counters would be put on [^,.]+ you control, (?:that many plus one|it puts that many plus one)/.test(l)) out.repl.counterPlusOne = (out.repl.counterPlusOne || 0) + 1;
+    // Winding Constrictor: any kind of counter on an artifact or creature you control
+    if (/^if one or more counters would be put on an artifact or creature you control, that many plus one of each of those kinds of counters/.test(l)) out.repl.counterPlusOneArtCre = (out.repl.counterPlusOneArtCre || 0) + 1;
     // Lae'zel, Vlaakith's Champion: any kind of counter, on your creatures/planeswalkers or on you
     if (/^if you would put one or more counters on a creature or planeswalker you control(?: or on yourself)?, put that many plus one/.test(l)) {
       out.repl.counterPlusOneAll = (out.repl.counterPlusOneAll || 0) + 1;
