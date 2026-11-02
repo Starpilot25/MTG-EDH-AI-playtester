@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.202",
+    "title": "First player draws in multiplayer",
+    "notes": [
+      "In 3- and 4-player games the player who goes first now draws on their first turn, as in multiplayer Commander. In 1v1 the first player still skips that draw."
+    ]
+  },
+  {
     "version": "1.3.201",
     "title": "Random precons for all AIs",
     "notes": [

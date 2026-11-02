@@ -168,7 +168,8 @@ async function beginUpkeep(pid) {
 async function beginDraw(pid) {
   const s = G.s;
   setStep('draw');
-  const skipDraw = s.turn === 1;
+  // the player who goes first skips their first draw only in a two-player game (multiplayer Commander: everyone draws)
+  const skipDraw = s.turn === 1 && !multiplayer();
   if (!skipDraw && (isAI(pid) || G.settings.autoDraw)) draw(pid, 1);
   fire({ type: 'drawStep', active: pid });
   await settle();
