@@ -710,6 +710,8 @@ export async function playerNextStep() {
     s.combat.stage = 'declare';
     // goaded creatures and "attacks each combat if able" go in automatically
     for (const c of cardsIn('p', 'battlefield')) if (mustAttack(c) && canAttack(c) && !s.combat.attackers.includes(c.iid)) s.combat.attackers.push(c.iid);
+    // a creature told to attack a specific player (Encore tokens) is aimed at that player
+    for (const c of cardsIn('p', 'battlefield')) if (s.combat.attackers.includes(c.iid) && c.mustAttackPlayer && inGame(c.mustAttackPlayer) && c.mustAttackTurn === s.turn) s.combat.targets = { ...(s.combat.targets || {}), [c.iid]: c.mustAttackPlayer };
     hooks.render();
   } else if (s.step === 'combat') {
     if (s.combat && s.combat.stage === 'declare' && s.combat.attackers.length) return confirmAttacks();

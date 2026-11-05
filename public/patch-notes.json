@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.203",
+    "title": "Encore, AI removal on mana rocks",
+    "notes": [
+      "Encore now follows the rules: one hasty token copy for each opponent, each attacking that opponent this turn, sacrificed at the next end step. It used to make a single token.",
+      "Creatures told to attack a specific player this turn (Encore tokens and similar) are aimed at that player, for you and for the AI.",
+      "The AI no longer spends removal on plain mana rocks (Arcane Signet, Talismans, Mind Stone), even when it's under pressure. Sol Ring-style fast mana is also a much lower priority. Rocks with other abilities still count normally."
+    ]
+  },
+  {
     "version": "1.3.202",
     "title": "First player draws in multiplayer",
     "notes": [

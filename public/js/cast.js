@@ -1865,11 +1865,16 @@ export async function useZoneAbility(pid, iid, ab, env) {
     case 'encore': {
       if (!(await payM(ab.mana))) return false;
       move(iid, 'exile');
-      const [tok] = createToken(c.def, pid, 1);
-      Object.assign(card(tok), { endOfTurn: 'sacrifice' });
-      goad(card(tok), pid);
-      card(tok).grants = ['haste'];
-      log(pid, `Encore: a hasty token copy of ${nameTag(c)} that must attack.`);
+      // "For each opponent, create a token copy that attacks that opponent this turn if able. The tokens gain haste.
+      //  Sacrifice them at the beginning of the next end step."
+      const foes = opponents(pid).filter((o) => !s.players[o].lost);
+      for (const o of foes) {
+        const [tok] = createToken(c.def, pid, 1);
+        if (!card(tok)) continue;
+        Object.assign(card(tok), { endOfTurn: 'sacrifice', mustAttackTurn: s.turn, mustAttackPlayer: o });
+        card(tok).grants = [...(card(tok).grants || []), 'haste'];
+      }
+      log(pid, `Encore: ${foes.length} hasty token cop${foes.length === 1 ? 'y' : 'ies'} of ${nameTag(c)}, each attacking a different opponent this turn.`);
       return true;
     }
     case 'dredge': {

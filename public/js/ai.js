@@ -190,6 +190,13 @@ function casualAdjust(t) {
   }
   if (t.lastHitTurn && t.lastHitPlayer === AI && G.s.turn - t.lastHitTurn <= seats().length) adj += 1.5;
   if (t.token && threat(t) < 4) adj -= 2;
+  // plain mana rocks (Arcane Signet, Talismans, Mind Stone): not worth a removal spell; even Sol Ring-style fast mana rarely is
+  if (!isCreature(t) && !isLand(t) && !isType(t, 'Planeswalker') && isType(t, 'Artifact')) {
+    const ma = manaAbility({ ...t, tapped: false, sick: false });
+    const o = oracle(t);
+    const engine = /(?:^|\n)(?:[A-Z][\w' ]+ — )?(?:Whenever|At the beginning)|creatures you control|you cast cost|can't|doesn't untap|Equipped creature|Enchanted creature/i.test(o);
+    if (ma && !engine) adj -= ma.amount >= 2 && !ma.sac ? 2 : 4;
+  }
   // a commander that just came down: let it do something first (it isn't a threat yet, and killing it on sight is a feel-bad)
   if (t.isCommander && t.controller !== AI && isCreature(t)) {
     const n = Math.max(2, seats().filter((k) => !G.s.players[k].lost).length);
@@ -1494,6 +1501,8 @@ function aiAttackTargetsRaw(attackers) {
     }
   }
   for (const i of left) targets[i] = D;
+  // Encore tokens, Legion Warboss & co.: a creature that must attack a specific player this turn goes there
+  for (const i of attackers) { const c = card(i); const t = c && c.mustAttackPlayer; if (t && inGame(t) && (c.mustAttackTurn === G.s.turn || (c.mustAttackUntil || 0) > G.s.turn)) targets[i] = t; }
   return targets;
 }
 
