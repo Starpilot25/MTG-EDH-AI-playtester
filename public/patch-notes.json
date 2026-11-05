@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.207",
+    "title": "Fell the Mighty fix",
+    "notes": [
+      "Fell the Mighty only destroys creatures with power greater than the target creature's power. It was destroying every creature. The AI picks the target that kills the most of its opponents' creatures for the least of its own."
+    ]
+  },
+  {
     "version": "1.3.206",
     "title": "Angel of Finality fix",
     "notes": [

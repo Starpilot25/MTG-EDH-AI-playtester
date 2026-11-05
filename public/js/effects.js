@@ -18578,3 +18578,17 @@ on(/^if you have fewer than (\w+) cards in hand, draw cards equal to the differe
   draw(env.me, want - have, true);
   env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${want - have}`);
 }, { first: true });
+// Fell the Mighty: "Destroy all creatures with power greater than target creature's power."
+on(/^destroy all creatures with power (greater|less) than target creature's power$/, async (m, env) => {
+  const all = allBf().filter(isCreature);
+  const kills = (t) => all.filter((c) => c.iid !== t.iid && (m[1] === 'greater' ? power(c) > power(t) : power(c) < power(t)));
+  // the AI picks the target that kills the most opposing value for the least of its own
+  const net = (t) => kills(t).reduce((a, c) => a + (c.controller === env.me ? -1.5 : 1) * (cardValue(c) + 1), 0);
+  let t;
+  if (isAI(env.me)) { const ok = all.filter((c) => canTarget(c, env.me, env.src)); t = ok.sort((a, b) => net(b) - net(a))[0]; }
+  else [t] = await objects(env, 'target creature', { harm: false });
+  if (!t) return;
+  const gone = kills(t);
+  gone.forEach((c) => destroy(c.iid));
+  env.did.push(`${nameTag(t)} has power ${power(t)}: destroys ${gone.length} creature${gone.length === 1 ? '' : 's'}`);
+}, { first: true });
