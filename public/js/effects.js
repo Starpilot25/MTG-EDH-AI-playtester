@@ -3136,7 +3136,18 @@ on(/^exile (all cards from target player's graveyard|all cards from target oppon
     const pool = seats().flatMap((k) => cardsIn(k, 'graveyard'));
     if (pool.length) ids = await env.choosers[env.me].pickCards({ prompt: 'Choose card(s) to exile from a graveyard', cards: pool.map((c) => c.iid), min: 0, max: cnt, purpose: 'gy-exile', src: env.src, aiScore: (c) => (c.owner === env.me ? -5 : DB[c.def].cmc) });
   } else {
-    const pids = /all graveyards|all cards from all/.test(m[1]) ? seats() : opponents(env.me);
+    let pids = /all graveyards|all cards from all/.test(m[1]) ? seats() : opponents(env.me);
+    // Angel of Finality, Bojuka Bog: "target player's graveyard" is one player's, not every opponent's
+    if (/target (player|opponent)'s/.test(m[1])) {
+      const oppOnly = /target opponent/.test(m[1]);
+      if (isAI(env.me) && !env.forcePickPlayer) {
+        // the AI empties the graveyard that matters most (most creature/value cards)
+        const gyVal = (pid) => cardsIn(pid, 'graveyard').reduce((a, c) => a + (/Creature/.test(DB[c.def].faces[0].typeLine || '') ? 2 : 1) + (DB[c.def].cmc || 0) * 0.2, 0);
+        const best = opponents(env.me).filter(inGame).sort((a, b) => gyVal(b) - gyVal(a))[0];
+        if (best) env.forcePickPlayer = best;
+      }
+      pids = await playerTarget(env, oppOnly ? 'target opponent' : 'target player', true);
+    }
     ids = pids.flatMap((pid) => zoneOf(pid, 'graveyard').slice()).filter((i) => !/creature/.test(m[1]) || /Creature/.test(DB[card(i).def].typeLine));
   }
   ids.forEach((i) => move(i, 'exile'));
