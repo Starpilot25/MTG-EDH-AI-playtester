@@ -656,6 +656,8 @@ export function playerFlag(pid, flag) {
 export function countPhrase(pid, phrase, helpers, srcIid) {
   let p = String(phrase || '').toLowerCase().replace(/^(?:the )?(?:total )?number of /, '').replace(/\.$/, '').trim()
     .replace(/\b(?:defending player|that player|the defending player) controls$/, 'an opponent controls'); // two players: the only one it can be
+  // Sage's Reverie: "Aura you control that's attached to a creature" (singular after "for each")
+  p = p.replace(/^auras? you control that's attached to a creature$/, 'auras you control that are attached to creatures');
   // Battlefront (Star Trek): "the number of opponents you attacked this turn"
   if (/^opponents? you attacked this turn$/.test(p)) {
     const al = G.s && (G.s.attackLog || {})[pid];

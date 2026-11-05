@@ -2489,6 +2489,7 @@ on(/^(?:you )?draw (a|one|two|three) cards? for each (.+)$/, async (m, env) => {
   const wm = m[2].match(/^(other )?((?:[\w-]+ )*?)(creature|artifact|permanent|land|[a-z]+)s? you control( with .+)?$/);
   if (wm && wm[4]) k = cardsIn(env.me, 'battlefield').filter((c) => !(wm[1] && c.iid === env.src.iid) && matchesFilter(c, `${wm[2]}${wm[3]}${wm[4]}`)).length;
   else if (/^(?:[\w-]+ ){0,3}?[\w-]+ (?:you control|your opponents control|on the battlefield|in your graveyard)$/.test(m[2])) k = countPhrase(env.me, m[2], helpers, env.src && env.src.iid);
+  if (k === null && /^auras? you control that(?:'s| is| are) attached to (?:a )?creatures?$/.test(m[2])) k = countPhrase(env.me, m[2], helpers, env.src && env.src.iid); // Sage's Reverie
   if (k === null) return 'pass';
   const total = n(m[1]) * k;
   if (total) draw(env.me, total, true);
@@ -14831,6 +14832,23 @@ export async function attachAura(aura, me, choose, opts = {}) {
   const t = card(pick.iid);
   if (!opts.noTarget && t.controller !== me && !(await payWard(me, t, choose, aura))) return [`is countered by ${nameTag(t)}'s ward`];
   attachTo(aura, t);
+  // Feather, Radiant Arbiter: an Aura spell that targets only Feather may be copied onto other creatures for {2} each
+  // (copies of a permanent spell become token Auras attached to those creatures)
+  if (!opts.noTarget && !opts.bestow && !aura.token && t.controller === me && isCreature(t) && T && T.payMana
+    && /Whenever you cast a noncreature spell that targets only ~, you may choose any number of other creatures that spell could target and pay \{2\} for each/i.test(stripName(oracle(t), t))) {
+    const others = cands.filter((c) => c.iid !== t.iid && isCreature(c) && c.zone === 'battlefield');
+    const harmful = !!(lock || (buff && +buff[1] < 0));
+    let picks = others.length ? await choose.pickCards({ prompt: `${cardName(t)}: copy ${cardName(aura)} onto other creatures ({2} each)?`, cards: others.map((c) => c.iid), min: 0, max: others.length, purpose: 'copy', src: t,
+      aiScore: (c) => (harmful ? (c.controller !== me ? cardValue(c) : -5) : c.controller === me ? cardValue(c) : -5) }) : [];
+    if (isAI(me)) picks = picks.filter((i) => harmful === (card(i).controller !== me));
+    const made = [];
+    for (const i of picks) {
+      if (!(await T.payMana(me, '{2}', `${cardName(t)}: copy ${cardName(aura)} onto ${cardName(card(i))}`))) break;
+      const [tok] = createToken(aura.def, me, 1);
+      if (card(tok) && card(i)) { attachTo(card(tok), card(i)); made.push(nameTag(card(i))); }
+    }
+    if (made.length) log(me, `${nameTag(t)}: ${nameTag(aura)} is copied onto ${made.join(', ')}.`);
+  }
   if (/^Enchanted permanent is a Treasure artifact with/m.test(o)) { t.minimusBy = aura.iid; G.s.bfv = (G.s.bfv || 0) + 1; }
   if (/^You control enchanted (?:creature|permanent|land|artifact)/m.test(o)) move(t.iid, 'battlefield', { controller: aura.controller });
   return [`enchants ${whose(t)} ${nameTag(t)}`];
@@ -18513,4 +18531,38 @@ on(/^(?:until end of turn, you may play a card exiled with ~ without paying its 
   // lands are played (no cost anyway); spells only free
   for (const i of ids) Object.assign(card(i), { mayPlay: /\bLand\b/.test((DB[card(i).def].faces[0].typeLine || '').split('—')[0]) ? env.me : null, mayPlayUntil: G.s.turn, mayPlayFree: env.me, mayPlayFreeUntil: G.s.turn, playOneOf: group, hiddenExile: card(i).faceDown ? env.me : card(i).hiddenExile });
   env.did.push(`may play one of the ${ids.length} card${ids.length === 1 ? '' : 's'} exiled with it free this turn`);
+}, { first: true });
+// Thirst for Knowledge & co.: "Then discard two cards unless you discard an artifact card."
+on(/^(?:then )?discard (two|three|\d+) cards unless you discard an? ([a-z]+) card$/, async (m, env) => {
+  const k = n(m[1]);
+  const ty = capWords(m[2]);
+  const hand = cardsIn(env.me, 'hand');
+  if (!hand.length) return;
+  const typed = hand.filter((c) => new RegExp('\\b' + ty + '\\b').test((DB[c.def].faces[0].typeLine || '').split('—')[0]));
+  const lands = cardsIn(env.me, 'battlefield').filter(isLand).length;
+  const val = (c) => (isLand(c) ? (lands >= 6 ? -2 : 6) : 3 + (DB[c.def].cmc || 0) * 0.5);
+  let one = false;
+  if (typed.length) {
+    if (isAI(env.me)) {
+      const cheapType = typed.slice().sort((a, b) => val(a) - val(b))[0];
+      const two = hand.slice().sort((a, b) => val(a) - val(b)).slice(0, k).reduce((a, c) => a + val(c), 0);
+      one = val(cheapType) <= two || hand.length < k;
+    } else {
+      const i = await env.choosers[env.me].choose({ prompt: `Discard an ${m[2]} card, or ${m[1]} cards?`, options: [{ label: `Discard an ${m[2]} card` }, { label: `Discard ${m[1]} cards` }], aiPick: () => 0 });
+      one = i === 0;
+    }
+  }
+  const pool = one ? typed : hand;
+  const want = one ? 1 : Math.min(k, hand.length);
+  const picks = pool.length <= want ? pool.map((c) => c.iid) : await env.choosers[env.me].pickCards({ forced: true, prompt: one ? `Discard an ${m[2]} card` : `Discard ${want} cards`, cards: pool.map((c) => c.iid), min: want, max: want, purpose: 'discard', src: env.src, aiScore: (c) => -val(c) });
+  env.did.push(`${who(env.me)} ${s_(env.me, 'discard')} ${picks.map((i) => nameTag(card(i))).join(', ')}`);
+  picks.forEach((i) => discardCard(i));
+}, { first: true });
+// Doctor Octopus, Master Planner (and Kami of the Crescent Moon-likes): "if you have fewer than N cards in hand, draw cards equal to the difference"
+on(/^if you have fewer than (\w+) cards in hand, draw cards equal to the difference$/, async (m, env) => {
+  const want = n(m[1]);
+  const have = cardsIn(env.me, 'hand').length;
+  if (have >= want) return env.did.push(`already has ${have} cards`);
+  draw(env.me, want - have, true);
+  env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} ${want - have}`);
 }, { first: true });

@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.3.204",
+    "title": "Reported cards: Battlebond lands, Locutus, Giada + Automaton and more",
+    "notes": [
+      "Battlebond lands (Sea of Clouds and friends) enter untapped in 3- and 4-player games.",
+      "Locutus of Borg and Co-Option Adjutant: artifact creatures you control get the combat-damage trigger (Borg token / draw). Other 'creatures you control have \"Whenever …\"' cards work the same way now.",
+      "Thirst for Knowledge: you choose to discard one artifact card or two cards.",
+      "Sage's Reverie draws and pumps for every Aura you control on a creature (including itself).",
+      "Doctor Octopus, Master Planner draws up to eight at your end step.",
+      "Adaptive Automaton naming Angel gets Giada's counters (the type is chosen as it enters, so Giada sees an Angel).",
+      "Hugh, First of Many: your artifact spells have replicate {2}{U}.",
+      "Feather, Radiant Arbiter also copies Aura spells cast on her onto other creatures ({2} each).",
+      "Archaeomancer's Map only triggers on opponents' lands (it was also triggering on your own lands, including the one it just put down)."
+    ]
+  },
+  {
     "version": "1.3.203",
     "title": "Encore, AI removal on mana rocks",
     "notes": [

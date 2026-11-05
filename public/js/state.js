@@ -767,7 +767,7 @@ export function entersTapped(c, o = oracle(c).replace(/\([^)]*\)/g, '')) {
     return others.filter((x) => permMatches(x, m[2])).length < k;
   }
   if ((m = line.match(/unless you control (?:a|an) ([^.]+?)\.?$/i))) return !others.some((x) => permMatches(x, m[1]));
-  if (/unless you have two or more opponents/i.test(line)) return true; // one opponent here
+  if (/unless you have two or more opponents/i.test(line)) return opponents(pid).filter((o) => G.s.players[o] && !G.s.players[o].lost).length < 2; // Battlebond lands: untapped in a pod
   if ((m = line.match(/unless a player has (\d+) or less life/i))) return !Object.values(s.players).some((pl) => pl.life <= +m[1]);
   if ((m = line.match(/unless your opponents control (\w+) or more lands/i))) return opponents(pid).flatMap((o) => cardsIn(o, 'battlefield')).filter(isLand).length < (NUMW[m[1]] || +m[1]);
   if (/unless it's your turn/i.test(line)) return s.active !== pid;
@@ -812,39 +812,8 @@ function entering(c, opts) {
       const src = s.cards[iid];
       if (src && src.iid !== c.iid && !src.phasedOut && /Each planeswalker you control enters with an additional loyalty counter/i.test(oracle(src))) c.counters.loyalty = (c.counters.loyalty || 0) + 1;
     }
-  // Dragonstorm Globe, Grumgully, Metallic Mimic: "Each [other] <kind> you control enters with an additional +1/+1 counter on it"
-  for (const iid of s.players[c.controller].zones.battlefield) {
-    const src = s.cards[iid];
-    if (!src || src.phasedOut || src.faceDown) continue;
-    const so = oracle(src).replace(/\([^)]*\)/g, '');
-    for (const mm of so.matchAll(/(?:^|\n)(?:Each |Other )?(other )?((?:[\w-]+ ){0,3}?)(?:creatures?|permanents?|([A-Z][\w-]+)s?) you control (?:enters?|enter) (?:the battlefield )?with (an|one|two|three|\d+) additional ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|them)(?: for each ([A-Z][\w-]+|creature|other creature) you (?:already )?control)?/g)) {
-      if (mm[1] && src.iid === c.iid) continue;
-      if (src.iid === c.iid && !/^Each /.test(mm[0].trim())) continue;
-      const words = (mm[2] || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
-      const sub = mm[3];
-      const isPerm = /permanents? you control/.test(mm[0]);
-      if (!isPerm && !sub && !isCreature(c)) continue;
-      if (sub && !hasSubtype(c, sub)) continue;
-      let ok = true;
-      for (const w of words) {
-        if (w === 'other') continue;
-        if (/^non-?/.test(w)) { const t = w.replace(/^non-?/, ''); if (hasSubtype(c, t) || isType(c, t[0].toUpperCase() + t.slice(1))) ok = false; }
-        else if (w === 'nontoken') { if (c.token) ok = false; }
-        else if (w === 'token') { if (!c.token) ok = false; }
-        else if (!hasSubtype(c, w) && !isType(c, w[0].toUpperCase() + w.slice(1))) ok = false;
-      }
-      if (!ok) continue;
-      let k = { an: 1, one: 1, two: 2, three: 3 }[mm[4].toLowerCase()] || parseInt(mm[4], 10) || 1;
-      // Giada: "… for each Angel you already control" (not counting the one entering)
-      if (mm[6]) {
-        const kind = mm[6];
-        const already = s.players[c.controller].zones.battlefield.map((i) => s.cards[i]).filter((x) => x && x.iid !== c.iid && !x.phasedOut && (/creature/.test(kind) ? isCreature(x) : hasSubtype(x, kind))).length;
-        k *= already;
-      }
-      if (!k) continue;
-      addCounters(c, mm[5].toLowerCase(), k, { silent: true });
-    }
-  }
+  // Dragonstorm Globe, Grumgully, Metallic Mimic, Giada: "Each [other] <kind> you control enters with an additional +1/+1 counter on it"
+  enterCounterBonus(c);
   if (/(?:^|\n)(?:This creature|~|[^\n.]+?) enters prepared\b/.test(o)) c.prepared = true; // Blazing Firesinger
   if ((m = o.match(/\bModular (\d+)/))) addCounters(c, '+1/+1', +m[1], { silent: true });
   if ((m = o.match(/\bGraft (\d+)/))) addCounters(c, '+1/+1', +m[1], { silent: true });
@@ -872,6 +841,45 @@ function entering(c, opts) {
   if (isLand(c)) queueEvent({ type: 'landfall', iid: c.iid, controller: c.controller, from: c.enteredFrom });
   void opts;
   void s;
+}
+
+// "Each [other] <kind> you control enters with an additional … counter" for a permanent entering now. With onlySub, only
+// the effects that care about that creature type (Adaptive Automaton's chosen type, picked as it enters: Giada sees it).
+export function enterCounterBonus(c, onlySub = null) {
+  const s = G.s;
+  for (const iid of s.players[c.controller].zones.battlefield) {
+    const src = s.cards[iid];
+    if (!src || src.phasedOut || src.faceDown) continue;
+    const so = oracle(src).replace(/\([^)]*\)/g, '');
+    for (const mm of so.matchAll(/(?:^|\n)(?:Each |Other )?(other )?((?:[\w-]+ ){0,3}?)(?:creatures?|permanents?|([A-Z][\w-]+)s?) you control (?:enters?|enter) (?:the battlefield )?with (an|one|two|three|\d+) additional ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|them)(?: for each ([A-Z][\w-]+|creature|other creature) you (?:already )?control)?/g)) {
+      if (mm[1] && src.iid === c.iid) continue;
+      if (src.iid === c.iid && !/^Each /.test(mm[0].trim())) continue;
+      const words = (mm[2] || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const sub = mm[3];
+      const isPerm = /permanents? you control/.test(mm[0]);
+      if (!isPerm && !sub && !isCreature(c)) continue;
+      if (sub && !hasSubtype(c, sub)) continue;
+      if (onlySub && sub !== onlySub) continue;
+      let ok = true;
+      for (const w of words) {
+        if (w === 'other') continue;
+        if (/^non-?/.test(w)) { const t = w.replace(/^non-?/, ''); if (hasSubtype(c, t) || isType(c, t[0].toUpperCase() + t.slice(1))) ok = false; }
+        else if (w === 'nontoken') { if (c.token) ok = false; }
+        else if (w === 'token') { if (!c.token) ok = false; }
+        else if (!hasSubtype(c, w) && !isType(c, w[0].toUpperCase() + w.slice(1))) ok = false;
+      }
+      if (!ok) continue;
+      let k = { an: 1, one: 1, two: 2, three: 3 }[mm[4].toLowerCase()] || parseInt(mm[4], 10) || 1;
+      // Giada: "… for each Angel you already control" (not counting the one entering)
+      if (mm[6]) {
+        const kind = mm[6];
+        const already = s.players[c.controller].zones.battlefield.map((i) => s.cards[i]).filter((x) => x && x.iid !== c.iid && !x.phasedOut && (/creature/.test(kind) ? isCreature(x) : hasSubtype(x, kind))).length;
+        k *= already;
+      }
+      if (!k) continue;
+      addCounters(c, mm[5].toLowerCase(), k, { silent: true });
+    }
+  }
 }
 
 // Counters, with Hardened Scales / Doubling Season style replacements for the controller.

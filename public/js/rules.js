@@ -393,6 +393,26 @@ function oracleRaw(inst) {
       for (const m of (face(src).oracle || '').matchAll(/(?:^|\n)Lands you control have "([^"]+)"/g)) if (/:/.test(m[1]) && !/: Add /.test(m[1])) text += '\n' + m[1].replace(/\bthis land\b/gi, '~');
     }
   }
+  // Locutus of Borg, Co-Option Adjutant: 'Artifact creatures you control have "Whenever this creature deals combat damage to a player, …"'
+  // (granted triggered abilities; keyword and mana grants are handled elsewhere)
+  if (inst.zone === 'battlefield' && G.s && isCreature(inst)) {
+    for (const iid of G.s.players[inst.controller].zones.battlefield) {
+      const src = G.s.cards[iid];
+      if (!src || src.phasedOut || src.faceDown || abilitiesGone(src)) continue;
+      const raw = face(src).oracle || '';
+      if (!/you control have "(?:When|Whenever|At)\b/.test(raw)) continue;
+      for (const m of raw.matchAll(/(?:^|\n)(Other )?((?:[A-Z][a-z]+ )?(?:creatures|creature tokens)|[A-Z][a-z]+s) you control have "((?:When|Whenever|At)\b[^"]+)"/g)) {
+        if (m[1] && src.iid === inst.iid) continue;
+        const cls = m[2].toLowerCase();
+        let ok;
+        if (cls === 'creatures') ok = true;
+        else if (cls === 'creature tokens') ok = !!inst.token;
+        else if (/ creatures$/.test(cls)) { const w = cls.replace(/ creatures$/, ''); ok = w === 'artifact' ? /\bArtifact\b/.test(typeLine(inst).split('—')[0]) : w === 'legendary' ? /Legendary/.test(typeLine(inst)) : w === 'token' ? !!inst.token : hasSubtype(inst, w[0].toUpperCase() + w.slice(1)); }
+        else ok = hasSubtype(inst, m[2].replace(/s$/, ''));
+        if (ok) text += '\n' + m[3].replace(/\bthis creature\b/gi, '~');
+      }
+    }
+  }
   // Way of the Pyromancer and friends: "Planeswalkers you control have "[+1]: Add {R}.""
   if (inst.zone === 'battlefield' && G.s && /Planeswalker/.test(typeLine(inst).split('—')[0])) {
     for (const iid of G.s.players[inst.controller].zones.battlefield) {

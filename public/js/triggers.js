@@ -7,7 +7,7 @@ import {
 import {
   G, card, cardsIn, zoneOf, log, nameTag, eventQueue, queueEvent, stateBased, cardName, move, toBattlefield, addCounters, changeLife,
   createToken, genericTokenDef, sacrifice, opp, libTop, esc,
-  withReadCache, discard as discardCard, draw as drawCards, ringLevel,
+  withReadCache, discard as discardCard, draw as drawCards, ringLevel, enterCounterBonus,
 } from './state.js';
 import { tapPerm } from './state.js';
 import { emblemObjects } from './statics.js';
@@ -1435,7 +1435,10 @@ function keywordTriggersRaw(c) {
     f('enters', async () => {
       const t = await chooseCreatureType(c.controller, `${cardName(c)}: choose a creature type`);
       if (!t || !card(c.iid)) return [];
+      const had = hasSubtype(card(c.iid), t);
       card(c.iid).chosenType = t;
+      // Adaptive Automaton naming Angel: the choice is made as it enters, so Giada (and Metallic Mimic-style effects) see it
+      if (!had && hasSubtype(card(c.iid), t)) enterCounterBonus(card(c.iid), t);
       return [`chooses ${t}`];
     }, 'Choose a creature type', { self: true, asEnters: true });
   // Squall, Gunblade Duelist: "As Squall enters, choose a number."
@@ -1822,6 +1825,7 @@ function matches(ev) {
         if (c.iid === nc.iid && trig.kw) return;
         if (trig.mine && nc.controller !== c.controller) return;
         if (trig.theirs && nc.controller === c.controller) return;
+        if (/\b(?:an opponent controls|your opponents control)\b/.test(trig.kind || '') && (nc.controller === c.controller || !opponents(c.controller).includes(nc.controller))) return;
         if (trig.commander && !nc.isCommander) return;
         if (trig.nontoken && nc.token) return;
         if (trig.dfcArt && !(DB[nc.def].doubleFaced && isType(nc, 'Artifact'))) return;
@@ -1834,7 +1838,8 @@ function matches(ev) {
           if (seenOnce.has(key) || ev.batchSeen) return;
           seenOnce.add(key);
         }
-        out.push({ src: c, trig, it: { iid: nc.iid } });
+        // "Whenever a land an opponent controls enters, if that player …" (Archaeomancer's Map): that player is its controller
+        out.push({ src: c, trig, it: { iid: nc.iid }, ...(nc.controller !== c.controller ? { thatPlayer: nc.controller } : {}) });
       });
       break;
     }

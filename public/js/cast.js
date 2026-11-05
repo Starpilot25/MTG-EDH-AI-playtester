@@ -752,7 +752,9 @@ export async function castSpell(pid, iid, opt, env) {
     info.buyback = true;
     info.extraMana = (info.extraMana || '') + bb;
   }
-  const rep = altCost(o, 'Replicate');
+  // Hugh, First of Many: "Artifact spells you cast have replicate {2}{U}."
+  const hughRep = /\bArtifact\b/.test(((d.faces[fIdx] || d.faces[0]).typeLine || '').split('—')[0]) && !opt.copy ? cardsIn(pid, 'battlefield').map((x) => (oracle(x).match(/Artifact spells you cast have replicate ((?:\{[^}]+\})+)/i) || [])[1]).find(Boolean) : null;
+  const rep = altCost(o, 'Replicate') || hughRep;
   if (rep && !env.free) {
     info.replicate = await ch.chooseNumber({ prompt: `Replicate ${rep}: how many copies?`, min: 0, max: 8, ai: 0 });
     for (let k = 0; k < info.replicate; k++) info.extraMana = (info.extraMana || '') + rep;
