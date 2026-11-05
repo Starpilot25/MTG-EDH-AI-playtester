@@ -1478,7 +1478,8 @@ async function objects(env, phrase, opts = {}) {
     const other = !!m[1];
     const rest = m[2];
     const pool = sidesFor(rest, me).flatMap((pid) => cardsIn(pid, 'battlefield'));
-    const filter = rest.replace(/(?:you control|your opponents control|an opponent controls|on the battlefield)/, '').trim().replace(/s\b/g, '') || 'permanent';
+    // singular for matchesFilter: drop plural s, but not from "or less", "toughness", "this", "has", "its" (Pest Control: "mana value 1 or less")
+    const filter = rest.replace(/(?:you control|your opponents control|an opponent controls|on the battlefield)/, '').trim().replace(/\b([\w-]*[^\Ws])s\b/g, (w, b) => (/^(?:thi|ha|it|plu|wa|i|hi|a|u)$/.test(b) ? w : b)) || 'permanent';
     return pool.filter((c) => (!other || c.iid !== (env.src || {}).iid) && matchesFilter(c, filter));
   }
   if (/^~ and each other creature/.test(p)) return [env.src, ...(await objects(env, p.replace(/^~ and /, '')))].filter(Boolean);

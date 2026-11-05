@@ -648,9 +648,12 @@ function scoreSpellRaw(c, pay, opt = {}) {
   if (a.wipe) {
     // partial wipes (Dusk: "creatures with power 3 or greater") only count what they actually hit
     const pw = text.match(/creatures with power (\d+) or (greater|less)/i);
-    const hits = (c) => isCreature(c) && (!pw || (pw[2] === 'greater' ? power(c) >= +pw[1] : power(c) <= +pw[1]));
-    const lost = (pid) => cardsIn(pid, 'battlefield').filter((c) => !isLand(c) && (pw ? hits(c) : true)).reduce((x, c) => x + threat(c), 0);
-    const diff = pw ? FOES().reduce((x, o) => x + lost(o), 0) - lost(AI) : foesThreat() - threatLevel(AI);
+    // Pest Control, Ravenous Chupacabra-style sweepers by mana value: "nonland permanents with mana value 1 or less"
+    const mvq = text.match(/(creatures|nonland permanents) with mana value (\d+) or (greater|less)/i);
+    const hits = (c) => (mvq ? (/creature/i.test(mvq[1]) ? isCreature(c) : !isLand(c)) && (mvq[3] === 'greater' ? (DB[c.def].cmc || 0) >= +mvq[2] : (DB[c.def].cmc || 0) <= +mvq[2])
+      : isCreature(c) && (!pw || (pw[2] === 'greater' ? power(c) >= +pw[1] : power(c) <= +pw[1])));
+    const lost = (pid) => cardsIn(pid, 'battlefield').filter((c) => !isLand(c) && (pw || mvq ? hits(c) : true)).reduce((x, c) => x + threat(c), 0);
+    const diff = pw || mvq ? FOES().reduce((x, o) => x + lost(o), 0) - lost(AI) : foesThreat() - threatLevel(AI);
     if (diff < (casualAI() ? 14 : 8) && !perm) return -1;
     s += diff;
   }
