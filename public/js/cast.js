@@ -850,6 +850,29 @@ export async function castSpell(pid, iid, opt, env) {
       info.additionalPaid = true;
       if (wbm[2] === 'X') info.waterbendX = n;
     }
+  } else if (addl && /^pay x life$/i.test(addl[1])) {
+    // Toxic Deluge, Fire Covenant: choose X, then pay that much life
+    const life = s.players[pid].life;
+    const o0 = (DB[c.def].faces[0].oracle || '').toLowerCase();
+    const foes = cardsIn(pid, 'battlefield').length ? Object.values(s.cards).filter((x) => x.zone === 'battlefield' && isCreature(x)) : [];
+    let aiX = 0;
+    const cap = Math.max(0, life - 8);
+    if (/-x\/-x/.test(o0)) {
+      let best = 0;
+      for (const x of foes) {
+        const X = toughness(x);
+        if (X > cap) continue;
+        const v = foes.filter((y) => toughness(y) <= X).reduce((a, y) => a + (y.controller === pid ? -1 : 1) * (1 + cardValue(y)), 0) - X * 0.3;
+        if (v > best) { best = v; aiX = X; }
+      }
+    } else {
+      const tgts = foes.filter((y) => y.controller !== pid).sort((a, b) => cardValue(b) - cardValue(a));
+      for (const y of tgts) if (aiX + toughness(y) <= cap) aiX += toughness(y);
+    }
+    const X = await ch.chooseNumber({ prompt: `${label}: choose X (you pay X life)`, min: 0, max: Math.max(0, life), ai: aiX });
+    if (X) changeLife(pid, -X);
+    info.lifeX = X;
+    info.additionalPaid = true;
   } else if (addl && /^(.+?) or pay ((?:\{[^}]+\})+)$/i.test(addl[1])) {
     // "blight 2 or pay {1}": either one
     const om = addl[1].match(/^(.+?) or pay ((?:\{[^}]+\})+)$/i);
@@ -1000,6 +1023,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (c.ianSrc && opt.mode === 'impulse') s.ianUsed = { ...(s.ianUsed || {}), [pid + ':' + c.ianSrc]: s.turn };
   info.x = env.x !== undefined ? env.x : pay.x || 0;
   if (info.waterbendX !== undefined) info.x = info.waterbendX;
+  if (info.lifeX !== undefined) info.x = info.lifeX;
   if (info.waterbend) noteBend(pid, 'waterbend');
   // --- the spell is on the stack
   if (fromZone === 'command' && c.isCommander) s.players[pid].tax[c.iid] = (s.players[pid].tax[c.iid] || 0) + 1;
@@ -1388,7 +1412,7 @@ async function resolveSpell(pid, c, opt, info, env) {
     }
   }
   const did = await resolveEffects(text, { ...c, face: fIdx }, ctx);
-  log(pid, did.length ? `${nameTag({ ...c, face: fIdx })} resolves: ${did.join('; ')}.` : `${nameTag({ ...c, face: fIdx })} resolves — its effect isn't automated, apply it by hand.`);
+  log(pid, did.length ? `${nameTag({ ...c, face: fIdx })} resolves: ${did.join('; ')}.` : did.handled ? `${nameTag({ ...c, face: fIdx })} resolves, but it does nothing.` : `${nameTag({ ...c, face: fIdx })} resolves — its effect isn't automated, apply it by hand.`);
   // Bill Potts: "Whenever you cast an instant or sorcery spell that targets only Bill Potts …, copy that spell"
   {
     const picked = did.picked || [];

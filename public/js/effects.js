@@ -79,8 +79,11 @@ export function costOf(c) {
 
 // "your Questing Beast" / "the AI's Questing Beast", always from the human's point of view
 export function whose(c) {
-  return (c.zone === 'battlefield' ? c.controller : c.owner) === 'p' ? 'your' : "the AI's";
+  const pid = c.zone === 'battlefield' ? c.controller : c.owner;
+  // in a pod, name the seat: "the AI's" would be rewritten to the acting AI's name (Infernal Grasp on another AI's creature)
+  return pid === 'p' ? 'your' : multiplayer() ? `${seatName(pid)}'s` : "the AI's";
 }
+const possOf = (pid) => (pid === 'p' ? 'your' : multiplayer() ? `${seatName(pid)}'s` : "the AI's");
 export const who = (pid) => (pid === 'p' ? 'you' : seatName(pid));
 // a seat's name for a menu option: "The AI" in 1v1, "AI 2" in a pod
 const seatLabel = (pid) => (pid === 'p' ? 'You' : multiplayer() ? seatName(pid) : 'The AI');
@@ -1856,7 +1859,7 @@ on(/^exile all creatures you control\. at the beginning of the next end step, re
 // Teferi's Reproach: "Choose target opponent. Until that player's next turn, they gain protection from everything and their life total can't change. All nonland permanents they control phase out."
 on(/^until that player's next turn, they gain protection from everything and their life total can't change$/, async (m, env) => {
   const pid = env.chosenPlayer || (env.it && env.it.player) || opp(env.me);
-  const until = G.s.turn + (G.s.active === pid ? 2 : 1);
+  const until = nextTurnNumber(pid);
   G.s.players[pid].protectedUntil = until;
   G.s.players[pid].lifeLocked = until;
   env.did.push(`${who(pid)} ${pid === 'p' ? 'gain' : 'gains'} protection from everything until ${pid === 'p' ? 'your' : 'its'} next turn`);
@@ -3017,7 +3020,7 @@ on(/^they draw (a|one|two|three) cards?$/, async (m, env) => {
 // Escape to the Wilds & co.: "You may play cards exiled this way until the end of your next turn."
 on(/^(?:you may )?(play|cast) (?:the )?cards exiled this way( until the end of your next turn| this turn| until end of turn)?$/, async (m, env) => {
   const ids = (env.them_ || []).filter((i) => card(i) && card(i).zone === 'exile');
-  const until = /next turn/.test(m[2] || '') ? G.s.turn + (G.s.active === env.me ? 2 : 1) : G.s.turn;
+  const until = /next turn/.test(m[2] || '') ? nextTurnNumber(env.me) : G.s.turn;
   grantPlay(ids, env.me, { until, castOnly: m[1] === 'cast' });
   env.did.push(`may play ${ids.length} exiled card${ids.length === 1 ? '' : 's'} ${/next turn/.test(m[2] || '') ? 'until the end of its next turn' : 'this turn'}`);
 }, { first: true });
@@ -3375,11 +3378,34 @@ async function dealDamage(env, source, amount, toPhrase, divided) {
       continue;
     }
     if (/target|any target/.test(part) || /^up to/.test(part)) {
-      const picks = await pickTargetsForDamage(env, part, amount);
+      let picks = await pickTargetsForDamage(env, part, amount);
+      // the AI divides damage so each creature gets just enough to die (Fire Covenant, Arc Lightning), adding more
+      // opposing creatures while damage is left over
+      let plan = null;
+      if (divided && isAI(me) && amount > 1) {
+        const cap = /any number/.test(part) ? 99 : n((part.match(/up to (\w+)/) || [])[1] || 'one') || 1;
+        const creatureOnly = /creature/.test(part) && !/any target|player|planeswalker/.test(part);
+        const lethal = (c) => Math.max(1, toughness(c) - (c.damage || 0));
+        const ok = (c) => c.zone === 'battlefield' && isCreature(c) && c.controller !== me && !hasKw(c, 'hexproof') && !hasKw(c, 'shroud') && !hasKw(c, 'indestructible');
+        const chosen = picks.filter((pk) => pk.iid && card(pk.iid) && ok(card(pk.iid)));
+        if (chosen.length === picks.length && picks.length) {
+          const pool = Object.values(G.s.cards).filter((c) => ok(c) && !chosen.some((pk) => pk.iid === c.iid)).sort((a, b) => cardValue(b) - cardValue(a));
+          let left = amount - chosen.reduce((a, pk) => a + lethal(card(pk.iid)), 0);
+          for (const c of pool) { if (chosen.length >= cap || left <= 0) break; if (lethal(c) <= left) { chosen.push({ iid: c.iid }); left -= lethal(c); } }
+          if (creatureOnly || chosen.length) {
+            picks = chosen;
+            plan = new Map();
+            let rem = amount;
+            for (const pk of picks) { const a = Math.min(rem, lethal(card(pk.iid))); plan.set(pk.iid, a); rem -= a; }
+            if (rem > 0 && picks[0]) plan.set(picks[0].iid, plan.get(picks[0].iid) + rem);
+            picks = picks.filter((pk) => plan.get(pk.iid) > 0);
+          }
+        }
+      }
       const each = divided && picks.length ? Math.max(1, Math.floor(amount / picks.length)) : amount;
       let extra = divided && picks.length ? amount - each * picks.length : 0; // the remainder goes to the first target
       for (const pk of picks) {
-        const amt = each + (extra > 0 ? extra : 0);
+        const amt = plan ? plan.get(pk.iid) : each + (extra > 0 ? extra : 0);
         extra = 0;
         if (pk.player) damagePlayer(env, source, pk.player, amt);
         else if (card(pk.iid)) damagePermanent(env, source, card(pk.iid), amt, true);
@@ -3490,7 +3516,7 @@ on(/^(they|that player|the active player) may pay ((?:\{[^}]+\})+)$/, async (m, 
 }, { first: true });
 on(/^creatures they control can't attack (?:~s|jaces|jace planeswalkers) you control this turn$/, async (m, env) => {
   G.s.noAttackJace = { owner: env.me, turn: G.s.turn };
-  env.did.push(`creatures can't attack ${who(env.me) === 'you' ? 'your' : "the AI's"} Jaces this turn`);
+  env.did.push(`creatures can't attack ${possOf(env.me)} Jaces this turn`);
 }, { first: true });
 // --- saga chapters and friends
 // The Eldest Reborn: "Put target creature or planeswalker card from a graveyard onto the battlefield under your control."
@@ -3510,7 +3536,7 @@ on(/^(~|it|this land|this saga) gains "(.+)"$/, async (m, env) => {
 // The Akroan War: "Until your next turn, creatures your opponents control attack each combat if able."
 on(/^until your next turn, creatures your opponents control attack each combat if able$/, async (m, env) => {
   G.s.mustAttackAll = { pid: opp(env.me), pids: opponents(env.me).filter(inGame), until: nextTurnNumber(env.me) };
-  env.did.push(`${who(opp(env.me)) === 'you' ? 'your' : "the AI's"} creatures must attack until ${who(env.me) === 'you' ? 'your' : "the AI's"} next turn`);
+  env.did.push(`${possOf(opp(env.me))} creatures must attack until ${possOf(env.me)} next turn`);
 }, { first: true });
 // The Akroan War: "Each tapped creature deals damage to itself equal to its power."
 on(/^each tapped creature deals damage to itself equal to its power$/, async (m, env) => {
@@ -3527,7 +3553,7 @@ on(/^each tapped creature deals damage to itself equal to its power$/, async (m,
 // Elspeth Conquers Death: "Noncreature spells your opponents cast cost {2} more to cast until your next turn."
 on(/^((?:[\w-]+ ){0,4}?)spells your opponents cast cost \{(\d+)\} more to cast until your next turn$/, async (m, env) => {
   G.s.tempCosts = [...(G.s.tempCosts || []).filter((t) => t.until > G.s.turn), { who: 'theirs', owner: env.me, filter: m[1].trim(), delta: +m[2], until: nextTurnNumber(env.me) }];
-  env.did.push(`${m[1].trim() || ''} spells cost {${m[2]}} more for ${who(opp(env.me))} until ${who(env.me) === 'you' ? 'your' : "the AI's"} next turn`);
+  env.did.push(`${m[1].trim() || ''} spells cost {${m[2]}} more for ${who(opp(env.me))} until ${possOf(env.me)} next turn`);
 }, { first: true });
 // Elspeth Conquers Death: "Put a +1/+1 counter or a loyalty counter on it."
 on(/^put a \+1\/\+1 counter or a loyalty counter on (it|that creature|that permanent)$/, async (m, env) => {
@@ -3569,7 +3595,7 @@ on(/^choose an? ([a-z]+) card at random from target opponent's graveyard\. put t
   const [o] = await playerTarget(env, 'target opponent');
   if (!o) return;
   const pool = cardsIn(o, 'graveyard').filter((c) => matchesAny(c, m[1]));
-  if (!pool.length) return env.did.push(`${who(o) === 'you' ? 'your' : "the AI's"} graveyard has no ${m[1]} cards`);
+  if (!pool.length) return env.did.push(`${possOf(o)} graveyard has no ${m[1]} cards`);
   const pick = pool[Math.floor(Math.random() * pool.length)];
   toBattlefield(pick.iid, env.me);
   env.did.push(`randomly picks ${nameTag(card(pick.iid))} and puts it onto the battlefield`);
@@ -3588,7 +3614,7 @@ async function bounceOwnLand(env, kind, untapped, optional) {
   if (!pick) return null;
   const c = card(pick);
   move(pick, 'hand');
-  env.did.push(`returns ${nameTag(c)} to ${who(env.me) === 'you' ? 'your' : "the AI's"} hand`);
+  env.did.push(`returns ${nameTag(c)} to ${possOf(env.me)} hand`);
   return c;
 }
 // (kept name: it's used for any "return a <kind> you control to its owner's hand")
@@ -3729,7 +3755,7 @@ on(/^exile all but the bottom card of (each opponent's|target player's|target op
 // Jace, Reality Sculptor −3 / Jace, Architect of Thought +1: attackers get −N/−0
 on(/^until your next turn, whenever a creature (an opponent controls attacks|attacks you or a planeswalker you control), it gets -(\d+)\/-0 until end of turn$/, async (m, env) => {
   G.s.attackShrink = [...(G.s.attackShrink || []).filter((x) => x.until > G.s.turn), { owner: env.me, n: +m[2], until: nextTurnNumber(env.me), onlyAtMe: /attacks you/.test(m[1]) }];
-  env.did.push(`until ${who(env.me) === 'you' ? 'your' : "the AI's"} next turn, attacking creatures get −${m[2]}/−0`);
+  env.did.push(`until ${possOf(env.me)} next turn, attacking creatures get −${m[2]}/−0`);
 }, { first: true });
 // Jace, Architect of Thought −2: piles
 on(/^reveal the top (three|two|four|five) cards of your library\. an opponent separates those cards into two piles\. put one pile into your hand and the other (on the bottom of your library in any order|into your graveyard)$/, async (m, env) => {
@@ -3908,7 +3934,7 @@ on(/^during target player's next turn, each creature that player controls attack
   const [pid] = await playerTarget(env, 'target player');
   if (!pid) return;
   G.s.mustAttackAll = multiplayer() ? { pid, from: nextTurnNumber(pid), until: nextTurnNumber(pid) + 1 } : { pid, from: G.s.turn + 1, until: G.s.turn + 2 };
-  env.did.push(`${who(pid) === 'you' ? 'your' : "the AI's"} creatures must attack during ${who(pid) === 'you' ? 'your' : 'its'} next turn`);
+  env.did.push(`${possOf(pid)} creatures must attack during ${who(pid) === 'you' ? 'your' : 'its'} next turn`);
 }, { first: true });
 // Ral Zarek −7
 on(/^flip (\w+) coins\. take an extra turn after this one for each coin that comes up heads$/, async (m, env) => {
@@ -3950,7 +3976,7 @@ on(/^return (?:that card|it|the exiled card) to the battlefield under its owner'
   const c = env.it && card(env.it.iid);
   if (!c || c.zone !== 'exile') return;
   G.s.delayed.push({ at: 'endStep', kind: 'returnFromExile', iid: c.iid, pid: c.owner, whoseEnd: c.owner });
-  env.did.push(`${nameTag(c)} returns at ${who(c.owner) === 'you' ? 'your' : "the AI's"} next end step`);
+  env.did.push(`${nameTag(c)} returns at ${possOf(c.owner)} next end step`);
 }, { first: true });
 // Emblems: "You get an emblem with '…'" — kept on the player and shown in the log
 on(/^(you|target player|target opponent) gets? an emblem with ['"](.+)['"]$/, async (m, env) => {
@@ -5451,9 +5477,9 @@ on(/^search your library for up to (\w+) (land |creature |nonland )?cards with d
 on(/^(?:you may )?cast (?:it|~) from your graveyard as an adventure until the end of your next turn$/, async (m, env) => {
   const c = env.src && card(env.src.iid);
   if (!c || c.zone !== 'graveyard') return env.did.push('is no longer in the graveyard');
-  c.advFromGyUntil = G.s.active === env.me ? G.s.turn + 2 : G.s.turn + 1;
+  c.advFromGyUntil = nextTurnNumber(env.me);
   c.advFromGyBy = env.me;
-  env.did.push(`${nameTag(c)} can be cast as an Adventure from the graveyard until the end of ${who(env.me) === 'you' ? 'your' : "the AI's"} next turn`);
+  env.did.push(`${nameTag(c)} can be cast as an Adventure from the graveyard until the end of ${possOf(env.me)} next turn`);
 }, { first: true });
 // Rabid Attack: "Until end of turn, any number of target creatures you control each get +1/+0 and gain "When this creature dies, draw a card.""
 on(/^(?:until end of turn, )?((?:any number of |up to \w+ )?target creatures?(?: you control)?) (?:each )?gets? ([+-]\d+)\/([+-]\d+) and gains? "(.+)"(?: until end of turn)?$/, async (m, env) => {
@@ -5889,8 +5915,8 @@ on(/^~ deals damage to each opponent equal to the difference between that spell'
 on(/^it gains "(?:~|this permanent|this creature|this artifact) can't be sacrificed" until the end of your next turn$/, async (m, env) => {
   const c = env.it && env.it.iid && card(env.it.iid);
   if (!c || c.zone !== 'battlefield') return;
-  c.cantSacUntil = G.s.turn + (G.s.active === env.me ? 2 : 1);
-  env.did.push(`${nameTag(c)} can't be sacrificed until the end of ${who(env.me) === 'you' ? 'your' : "the AI's"} next turn`);
+  c.cantSacUntil = nextTurnNumber(env.me);
+  env.did.push(`${nameTag(c)} can't be sacrificed until the end of ${possOf(env.me)} next turn`);
 }, { first: true });
 // Glorious Purpose: "put a +1/+1 counter on that creature and a plan counter on ~"
 on(/^put (a|an|one|two|three) ([^ ]+) counters? on (that creature|it|target creature you control) and (a|an|one|two|three) ([^ ]+) counters? on ~$/, async (m, env) => {
@@ -5921,7 +5947,7 @@ on(/^if that permanent is destroyed this way, its controller exiles cards from t
 // Kang Dynasty: "Until your next turn, whenever any of those creatures deals combat damage to a player, draw a card."
 on(/^until your next turn, whenever (?:any of those creatures|that creature|those creatures) deals? combat damage to a player, (draw a card|you draw a card)$/, async (m, env) => {
   const objs = (await objects(env, 'those creatures')).filter((c) => c && c.zone === 'battlefield');
-  const until = G.s.turn + (G.s.active === env.me ? 2 : 1);
+  const until = nextTurnNumber(env.me);
   for (const c of objs) c.dmgDraw = [...(c.dmgDraw || []), { pid: env.me, src: env.src && env.src.iid, until, text: 'Draw a card.' }];
   if (objs.length) env.did.push(`until ${seatPoss(env.me)} next turn, ${who(env.me)} ${s_(env.me, 'draw')} a card whenever ${objs.map(nameTag).join(' or ')} deals combat damage to a player`);
 }, { first: true });
@@ -6497,12 +6523,12 @@ on(/^put (?:a|an|up to one) ([a-z ]*?)cards? with mana value (\d+|x|less than or
   let max = /^\d+$/.test(mvText) ? +mvText : /^x$/.test(mvText) ? env.x : null;
   if (max === null) {
     const t = mvText.replace(/^less than or equal to /, '').replace(/ or less$/, '');
-    max = /that (?:damage|much|many)/.test(t) ? env.lastAmount || 0 : amountOf(t, env);
+    max = /that (?:damage|much|many)/.test(t) ? env.lastAmount || env.thatMuch || 0 : amountOf(t, env);
   }
   const zones = m[3].split(' or ');
   const pool = zones.flatMap((z) => cardsIn(env.me, z)).filter((c) => DB[c.def].cmc <= max && matchesAny(c, (m[1] || 'permanent').trim() || 'permanent') && isPermanentCard(DB[c.def]));
   if (!pool.length) return env.did.push(`has nothing with mana value ${max} or less to put onto the battlefield`);
-  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Put a ${(m[1] || 'permanent').trim()} card with mana value ${max} or less onto the battlefield`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'cheat', src: env.src, aiScore: (c) => DB[c.def].cmc + (isCreature(c) ? 1 : 0) });
+  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Put a ${(m[1] || 'permanent').trim()} card with mana value ${max} or less onto the battlefield`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'cheat', src: env.src, aiScore: (c) => (isLand(c) ? 0.5 : DB[c.def].cmc + 1 + (isCreature(c) ? 1 : 0)) });
   if (!pick) return;
   toBattlefield(pick, env.me, { tapped: !!m[4] });
   env.did.push(`puts ${nameTag(card(pick))} onto the battlefield`);
@@ -7622,7 +7648,7 @@ on(/^for each attacking creature, its owner puts it on their choice of the top o
     const owner = c.owner;
     const top = c.token ? true : isAI(owner) ? cardValue(c) >= 4 : await env.choosers[owner].confirm(cardName(c), `Put ${cardName(c)} on top of your library? (No = bottom)`);
     move(i, 'library', top ? {} : { to: 'bottom' });
-    env.did.push(`${nameTag(c)} goes to the ${top ? 'top' : 'bottom'} of ${who(owner) === 'you' ? 'your' : "the AI's"} library`);
+    env.did.push(`${nameTag(c)} goes to the ${top ? 'top' : 'bottom'} of ${possOf(owner)} library`);
   }
   if (G.s.combat) G.s.combat.attackers = G.s.combat.attackers.filter((i) => card(i) && card(i).zone === 'battlefield');
 }, { first: true });
@@ -14314,7 +14340,7 @@ on(/^put the exiled card into its owner's hand$/, async (m, env) => {
     delete c.hiddenExile;
     move(c.iid, 'hand');
   }
-  env.did.push(hidden.length ? `puts ${hidden.map(nameTag).join(', ')} into ${hidden[0].seatPoss(owner)} hand` : 'has no card hidden away');
+  env.did.push(hidden.length ? `puts ${hidden.map(nameTag).join(', ')} into ${seatPoss(hidden[0].owner)} hand` : 'has no card hidden away');
 }, { first: true });
 
 async function runSentence(sentence, env) {
@@ -14694,6 +14720,8 @@ async function resolveEffectsRaw(text, src, ctx) {
     G.curActor = prevActor;
   }
   if (env.condFalse && !env.did.length && !env.unknown.length) env.did.skipped = true;
+  // every sentence was understood but nothing happened (no legal target, nothing tapped, no lands in hand): not a by-hand effect
+  if (!env.did.length && !env.unknown.length && !env.did.skipped) Object.defineProperty(env.did, 'handled', { value: true, enumerable: false });
   stateBased();
   if (ctx.unknownOut) ctx.unknownOut.push(...env.unknown);
   if (G.unknownSink && env.unknown.length) G.unknownSink.push(...env.unknown);
@@ -16164,13 +16192,13 @@ on(/^until end of turn, whenever a nontoken creature you control dies, create a 
 // Nantuko Cultivator
 on(/^(?:you may )?discard any number of land cards\. put that many \+1\/\+1 counters on ~ and draw that many cards$/, async (m, env) => {
   const lands = cardsIn(env.me, 'hand').filter(isLand);
-  if (!lands.length) return;
+  if (!lands.length) return env.did.push('has no land cards to discard');
   // the AI keeps one land in hand while it still has land drops to make
   const onField = cardsIn(env.me, 'battlefield').filter(isLand).length;
   const use = isAI(env.me) ? lands.slice(onField >= 6 ? 0 : 1).map((c) => c.iid)
     : await env.choosers[env.me].pickCards({ prompt: 'Discard any number of land cards (that many +1/+1 counters and cards)', cards: lands.map((c) => c.iid), min: 0, max: lands.length, purpose: 'discard', src: env.src });
   use.forEach((i) => discardCard(i));
-  if (!use.length) return;
+  if (!use.length) return env.did.push('discards no lands');
   const me = env.src && card(env.src.iid);
   if (me && me.zone === 'battlefield') addCounters(me, '+1/+1', use.length);
   draw(env.me, use.length, true);
@@ -16470,7 +16498,7 @@ on(/^~ becomes a copy of target (artifact, creature, enchantment, or land) until
   env.did.push(`${cardName(self)} becomes a copy of ${nameTag(model)} until end of turn`);
 }, { first: true });
 // Irma: "becomes a copy of up to one other target creature you control, except her name is ~ and she has this ability. Then put a +1/+1 counter on her."
-on(/^~ becomes a copy of up to one other target creature you control, except (?:her|his|its) name is ~ and (?:she|he|it) has this ability\. then put a \+1\/\+1 counter on (?:her|him|it)$/, async (m, env) => {
+on(/^~ becomes a copy of up to one other target creature you control, except (?:her|his|its) name is ~[^.]*? and (?:she|he|it) has this ability\. then put a \+1\/\+1 counter on (?:her|him|it)$/, async (m, env) => {
   const self = env.src && card(env.src.iid);
   if (!self) return;
   const [model] = await objects(env, 'up to one other target creature you control', { harm: false, filter: (c) => c.iid !== self.iid, aiScore: (c) => cardValue(c) + power(c) });
@@ -16481,7 +16509,7 @@ on(/^~ becomes a copy of up to one other target creature you control, except (?:
     self.def = model.def;
     self.face = model.face || 0;
     self.nameOverride = nm;
-    self.extraText = ability.replace(new RegExp(nm.split(',')[0], 'g'), '~');
+    self.extraText = ability.split(nm).join('~').replace(new RegExp(nm.split(',')[0], 'g'), '~'); // the full name first, or "~, Part-Time Mutant" is left behind
     env.did.push(`becomes a copy of ${nameTag(model)}`);
   }
   addCounters(self, '+1/+1', 1);

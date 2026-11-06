@@ -28,7 +28,7 @@ function interveningIfFails(hit, ev) {
   }
 }
 import { venture, takeInitiative } from './dungeon.js';
-import { seats, opponents, isAI, isPlayer, multiplayer } from './state.js';
+import { seats, opponents, isAI, isPlayer, multiplayer, livingSeats } from './state.js';
 import { isGoaded, noteBend, noteExert } from './state.js';
 import { seatName } from './state.js';
 
@@ -3084,7 +3084,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
   }
   const did = await resolveEffects(text, src, ctx);
   if (did.length) log(controller, `${nameTag(src)} ${trig.event === 'chapter' ? 'chapter' : 'triggers'}${G.s.trigBatch > 1 ? ` ×${G.s.trigBatch}` : ''}: ${did.join('; ')}.`);
-  else if (!trig.kw && !did.skipped && knownEffect(text)) log(controller, `${nameTag(src)} triggers, but it does nothing${/\btarget\b/i.test(text) ? ' (no legal targets)' : ''}.`);
+  else if (!trig.kw && !did.skipped && (did.handled || knownEffect(text))) log(controller, `${nameTag(src)} triggers, but it does nothing${/\btarget\b/i.test(text) ? ' (no legal targets)' : ''}.`);
   else if (!trig.kw && !did.skipped) log(controller, `${nameTag(src)} triggers: <i>${esc(text.slice(0, 140))}</i> — apply it by hand.`);
   stateBased();
   T.render();

@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.3.210",
+    "title": "Escape to the Wilds, Toxic Deluge and fixes from simulated precon games",
+    "notes": [
+      "Escape to the Wilds and other \"until the end of your next turn\" effects now last until your next turn in 3- and 4-player games. Before, the cards stopped being playable after two turns, before your next turn came around. Teferi's Reproach and similar \"until your next turn\" effects had the same problem.",
+      "Toxic Deluge and Fire Covenant now ask for X and charge that much life. Before, X was 0, so they did nothing. The AI now picks a sensible X.",
+      "When the AI divides damage (Fire Covenant and similar), it gives each creature just enough to kill it instead of splitting evenly.",
+      "Dethrone no longer crashes in multiplayer games.",
+      "Watcher for Tomorrow no longer crashes when it leaves the battlefield.",
+      "Irma, Part-Time Mutant keeps copying every combat, not just the first time.",
+      "Broodcaller Scourge uses the combat damage dealt as its mana value limit, and the AI prefers spells over lands.",
+      "In 3- and 4-player games, the log now names the right owner when one AI removes another AI's permanent. Before, Infernal Grasp on AI 1's creature showed \"AI 2's\".",
+      "Triggers that resolve but have nothing to do (no legal target, nothing tapped) now say so instead of asking you to apply them by hand."
+    ]
+  },
+  {
     "version": "1.3.209",
     "title": "Eumidian Hatchery and Evendo Brushrazer",
     "notes": [
