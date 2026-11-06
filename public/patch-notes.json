@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.3.208",
+    "title": "Board wipe fixes",
+    "notes": [
+      "Wipes that list several card types now hit all of them: Cease // Desist, Fracturing Gust, Purify, Rampage of the Clans, Death Begets Life, Devastation, Fated Retribution, In Garruk's Wake, Reduce to Dreams, Slash the Ranks, Beyond the Quiet and similar cards used to destroy nothing.",
+      "Wipes with X in their filter (Forced March, Displacement Wave, Zero Point Ballad, Vicious Rivalry) now use the X you paid.",
+      "Urza's Ruinous Blast spares legendary permanents. \"Except for commanders\" wipes spare commanders.",
+      "Reign of Terror, Catastrophe and Essence Filter let the caster choose which group to destroy.",
+      "Soulquake and Shadows' Verdict now also handle their graveyard half, and Decree of Annihilation exiles hands and graveyards.",
+      "Hurkyl's Recall returns the target player's artifacts. Fight to the Death only destroys blocking and blocked creatures.",
+      "Cards that say \"target opponent\" or \"target player\" (curses, Ensnared by the Mara, clash, emblems, casting from an opponent's hand and others) now let you choose the player instead of always picking the next seat."
+    ]
+  },
+  {
     "version": "1.3.207",
     "title": "Fell the Mighty fix",
     "notes": [
