@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.212",
+    "title": "Prize Pig, Flawless Maneuver",
+    "notes": [
+      "Prize Pig removes its ribbon counters and untaps once it has three or more.",
+      "Flawless Maneuver no longer asks you to apply its free-cast line by hand when it resolves.",
+      "Activated abilities that have nothing to do say so instead of asking you to apply them by hand."
+    ]
+  },
+  {
     "version": "1.3.211",
     "title": "U.S.S. Farragut, Burning Curiosity and a crash",
     "notes": [

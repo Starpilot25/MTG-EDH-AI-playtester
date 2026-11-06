@@ -164,7 +164,7 @@ export function spellText(c) {
     .filter((l) => !/^(?:When|Whenever|At)\b[^\n]*\b(?:return|put|exile) (?:~|this card) from your graveyard\b/i.test(l.trim()))
     .filter((l) => !/^[A-Z][A-Za-z' ]{1,30} — (?:This spell|~) costs\b/.test(l.trim())) // Own the Day: "Battlefront — This spell costs {1} less …"
     .filter((l) => !/^(?:\{[^}]+\}(?:, )?)*,? ?Discard (?:~|this card): /i.test(l.trim())) // Magma Opus: its hand ability isn't part of the spell
-    .filter((l) => l.trim() && !KEYWORD_LINE.test(l.trim()) && !/^If [^,\n]+, you may pay (?:\{[^}]+\})+ rather than pay/.test(l.trim()) && !/^(As an additional cost|[A-Z][A-Za-z ]+ \d+ — When you cast|You may pay [^.]* rather than pay|You may [^.]* rather than pay (?:this spell's|~'s) mana cost|This spell costs|~ costs|You may cast ~|Spend only|This spell can't be countered|~ can't be countered|When you cast ~|When you cycle ~|Split second|Cast ~ only|Cast this spell only|Strive|Kicker|Flash$)/i.test(l.trim()))
+    .filter((l) => l.trim() && !KEYWORD_LINE.test(l.trim()) && !/^If [^,\n]+, you may pay (?:\{[^}]+\})+ rather than pay/.test(l.trim()) && !/^If you control a commander, you may cast (?:this spell|~) without paying its mana cost/i.test(l.trim()) && !/^(As an additional cost|[A-Z][A-Za-z ]+ \d+ — When you cast|You may pay [^.]* rather than pay|You may [^.]* rather than pay (?:this spell's|~'s) mana cost|This spell costs|~ costs|You may cast ~|Spend only|This spell can't be countered|~ can't be countered|When you cast ~|When you cycle ~|Split second|Cast ~ only|Cast this spell only|Strive|Kicker|Flash$)/i.test(l.trim()))
     .join('\n');
 }
 
@@ -3279,6 +3279,17 @@ on(/^exile the top (\w+) cards$/, async (m, env) => {
   env.them_ = ids;
   env.it = ids[0] ? { iid: ids[0] } : null;
   env.did.push(`exiles the top ${ids.length} card${ids.length === 1 ? '' : 's'} of ${possOf(env.me)} library`);
+}, { first: true });
+// Prize Pig: "Then if there are three or more ribbon counters on this creature, remove those counters and untap it."
+on(/^remove those counters and untap it$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!me || me.zone !== 'battlefield') return;
+  const km = String(env.fullText || env.text || '').toLowerCase().match(/(?:three or more|that many|\d+) ([a-z+\/0-9-]+) counters on/);
+  const kind = km ? km[1] : null;
+  if (kind && me.counters) delete me.counters[kind];
+  else if (me.counters) for (const k of Object.keys(me.counters)) if (!['+1/+1', '-1/-1', 'loyalty'].includes(k)) delete me.counters[k];
+  me.tapped = false;
+  env.did.push(`removes the counters and untaps ${nameTag(me)}`);
 }, { first: true });
 // Hurkyl's Recall: "Return all artifacts target player owns to their hand."
 on(/^return all (.+?) target player owns to their hand$/, async (m, env) => {

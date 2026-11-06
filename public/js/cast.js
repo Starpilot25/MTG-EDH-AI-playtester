@@ -2291,7 +2291,7 @@ export async function activateAbility(pid, c, ab, env) {
   } finally {
     if (env.choosers[pid] && env.choosers[pid].plan) env.choosers[pid].plan = null;
   }
-  log(pid, did.length ? `${nameTag(srcSnap)}: ${did.join('; ')}.` : `Apply “${esc(ab.text.slice(0, 90))}” by hand.`);
+  log(pid, did.length ? `${nameTag(srcSnap)}: ${did.join('; ')}.` : did.handled ? `${nameTag(srcSnap)}: nothing happens.` : `Apply “${esc(ab.text.slice(0, 90))}” by hand.`);
   await copyAbility(pid, ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim(), srcSnap, ctx({ x }), copiers);
   return true;
 }
