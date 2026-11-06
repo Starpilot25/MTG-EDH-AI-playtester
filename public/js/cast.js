@@ -147,6 +147,7 @@ export function applyPayment(pid, pay) {
     const c = !String(iid).startsWith('pool:') && card(iid);
     const rm = c && oracle(c).match(/\{T\}: Add [^.\n]+\. You get (two|three|one|a|\d+) rad counters?\./i);
     if (rm) { const k = { a: 1, one: 1, two: 2, three: 3 }[rm[1].toLowerCase()] || +rm[1] || 1; G.s.players[pid].counters.rad = (G.s.players[pid].counters.rad || 0) + k; log(pid, `${nameTag(c)}: ${pid === 'p' ? 'you get' : seatName(pid) + ' gets'} ${k} rad counters.`); }
+    { const hm = c && oracle(c).match(/\{T\}(?:, [^:\n]+)?: Add [^.\n]+\. Put an? ([a-z-]+) counter on (?:~|this land|this artifact|this permanent)\./i); if (hm && c.zone === 'battlefield') addCounters(c, hm[1].toLowerCase(), 1); } // Eumidian Hatchery
   }
   // Springleaf Drum: tap another creature as part of the cost
   for (const iid of new Set(pay.payers || [])) {
@@ -500,7 +501,7 @@ function castOptionsRaw(pid, c) {
     const anyMana = c.anyColorMana || (c.owner !== pid && cardsIn(pid, 'battlefield').some((x) => /You may spend mana as though it were mana of any color to cast spells you don't own/i.test(oracle(x))));
     // Ian Malcolm: only while he's on the battlefield, and one spell each turn
     const ianOk = !c.ianSrc || (card(c.ianSrc) && card(c.ianSrc).zone === 'battlefield' && (s.ianUsed || {})[pid + ':' + c.ianSrc] !== s.turn);
-    const neyaliOk = (!c.playIfTokenAttacked || !!(s.ts[pid] || {}).tokenAttacked) && (!c.playIfCmdAttacked || !!(s.ts[pid] || {}).cmdAttacked);
+    const neyaliOk = (!c.playIfTokenAttacked || !!(s.ts[pid] || {}).tokenAttacked) && (!c.playIfNtSac || !!(s.ts[pid] || {}).ntSac) && (!c.playIfCmdAttacked || !!(s.ts[pid] || {}).cmdAttacked);
     if (c.mayPlay === pid && (c.mayPlayUntil || 0) >= s.turn && !isLandFace(f0) && (!c.myTurnOnly || s.active === pid) && ianOk && neyaliOk) add({ mode: 'impulse', label: anyMana ? 'Cast from exile (mana of any color)' : 'Cast from exile', cost: anyMana ? anyColorCost(f0.manaCost || d.manaCost) : f0.manaCost || d.manaCost });
     if (c.mayPlayFree === pid && (c.mayPlayFreeUntil ?? 1e9) >= s.turn && !isLandFace(f0)) add({ mode: 'hideaway', label: c.lifeOnCast ? `Cast for ${d.cmc || 0} life` : 'Cast for free', cost: '', free: true });
     if (c.warped) add({ mode: 'normal', label: 'Cast (warped earlier)', cost: f0.manaCost });

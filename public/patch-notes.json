@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.209",
+    "title": "Eumidian Hatchery and Evendo Brushrazer",
+    "notes": [
+      "Eumidian Hatchery gets a hatchling counter each time you tap it for mana, and makes one Insect per counter when it goes to the graveyard.",
+      "Evendo Brushrazer: the cards it exiles can be played during your turn once you've sacrificed a nontoken permanent that turn, for as long as you control it. Its \"Sacrifice a land: Add {R}{R}\" ability is activated from the card's menu."
+    ]
+  },
+  {
     "version": "1.3.208",
     "title": "Board wipe fixes",
     "notes": [

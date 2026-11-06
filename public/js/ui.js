@@ -27,6 +27,7 @@ import { seats, isAI } from './state.js';
 import { isPlayer, multiplayer, seatName } from './state.js';
 import { opponents, goadersOf } from './state.js';
 import { livingSeats, nextSeat } from './state.js';
+import { addCounters } from './state.js';
 import { seatNameCap, seatPoss } from './state.js';
 
 // Boards can be popped out into their own windows; lookups search those windows too.
@@ -1987,7 +1988,7 @@ async function castInner(iid, opts = {}) {
   if (G.s.pstack) return toast('Finish the spell you are casting first.');
   const name = cardName(c);
   // lands (and the land side of modal double-faced cards)
-  const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p') && (!c.playIfTokenAttacked || (G.s.ts.p || {}).tokenAttacked)) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) || (c.zone === 'graveyard' && c.owner === 'p' && gyLandsOk('p')) ? landOptions('p', c) : [];
+  const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p') && (!c.playIfTokenAttacked || (G.s.ts.p || {}).tokenAttacked) && (!c.playIfNtSac || (G.s.ts.p || {}).ntSac)) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) || (c.zone === 'graveyard' && c.owner === 'p' && gyLandsOk('p')) ? landOptions('p', c) : [];
   const casts = castOptions('p', c);
   const options = [
     ...lands.map((l) => ({ ...l, land: true, label: l.label })),
@@ -2215,6 +2216,7 @@ async function floatMana(c) {
     if (m.sac && hasSubtype(c, 'Treasure')) G.s.treasurePool = { pid: 'p', turn: G.s.turn }; // Rain of Riches
     queueEvent({ type: 'manaTapped', iid: c.iid, pid: 'p', land: isLand(c), artifact: isType(c, 'Artifact') });
     { const rm = oracle(c).match(/\{T\}: Add [^.\n]+\. You get (two|three|one|a|\d+) rad counters?\./i); if (rm) { const k = { a: 1, one: 1, two: 2, three: 3 }[rm[1].toLowerCase()] || +rm[1] || 1; G.s.players.p.counters.rad = (G.s.players.p.counters.rad || 0) + k; log('p', `You get ${k} rad counters.`); } } // Harold and Bob
+    { const hm = oracle(c).match(/\{T\}(?:, [^:\n]+)?: Add [^.\n]+\. Put an? ([a-z-]+) counter on (?:~|this land|this artifact|this permanent)\./i); if (hm && c.zone === 'battlefield') addCounters(c, hm[1].toLowerCase(), 1); } // Eumidian Hatchery
     if (m.sac) sacrifice(c.iid);
     if (m.energy && m.energy.length && syms.some((x) => m.energy.includes(poolSym(x).col) || poolSym(x).col === 'ANY')) {
       G.s.players.p.counters.energy = Math.max(0, (G.s.players.p.counters.energy || 0) - (m.energyNeed || 1));
@@ -2629,7 +2631,7 @@ function menuForCard(c, x, y) {
     }
   }
   if ((mine || c.mayPlay === 'p' || c.mayPlayFree === 'p' || c.mayCastFromGy === 'p') && (['hand', 'command', 'graveyard', 'exile'].includes(c.zone) || (c.zone === 'library' && isLibraryTop('p', c))) && G.settings.arenaMode) {
-    const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p') && (!c.playIfTokenAttacked || (G.s.ts.p || {}).tokenAttacked)) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) || (c.zone === 'graveyard' && c.owner === 'p' && gyLandsOk('p')) ? landOptions('p', c) : [];
+    const lands = c.zone === 'hand' || (c.zone === 'exile' && c.mayPlay === 'p' && !c.castOnly && (c.mayPlayUntil || 0) >= G.s.turn && (!c.myTurnOnly || G.s.active === 'p') && (!c.playIfTokenAttacked || (G.s.ts.p || {}).tokenAttacked) && (!c.playIfNtSac || (G.s.ts.p || {}).ntSac)) || (c.zone === 'library' && isLibraryTop('p', c) && topAccess('p').lands) || (c.zone === 'graveyard' && c.owner === 'p' && gyLandsOk('p')) ? landOptions('p', c) : [];
     for (const l of lands) items.push({ label: esc(l.label), fn: () => castByPlayer(c.iid, { option: { ...l, land: true } }) });
     for (const o of castOptions('p', c)) items.push({ label: `${esc(o.label)}${o.cost && !/\{/.test(o.label) ? ' ' + manaSymbols(displayCost('p', c, o)) : ''}`, fn: () => castByPlayer(c.iid, { option: o }) });
     for (const ab of zoneAbilities(c)) items.push({ label: `<span class="ab">${esc(ab.label)}</span>`, fn: () => zoneAbility(c, ab) });

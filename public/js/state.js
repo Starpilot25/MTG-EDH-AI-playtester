@@ -475,7 +475,7 @@ const RESET = ['voidCounter', 'harnessed', 'copyWhileTapped', 'notedMana', 'chos
   'ringBearer', 'exileOnDeath', 'cantSacUntil', 'dmgDraw', 'addTypes', 'extraText', 'kohChosen', 'allTypesTurn', 'lastHitTurn', 'lastHitPlayer', 'pairedWith', 'forcedBlockOn', 'chosenPlayers', 'dmgBy', 'dmgByTurn', 'grantedText', 'grantedBy', 'eotText', 'controlWhile', 'craftedFrom', 'becameTreasure', 'minimusBy', 'faceDownTypes', 'chosenMode', 'solved', 'unlocked', 'grants', 'ptMod', 'echoPaid', 'endOfCombat', 'bestowed',
   'morph', 'wardTwo', 'reconfigured', 'usedLoyaltyTurn', 'loyaltyUses', 'provokedBy', 'squadCount', 'offspringPaid', 'merged',
   'foretold', 'foretoldTurn', 'plotted', 'plottedTurn', 'onAdventure', 'mayPlay', 'mayPlayUntil', 'anyColorMana', 'mayPlayFreeUntil', 'castOnly', 'myTurnOnly', 'convokedBy', 'mayPlayFree', 'suspended',
-  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'dutyVs', 'vowVs', 'raggerVs', 'eggFor', 'secretOpp', 'grantedUnearth', 'grantedUnearthTurn', 'grantedFlashback', 'grantedFlashbackTurn', 'kodamaPut', 'mustBlockTurn', 'loseIndestructibleTurn', 'monarchOnDeath', 'enlistedTurn', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'indestructibleFrom', 'goadWhile', 'goadWhileCtl', 'playTax', 'playTapped', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
+  'rebound', 'encodedOn', 'hiddenBy', 'auraType', 'layerFx', 'addTypesTs', 'lostAt', 'lostGrantsN', 'lostEotN', 'switchPT', 'dutyVs', 'vowVs', 'raggerVs', 'eggFor', 'secretOpp', 'grantedUnearth', 'grantedUnearthTurn', 'grantedFlashback', 'grantedFlashbackTurn', 'kodamaPut', 'mustBlockTurn', 'loseIndestructibleTurn', 'monarchOnDeath', 'enlistedTurn', 'escaped', 'noUntapWhile', 'noUntapWhileCtl', 'luciusReturn', 'necromancyOf', 'preventDmgTurn', 'spelljacked', 'settlementBy', 'playIfTokenAttacked', 'playIfNtSac', 'indestructibleFrom', 'goadWhile', 'goadWhileCtl', 'playTax', 'playTapped', 'typeWhileCounter', 'dmgToCounters', 'playOneOf', 'lifeOnCast', 'playWhileCtl', 'exiledWithSrc', 'prepared', 'exileIfDiesTurn', 'warped', 'manifested', 'castFrom', 'castFace', 'aiSkip', 'ntTurn', 'noAttackUntil', 'noBlockUntil'];
 
 /**
  * Move a card between zones (possibly across controllers' battlefields).
@@ -553,7 +553,7 @@ export function move(iid, zone, opts = {}) {
         granted: [c.extraText, c.eotText, pairGrant].filter(Boolean).join('\n') || undefined, // "When this creature dies, …" it gained (Rabid Attack)
         wasBlitzed: c.castMode === 'blitz', wasAttacking: !!c.attacking, wasBlocking: !!c.blocking, dmgBy: c.dmgByTurn === s.turn ? c.dmgBy || [] : [], attached: attachedHere.map((a) => a.iid), attachedCtl: Object.fromEntries(attachedHere.map((a) => [a.iid, a.controller])),
       });
-    } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token, fromBattlefield: true });
+    } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token, fromBattlefield: true, counters: { ...(c.counters || {}) } });
     queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone, wasAttacking: !!c.attacking, power: isCreature(c) ? power(c) : undefined, creature: isCreature(c), artifact: isType(c, 'Artifact'), counters: { ...(c.counters || {}) }, attached: attachedHere.map((a) => a.iid) });
     if (requested === 'graveyard' && isCreature(c)) (s.ts[c.controller].diedTypes = s.ts[c.controller].diedTypes || []).push(typeLine(c));
   }
@@ -1398,6 +1398,7 @@ export function sacrifice(iid) {
   queueEvent({ type: 'sacrificed', iid, def: c.def, controller: c.controller, token: c.token, types: typeLine(c) });
   if (G.s.ts && G.s.ts[c.controller]) (G.s.ts[c.controller].sacTypes = G.s.ts[c.controller].sacTypes || []).push(typeLine(c));
   if (G.s.ts && G.s.ts[c.controller]) G.s.ts[c.controller].sacrificed = (G.s.ts[c.controller].sacrificed || 0) + 1;
+  if (G.s.ts && G.s.ts[c.controller] && !c.token) G.s.ts[c.controller].ntSac = true; // Evendo Brushrazer
   move(iid, 'graveyard');
   return true;
 }

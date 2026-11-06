@@ -4025,7 +4025,8 @@ on(/^create (a|an|one|two|three) (.+?) tokens?( with [^.]+?)? for each (.+)$/, a
   const what = m[4];
   let cnt;
   const cm = what.match(/^([a-z+\/0-9-]+) counter on (~|it|this [a-z]+)$/);
-  if (cm) cnt = ((env.src && env.src.counters) || {})[cm[1]] || 0;
+  // Eumidian Hatchery: once it has left the battlefield, count the counters it had (last known information)
+  if (cm) { const live = env.src && card(env.src.iid); cnt = (live && live.zone === 'battlefield' ? live.counters : env.deadCounters || (env.src && env.src.counters) || {})[cm[1]] || 0; }
   // Occult Epiphany: "for each card type among cards discarded this way"
   else if (/^card type among (?:cards|the cards) (?:discarded|milled|exiled) this way$/.test(what)) {
     const pool = /discarded/.test(what) ? env.discarded || [] : env.them_ || [];
@@ -9935,6 +9936,12 @@ on(/^look at the top card of your library\. if it's a permanent card, you may pu
   const yes = isPermanentCard(DB[c.def]) && !isLand(c) ? await env.choosers[env.me].confirm(cardName(c), `Put ${cardName(c)} onto the battlefield? (Otherwise it goes to your hand.)`, { aiPick: () => true }) : isLand(c) ? await env.choosers[env.me].confirm(cardName(c), `Put ${cardName(c)} onto the battlefield? (Otherwise it goes to your hand.)`, { aiPick: () => true }) : false;
   if (yes) { toBattlefield(top, env.me); env.did.push(`puts ${nameTag(c)} onto the battlefield`); }
   else { move(top, 'hand'); env.did.push(`puts ${env.me === 'p' ? nameTag(c) : 'the card'} into hand`); }
+}, { first: true, multi: true });
+// Evendo Brushrazer (rewritten in triggers.js)
+on(/^exile the top card of your library\. you may play cards exiled this way during your turn if you sacrificed a nontoken permanent this turn$/, async (m, env) => {
+  const ids = exileTop(env.me, 1);
+  for (const i of ids) if (card(i)) Object.assign(card(i), { mayPlay: env.me, mayPlayUntil: 1e9, myTurnOnly: true, playIfNtSac: true, ...(env.src ? { playWhileCtl: env.src.iid } : {}) });
+  env.did.push(`exiles ${ids.map((i) => nameTag(card(i))).join('')}; playable on your turns after you sacrifice a nontoken permanent`);
 }, { first: true, multi: true });
 // Neyali, Suns' Vanguard
 on(/^exile the top card of your library\. during any turn you attacked with a token, you may play that card$/, async (m, env) => {

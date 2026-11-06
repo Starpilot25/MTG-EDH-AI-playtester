@@ -67,6 +67,8 @@ export function triggersOf(c, defOverride) {
   if (!d) return [];
   const inst = defOverride ? { ...c, def: d.id } : c;
   let text = stripName(oracle(inst) || (d.faces[c.face || 0] || d.faces[0]).oracle || '', inst);
+  // Evendo Brushrazer: the cards it exiles are playable on your turn once you've sacrificed a nontoken permanent
+  if (/During your turn, as long as you've sacrificed a nontoken permanent this turn, you may play cards exiled with ~\./.test(text)) text = text.replace(/(Whenever you sacrifice a nontoken permanent, exile the top card of your library)\./, '$1. You may play cards exiled this way during your turn if you sacrificed a nontoken permanent this turn.');
   if (c.zone === 'command') text = text.split('\n').filter((l) => /^Eminence — /.test(l)).join('\n');
   text = text.replace(/(^|\n)Eminence — /g, '$1').replace(/, if ~ is in the command zone or on the battlefield,/gi, ',').replace(/(^|\n)As long as ~ is in the command zone or on the battlefield, /gi, '$1');
   // Infinity Stones: "∞ — …" abilities only work once the Stone is harnessed
