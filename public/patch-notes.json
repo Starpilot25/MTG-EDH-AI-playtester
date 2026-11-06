@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.211",
+    "title": "U.S.S. Farragut, Burning Curiosity and a crash",
+    "notes": [
+      "U.S.S. Farragut, Bold Explorer: its landfall trigger now puts a creature from your hand onto the battlefield with haste, then puts it on the bottom of your library at the end step and draws you a card. Before, it gave the land haste and drew right away.",
+      "Burning Curiosity exiles two cards, or three if you blighted, and lets you play them until the end of your next turn.",
+      "Fixed a crash when an effect granted a power/toughness boost with a quoted ability (\"+1/+3\")."
+    ]
+  },
+  {
     "version": "1.3.210",
     "title": "Escape to the Wilds, Toxic Deluge and fixes from simulated precon games",
     "notes": [

@@ -3273,6 +3273,13 @@ on(/^exile all (.+?) from the battlefield, all cards from all graveyards, and al
   for (const c of rest) move(c.iid, 'exile');
   env.did.push(`exiles ${objs.length} permanents and ${rest.length} cards from graveyards and hands`);
 }, { first: true });
+// Burning Curiosity: "If this spell's additional cost was paid, exile the top three cards instead" leaves "exile the top three cards"
+on(/^exile the top (\w+) cards$/, async (m, env) => {
+  const ids = exileTop(env.me, n(m[1], env.x));
+  env.them_ = ids;
+  env.it = ids[0] ? { iid: ids[0] } : null;
+  env.did.push(`exiles the top ${ids.length} card${ids.length === 1 ? '' : 's'} of ${possOf(env.me)} library`);
+}, { first: true });
 // Hurkyl's Recall: "Return all artifacts target player owns to their hand."
 on(/^return all (.+?) target player owns to their hand$/, async (m, env) => {
   const [pid] = await playerTarget(env, 'target player', true);
@@ -15470,7 +15477,7 @@ on(/^choose up to two target attacking creatures\. for each of them, you may res
 }, { first: true, multi: true });
 
 // U.S.S. Farragut: "That creature gains haste. At the beginning of the next end step, put it on the bottom of your library. When you do, draw a card."
-on(/^you may put a creature card from your hand onto the battlefield\. that creature gains haste\. at the beginning of the next end step, put it on the bottom of your library\. when you do, draw a card$/, async (m, env) => {
+on(/^(?:you may )?put a creature card from your hand onto the battlefield\. that creature gains haste\. at the beginning of the next end step, put it on the bottom of your library\. when you do, draw a card$/, async (m, env) => {
   const pool = cardsIn(env.me, 'hand').filter((c) => /Creature/.test(DB[c.def].faces[0].typeLine || ''));
   if (!pool.length) return;
   const [p] = await env.choosers[env.me].pickCards({ prompt: 'Put a creature card onto the battlefield (it goes to the bottom at end of turn)', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'reanimate', src: env.src, aiScore: (c) => power(c) * 2 + (DB[c.def].cmc || 0) });
