@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.217",
+    "title": "Creeping Renaissance",
+    "notes": [
+      "Creeping Renaissance asks for a permanent type and returns only cards of that type. Before, it returned everything, sorceries included."
+    ]
+  },
+  {
     "version": "1.3.216",
     "title": "Exsanguinate and Fanatic of Mogis",
     "notes": [

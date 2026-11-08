@@ -3859,6 +3859,17 @@ on(/^(?:it|~) deals damage to each opponent equal to (your devotion to [a-z ]+|t
   if (!k) return env.did.push('deals no damage');
   for (const o of opponents(env.me).filter(inGame)) damagePlayer(env, env.src, o, k);
 }, { first: true });
+// Creeping Renaissance: "Choose a permanent type. Return all cards of the chosen type from your graveyard to your hand."
+on(/^choose a permanent type\. return all cards of the chosen type from your graveyard to your hand$/, async (m, env) => {
+  const TYPES = ['Artifact', 'Battle', 'Creature', 'Enchantment', 'Land', 'Planeswalker'];
+  const gy = cardsIn(env.me, 'graveyard');
+  const cnt = TYPES.map((t) => gy.filter((c) => new RegExp('\\b' + t + '\\b').test((DB[c.def].typeLine || '').split('—')[0])).reduce((a, c) => a + 1 + cardValue(c) / 10, 0));
+  const k = await env.choosers[env.me].choose({ prompt: 'Choose a permanent type', options: TYPES.map((t) => ({ label: t })), aiPick: () => cnt.indexOf(Math.max(...cnt)) });
+  const ty = TYPES[k] || 'Creature';
+  const ids = gy.filter((c) => new RegExp('\\b' + ty + '\\b').test((DB[c.def].typeLine || '').split('—')[0])).map((c) => c.iid);
+  for (const i of ids) move(i, 'hand');
+  env.did.push(`chooses ${ty}; returns ${ids.length} card${ids.length === 1 ? '' : 's'} to hand`);
+}, { first: true, multi: true });
 // Hurkyl's Recall: "Return all artifacts target player owns to their hand."
 on(/^return all (.+?) target player owns to their hand$/, async (m, env) => {
   const [pid] = await playerTarget(env, 'target player', true);
