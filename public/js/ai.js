@@ -1178,6 +1178,8 @@ async function useAbilities(h) {
     // Loot, the Pathfinder: a damage ability that finishes an opponent goes before anything else that taps the same creature
     { const lethalBurn = (ab) => { const an = analyze(ab.text || ''); return an.burn && /any target|player|opponent/.test(an.burn.to || '') && FOES().some((o) => (an.burn.amount || 0) >= G.s.players[o].life); }; abs.sort((a, b) => (lethalBurn(b) ? 1 : 0) - (lethalBurn(a) ? 1 : 0)); }
     for (const ab of abs) {
+      // no legal target, no activation (Villainous Hideout with no Villain): the ability would just waste the mana
+      if (ab.kind === 'ability' && /\btarget\b/i.test(ab.text || '') && !targetsAvailable(ab.text, c)) continue;
       // Prepared: cast a copy of its spell when it does something useful
       if (ab.kind === 'prepared') {
         const f1 = DB[c.def].faces[1];

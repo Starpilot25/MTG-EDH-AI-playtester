@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.213",
+    "title": "AI skips abilities with no target",
+    "notes": [
+      "The AI no longer activates an ability when nothing can be targeted (Villainous Hideout with no Villain, and similar), so it keeps that mana for something useful."
+    ]
+  },
+  {
     "version": "1.3.212",
     "title": "Prize Pig, Flawless Maneuver",
     "notes": [
