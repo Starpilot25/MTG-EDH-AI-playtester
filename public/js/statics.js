@@ -639,6 +639,8 @@ export function repl(kind, pid) {
 }
 
 export function playerFlag(pid, flag) {
+  // Roiling Vortex: "Your opponents can't gain life this turn."
+  if (flag === 'noLifeGain' && G.s && (G.s.noLifeGainTurn || []).some((x) => x.turn === G.s.turn && x.by !== pid)) return true;
   for (const src of field()) {
     const v = staticsOf(src).player[flag];
     if (!v) continue;

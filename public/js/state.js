@@ -1203,6 +1203,7 @@ function hasLoseImmunity(pid) {
 }
 
 export function loseGame(pid, why) {
+  why = why || 'lost the game';
   if (G.s && G.s.players[pid] && !G.s.players[pid].lost) queueEvent({ type: 'playerLost', pid }); // Share the Spoils, Ramses
   const pl = G.s.players[pid];
   if (pl.lost || G.s.winner) return;

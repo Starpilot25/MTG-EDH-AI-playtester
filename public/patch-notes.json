@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.215",
+    "title": "More card fixes",
+    "notes": [
+      "Gilded Drake now swaps control with your target, and is sacrificed only when there's nothing to swap.",
+      "Venerated Rotpriest, Heaped Harvest, Zellix, Syr Ginger and The Council of Four triggers now work.",
+      "New: Lich-Knights' Conquest, Kwain, Selvala, Aclazotz, Reckless Handling, Kogla and Yidaro, Ojer Kaslem, Roiling Vortex, Angel of Destiny, Heartless Hidetsugu, The Endstone, Render Silent, Splash Portal, Kenrith, Fertilid, Tasha's Hideous Laughter, Lifeblood Hydra, Athreos, God of Passage, Xantcha, Zimone, Gluntch, Sunspine Lynx, Muxus, Heartwood Storyteller, Nine-Lives Familiar, Depopulate, Zenos yae Galvus, Yuna.",
+      "Liliana of the Dark Realms −3 works.",
+      "Fixed a log line that read \"loses — undefined\" when a player lost for not paying an upkeep cost.",
+      "Boseiju and Hall of the Bandit Lord's mana riders, and Domri's \"can't be countered\", no longer show as effects to apply by hand. They aren't enforced."
+    ]
+  },
+  {
     "version": "1.3.214",
     "title": "Another batch of card fixes",
     "notes": [
@@ -10,7 +22,7 @@
       "Ygra, Disciple of the Vault and other \"is put into a graveyard from the battlefield\" triggers now see tokens (Food, Treasure).",
       "Horn of Greed, Bone Miser, Toxrill and Disciple of the Vault triggers now work.",
       "New: Overpowering Attack, Fractured Sanity, Court of Cunning, Teferi, Master of Time's ultimate, Endbringer, Beacon of Immortality, Winds of Change, Dark Deal, Emrakul, the World Anew's leave trigger, Debt to the Deathless, Price of Progress, Sword of War and Peace, Generous Plunderer, Mistveil Plains, Liliana of the Dark Realms, Urza's Bauble, Blacksmith's Skill, Ilharg, Gishath, Intuition, Aetheric Amplifier, Ichormoon Gauntlet, Thunderclap Drake, Twinferno, Assault Formation.",
-      "New: Zombie Mob, Yggdrasil, Sanctifier en-Vec, Saprazzan Bailiff, Idol of Endurance, Wormfang Behemoth, Wall of Nets, Invasion of Kaldheim, Seeds of Innocence, Withering Curse (Infusion), No Witnesses, Thought Distortion, Hellfire, All Suns' Dawn, Cry of the Carnarium, Bontu's Last Reckoning, Prize Pig.",
+      "New: Zombie Mob, Yggdrasil, Sanctifier en-Vec, Saprazzan Bailiff, Idol of Endurance, Wormfang Behemoth, Wall of Nets, Invasion of Kaldheim, Seeds of Innocence, Withering Curse (Infusion), No Witnesses, Thought Distortion, Hellfire, All Suns' Dawn, Cry of the Carnarium, Bontu's Last Reckoning.",
       "Mana-spending limits (Food Chain, Crucible of the Spirit Dragon and similar) and \"X can't be 0\" no longer show up as effects to apply by hand. They aren't enforced.",
       "Patrician's Scorn, Reverent Silence and other free/alternative-cost lines no longer show up as effects when the spell resolves."
     ]

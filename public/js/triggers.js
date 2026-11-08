@@ -301,6 +301,12 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever a source you control deals noncombat damage to an opponent, (.+)$/i))) { add('dealsDamage', q[1], { anySourceMine: true, noncombat: true, toOpp: true }); continue; }
       // Edea
       if ((q = line.match(/^Whenever a creature you control but don't own dies, (.+)$/i))) { add('dies', q[1], { mine: true, kind: 'creature', notOwnedDies: true }); continue; }
+      // Venerated Rotpriest: "Whenever a creature you control becomes the target of a spell"
+      if ((q = line.match(/^Whenever a creature you control becomes the target of a spell, (.+)$/i))) { add('becomesTarget', q[1], { sub: 'Creature', spellOnly: true, anyCaster: true }); continue; }
+      // Heaped Harvest: "When ~ enters and when you sacrifice it"
+      if ((q = line.match(/^When ~ enters and when you sacrifice it, (.+)$/i))) { add('enters', q[1], { self: true }); add('p:sacrificed', q[1], { selfGone: true, pred: (c, ev) => ev.iid === c.iid }); continue; }
+      // Zellix: "Whenever a player mills one or more creature cards"
+      if ((q = line.match(/^Whenever a player mills one or more (creature|land|nonland|artifact) cards, (.+)$/i))) { add('mill', q[2], { kind: q[1].toLowerCase(), anyPlayer: true }); continue; }
       // Elrond: "Whenever a creature you control with a +1/+1 counter on it becomes the target of a spell or ability an opponent controls"
       if ((q = line.match(/^Whenever a creature you control with an? ([+\-\d\/a-z]+) counter on it becomes the target of a spell or ability an opponent controls, (.+)$/i))) { add('becomesTarget', q[2], { sub: 'Creature', withCounter: q[1], oppOnly: true }); continue; }
       // Éomer
@@ -542,8 +548,8 @@ function parseTriggerText(text, speed) {
     }
     else if ((m = line.match(/^Whenever (?:a|an|one or more) ([A-Za-z ]+?) cards? (?:is|are) put into your graveyard from anywhere( other than the battlefield)?, (.+)$/i)))
       add('toGraveyard', m[3], { kind: m[1].toLowerCase(), notFromBf: !!m[2], mine: true });
-    else if ((m = line.match(/^Whenever (?:a|an) (land|creature|artifact|enchantment|permanent) you control is put into a graveyard from the battlefield, (.+)$/i)))
-      add('toGraveyard', m[2], { kind: m[1].toLowerCase(), fromBf: true, mine: true });
+    else if ((m = line.match(/^Whenever (?:a|an|another) (land|creature|artifact|enchantment|permanent) you control is put into a graveyard from the battlefield, (.+)$/i)))
+      add('toGraveyard', m[2], { kind: m[1].toLowerCase(), fromBf: true, mine: true, other: /^Whenever another/i.test(line) });
     // Disciple of the Vault, Ygra: "Whenever an artifact / a Food is put into a graveyard from the battlefield" (anyone's)
     else if ((m = line.match(/^Whenever (?:a|an) (land|creature|artifact|enchantment|permanent|food|treasure|clue|equipment|vehicle) is put into a graveyard from the battlefield, (.+)$/i)))
       add('toGraveyard', m[2], { kind: m[1].toLowerCase(), fromBf: true });
@@ -722,7 +728,7 @@ function parseTriggerText(text, speed) {
     else if ((m = line.match(/^Whenever a player plays a land, (.+)$/i)))
       add('landfall', m[1], { anyPlayer: true, played: true });
     // Dreamtide Whale: "Whenever a player casts their second spell each turn, proliferate."
-    else if ((m = line.match(/^Whenever a player casts their second spell each turn, (.+)$/i)))
+    else if ((m = line.match(/^Whenever a player casts their second spell (?:each turn|during their turn), (.+)$/i)))
       add('cast', m[1], { spell: '', second: true });
     else if ((m = line.match(/^When(?:ever)? an opponent casts their second spell each turn, (.+)$/i)))
       add('cast', m[1], { spell: '', theirs: true, second: true });
@@ -1935,6 +1941,7 @@ function matches(ev) {
         if (trig.event !== 'toGraveyard') return;
         if (ev.token && (!trig.fromBf || /\bcard\b/.test(trig.kind))) return; // a token is never a card going to a graveyard
         if (trig.mine && c.controller !== (trig.fromBf ? ev.controller : ev.owner)) return;
+        if (trig.other && ev.iid === c.iid) return;
         if (trig.theirs && ev.owner === c.controller) return; // Lorcan, Kothophed: an opponent's card
         if (trig.notFromBf && ev.from === 'battlefield') return;
         if (trig.fromBf && ev.from !== 'battlefield') return;
@@ -2240,7 +2247,8 @@ function matches(ev) {
         if (trig.event !== 'becomesTarget') return;
         if (trig.sub) {
           const t = card(ev.iid);
-          if (!t || t.controller !== c.controller || ev.controller === c.controller) return;
+          if (!t || t.controller !== c.controller || (ev.controller === c.controller && !trig.anyCaster)) return;
+          if (trig.spellOnly && !ev.bySpell) return;
           if (trig.sub === 'Creature' ? !isCreature(t) : !hasSubtype(t, trig.sub)) return;
           if (trig.withCounter && !((t.counters || {})[trig.withCounter] > 0)) return;
           out.push({ src: c, trig, thatPlayer: ev.controller, it: { iid: ev.iid } });

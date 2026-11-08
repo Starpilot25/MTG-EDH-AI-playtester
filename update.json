@@ -1,5 +1,5 @@
 {
-  "version": "1.3.214",
+  "version": "1.3.215",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "5872630a246c145c8801ebec682b08ffb025e301eb128465ef41039c0dedc8d2",
@@ -9,15 +9,15 @@
     "public/js/cast.js": "471abbef0d2da605716718312bfdf907aeacdbc2feacb1f47ef7ab04ea9c71aa",
     "public/js/data.js": "c4dd791462487114585f3f3a0337176d3c287339e7691a3216cbb1b4383a8c13",
     "public/js/dungeon.js": "a42de281cbd9fed4f5470e03f56483a7ce8a82c9a52434f30f90cdaf655ee096",
-    "public/js/effects.js": "d83346502f70b9b4f9f61b6fdaba7aa1c014c70d269e6c6ebff86f64e94554c6",
-    "public/js/game.js": "0ff2b690616afacc0f1bc893bd8ec0cf5778ea7376829b8cfedc21494e30bc0a",
+    "public/js/effects.js": "8ae72de97753a47364ed3e9428de9b1c1ea9f8511a5affb2399a107168af93f1",
+    "public/js/game.js": "d114540f56bdc6ea573654a73372fdbcdd0301519b269a57a5513f4ab0690bbc",
     "public/js/main.js": "fbfdde2ff3717d9c087090339c8440d4dfe425b70d422d8296ad6bf7da3d3a89",
     "public/js/rules.js": "c403d915c381a609ddcadb4390547190e1076ad94462474f8e8023082521657b",
-    "public/js/state.js": "9685e48c94ac2049542878069c395e54215e7604df7f80c4ffd69b2b7ccb4937",
-    "public/js/statics.js": "6ff87ef6cd1f27f16d7d2f2165107f558af7a8ab6f05760ad0b42d05f543222b",
-    "public/js/triggers.js": "8b7722b88ba40475005b0b4fd308acc689457e1ff109b28f9db20bd25e70e64e",
+    "public/js/state.js": "e6d788efa9fdd3cfadfe21746af3269e56a77257497e1ce4377fb8e603a8a6bc",
+    "public/js/statics.js": "4db5e3af68f545f0eb8504c6d9b5e724b3ffad7574e93029868150b184db0cdd",
+    "public/js/triggers.js": "10d55d2eae318be0e92860c16d51cee8020f95aee6fabfdcbe04997dfa2bce0a",
     "public/js/ui.js": "aa94b9d57a58da8c09e176e067a62425223af5baeb1231efa5e2ea7a5de6c86e",
     "public/js/voice.js": "4622a40593b7db7f8997e96207d0412fcbaa4fa4fe658247c91b3345de1dabe6",
-    "public/patch-notes.json": "4639fc44a128c5d68171f010af45ec6f4803ea6a4793034321ec6b831a5dd01d"
+    "public/patch-notes.json": "a26a23cd76aabaa0ab67c9b8836361f2a394fd5459bab7831d2c7cfec5825f19"
   }
 }
