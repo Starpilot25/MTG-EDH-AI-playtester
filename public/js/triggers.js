@@ -544,6 +544,9 @@ function parseTriggerText(text, speed) {
       add('toGraveyard', m[3], { kind: m[1].toLowerCase(), notFromBf: !!m[2], mine: true });
     else if ((m = line.match(/^Whenever (?:a|an) (land|creature|artifact|enchantment|permanent) you control is put into a graveyard from the battlefield, (.+)$/i)))
       add('toGraveyard', m[2], { kind: m[1].toLowerCase(), fromBf: true, mine: true });
+    // Disciple of the Vault, Ygra: "Whenever an artifact / a Food is put into a graveyard from the battlefield" (anyone's)
+    else if ((m = line.match(/^Whenever (?:a|an) (land|creature|artifact|enchantment|permanent|food|treasure|clue|equipment|vehicle) is put into a graveyard from the battlefield, (.+)$/i)))
+      add('toGraveyard', m[2], { kind: m[1].toLowerCase(), fromBf: true });
     else if ((m = line.match(/^Whenever a creature you control that was turned face up this turn deals combat damage to a player, (.+)$/i)))
       add('combatDamagePlayer', m[1], { anyOfMine: true, faceUpTurn: true });
     else if ((m = line.match(/^Whenever an enchanted creature you control deals combat damage to a player, (.+)$/i)))
@@ -715,6 +718,9 @@ function parseTriggerText(text, speed) {
     // Dirtcowl Wurm
     else if ((m = line.match(/^Whenever an opponent plays a land, (.+)$/i)))
       add('landfall', m[1], { theirs: true, played: true });
+    // Horn of Greed: "Whenever a player plays a land, that player draws a card."
+    else if ((m = line.match(/^Whenever a player plays a land, (.+)$/i)))
+      add('landfall', m[1], { anyPlayer: true, played: true });
     // Dreamtide Whale: "Whenever a player casts their second spell each turn, proliferate."
     else if ((m = line.match(/^Whenever a player casts their second spell each turn, (.+)$/i)))
       add('cast', m[1], { spell: '', second: true });
@@ -730,9 +736,9 @@ function parseTriggerText(text, speed) {
     // cards and life
     else if ((m = line.match(/^Whenever (you|an opponent|a player) draws? (?:a|your second|their second) card[^,]*, (.+)$/i)))
       add('draw', m[2], { who: m[1].toLowerCase(), second: /second/i.test(line) });
-    else if ((m = line.match(/^Whenever (you|an opponent|a player) discards? (?:a|an|one or more) ((?:[a-z]+ )*?)cards?, (.+)$/i)))
-      // Hashaton: "Whenever you discard a creature card"
-      add('discard', m[3], { who: m[1].toLowerCase(), kind: m[2].trim() });
+    else if ((m = line.match(/^Whenever (you|an opponent|a player) discards? (?:a|an|one or more) ((?:[a-z]+,? )*?)cards?, (.+)$/i)))
+      // Hashaton: "Whenever you discard a creature card"; Bone Miser: "a noncreature, nonland card"
+      add('discard', m[3], { who: m[1].toLowerCase(), kind: m[2].replace(/,/g, '').trim() });
     else if ((m = line.match(/^Whenever you cycle(?: or discard)? (?:a|another) card, (.+)$/i)) || (m = line.match(/^When you cycle ~, (.+)$/i)))
       add('cycle', m[1], { self: /When you cycle ~/i.test(line) });
     else if ((m = line.match(/^Whenever you get (one|two|three|four|five|\d+) or more \{E\}\s*(?:\([^)]*\))?\s*( during your turn)?\s*, (.+)$/i)) || (m = line.match(/^Whenever you get (\{E\})\s*(?:\([^)]*\))?\s*( during your turn)?\s*, (.+)$/i)))
@@ -1130,6 +1136,7 @@ function parseTriggerText(text, speed) {
       // dying / leaving
       if ((q = line.match(/^Whenever a nontoken creature you control with a \+1\/\+1 counter on it dies, (.+)$/i))) { add('dies', q[1], { mine: true, nontoken: true, withCounter: '+1/+1' }); continue; }
       if ((q = line.match(/^Whenever a creature with an? ([a-z]+) counter on it dies, (.+)$/i))) { add('dies', q[2], { withCounter: q[1] }); continue; }
+      if ((q = line.match(/^Whenever a creature you don't control with an? ([a-z]+) counter on it dies, (.+)$/i))) { add('dies', q[2], { withCounter: q[1], theirs: true }); continue; }
       if ((q = line.match(/^When a creature you control dies, (.+)$/i))) { add('dies', q[1], { mine: true }); continue; }
       if ((q = line.match(/^Whenever a creature with a coin counter on it dies or is put into exile, (.+)$/i))) { add('p:leaves', q[1], { pred: (c, ev) => ev.creature && (ev.to === 'graveyard' || ev.to === 'exile') && (ev.counters || {}).coin > 0 && { it: { iid: ev.iid }, thatPlayer: ev.controller } }); continue; }
       if ((q = line.match(/^Whenever a creature other than ~ is exiled from the battlefield, you gain life equal to its power\.$/i))) { add('p:leaves', '', { pred: (c, ev) => ev.to === 'exile' && ev.creature && ev.iid !== c.iid && { text: `You gain ${Math.max(0, ev.power || 0)} life.` } }); continue; }
@@ -1921,11 +1928,12 @@ function matches(ev) {
       break;
     }
     case 'toGraveyard': {
-      const gc = card(ev.iid);
+      const gc = card(ev.iid) || (ev.token && DB[ev.def] ? { iid: ev.iid, def: ev.def, controller: ev.controller, owner: ev.owner, token: true, counters: {} } : null);
       if (!gc) break;
       const tl = (DB[gc.def].faces[0].typeLine || DB[gc.def].typeLine || '');
       each((c, trig) => {
         if (trig.event !== 'toGraveyard') return;
+        if (ev.token && (!trig.fromBf || /\bcard\b/.test(trig.kind))) return; // a token is never a card going to a graveyard
         if (trig.mine && c.controller !== (trig.fromBf ? ev.controller : ev.owner)) return;
         if (trig.theirs && ev.owner === c.controller) return; // Lorcan, Kothophed: an opponent's card
         if (trig.notFromBf && ev.from === 'battlefield') return;
@@ -2260,8 +2268,8 @@ function matches(ev) {
       });
       break;
     case 'landfall':
-      each((c, trig) => trig.event === 'landfall' && trig.theirs && c.controller !== ev.controller && G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: ev.controller }));
-      each((c, trig) => trig.event === 'landfall' && !trig.theirs && c.controller === ev.controller
+      each((c, trig) => trig.event === 'landfall' && (trig.theirs ? c.controller !== ev.controller : trig.anyPlayer) && G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && out.push({ src: c, trig, it: { iid: ev.iid }, thatPlayer: ev.controller }));
+      each((c, trig) => trig.event === 'landfall' && !trig.theirs && !trig.anyPlayer && c.controller === ev.controller
         && (!trig.playedFrom || (G.s.lastLandPlay && G.s.lastLandPlay.iid === ev.iid && (trig.playedFrom === 'any' || (trig.playedFrom === 'notHand' ? G.s.lastLandPlay.from !== 'hand' : G.s.lastLandPlay.from === trig.playedFrom))))
         && (!trig.otherLand || ev.iid !== c.iid)
         && (!trig.enteredFrom || (trig.enteredFrom === 'notHand' ? ev.from !== 'hand' : ev.from === trig.enteredFrom))
@@ -3078,7 +3086,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
   if (trig.optional) {
     text = text.replace(/^you may /i, '');
     // the AI takes optional triggers unless they cost it something
-    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^sacrifice up to (?:one|two|three) [A-Za-z]+\. When you sacrifice/i.test(text) /* Ravenous Rotbelly: the handler decides */ || /^draw cards equal to the number of opponents dealt damage this way/i.test(text) /* Hordewing Skaab: looting */ || /^discard (?:any number of|one or more) land cards\./i.test(text) /* Nantuko Cultivator, Loamcrafter Faun: the handler decides */ || /^remove a counter from a creature or planeswalker you control\. If you do, draw/i.test(text) /* Sanctuary Warden */ || /^sacrifice an artifact, creature, enchantment, land, or planeswalker\. If you do, each opponent/i.test(text) /* Braids */ || (/^pay life equal to its mana value\. If you do, put it onto the battlefield/i.test(text) && G.s.players[controller].life >= 20) /* Lorcan */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
+    const yes = isAI(controller) ? /^pay that much life\. if you do, draw that many cards/i.test(text) /* Niv-Mizzet, Ghost Counsel: the effect decides */ || /^sacrifice one of them\. If you do, reveal cards/i.test(text) /* Descendants' Fury */ || /^sacrifice up to (?:one|two|three) [A-Za-z]+\. When you sacrifice/i.test(text) /* Ravenous Rotbelly: the handler decides */ || /^draw cards equal to the number of opponents dealt damage this way/i.test(text) /* Hordewing Skaab: looting */ || /^discard (?:any number of|one or more) land cards\./i.test(text) /* Nantuko Cultivator, Loamcrafter Faun: the handler decides */ || /^remove a counter from a creature or planeswalker you control\. If you do, draw/i.test(text) /* Sanctuary Warden */ || /^sacrifice an artifact, creature, enchantment, land, or planeswalker\. If you do, each opponent/i.test(text) /* Braids */ || (/^pay life equal to its mana value\. If you do, put it onto the battlefield/i.test(text) && G.s.players[controller].life >= 20) /* Lorcan */ || /^pay (?:\{[^}]+\})+\. (?:If|When) you do, (?!sacrifice|discard|exile [^.]*you control)/i.test(text) || /^pay any amount of \{[WUBRGC]\}\. (?:If|When) you do, /i.test(text) || knownEffect(text) || !/sacrifice|discard|(?:^|\byou )lose \d+ life|\bpay\b|exile [^.]*you control|return [^.]*you control to/i.test(text) : await T.confirm(cardName(src), `${trig.raw.replace(/~/g, cardName(src))}${ctx.thatMuch && /\bthat (?:much|many)\b/i.test(text) ? `\n\n(That's ${ctx.thatMuch}: ${text.replace(/\bthat much\b|\bthat many\b/gi, String(ctx.thatMuch)).replace(/^./, (x) => x.toUpperCase())})` : ''}\n\nDo it?`);
     if (!yes) return;
     ctx.lastMay = true; // "you may discard a card. If you do, draw two cards."
   }

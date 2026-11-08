@@ -564,7 +564,9 @@ export function move(iid, zone, opts = {}) {
     if (lg) { lg.n++; (lg.defs = lg.defs || []).push(c.def); }
     else queueEvent({ type: 'leftGraveyard', owner: c.owner, n: 1, def: c.def, defs: [c.def] });
   }
-  if (zone === 'graveyard' && fromZone !== 'graveyard' && !c.token) queueEvent({ type: 'toGraveyard', iid, def: c.def, owner: c.owner, from: fromZone, controller: fromZone === 'battlefield' ? c.controller : c.owner });
+  // tokens count only for "is put into a graveyard from the battlefield" triggers (Ygra and Food, Disciple of the Vault and Treasure)
+  if (zone === 'graveyard' && fromZone === 'battlefield' && /Artifact/.test((DB[c.def] || {}).typeLine || '')) G.s.artToGy = { turn: G.s.turn, n: (G.s.artToGy && G.s.artToGy.turn === G.s.turn ? G.s.artToGy.n : 0) + 1 };
+  if (zone === 'graveyard' && fromZone !== 'graveyard' && (!c.token || fromZone === 'battlefield')) queueEvent({ type: 'toGraveyard', ...(c.token ? { token: true } : {}), iid, def: c.def, owner: c.owner, from: fromZone, controller: fromZone === 'battlefield' ? c.controller : c.owner });
   // "Its controller …" after it left (Path to Exile on a creature you'd stolen): remember who controlled it
   if (fromZone === 'battlefield' && zone !== 'battlefield') (s.lastCtl = s.lastCtl || {})[iid] = c.controller;
   // last known power and toughness, with counters and pumps (Swords to Plowshares: "life equal to its power")

@@ -581,6 +581,7 @@ async function endStepThings(pid) {
       }
       log(c.owner, `${nameTag(c)} returns to the battlefield.`);
     } else if (d.kind === 'sacrifice' && c.zone === 'battlefield') sacrifice(d.iid);
+    else if (d.kind === 'toHandEnd' && c.zone === 'battlefield') { move(d.iid, 'hand'); log(c.owner, `${nameTag(c)} returns to its owner's hand.`); } // Ilharg
   }
   stateBased();
   await settle();

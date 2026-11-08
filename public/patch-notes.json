@@ -1,5 +1,21 @@
 [
   {
+    "version": "1.3.214",
+    "title": "Another batch of card fixes",
+    "notes": [
+      "Disciple of the Vault and other \"you may have target opponent lose life\" triggers: the AI now uses them. Before, it always declined.",
+      "\"Destroyed this way\" counts now work: Bane of Progress, Whiptongue Hydra, Kaya's Wrath, Deadly Tempest (per player) and similar.",
+      "Villainous Wrath counts the target opponent's creatures, not yours.",
+      "Chasm Skulker makes one Squid per counter it died with.",
+      "Ygra, Disciple of the Vault and other \"is put into a graveyard from the battlefield\" triggers now see tokens (Food, Treasure).",
+      "Horn of Greed, Bone Miser, Toxrill and Disciple of the Vault triggers now work.",
+      "New: Overpowering Attack, Fractured Sanity, Court of Cunning, Teferi, Master of Time's ultimate, Endbringer, Beacon of Immortality, Winds of Change, Dark Deal, Emrakul, the World Anew's leave trigger, Debt to the Deathless, Price of Progress, Sword of War and Peace, Generous Plunderer, Mistveil Plains, Liliana of the Dark Realms, Urza's Bauble, Blacksmith's Skill, Ilharg, Gishath, Intuition, Aetheric Amplifier, Ichormoon Gauntlet, Thunderclap Drake, Twinferno, Assault Formation.",
+      "New: Zombie Mob, Yggdrasil, Sanctifier en-Vec, Saprazzan Bailiff, Idol of Endurance, Wormfang Behemoth, Wall of Nets, Invasion of Kaldheim, Seeds of Innocence, Withering Curse (Infusion), No Witnesses, Thought Distortion, Hellfire, All Suns' Dawn, Cry of the Carnarium, Bontu's Last Reckoning, Prize Pig.",
+      "Mana-spending limits (Food Chain, Crucible of the Spirit Dragon and similar) and \"X can't be 0\" no longer show up as effects to apply by hand. They aren't enforced.",
+      "Patrician's Scorn, Reverent Silence and other free/alternative-cost lines no longer show up as effects when the spell resolves."
+    ]
+  },
+  {
     "version": "1.3.213",
     "title": "AI skips abilities with no target",
     "notes": [

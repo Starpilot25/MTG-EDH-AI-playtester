@@ -1787,7 +1787,7 @@ export function canAttack(inst) {
     if (G.s && vs.length && seats().filter((p) => p !== inst.controller && G.s.players[p] && !G.s.players[p].lost).every((p) => vs.includes(p))) return false;
   }
   if (G.s && G.s.onlyAttackers && G.s.onlyAttackers.turn === G.s.turn && (G.s.combatNo || {})[inst.controller] >= 1 && !G.s.onlyAttackers.ids.includes(inst.iid) && (G.s.ts[inst.controller] || {}).attacked) return false; // Last Night Together
-  if (hasKw(inst, 'defender') && !/can attack as though it didn't have defender/i.test(oracle(inst))) return false;
+  if (hasKw(inst, 'defender') && inst.ignoreDefenderTurn !== (G.s && G.s.turn) && !/can attack as though it didn't have defender/i.test(oracle(inst))) return false;
   if (/(?:^|\n|\. )[^.\n]*can't attack\.?(?:$|\n)/.test(oracle(inst)) && !/can't attack (?:alone|unless)/i.test(oracle(inst))) return false;
   if (inst.sick && !hasKw(inst, 'haste')) return false;
   return true;

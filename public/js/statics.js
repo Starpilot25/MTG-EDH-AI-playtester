@@ -658,6 +658,19 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
     .replace(/\b(?:defending player|that player|the defending player) controls$/, 'an opponent controls'); // two players: the only one it can be
   // Sage's Reverie: "Aura you control that's attached to a creature" (singular after "for each")
   p = p.replace(/^auras? you control that's attached to a creature$/, 'auras you control that are attached to creatures');
+  // Bane of Progress, Whiptongue Hydra, Kaya's Wrath, Deadly Tempest: "permanents / creatures (you|they) controlled (that were) destroyed this way"
+  {
+    const dm = p.match(/^(nontoken |token )?(nonartifact creature|creature with flying|creature|permanent|artifact|enchantment|land)s?(?: (you|they|your opponents) controlled)?(?: that were)? destroyed this way$/);
+    if (dm && G.s) {
+      const rec = G.s.thisWayDestroyed;
+      if (!rec || rec.turn !== G.s.turn) return 0;
+      return rec.list.filter((x) => (!dm[1] || (dm[1] === 'token ' ? x.token : !x.token))
+        && (dm[2] === 'permanent' || (dm[2] === 'creature' ? x.creature : dm[2] === 'nonartifact creature' ? x.creature && !x.artifact : dm[2] === 'creature with flying' ? x.creature && x.flying : x.def && new RegExp('\\b' + dm[2], 'i').test(DB[x.def].typeLine || '')))
+        && (!dm[3] || (dm[3] === 'your opponents' ? x.controller !== pid : x.controller === pid))).length;
+    }
+  }
+  // Anzrag's Rampage: "artifacts that were put into graveyards from the battlefield this turn"
+  if (/^artifacts? (?:that were )?put into graveyards from the battlefield this turn$/.test(p) && G.s) return G.s.artToGy && G.s.artToGy.turn === G.s.turn ? G.s.artToGy.n : 0;
   // Battlefront (Star Trek): "the number of opponents you attacked this turn"
   if (/^opponents? you attacked this turn$/.test(p)) {
     const al = G.s && (G.s.attackLog || {})[pid];
