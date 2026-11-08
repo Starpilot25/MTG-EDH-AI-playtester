@@ -1108,6 +1108,11 @@ function manaAbilityRaw(inst) {
   }
   // Harold and Bob's Forest: "{T}: Add three mana of any one color. You get two rad counters." (better than its {G})
   if (/\{T\}: Add three mana of any one color\. You get two rad counters\./i.test(o)) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: 3, oneColor: true };
+  // Discreet Retreat, Gilded Lotus-style grants: "{T}: Add two/three mana of any one color." (a spending limit after it isn't enforced)
+  {
+    const gm = o.match(/(?:^|\n)\{T\}: Add (two|three) mana of any one color\.(?! Activate only)/i);
+    if (gm) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: gm[1].toLowerCase() === 'three' ? 3 : 2, oneColor: true };
+  }
   // Sceptre of Eternal Glory: "{T}: Add three mana of any one color. Activate only if you control three or more lands with the same name."
   {
     const sm = o.match(/\{T\}: Add (two|three) mana of any one color\. Activate only if you control (two|three|four) or more lands with the same name/i);

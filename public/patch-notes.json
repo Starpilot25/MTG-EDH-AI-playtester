@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.219",
+    "title": "Discreet Retreat and more",
+    "notes": [
+      "Discreet Retreat: the enchanted land now taps for two mana of one color (it gave only one). The outlaw-only spending limit isn't enforced. Gilded Lotus and other \"two/three mana of any one color\" grants use the same fix.",
+      "Arbaaz Mir and Viridian Revel triggers now work.",
+      "New: Dark Petition (and other Spell mastery bonuses), Sanctum of Eternity, Nissa, Ascended Animist's −, Metalworker, Papalymo Totolymo, Vohar, Boomerang Basics, Stargaze, Emberwilde Captain, Mana Echoes, Turnabout, Tinybones Joins Up, Nahiri's Lithoforming, Demonic Junker, Vines of Vastwood, Enter the Avatar State."
+    ]
+  },
+  {
     "version": "1.3.218",
     "title": "Another 30 card fixes",
     "notes": [

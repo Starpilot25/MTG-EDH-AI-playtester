@@ -370,6 +370,11 @@ function parseTriggerText(text, speed) {
     // Grafted Exoskeleton: handled when it moves (effects attachTo / state move)
     else if (/^Whenever ~ becomes unattached from a permanent, sacrifice that permanent/i.test(line)) add('ruleMarker', 'rule marker noop', {});
     // Hammer of Nazahn: "Whenever ~ or another Equipment you control enters"
+    // Arbaaz Mir: "Whenever ~ or another nontoken historic permanent you control enters"
+    else if ((m = line.match(/^Whenever ~ or another (nontoken historic permanent|historic permanent) you control enters, (.+)$/i))) {
+      add('enters', m[2], { self: true });
+      add('enters', m[2], { other: true, mine: true, kind: m[1].toLowerCase() });
+    }
     else if ((m = line.match(/^Whenever ~ or another (Equipment|Aura|artifact|enchantment) you control enters, (.+)$/i))) {
       add('enters', m[2], { self: true });
       add('enters', m[2], { other: true, mine: true, kind: m[1].toLowerCase() });
@@ -554,6 +559,9 @@ function parseTriggerText(text, speed) {
       add('toGraveyard', m[3], { kind: m[1].toLowerCase(), notFromBf: !!m[2], mine: true });
     else if ((m = line.match(/^Whenever (?:a|an|another) (land|creature|artifact|enchantment|permanent) you control is put into a graveyard from the battlefield, (.+)$/i)))
       add('toGraveyard', m[2], { kind: m[1].toLowerCase(), fromBf: true, mine: true, other: /^Whenever another/i.test(line) });
+    // Viridian Revel: "Whenever an artifact is put into an opponent's graveyard from the battlefield"
+    else if ((m = line.match(/^Whenever (?:a|an) (artifact|creature|enchantment|land|permanent) is put into an opponent's graveyard from the battlefield, (.+)$/i)))
+      add('toGraveyard', m[2], { kind: m[1].toLowerCase(), fromBf: true, theirsGy: true });
     // Disciple of the Vault, Ygra: "Whenever an artifact / a Food is put into a graveyard from the battlefield" (anyone's)
     else if ((m = line.match(/^Whenever (?:a|an) (land|creature|artifact|enchantment|permanent|food|treasure|clue|equipment|vehicle) is put into a graveyard from the battlefield, (.+)$/i)))
       add('toGraveyard', m[2], { kind: m[1].toLowerCase(), fromBf: true });
@@ -1944,6 +1952,7 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== 'toGraveyard') return;
         if (ev.token && (!trig.fromBf || /\bcard\b/.test(trig.kind))) return; // a token is never a card going to a graveyard
+        if (trig.theirsGy && (ev.owner === c.controller)) return;
         if (trig.mine && c.controller !== (trig.fromBf ? ev.controller : ev.owner)) return;
         if (trig.other && ev.iid === c.iid) return;
         if (trig.theirs && ev.owner === c.controller) return; // Lorcan, Kothophed: an opponent's card

@@ -3496,6 +3496,8 @@ on(/^target creature with defender can attack this turn as though it didn't have
 // ---------------------------------------------------------------- simulated pile-deck games, batch 1
 on(/^(?:artifacts|creatures|they) (?:destroyed this way )?can't be regenerated$/, async () => {}, { first: true });
 on(/^(?:~|this spell) can't be countered$/, async () => {}, { first: true });
+// reminder text left inside a die-roll row (Hoarding Ogre: "(It's an artifact with …)")
+on(/^\(it's an? [^)]*\)$/, async () => {}, { first: true });
 // Bontu's Last Reckoning
 on(/^lands you control don't untap during your next untap step$/, async (m, env) => {
   for (const c of cardsIn(env.me, 'battlefield').filter(isLand)) c.noUntapUntil = skipNextUntapTurn(c);
@@ -4134,6 +4136,151 @@ on(/^double the amount of each type of unspent mana you have$/, async (m, env) =
   const k = pool.length;
   if (k) addMana(env.me, pool.slice());
   env.did.push(k ? `doubles ${possOf(env.me)} mana (${k} more)` : 'has no unspent mana');
+}, { first: true });
+// ---------------------------------------------------------------- EDHREC top 5000, batch 6
+// Dark Petition and other "Spell mastery — If there are two or more instant and/or sorcery cards in your graveyard, …"
+on(/^spell mastery — if there are two or more instant and\/or sorcery cards in your graveyard, (.+)$/, async (m, env) => {
+  const k = cardsIn(env.me, 'graveyard').filter((c) => /Instant|Sorcery/.test(DB[c.def].typeLine || '')).length;
+  if (k < 2) return;
+  await runSentence(m[1], env);
+}, { first: true });
+// Sanctum of Eternity
+on(/^return target commander you own from the battlefield to your hand$/, async (m, env) => {
+  const pool = allBf().filter((c) => c.isCommander && c.owner === env.me);
+  if (!pool.length) return env.did.push('has no commander on the battlefield');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Return which commander to your hand?', cards: pool.map((c) => c.iid), min: 1, max: 1, purpose: 'bounce', src: env.src });
+  if (p) { move(p, 'hand'); env.did.push(`returns ${nameTag(card(p))} to ${possOf(env.me)} hand`); }
+}, { first: true });
+// Nissa, Ascended Animist
+on(/^until end of turn, creatures you control get \+1\/\+1 for each (forest|island|swamp|mountain|plains) you control and gain trample$/, async (m, env) => {
+  const k = cardsIn(env.me, 'battlefield').filter((c) => hasSubtype(c, capWords(m[1]))).length;
+  const cs = cardsIn(env.me, 'battlefield').filter(isCreature);
+  for (const c of cs) { if (k) pumpEOT(c, { p: k, t: k }); c.eotGrants = [...(c.eotGrants || []), 'trample']; }
+  env.did.push(`creatures get +${k}/+${k} and trample until end of turn`);
+}, { first: true });
+// Metalworker
+on(/^reveal any number of artifact cards in your hand\. add \{c\}\{c\} for each card revealed this way$/, async (m, env) => {
+  const k = cardsIn(env.me, 'hand').filter((c) => /Artifact/.test(DB[c.def].faces[0].typeLine || '')).length;
+  if (k) addMana(env.me, Array(2 * k).fill('C'));
+  env.did.push(`reveals ${k} artifact${k === 1 ? '' : 's'} and adds ${'{C}'.repeat(2 * k) || 'nothing'}`);
+}, { first: true, multi: true });
+// Papalymo Totolymo
+on(/^each opponent who lost life this turn sacrifices a creature with the greatest power among creatures they control$/, async (m, env) => {
+  for (const o of opponents(env.me).filter(inGame)) {
+    if (!(((G.s.ts || {})[o] || {}).lifeLost > 0)) continue;
+    const cs = cardsIn(o, 'battlefield').filter(isCreature);
+    if (!cs.length) continue;
+    const top = Math.max(...cs.map(power));
+    const pool = cs.filter((c) => power(c) === top);
+    const [p] = await env.choosers[o].pickCards({ prompt: 'Sacrifice a creature with the greatest power', cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'sacrifice', src: env.src, aiScore: (c) => -cardValue(c) });
+    if (p) { sacrifice(p); env.did.push(`${who(o)} ${s_(o, 'sacrifice')} ${nameTag(card(p))}`); }
+  }
+}, { first: true });
+// Vohar
+on(/^if you discarded an instant or sorcery card this way, (.+)$/, async (m, env) => {
+  const hit = (env.discarded || []).some((i) => card(i) && /Instant|Sorcery/.test(DB[card(i).def].typeLine || ''));
+  if (hit) await runSentence(m[1], env);
+}, { first: true });
+// Boomerang Basics
+on(/^if you controlled that permanent, draw a card$/, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  const ctl = env.itController || (c && c.lastController) || (c && c.owner);
+  if (ctl === env.me) { draw(env.me, 1); env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} a card`); }
+}, { first: true });
+// Stargaze
+on(/^look at twice x cards from the top of your library\. put x cards from among them into your hand and the rest into your graveyard\. you lose x life$/, async (m, env) => {
+  const x = env.x || 0;
+  const ids = libTop(env.me, 2 * x);
+  const keep = ids.length ? await env.choosers[env.me].pickCards({ prompt: `Put ${x} into your hand (the rest go to the graveyard)`, cards: ids, min: Math.min(x, ids.length), max: x, purpose: 'take', src: env.src, aiScore: (c) => cardValue(c) }) : [];
+  for (const i of ids) move(i, keep.includes(i) ? 'hand' : 'graveyard');
+  if (x) changeLife(env.me, -x);
+  env.did.push(`takes ${keep.length}, mills ${ids.length - keep.length} and loses ${x} life`);
+}, { first: true, multi: true });
+// Emberwilde Captain
+on(/^~ deals damage to that player equal to the number of cards in their hand$/, async (m, env) => {
+  const pid = env.thatPlayer || (env.it && env.it.player);
+  if (!pid) return;
+  const k = cardsIn(pid, 'hand').length;
+  if (k) damagePlayer(env, env.src, pid, k);
+  else env.did.push(`${seatName(pid)} has no cards in hand`);
+}, { first: true });
+// Mana Echoes
+on(/^(?:you may )?add an amount of \{c\} equal to the number of creatures you control that share a creature type with it$/, async (m, env) => {
+  const t = env.it && card(env.it.iid);
+  if (!t) return;
+  const subs = (DB[t.def].faces[0].typeLine || '').split('—')[1] || '';
+  const types = subs.trim().split(/\s+/).filter(Boolean);
+  const k = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && types.some((ty) => hasSubtype(c, ty))).length;
+  if (k) addMana(env.me, Array(k).fill('C'));
+  env.did.push(`adds ${'{C}'.repeat(k) || 'nothing'}`);
+}, { first: true });
+// Turnabout
+on(/^choose artifact, creature, or land\. tap all untapped permanents of the chosen type target player controls, or untap all tapped permanents of that type that player controls$/, async (m, env) => {
+  const [pid] = await playerTarget(env, 'target player', false);
+  if (!pid) return;
+  const TYPES = ['Artifact', 'Creature', 'Land'];
+  const mine = pid === env.me;
+  const k = await env.choosers[env.me].choose({ prompt: 'Turnabout: choose a type', options: TYPES.map((t) => ({ label: t })), aiPick: () => (mine ? 2 : 2) });
+  const ty = TYPES[k] || 'Land';
+  const tap = await env.choosers[env.me].choose({ prompt: `Tap or untap ${seatPoss(pid)} ${ty.toLowerCase()}s?`, options: [{ label: 'Tap all untapped' }, { label: 'Untap all tapped' }], aiPick: () => (mine ? 1 : 0) });
+  const cs = cardsIn(pid, 'battlefield').filter((c) => isType(c, ty));
+  for (const c of cs) c.tapped = tap === 0;
+  env.did.push(`${tap === 0 ? 'taps' : 'untaps'} all ${ty.toLowerCase()}s ${seatName(pid)} controls`);
+}, { first: true, multi: true });
+// Tinybones Joins Up
+on(/^any number of target players each (discard a card|mill a card and lose 1 life)$/, async (m, env) => {
+  const ps = opponents(env.me).filter(inGame);
+  for (const pid of ps) {
+    if (m[1] === 'discard a card') {
+      const h = cardsIn(pid, 'hand');
+      if (!h.length) continue;
+      const [d] = await env.choosers[pid].pickCards({ prompt: 'Discard a card', cards: h.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'discard', src: env.src, aiScore: (c) => -cardValue(c) });
+      if (d) discardCard(d);
+    } else { millCards(pid, 1); changeLife(pid, -1); }
+  }
+  env.did.push(`${ps.map(seatName).join(', ')} ${m[1] === 'discard a card' ? 'each discard a card' : 'each mill a card and lose 1 life'}`);
+}, { first: true });
+// Nahiri's Lithoforming
+on(/^sacrifice x lands\. for each land sacrificed this way, draw a card\. you may play x additional lands this turn\. lands you control enter tapped this turn$/, async (m, env) => {
+  const x = env.x || 0;
+  const lands = cardsIn(env.me, 'battlefield').filter(isLand);
+  const picks = x ? await env.choosers[env.me].pickCards({ prompt: `Sacrifice ${x} land${x === 1 ? '' : 's'}`, cards: lands.map((c) => c.iid), min: Math.min(x, lands.length), max: x, forced: true, purpose: 'sacrifice', src: env.src, aiScore: (c) => -cardValue(c) - (c.tapped ? 1 : 0) }) : [];
+  for (const i of picks) sacrifice(i);
+  if (picks.length) draw(env.me, picks.length);
+  G.s.extraLandThisTurn = (G.s.extraLandThisTurn || 0) + x;
+  env.did.push(`sacrifices ${picks.length} land${picks.length === 1 ? '' : 's'}, draws ${picks.length}; may play ${x} more land${x === 1 ? '' : 's'} this turn (they enter untapped here)`);
+}, { first: true, multi: true });
+// Demonic Junker
+on(/^for each player, destroy up to one target creature that player controls\. if a creature you controlled dies this way, put two \+1\/\+1 counters on ~$/, async (m, env) => {
+  let mineDied = false, k = 0;
+  for (const pid of seats().filter(inGame)) {
+    const pool = cardsIn(pid, 'battlefield').filter((c) => isCreature(c) && canTarget(c, env.me, env.src) && c.iid !== (env.src || {}).iid);
+    if (!pool.length) continue;
+    const [p] = await env.choosers[env.me].pickCards({ prompt: `Destroy up to one creature ${seatName(pid)} controls`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'destroy', src: env.src, aiScore: (c) => (pid === env.me ? -1 : 1) * (cardValue(c) + 1) });
+    if (!p) continue;
+    destroy(p);
+    k++;
+    if (pid === env.me && card(p) && card(p).zone !== 'battlefield') mineDied = true;
+  }
+  const me = env.src && card(env.src.iid);
+  if (mineDied && me) addCounters(me, '+1/+1', 2);
+  env.did.push(`destroys ${k} creature${k === 1 ? '' : 's'}${mineDied ? ' and gets two +1/+1 counters' : ''}`);
+}, { first: true, multi: true });
+// Vines of Vastwood
+on(/^target creature can't be the target of spells or abilities your opponents control this turn\. if this spell was kicked, that creature gets \+(\d+)\/\+(\d+) until end of turn$/, async (m, env) => {
+  const [t] = await objects(env, 'target creature', { harm: false });
+  if (!t) return;
+  t.eotGrants = [...(t.eotGrants || []), 'hexproof'];
+  if (env.kicked) pumpEOT(t, { p: +m[1], t: +m[2] });
+  env.did.push(`${nameTag(t)} gains hexproof${env.kicked ? ` and gets +${m[1]}/+${m[2]}` : ''} until end of turn`);
+}, { first: true, multi: true });
+// Enter the Avatar State
+on(/^(?:until end of turn, )?target creature you control becomes an? ([a-z]+) in addition to its other types and gains ([a-z, ]+?)(?: until end of turn)?$/, async (m, env) => {
+  const [t] = await objects(env, 'target creature you control', { harm: false });
+  if (!t) return;
+  const kws = m[2].split(/,? and |, /).map((x) => x.trim()).filter(Boolean);
+  t.eotGrants = [...(t.eotGrants || []), ...kws];
+  env.did.push(`${nameTag(t)} becomes ${/^[aeiou]/.test(m[1]) ? 'an' : 'a'} ${capWords(m[1])} and gains ${kws.join(', ')} until end of turn`);
 }, { first: true });
 // Hurkyl's Recall: "Return all artifacts target player owns to their hand."
 on(/^return all (.+?) target player owns to their hand$/, async (m, env) => {
