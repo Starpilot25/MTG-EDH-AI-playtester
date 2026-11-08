@@ -522,7 +522,7 @@ export function hasKw(inst, kw) {
   if ((kw === 'hexproof' || kw === 'indestructible' || kw === 'shroud') && G.s && (G.s.loseKw || []).some((x) => x.turn === G.s.turn && x.kws.includes(kw) && inst.controller && inst.controller !== x.by && (!x.creatures || isCreature(inst)))) return false;
   if (readCache.on) {
     const twin = cacheTwin(inst);
-    if (twin && twin.grants === inst.grants && twin.eotGrants === inst.eotGrants && twin.auraBuffs === inst.auraBuffs) {
+    if (twin && twin.grants === inst.grants && twin.eotGrants === inst.eotGrants && twin.ntGrants === inst.ntGrants && twin.auraBuffs === inst.auraBuffs) {
       let m = readCache.kw;
       if (!m) m = readCache.kw = new WeakMap();
       let per = m.get(twin);
@@ -538,6 +538,8 @@ export function hasKw(inst, kw) {
 const KEYWORD_COUNTERS = new Set(['flying', 'first strike', 'double strike', 'deathtouch', 'decayed', 'hexproof', 'indestructible', 'lifelink', 'menace', 'reach', 'shadow', 'trample', 'vigilance', 'haste']);
 function hasKwRaw(inst, kw) {
   const gone = lostAbilitiesAt(inst);
+  // "until your next turn" keywords (Vivien's reach and vigilance)
+  if ((inst.ntGrants || []).some((g) => g.kw === kw && g.until > (G.s ? G.s.turn : 0))) return true;
   if (KEYWORD_COUNTERS.has(kw) && ((inst.counters || {})[kw] || 0) > 0 && !gone) return true;
   // keywords given by the same effect that took the rest away (Darksteel Mutation's indestructible, Deep Freeze's defender)
   for (const e of inst.layerFx || []) if ((e.grants || []).includes(kw)) return true;

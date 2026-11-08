@@ -468,7 +468,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['voidCounter', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['voidCounter', 'ntGrants', 'noCombatDamageTurn', 'zenosChosen', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
@@ -1124,6 +1124,8 @@ export function setLife(pid, value, reason) {
     } else if (value > before) {
       ts.lifeGained += value - before;
       queueEvent({ type: 'lifeGained', pid, amount: value - before });
+      // Vizkopa Guildmage: "Whenever you gain life this turn, each opponent loses that much life."
+      for (const v of (G.s.vizkopa || []).filter((x) => x.pid === pid && x.turn === G.s.turn)) for (const o of opponents(pid).filter(inGame)) changeLife(o, -(value - before));
     }
   }
   if (reason !== false && value !== before)
@@ -1345,6 +1347,7 @@ export function cleanupDamage() {
     c.eot = null;
     c.eotGrants = null;
     if (c.animated && c.animated.until === 'eot') delete c.animated;
+    if (c.animated && typeof c.animated.until === 'number' && c.animated.until <= G.s.turn + 1) delete c.animated; // "until your next turn" (Karn, Wrenn)
     if (c.lostAbilities === 'eot') delete c.lostAbilities;
     else if (c.lostAbilities) c.lostEotN = 0; // this turn's granted abilities are gone; next turn's start fresh
     if (c.switchPT === 'eot') delete c.switchPT;
@@ -1617,7 +1620,11 @@ function legendRule() {
 export function toBattlefield(iid, pid, opts = {}) {
   const c = card(iid);
   const pos = pid === 'p' && (opts.x === undefined || opts.x === null) ? freeSpot(c) : {};
-  return move(iid, 'battlefield', { controller: pid, ...pos, ...opts });
+  const r = move(iid, 'battlefield', { controller: pid, ...pos, ...opts });
+  // Rite of Harmony: "Whenever a creature or enchantment you control enters this turn, draw a card."
+  const e = card(iid);
+  if (e && e.zone === 'battlefield' && (G.s.riteHarmony || []).length) for (const x of G.s.riteHarmony) if (x.turn === G.s.turn && x.pid === e.controller && (isCreature(e) || /Enchantment/.test(DB[e.def].typeLine || ''))) draw(e.controller, 1);
+  return r;
 }
 
 export const CARD_W = 88;

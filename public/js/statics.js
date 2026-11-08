@@ -864,7 +864,8 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
 // Maximum hand size: 7, "no maximum" (Reliquary Tower, Thought Vessel…), "+N"/"-N" from either side.
 export function maxHandSize(pid) {
   if (!G.s) return 7;
-  if (G.s.players[pid] && G.s.players[pid].noMaxHand) return Infinity; // Sea Gate Restoration, Ancient Silver Dragon: "for the rest of the game"
+  if (G.s.players[pid] && G.s.players[pid].noMaxHand) return Infinity;
+  if (G.s.players[pid] && (G.s.players[pid].noMaxHandUntil || 0) > G.s.turn) return Infinity; // Enter the Infinite: until your next turn // Sea Gate Restoration, Ancient Silver Dragon: "for the rest of the game"
   let max = 7;
   for (const src of field()) {
     const o = String((textFn ? textFn(src) : '') || '');

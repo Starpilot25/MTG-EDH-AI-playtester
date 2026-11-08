@@ -181,6 +181,22 @@ async function beginMain1(pid) {
   const s = G.s;
   setStep('main1');
   hooks.render();
+  // Paradigm: "you may cast a copy of it from exile without paying its mana cost at the beginning of each of your first main phases"
+  if (!s.paradigmTurn || s.paradigmTurn[pid] !== s.turn) {
+    s.paradigmTurn = { ...(s.paradigmTurn || {}), [pid]: s.turn };
+    for (const x of ((s.paradigm || {})[pid] || []).slice()) {
+      const src = card(x.iid) || { iid: x.iid, def: x.def, controller: pid, owner: pid, zone: 'exile', counters: {} };
+      const nm = DB[x.def].name;
+      const yes = isAI(pid) ? true : await T.choosers[pid].confirm(nm, `Paradigm: cast a copy of ${nm} for free?`);
+      if (!yes) continue;
+      const { resolveEffects } = await import('./effects.js');
+      const text = (DB[x.def].faces[0].oracle || '').split('\n').filter((l) => !/^Paradigm\b/.test(l)).join('\n');
+      const did = await resolveEffects(text, { ...src, controller: pid, copyCard: true }, { me: pid, choosers: T.choosers });
+      log(pid, `Paradigm copy of ${nameTag({ def: x.def })} resolves${did.length ? ': ' + did.join('; ') : ''}.`);
+      await settle();
+      if (G.s !== s) return;
+    }
+  }
   // Plasm Capture: "At the beginning of your next first main phase, add X mana in any combination of colors"
   for (const d of (s.delayed || []).filter((x) => x.at === 'mainPhase' && x.pid === pid && x.after < s.turn)) {
     s.delayed.splice(s.delayed.indexOf(d), 1);

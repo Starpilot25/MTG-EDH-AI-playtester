@@ -328,6 +328,8 @@ export function isLibraryTop(pid, c) {
 export function castOptions(pid, c) {
   const opts = castOptionsRaw(pid, c);
   if (!opts.length) return opts;
+  // Reflector Mage: "can't cast spells with the same name as that creature until your next turn"
+  if ((G.s.nameLocks || []).some((l) => l.pid === pid && l.until > G.s.turn && l.name === DB[c.def].name)) return [];
   // Avatar's Wrath: "Until your next turn, your opponents can't cast spells from anywhere other than their hands."
   const ho = G.s.handOnlyUntil;
   if (ho && ho.pids.includes(pid) && G.s.turn < ho.until && c.zone !== 'hand') return opts.filter((x) => isLandFace((DB[c.def].faces[x.face || 0] || DB[c.def].faces[0])));
@@ -1152,6 +1154,15 @@ export async function castSpell(pid, iid, opt, env) {
   if (s.counteredIids && s.counteredIids.includes(iid)) { countered = true; s.counteredIids = s.counteredIids.filter((x) => x !== iid); }
   if (countered) {
     if (isAI(pid) && !counteredByEffect) log(opp(pid), `You counter ${nameTag(c)}.`);
+    if (exileCountered && s.suspendOnCounter && s.suspendOnCounter[iid]) {
+      // Delay: suspended with three time counters
+      const k = s.suspendOnCounter[iid];
+      delete s.suspendOnCounter[iid];
+      move(iid, 'exile', { fromStack: true });
+      const cc = card(iid);
+      if (cc) { cc.counters = { ...(cc.counters || {}), time: k }; cc.suspended = true; }
+      log(pid, `${nameTag(c)} is exiled with ${k} time counters (suspend).`);
+    } else
     if (topLib && !exileCountered) { move(iid, 'library', { fromStack: true }); log(pid, `${nameTag(c)} goes on top of its owner's library.`); } else
     move(iid, bounced ? 'hand' : exileCountered || exileInstead(iid) || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard', { fromStack: true });
     // Aven Interrupter: the exiled spell becomes plotted
@@ -1448,6 +1459,13 @@ async function resolveSpell(pid, c, opt, info, env) {
     log(pid, `${nameTag(c)} is exiled with ${k} time counters (suspend).`);
   } else if (s.returnToHandOnResolve && s.returnToHandOnResolve[c.iid]) { delete s.returnToHandOnResolve[c.iid]; move(c.iid, 'hand'); // Haunting Imitation
   } else if (/^(flashback|escape|jumpstart|disturb|aftermath|harmonize)$/.test(opt.mode) || exileInstead(c.iid)) move(c.iid, 'exile'); // "If that spell would be put into your graveyard, exile it instead"
+  else if (/^Paradigm\b/m.test(o) && !c.copyCard) {
+    // Paradigm: exile it; from now on, at the beginning of each of your first main phases you may cast a copy of it for free
+    move(c.iid, 'exile');
+    s.paradigm = s.paradigm || {};
+    s.paradigm[pid] = s.paradigm[pid] || [];
+    if (!s.paradigm[pid].some((x) => DB[x.def].name === DB[c.def].name)) { s.paradigm[pid].push({ def: c.def, iid: c.iid }); log(pid, `${nameTag(c)} is exiled (Paradigm): a free copy is offered each first main phase.`); }
+  }
   else if (/\bRebound\b/.test(o) && c.castFrom === 'hand') {
     move(c.iid, 'exile');
     c.rebound = true;
