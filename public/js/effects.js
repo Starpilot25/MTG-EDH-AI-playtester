@@ -3853,6 +3853,12 @@ on(/^if it had one or more counters on it, you may put that number of \+1\/\+1 c
   addCounters(t, '+1/+1', k);
   env.did.push(`puts ${k} +1/+1 counter${k === 1 ? '' : 's'} on ${nameTag(t)}`);
 }, { first: true });
+// Fanatic of Mogis: "it deals damage to each opponent equal to your devotion to red"
+on(/^(?:it|~) deals damage to each opponent equal to (your devotion to [a-z ]+|the number of [^.]+)$/, async (m, env) => {
+  const k = countPhrase(env.me, m[1], helpers, env.src && env.src.iid) || 0;
+  if (!k) return env.did.push('deals no damage');
+  for (const o of opponents(env.me).filter(inGame)) damagePlayer(env, env.src, o, k);
+}, { first: true });
 // Hurkyl's Recall: "Return all artifacts target player owns to their hand."
 on(/^return all (.+?) target player owns to their hand$/, async (m, env) => {
   const [pid] = await playerTarget(env, 'target player', true);
@@ -5019,7 +5025,8 @@ on(/^(?:you )?(?:draw a card, then discard a card|discard a card, then draw a ca
 // --- life
 on(/^(you|target player|each player|its controller|that player|target opponent) gains? (\d+|x|life equal to [^.]+?|that much life)(?: life)?(?:\.|$| for each| and |,| unless| if )/, async (m, env) => {
   const pids = await playerTarget(env, m[1], false);
-  const k = /that much/.test(m[2]) ? env.lastAmount || 0 : /^life equal/.test(m[2]) ? amountOf(m[2].replace(/^life /, ''), env) : n(m[2], env.x);
+  // Exsanguinate: "You gain life equal to the life lost this way" — the total lost by everyone this effect hit
+  const k = /that much/.test(m[2]) ? env.lastAmount || 0 : /^life equal to the life lost this way/.test(m[2]) ? env.lostThisWay || env.lastAmount || 0 : /^life equal/.test(m[2]) ? amountOf(m[2].replace(/^life /, ''), env) : n(m[2], env.x);
   for (const pid of pids) {
     changeLife(pid, k, false);
     env.did.push(`${who(pid)} ${s_(pid, 'gain')} ${k} life`);
@@ -5034,7 +5041,9 @@ on(/^(each opponent|target opponent|target player|that player|each player|you|it
       // Villainous Wrath, Deadly Tempest: "equal to the number of creatures they control(led)" counts from that player's side
       : /^life equal/.test(m[2]) && /\bthey control(?:led)?\b|\btheir\b/.test(m[2]) ? amountOf(m[2].replace(/^life /, '').replace(/\bthey (control(?:led)?)\b/g, 'you $1').replace(/\btheir\b/g, 'your'), { ...env, me: pid })
       : /^life equal/.test(m[2]) ? amountOf(m[2].replace(/^life /, ''), env) : n(m[2], env.x);
+    const before = G.s.players[pid].life;
     changeLife(pid, -k, false);
+    env.lostThisWay = (env.lostThisWay || 0) + Math.max(0, before - G.s.players[pid].life);
     env.lastAmount = k;
     env.did.push(`${who(pid)} ${s_(pid, 'lose')} ${k} life`);
     if (m[3]) {

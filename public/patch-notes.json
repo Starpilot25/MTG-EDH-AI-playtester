@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.216",
+    "title": "Exsanguinate and Fanatic of Mogis",
+    "notes": [
+      "Exsanguinate and other \"you gain life equal to the life lost this way\" effects now gain the total lost by every opponent. Before, you gained 0.",
+      "Fanatic of Mogis deals damage equal to your devotion to red to each opponent."
+    ]
+  },
+  {
     "version": "1.3.215",
     "title": "More card fixes",
     "notes": [
