@@ -1994,6 +1994,7 @@ export const helpers = { typeLine, hasSubtype, isCreature, power, toughness };
 
 // combat damage a creature assigns: its power, or its toughness (Kingpin of Crime, "assigns combat damage equal to its toughness")
 export function combatDmgOf(c) {
+  if (c && c.noCombatDamageTurn === (G.s && G.s.turn)) return 0; // Master of Cruelties
   if (/assigns combat damage equal to its toughness/i.test(oracle(c))) return toughness(c);
   const td = G.s && G.s.toughDmg && G.s.toughDmg[c.controller];
   if (td === G.s.turn && toughness(c) > power(c)) return toughness(c);

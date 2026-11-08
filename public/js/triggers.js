@@ -54,6 +54,8 @@ bindTriggerHooks(T);
 
 export const fire = (ev) => queueEvent(ev);
 function mvLimit(line) {
+  const r = line.match(/spell with mana value from (\d+) to (\d+)/i);
+  if (r) return { mvMin: +r[1], mvMax: +r[2] };
   const m = line.match(/spell with mana value (\d+) or (greater|more|less|fewer)/i);
   if (!m) return {};
   return /greater|more/i.test(m[2]) ? { mvMin: +m[1] } : { mvMax: +m[1] };
@@ -107,6 +109,8 @@ function parseTriggerText(text, speed) {
   const out = [];
   for (let line of text.split('\n')) {
     line = line.trim();
+    // Kozilek's Unsealing: "a creature spell with mana value 4, 5, or 6" -> a range (its commas would split the trigger)
+    line = line.replace(/mana value (\d+), (\d+), or (\d+)/, (w, a, b, c) => `mana value from ${a} to ${c}`);
     if (/^Max speed — /i.test(line)) {
       if (speed < 4) continue;
       line = line.replace(/^Max speed — /i, '');

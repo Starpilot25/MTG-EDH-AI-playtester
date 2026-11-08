@@ -581,6 +581,7 @@ async function endStepThings(pid) {
       }
       log(c.owner, `${nameTag(c)} returns to the battlefield.`);
     } else if (d.kind === 'sacrifice' && c.zone === 'battlefield') sacrifice(d.iid);
+    else if (d.kind === 'destroyIfAttacked' && c.zone === 'battlefield' && c.attackedTurn === d.turn) destroy(d.iid); // Berserk
     else if (d.kind === 'revival' && c.zone === 'graveyard') { toBattlefield(d.iid, c.owner); const r = card(d.iid); if (r && d.n > 0) r.counters.revival = d.n; log(c.owner, `${nameTag(c)} returns to the battlefield with ${d.n} revival counter${d.n === 1 ? '' : 's'}.`); } // Nine-Lives Familiar
     else if (d.kind === 'toHandEnd' && c.zone === 'battlefield') { move(d.iid, 'hand'); log(c.owner, `${nameTag(c)} returns to its owner's hand.`); } // Ilharg
   }

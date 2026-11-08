@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.218",
+    "title": "Another 30 card fixes",
+    "notes": [
+      "New: Sacrifice, Repulsive Mutation, Sovereign Okinec Ahau, Liliana of the Veil's ultimate (piles), Doppelgang, Rev, Volatile Stormdrake's energy, Scholar of New Horizons, Oviya, Teferi's Time Twist's extra counter.",
+      "New: Tezzeret, Master of the Bridge's ultimate, Lurking Predators, Dihada's −3, Master of Cruelties, Atraxa, Grand Unifier, Nylea, Keen-Eyed, Rikku, Counterbalance, Berserk's end-step destroy, Kaalia of the Vast, Pit of Offerings, General's Enforcer, Come Back Wrong, Vincent Valentine, Doubling Cube.",
+      "Memory Lapse puts the countered spell on top of its owner's library.",
+      "Kozilek's Unsealing triggers on mana value 4, 5 or 6.",
+      "Mishra's Factory and other lands that become hyphenated creature types (Assembly-Worker) now animate.",
+      "Jace Beleren's ultimate (mill twenty) and other big mill numbers work."
+    ]
+  },
+  {
     "version": "1.3.217",
     "title": "Creeping Renaissance",
     "notes": [

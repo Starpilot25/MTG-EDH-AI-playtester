@@ -1144,6 +1144,7 @@ export async function castSpell(pid, iid, opt, env) {
   const exileCountered = s[stackSlot] && s[stackSlot].exileCountered;
   const stealCast = s[stackSlot] && s[stackSlot].stealCast;
   const bounced = s[stackSlot] && s[stackSlot].bounced;
+  const topLib = s[stackSlot] && s[stackSlot].topLibCountered; // Memory Lapse
   const counteredByEffect = !!(s[stackSlot] && s[stackSlot].countered);
   s[stackSlot] = null;
   if (counteredByEffect) countered = true;
@@ -1151,6 +1152,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (s.counteredIids && s.counteredIids.includes(iid)) { countered = true; s.counteredIids = s.counteredIids.filter((x) => x !== iid); }
   if (countered) {
     if (isAI(pid) && !counteredByEffect) log(opp(pid), `You counter ${nameTag(c)}.`);
+    if (topLib && !exileCountered) { move(iid, 'library', { fromStack: true }); log(pid, `${nameTag(c)} goes on top of its owner's library.`); } else
     move(iid, bounced ? 'hand' : exileCountered || exileInstead(iid) || /^(flashback|escape|jumpstart|disturb)$/.test(opt.mode) ? 'exile' : 'graveyard', { fromStack: true });
     // Aven Interrupter: the exiled spell becomes plotted
     if (s.plotOnExile && s.plotOnExile[iid] && card(iid) && card(iid).zone === 'exile') { Object.assign(card(iid), { plotted: true, plottedTurn: s.turn }); delete s.plotOnExile[iid]; }
