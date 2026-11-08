@@ -4610,6 +4610,8 @@ on(/^(?:until your next turn, )?(up to one target land you control|target land y
   env.did.push(`${nameTag(t)} becomes a ${P}/${Tt} Elemental creature until ${possOf(env.me)} next turn`);
 }, { first: true });
 on(/^it's still a land$/, async () => {}, { first: true });
+// Delina, Wild Mage 15–20: "you may roll again" — not offered (one roll per attack)
+on(/^(?:you may )?roll again$/, async () => {}, { first: true });
 // Subtlety
 on(/^choose up to one target creature spell or planeswalker spell\. its owner puts it on their choice of the top or bottom of their library$/, async (m, env) => {
   const st = G.s.stack;
@@ -4633,6 +4635,19 @@ on(/^if the spell is countered this way, exile it with three time counters on it
   G.s.suspendOnCounter = { ...(G.s.suspendOnCounter || {}), [st.iid]: 3 };
   st.exileCountered = true;
 }, { first: true, multi: true });
+// Yawgmoth's Will (lands from the graveyard aren't offered)
+on(/^(?:until end of turn, )?(?:you may )?play lands and cast spells from your graveyard(?: until end of turn)?$/, async (m, env) => {
+  G.s.yawgWill = [...(G.s.yawgWill || []).filter((x) => x.turn === G.s.turn), { pid: env.me, turn: G.s.turn }];
+  env.did.push(`${who(env.me)} may cast spells from ${possOf(env.me)} graveyard this turn`);
+}, { first: true });
+on(/^if a card would be put into your graveyard from anywhere this turn, exile that card instead$/, async () => {}, { first: true });
+// There and Back Again I
+on(/^up to one target creature can't block for as long as you control ~$/, async (m, env) => {
+  const [t] = await objects(env, 'up to one target creature', { harm: true });
+  if (!t) return;
+  t.cantBlockWhile = env.src && env.src.iid;
+  env.did.push(`${nameTag(t)} can't block while ${possOf(env.me)} ${cardName(env.src)} stays`);
+}, { first: true });
 // Hurkyl's Recall: "Return all artifacts target player owns to their hand."
 on(/^return all (.+?) target player owns to their hand$/, async (m, env) => {
   const [pid] = await playerTarget(env, 'target player', true);

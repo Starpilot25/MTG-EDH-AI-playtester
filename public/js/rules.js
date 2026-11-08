@@ -1717,6 +1717,7 @@ export function canBlock(blocker, attacker) {
   if (G.s && G.s.sectorBlockTurn === G.s.turn && attacker && blocker.sector !== attacker.sector) return false;
   if (G.s && blocker.noBlockUntil && blocker.noBlockUntil > G.s.turn) return false;
   if (blocker.cantBlockTurn === (G.s && G.s.turn)) return false;
+  if (blocker.cantBlockWhile && G.s && G.s.cards[blocker.cantBlockWhile] && G.s.cards[blocker.cantBlockWhile].zone === 'battlefield') return false; // There and Back Again
   if (attacker && blocker.dutyVs && (blocker.counters || {}).duty > 0 && attacker.controller === blocker.dutyVs) return false; // Immortal Obligation
   if (G.s && G.s.noBlocksTurn === G.s.turn) return false;
   const bo = oracle(blocker);

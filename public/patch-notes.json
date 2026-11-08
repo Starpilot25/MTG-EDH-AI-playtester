@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.221",
+    "title": "Yawgmoth's Will",
+    "notes": [
+      "Yawgmoth's Will lets you cast spells from your graveyard this turn, and cards going to your graveyard are exiled instead. Playing lands from the graveyard isn't offered.",
+      "There and Back Again's first chapter stops the creature blocking while you control the Saga.",
+      "Delina's \"roll again\" no longer shows up as an effect to apply by hand. It doesn't roll again."
+    ]
+  },
+  {
     "version": "1.3.220",
     "title": "Airbend, Paradigm and 45 more cards",
     "notes": [

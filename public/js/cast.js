@@ -452,7 +452,7 @@ function castOptionsRaw(pid, c) {
       && cardsIn(pid, 'battlefield').some((x) => /cast a spell from among cards in graveyards that were put there from libraries this turn/i.test(oracle(x))))
       add({ mode: 'coram', label: 'Cast (milled this turn)', cost: f0.manaCost || d.manaCost || '' });
     // Locke, Treasure Hunter: "Until end of turn, you may cast a spell from among those cards."
-    if (c.mayCastFromGy === pid && c.mayCastFromGyTurn === s.turn && !isLandFace(f0)) add({ mode: 'impulse', label: 'Cast from graveyard (this turn)', cost: f0.manaCost || d.manaCost });
+    if (((c.mayCastFromGy === pid && c.mayCastFromGyTurn === s.turn) || (c.owner === pid && (s.yawgWill || []).some((x) => x.turn === s.turn && x.pid === pid))) && !isLandFace(f0)) add({ mode: 'impulse', label: 'Cast from graveyard (this turn)', cost: f0.manaCost || d.manaCost });
     // Hildibrand Manderville: "you may cast it from your graveyard as an Adventure until the end of your next turn"
     if (c.advFromGyUntil >= s.turn && c.advFromGyBy === pid && d.layout === 'adventure' && d.faces[1]) add({ mode: 'adventure', face: 1, label: `Cast ${d.faces[1].name} (Adventure, from graveyard)`, cost: d.faces[1].manaCost });
     if ((a = altCostAny(o0, 'Flashback'))) add({ mode: 'flashback', label: `Flashback ${a.mana}${a.other ? ' — ' + a.other : ''}`, cost: a.mana, other: a.other });
