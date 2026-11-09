@@ -88,7 +88,7 @@ function trimCard(c) {
     image_uris: c.image_uris ? { normal: c.image_uris.normal, large: c.image_uris.large } : undefined,
     card_faces: c.card_faces ? c.card_faces.map(face) : undefined,
     all_parts: (c.all_parts || [])
-      .filter((p) => p.component === 'token' || (p.type_line || '').includes('Emblem'))
+      .filter((p) => p.component === 'token' || p.component === 'meld_result' || (p.type_line || '').includes('Emblem'))
       .map((p) => ({ id: p.id, name: p.name, type_line: p.type_line })),
     set: c.set,
     collector_number: c.collector_number,

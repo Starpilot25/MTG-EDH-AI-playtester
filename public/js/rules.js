@@ -1845,11 +1845,17 @@ function damageModsRaw(amount, src, victimPid, opts = {}) {
     return 0;
   }
   if (opts.victim && opts.victim.preventDmgTurn === G.s.turn) return 0; // Mutational Advantage
+  // Surge of Salvation: "Prevent all damage that black and/or red sources would deal to creatures you control this turn."
+  if (opts.victim && src && isCreature(opts.victim) && (G.s.preventColorsTo || []).some((x) => x.turn === G.s.turn && x.pid === opts.victim.controller && (DB[src.def] ? DB[src.def].colors || [] : []).some((col) => x.colors.includes(col)))) return 0;
   if (victimPid && !opts.victim && G.s.preventAllTo && G.s.preventAllTo[victimPid] === G.s.turn) { if (opts.real && G.s.inkshield && G.s.inkshield.pid === victimPid && G.s.inkshield.turn === G.s.turn) G.s.inkshield.n = (G.s.inkshield.n || 0) + amount; return 0; } // Inkshield, Selfless Squire
   if (opts.combat && G.s.preventCombatTo && victimPid && G.s.preventCombatTo[victimPid] === G.s.turn && (!opts.victim || isType(opts.victim, 'Planeswalker'))) { if (opts.real && !opts.victim && G.s.inkshield && G.s.inkshield.pid === victimPid && G.s.inkshield.turn === G.s.turn) G.s.inkshield.n = (G.s.inkshield.n || 0) + amount; return 0; } // Take the Bait, Inkshield
   // Obscuring Haze: "Prevent all damage that would be dealt this turn by creatures your opponents control."
   if (G.s.hazePrevent && src && srcCtl && isCreature(src) && Object.entries(G.s.hazePrevent).some(([p, t]) => t === G.s.turn && p !== srcCtl)) return 0;
   let a = amount;
+  // Jeska, Thrice Reborn: "if that creature would deal combat damage to one of your opponents, it deals triple that damage"
+  if (opts.combat && src && src.tripleVs && src.tripleVs.until > G.s.turn && victimPid && !opts.victim && victimPid !== src.tripleVs.pid) a *= 3;
+  // Lightning, Army of One (Stagger): damage to that player or their permanents is doubled until your next turn
+  if ((G.s.doubleTo || []).some((x) => x.until > G.s.turn && x.pid === (opts.victim ? opts.victim.controller : victimPid))) a *= 2;
   for (const pid of seats()) {
     for (const iid of G.s.players[pid].zones.battlefield) {
       const x = G.s.cards[iid];
@@ -1880,6 +1886,8 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
   const ds = (i) => hasKw(i, 'double strike');
   const alive = (iid) => cards[iid] && cards[iid].zone === 'battlefield' && !isDead(cards[iid]);
   const fog = G.s && G.s.fogTurn === G.s.turn;
+  // Moonmist: combat damage from creatures other than Werewolves and Wolves is prevented
+  const fogEx = G.s && G.s.fogExcept && G.s.fogExcept.turn === G.s.turn ? G.s.fogExcept.types : null;
   const anyFirst = attackers.some((a) => cards[a] && fs(cards[a])) || Object.values(blocks).flat().some((b) => cards[b] && fs(cards[b]));
   const steps = anyFirst ? ['first', 'regular'] : ['regular'];
   for (const step of steps) {
@@ -1961,6 +1969,7 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
       }
       const noPrevent = playerFlag(src.controller, 'noPrevent') || G.s.noPreventTurn === G.s.turn;
       if (fog && !noPrevent) continue;
+      if (fogEx && !noPrevent && !fogEx.some((t) => hasSubtype(src, t))) continue;
       if (ev.type === 'player' && !noPrevent && playerProtectedFrom(ev.to || defender, src)) continue;
       if (ev.type === 'creature') {
         const t = cards[ev.to];

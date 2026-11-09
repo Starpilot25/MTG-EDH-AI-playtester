@@ -971,6 +971,16 @@ export async function castSpell(pid, iid, opt, env) {
   useOneOf(c);
   // Xander's Pact: pay life equal to its mana value instead
   if (c.lifeOnCast && opt.mode === 'hideaway') { const lv = DB[c.def].cmc || 0; changeLife(pid, -lv, false); log(pid, `${pid === 'p' ? 'You pay' : 'The AI pays'} ${lv} life for ${nameTag(c)}.`); c.lifeOnCast = null; }
+  // what paid for it, for "if mana from a Treasure / three or more mana from creatures / no mana was spent to cast it"
+  {
+    const payers = (pay && pay.payers) || [];
+    const kindOf = (i) => (String(i).startsWith('pool:') ? null : card(i));
+    c.manaSpent = {
+      total: payers.length,
+      creature: payers.filter((i) => { const x = kindOf(i); return x && isCreature(x); }).length,
+      treasure: payers.filter((i) => { const x = kindOf(i); return x && hasSubtype(x, 'Treasure'); }).length,
+    };
+  }
   applyPayment(pid, pay);
   if (opt.payLife) { changeLife(pid, -opt.payLife, false); log(pid, `${pid === 'p' ? 'You pay' : seatName(pid) + ' pays'} ${opt.payLife} life for ${nameTag(c)}.`); } // Bolas's Citadel
   // Expend: the total mana spent on spells this turn

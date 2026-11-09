@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.3.222",
+    "title": "New engine features: meld, ending the turn, extra steps, damage shields, mana tracking",
+    "notes": [
+      "Meld: Gisela and Bruna meld into Brisela, and Hanweir Battlements and Garrison meld into the Township. When the melded card leaves the battlefield, both halves go where it went. The meld result now loads with the deck (you may need to reload the deck once).",
+      "\"End the turn\" (Sundial of the Infinite and others): spells on the stack are exiled, the rest of the turn is skipped, and you go straight to cleanup.",
+      "Extra steps: Y'shtola Rhul's additional end step, Paradox Haze's extra upkeep, Shadow of the Second Sun's extra beginning phase, Lightning Runner's energy-fuelled extra combat.",
+      "Damage: Eiganjo Castle's prevention shield, Surge of Salvation (black/red damage prevented, you and your permanents gain hexproof), Jeska's triple combat damage, Lightning, Army of One's double damage (Stagger), Ravenous Tyrannosaurus's excess damage to the controller.",
+      "The engine now records what paid for each spell. Alchemist's Talent (Treasure mana), Inga and Esika (three or more mana from creatures), Roiling Vortex (no mana spent) and The Emperor of Palamecia (four or more mana) now check it. Treasure mana only counts when the Treasure is sacrificed during payment, not when its mana was already in your pool.",
+      "Transform: Moonmist, Journey to Eternity, Ojer Pakpatiq's return, Legion's Landing (attack with three), Ashling's \"enters or transforms\" trigger, Zenos's chosen creature leaving.",
+      "Free casting: Sword of Once and Future, Invoke Calamity, Tasha, the Witch Queen (page counters), Triple Triad."
+    ]
+  },
+  {
     "version": "1.3.221",
     "title": "Yawgmoth's Will",
     "notes": [

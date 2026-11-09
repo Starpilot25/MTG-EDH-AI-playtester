@@ -808,6 +808,16 @@ function turnHistoryCond(c, env) {
 
 export function evalCond(cond, env) {
   { const lc = String(cond).trim().toLowerCase(); let q;
+    // mana spent on a spell (recorded as it was cast): Alchemist's Talent, Inga and Esika, Roiling Vortex, Emperor of Palamecia
+    if ((q = lc.match(/^(?:mana from an? (treasure|creature) was spent|(three|two|four|five|\w+) or more mana from (creatures|treasures) was spent|no mana was spent|at least (\w+) mana was spent) to cast (?:it|that spell|this spell)$/))) {
+      const sp = env.it && card(env.it.iid);
+      const ms = sp && sp.manaSpent;
+      if (!ms) return /^no mana/.test(lc) ? true : false;
+      if (q[1]) return (q[1] === 'treasure' ? ms.treasure : ms.creature) > 0;
+      if (q[2]) return (q[3] === 'creatures' ? ms.creature : ms.treasure) >= n(q[2]);
+      if (/^no mana/.test(lc)) return ms.total === 0;
+      if (q[4]) return ms.total >= n(q[4]);
+    }
     // Chainer, Nightmare Adept: "if you didn't cast it from your hand"
     if ((q = lc.match(/^you (did|didn't) cast (?:it|that creature) from your hand$/))) { const c = env.it && card(env.it.iid); if (!c) return null; const fromHand = c.castFrom === 'hand' && c.castTurn === G.s.turn; return q[1] === 'did' ? fromHand : !fromHand; }
     // Razorlash Transmogrant: "an opponent controls four or more nonbasic lands"
@@ -1432,6 +1442,7 @@ function playerHexproof(pid, caster, src) {
   if (src && playerProtectedFrom(pid, src)) return true;
   if (pid === caster) return false;
   if (G.s.players[pid].protectedUntil && G.s.turn < G.s.players[pid].protectedUntil) return true;
+  if ((G.s.playerHexproof || {})[pid] === G.s.turn) return true; // Surge of Salvation
   return cardsIn(pid, 'battlefield').some((c) => /^You have (?:hexproof|shroud)/m.test(oracle(c)));
 }
 
@@ -4648,6 +4659,208 @@ on(/^up to one target creature can't block for as long as you control ~$/, async
   t.cantBlockWhile = env.src && env.src.iid;
   env.did.push(`${nameTag(t)} can't block while ${possOf(env.me)} ${cardName(env.src)} stays`);
 }, { first: true });
+// ---------------------------------------------------------------- engine features: ending the turn, extra steps
+// Sundial of the Infinite, Time Stop, Discontinuity: "End the turn."
+export function endTheTurn(env) {
+  const s = G.s;
+  // exile every spell and ability on the stack (spells go to exile; abilities just stop)
+  for (const slot of [s.stack, s.pstack]) {
+    if (!slot) continue;
+    slot.countered = true;
+    slot.exileCountered = true;
+  }
+  s.endTurnNow = s.turn;
+  s.extraCombats = 0;
+  s.extraEnd = null;
+  s.extraBeginning = null;
+  if (s.active === 'p') { s.combat = null; s.step = 'end'; }
+  else if (s.combat) { for (const c of allBf()) { c.attacking = false; c.blocking = false; } s.combat = null; }
+  env.did.push('the turn ends');
+}
+on(/^end the turn$/, async (m, env) => endTheTurn(env), { first: true });
+// Y'shtola Rhul
+on(/^(?:then )?if it's the first end step of the turn, there is an additional end step after this step$/, async (m, env) => {
+  if ((G.s.endStepNo || 1) !== 1) return;
+  G.s.extraEnd = { pid: G.s.active, turn: G.s.turn };
+  env.did.push('there is an additional end step after this one');
+}, { first: true });
+// Paradox Haze
+on(/^that player gets an additional upkeep step after this step$/, async (m, env) => {
+  const pid = env.thatPlayer || G.s.active;
+  G.s.extraUpkeep = { pid, turn: G.s.turn };
+  env.did.push(`${who(pid)} ${pid === 'p' ? 'get' : 'gets'} an additional upkeep step`);
+}, { first: true });
+// Shadow of the Second Sun
+on(/^there is an additional beginning phase after this phase$/, async (m, env) => {
+  const pid = G.s.active;
+  const eb = G.s.extraBeginning;
+  G.s.extraBeginning = eb && eb.pid === pid && eb.turn === G.s.turn ? { ...eb, n: eb.n + 1 } : { pid, turn: G.s.turn, n: 1 };
+  env.did.push('there is an additional beginning phase after this phase');
+}, { first: true });
+// Lightning Runner
+on(/^if you pay, untap all creatures you control, and after this phase, there is an additional combat phase$/, async (m, env) => {
+  const pl = G.s.players[env.me];
+  pl.counters = pl.counters || {};
+  const have = pl.counters.energy || 0;
+  if (have < 8) return env.did.push(`has only ${have} energy`);
+  const yes = isAI(env.me) ? true : await env.choosers[env.me].confirm(cardName(env.src), 'Pay eight {E}: untap all creatures you control and get an additional combat phase?');
+  if (!yes) return;
+  pl.counters.energy -= 8;
+  for (const c of cardsIn(env.me, 'battlefield').filter(isCreature)) c.tapped = false;
+  G.s.extraCombats = (G.s.extraCombats || 0) + 1;
+  env.did.push('pays eight energy, untaps its creatures and gets an additional combat');
+}, { first: true });
+// ---------------------------------------------------------------- engine features: damage prevention and multipliers
+// Eiganjo Castle
+on(/^prevent the next (\d+) damage that would be dealt to (target (?:legendary )?creature|any target|target creature or player) this turn$/, async (m, env) => {
+  const [t] = await objects(env, m[2].replace(/ or player$/, ''), { harm: false });
+  if (!t) return env.did.push('has no target');
+  G.s.dmgShield = (G.s.dmgShield || []).filter((x) => x.turn === G.s.turn);
+  G.s.dmgShield.push({ turn: G.s.turn, iid: t.iid, n: +m[1] });
+  env.did.push(`prevents the next ${m[1]} damage to ${nameTag(t)} this turn`);
+}, { first: true });
+// Surge of Salvation
+on(/^prevent all damage that (black|white|blue|red|green) and\/or (black|white|blue|red|green) sources would deal to creatures you control this turn$/, async (m, env) => {
+  G.s.preventColorsTo = [...(G.s.preventColorsTo || []).filter((x) => x.turn === G.s.turn), { pid: env.me, turn: G.s.turn, colors: [COLOR_WORD[m[1]], COLOR_WORD[m[2]]] }];
+  env.did.push(`${m[1]} and ${m[2]} damage to ${possOf(env.me)} creatures is prevented this turn`);
+}, { first: true });
+on(/^you and permanents you control gain hexproof until end of turn$/, async (m, env) => {
+  for (const c of cardsIn(env.me, 'battlefield')) c.eotGrants = [...(c.eotGrants || []), 'hexproof'];
+  G.s.playerHexproof = { ...(G.s.playerHexproof || {}), [env.me]: G.s.turn };
+  env.did.push(`${who(env.me)} and ${possOf(env.me)} permanents gain hexproof until end of turn`);
+}, { first: true });
+// Jeska, Thrice Reborn 0
+on(/^choose target creature\. until your next turn, if that creature would deal combat damage to one of your opponents, it deals triple that damage to that player instead$/, async (m, env) => {
+  const [t] = await objects(env, 'target creature', { harm: false });
+  if (!t) return env.did.push('has no target');
+  t.tripleVs = { pid: env.me, until: nextTurnNumber(env.me) };
+  env.did.push(`${nameTag(t)} deals triple combat damage to ${possOf(env.me)} opponents until ${possOf(env.me)} next turn`);
+}, { first: true, multi: true });
+// Lightning, Army of One (Stagger)
+on(/^until your next turn, if a source would deal damage to that player or a permanent that player controls, it deals double that damage instead$/, async (m, env) => {
+  const pid = env.thatPlayer || (env.it && env.it.player);
+  if (!pid) return;
+  G.s.doubleTo = [...(G.s.doubleTo || []).filter((x) => x.until > G.s.turn), { pid, until: nextTurnNumber(env.me) }];
+  env.did.push(`damage to ${seatName(pid)} and ${pid === 'p' ? 'your' : 'their'} permanents is doubled until ${possOf(env.me)} next turn`);
+}, { first: true });
+// Ravenous Tyrannosaurus
+on(/^(?:it|~) deals damage equal to its power to up to one other target creature\. excess damage is dealt to that creature's controller instead$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!me) return;
+  const pool = allBf().filter((c) => isCreature(c) && c.iid !== me.iid && canTarget(c, env.me, env.src));
+  const [p] = pool.length ? await env.choosers[env.me].pickCards({ prompt: 'Deal damage to up to one other creature (excess goes to its controller)', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'damage', src: env.src, aiScore: (c) => (c.controller === env.me ? -5 : cardValue(c)) }) : [];
+  const t = p && card(p);
+  if (!t) return env.did.push('deals no damage');
+  const pw = Math.max(0, power(me));
+  const lethal = Math.max(0, toughness(t) - (t.damage || 0));
+  const toC = Math.min(pw, lethal), excess = pw - toC;
+  if (toC) damagePermanent(env, me, t, toC);
+  if (excess > 0) damagePlayer(env, me, t.controller, excess);
+  env.did.push(`deals ${toC} to ${nameTag(t)}${excess > 0 ? ` and ${excess} to ${seatName(t.controller)}` : ''}`);
+}, { first: true, multi: true });
+// ---------------------------------------------------------------- engine feature: meld
+on(/^if you both own and control (?:~|this land|this creature|this artifact) and an? (?:creature|land|artifact) named (.+?), exile them, then meld them into (.+)$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const want = m[1].toLowerCase();
+  const partner = cardsIn(env.me, 'battlefield').find((c) => c.owner === env.me && DB[c.def].name.toLowerCase() === want);
+  if (!me || me.zone !== 'battlefield' || me.owner !== env.me || me.controller !== env.me || !partner) return env.did.push(`${who(env.me)} ${env.me === 'p' ? "don't" : "doesn't"} control both halves`);
+  const resultName = m[2].replace(/\.$/, '').toLowerCase();
+  const rdef = Object.values(DB).find((d) => d.name && d.name.toLowerCase() === resultName);
+  if (!rdef) return env.did.push(`can't meld: ${m[2]} isn't loaded`);
+  move(me.iid, 'exile');
+  move(partner.iid, 'exile');
+  const iid = makeCard(rdef.id, env.me, 'exile', { meldParts: [me.iid, partner.iid] });
+  move(iid, 'battlefield', { controller: env.me });
+  env.did.push(`melds ${nameTag(card(me.iid))} and ${nameTag(card(partner.iid))} into ${nameTag(card(iid))}`);
+}, { first: true });
+// ---------------------------------------------------------------- engine feature: transforming
+// Moonmist
+on(/^transform all (humans|[a-z]+s)$/, async (m, env) => {
+  const ty = capWords(m[1].replace(/s$/, ''));
+  const objs = allBf().filter((c) => isCreature(c) && hasSubtype(c, ty) && DB[c.def].faces.length > 1);
+  for (const c of objs) { c.face = c.face ? 0 : 1; queueEvent({ type: 'transformed', iid: c.iid, controller: c.controller }); }
+  env.did.push(`${objs.length} ${ty}${objs.length === 1 ? '' : 's'} transform`);
+}, { first: true });
+on(/^prevent all combat damage that would be dealt this turn by creatures other than werewolves and wolves$/, async (m, env) => {
+  G.s.fogExcept = { turn: G.s.turn, types: ['Werewolf', 'Wolf'] };
+  env.did.push('combat damage from creatures other than Werewolves and Wolves is prevented this turn');
+}, { first: true });
+// Journey to Eternity, Ojer Pakpatiq: "return ~ to the battlefield transformed under your control"
+on(/^(?:then )?return (~|this card|it) to the battlefield (tapped and )?transformed under (?:your|its owner's) control(?: with (\w+) (\w+) counters on it)?$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  if (!c || c.zone === 'battlefield') return;
+  toBattlefield(c.iid, c.owner);
+  const b = card(c.iid);
+  if (!b) return;
+  if (DB[b.def].faces.length > 1) b.face = 1;
+  if (m[2]) b.tapped = true;
+  if (m[3]) addCounters(b, m[4], n(m[3]));
+  env.did.push(`returns ${nameTag(b)} to the battlefield transformed`);
+}, { first: true });
+// Ojer Pakpatiq: "When Ojer Pakpatiq dies, return it to the battlefield tapped and transformed under its owner's control with three time counters on it."
+// ---------------------------------------------------------------- engine feature: free casting from graveyard/hand/exile
+// Sword of Once and Future, Invoke Calamity
+on(/^(?:then )?(?:you may )?cast (?:up to (one|two|three) )?(?:an? )?([a-z\/ ]+?) spells? (?:with (total )?mana value (\d+) or less )?from your (graveyard and\/or hand|hand and\/or graveyard|graveyard|hand) without paying (?:its|their) mana costs?$/, async (m, env) => {
+  const maxN = m[1] ? n(m[1]) : 1;
+  const kind = m[2].trim().replace(/ and\/or /g, ' or ');
+  const cap = m[4] ? +m[4] : 99;
+  const total = !!m[3];
+  const zones = /graveyard/.test(m[5]) && /hand/.test(m[5]) ? ['graveyard', 'hand'] : [/hand/.test(m[5]) ? 'hand' : 'graveyard'];
+  const exile = /exile (?:it|them) instead/.test(env.text || '');
+  const cf = env.castFree || T.castFree;
+  let used = 0, count = 0;
+  while (count < maxN) {
+    const pool = zones.flatMap((z) => cardsIn(env.me, z)).filter((c) => c.iid !== (env.src || {}).iid && matchesAny(c, kind) && (DB[c.def].cmc || 0) <= (total ? cap - used : cap));
+    if (!pool.length) break;
+    const [pick] = await env.choosers[env.me].pickCards({ prompt: `Cast a ${kind} spell for free${total ? ` (mana value ${cap - used} or less left)` : ''}`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'castFree', src: env.src, aiScore: (c) => (DB[c.def].cmc || 0) + 1 });
+    if (!pick || !cf) break;
+    used += DB[card(pick).def].cmc || 0;
+    count++;
+    if (exile) G.s.exileOnResolve = { ...(G.s.exileOnResolve || {}), [pick]: true };
+    env.did.push(`casts ${nameTag(card(pick))} for free`);
+    await cf(env.me, pick, {});
+  }
+  if (!count) env.did.push('casts nothing');
+}, { first: true });
+on(/^if (?:that spell|those spells) would be put into your graveyard, exile (?:it|them) instead$/, async () => {}, { first: true });
+// Invoke Calamity: "Exile Invoke Calamity." as the spell resolves
+on(/^exile ~$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  if (!c || c.zone !== 'stack') return 'pass';
+  G.s.exileOnResolve = { ...(G.s.exileOnResolve || {}), [c.iid]: true };
+}, { first: true });
+// Tasha, the Witch Queen
+on(/^for each opponent, exile up to one target instant or sorcery card from that player's graveyard and put a page counter on it$/, async (m, env) => {
+  const got = [];
+  for (const o of opponents(env.me).filter(inGame)) {
+    const pool = cardsIn(o, 'graveyard').filter((c) => /Instant|Sorcery/.test(DB[c.def].typeLine || ''));
+    if (!pool.length) continue;
+    const [p] = await env.choosers[env.me].pickCards({ prompt: `Exile an instant or sorcery from ${seatPoss(o)} graveyard (page counter)`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'exile', src: env.src, aiScore: (c) => cardValue(c) });
+    if (!p) continue;
+    move(p, 'exile');
+    addCounters(card(p), 'page', 1);
+    got.push(nameTag(card(p)));
+  }
+  env.did.push(got.length ? `exiles ${got.join(', ')} with page counters` : 'exiles nothing');
+}, { first: true });
+on(/^(?:you may )?cast a spell from among cards in exile with page counters on them without paying its mana cost$/, async (m, env) => {
+  const pool = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && (c.counters || {}).page > 0);
+  if (!pool.length) return env.did.push('has no card with a page counter');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Cast a spell with a page counter for free', cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'castFree', src: env.src, aiScore: (c) => (DB[c.def].cmc || 0) + 1 });
+  const cf = env.castFree || T.castFree;
+  if (p && cf) { env.did.push(`casts ${nameTag(card(p))} for free`); await cf(env.me, p, {}); }
+}, { first: true });
+// Triple Triad
+on(/^each player exiles the top card of their library\. until end of turn, you may play the card you own exiled this way and each other card exiled this way with lesser mana value than it without paying their mana costs$/, async (m, env) => {
+  const ex = [];
+  for (const pid of seats().filter(inGame)) { const [t] = libTop(pid, 1); if (t) { move(t, 'exile'); ex.push(t); } }
+  const mine = ex.find((i) => card(i).owner === env.me);
+  if (!mine) return env.did.push('exiles cards, but none of yours');
+  const mv = DB[card(mine).def].cmc || 0;
+  const ok = ex.filter((i) => i === mine || (DB[card(i).def].cmc || 0) < mv);
+  for (const i of ok) Object.assign(card(i), { mayPlayFree: env.me, mayPlayFreeUntil: G.s.turn });
+  env.did.push(`exiles ${ex.map((i) => nameTag(card(i))).join(', ')}; ${who(env.me)} may play ${ok.length} of them for free this turn`);
+}, { first: true, multi: true });
 // Hurkyl's Recall: "Return all artifacts target player owns to their hand."
 on(/^return all (.+?) target player owns to their hand$/, async (m, env) => {
   const [pid] = await playerTarget(env, 'target player', true);

@@ -158,7 +158,7 @@ async function beginUpkeep(pid) {
   for (let guard = 0; guard < 5 && s.extraUpkeep && s.extraUpkeep.pid === pid && s.extraUpkeep.turn === s.turn; guard++) {
     s.extraUpkeep = null;
     log('sys', 'An additional upkeep step begins.');
-    fire({ type: 'upkeep', active: pid });
+    fire({ type: 'upkeep', active: pid, extra: true });
     await settle();
     if (G.s !== s) return;
   }
@@ -437,8 +437,22 @@ async function upkeepKeywords(pid) {
 }
 
 // "At the beginning of the next end step" clean-ups, the monarch's draw, delayed returns.
+// Y'shtola Rhul: "there is an additional end step after this step"
+async function extraEndSteps(pid) {
+  const s = G.s;
+  for (let guard = 0; guard < 5 && s.extraEnd && s.extraEnd.pid === pid && s.extraEnd.turn === s.turn && s.endTurnNow !== s.turn; guard++) {
+    s.extraEnd = null;
+    s.endStepNo = (s.endStepNo || 1) + 1;
+    log('sys', 'An additional end step begins.');
+    fire({ type: 'endStep', active: pid, extra: true });
+    await settle();
+    if (G.s !== s) return;
+  }
+}
 async function endStepThings(pid) {
   const s = G.s;
+  s.endStepNo = s.endStepTurn === s.turn ? s.endStepNo || 1 : 1;
+  s.endStepTurn = s.turn;
   if (s.monarch === pid) {
     draw(pid, 1, true);
     log(pid, `The monarch (${who(pid)}) draws a card.`);
@@ -755,6 +769,8 @@ export async function playerNextStep() {
     if (G.s !== s) return;
     await endStepThings('p');
     if (G.s !== s) return;
+    await extraEndSteps('p');
+    if (G.s !== s) return;
     await aiWindow('endStep');
     if (G.s !== s) return;
   } else if (s.step === 'end') {
@@ -877,6 +893,8 @@ export async function playerEndTurn() {
     await settle();
     if (G.s !== s) return;
     await endStepThings('p');
+    if (G.s !== s) return;
+    await extraEndSteps('p');
     if (G.s !== s) return;
     await aiWindow('endStep');
     if (G.s !== s) return;
@@ -1633,6 +1651,8 @@ export async function runAiTurn(pid = 'ai') {
         await settle();
         if (over()) return;
         await endStepThings(pid);
+        if (over()) return;
+        await extraEndSteps(pid);
       }
       if (over()) return;
       // pods: the other AIs act at the end of this turn (flash creatures, instants, abilities)

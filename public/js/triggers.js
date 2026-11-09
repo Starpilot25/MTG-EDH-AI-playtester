@@ -361,6 +361,12 @@ function parseTriggerText(text, speed) {
       add('combatDamageOnce', m[3], m[2] ? { minPower: +m[2] } : { withCounters: true });
     } else if ((m = line.match(/^At the beginning of (?:your second main phase|your postcombat main phase|each of your postcombat main phases|your second main phase each turn), (.+)$/i))) {
       add('main2', m[1], { whose: 'your' });
+    } else if ((m = line.match(/^At the beginning of enchanted player's first upkeep each turn, (.+)$/i))) {
+      // Paradox Haze: only the first upkeep step of the turn
+      add('upkeep', m[1], { whose: 'enchanted', firstUpkeep: true });
+    } else if ((m = line.match(/^At the beginning of each of enchanted player's postcombat main phases, (.+)$/i))) {
+      // Shadow of the Second Sun
+      add('main2', m[1], { whose: 'enchanted' });
     } else if ((m = line.match(/^At the beginning of (?:the upkeep of enchanted creature's controller|enchanted creature's controller's upkeep|enchanted player's upkeep), (.+)$/i))) {
       add('upkeep', m[1], { whose: 'enchanted' });
     } else if ((m = line.match(/^Whenever (?:a player|an opponent|you) cycles? (?:a|another) card, (.+)$/i))) {
@@ -846,6 +852,17 @@ function parseTriggerText(text, speed) {
       add('classLevel', m[2], { self: true, level: +m[1] });
     else if ((m = line.match(/^When(?:ever)? ~ (?:transforms into|becomes) (?!tapped,)[^,]+, (.+)$/i)))
       add('transformed', m[1], { self: true });
+    // Ashling, Rekindled: "Whenever this creature enters or transforms into Ashling, Rekindled"
+    else if ((m = line.match(/^Whenever ~ enters or transforms into [^,]+, (.+)$/i))) {
+      add('enters', m[1], { self: true });
+      add('transformed', m[1], { self: true });
+    }
+    // Legion's Landing: "When you attack with three or more creatures, transform ~."
+    else if ((m = line.match(/^When(?:ever)? you attack with (\w+) or more creatures, (.+)$/i)))
+      add('youAttack', m[2], { kind: '', minCount: { two: 2, three: 3, four: 4, five: 5 }[m[1].toLowerCase()] || +m[1] || 3 });
+    // Zenos: "When the chosen creature leaves the battlefield, transform ~."
+    else if ((m = line.match(/^When the chosen creature leaves the battlefield, (.+)$/i)))
+      add('leaves', m[1], { chosenOf: true });
     else if ((m = line.match(/^Whenever a permanent becomes untapped, (.+)$/i)))
       add('untapped', m[1], { anyPlayer: true }); // Mesmeric Orb
     else if ((m = line.match(/^Whenever the Ring tempts you, (.+)$/i)))
@@ -1906,6 +1923,8 @@ function matches(ev) {
       if (ev.to === 'exile') for (const aid of ev.attached || []) { const a = card(aid); if (!a) continue; for (const trig of triggersOf({ ...a, zone: 'battlefield' })) if (trig.event === 'dies' && trig.attachedTo && trig.orExile) out.push({ src: a, trig, controller: a.controller, it: { iid: ev.iid } }); }
       for (const trig of triggersOf({ ...gone, zone: 'battlefield', controller: ev.controller }, ev.def)) if (trig.event === 'leaves' && trig.self && (!trig.toZone || trig.toZone === ev.to) && !(trig.minPower && !(ev.power >= trig.minPower))) out.push({ src: gone, trig, controller: ev.controller });
       const goneDef = DB[ev.def];
+      // Zenos yae Galvus: "When the chosen creature leaves the battlefield"
+      each((c, trig) => { if (trig.event === 'leaves' && trig.chosenOf && c.zenosChosen === ev.iid) out.push({ src: c, trig }); });
       each((c, trig) => {
         if (trig.event !== 'leaves' || !(trig.mine || trig.anyController) || c.iid === ev.iid) return;
         if (trig.toZone && trig.toZone !== ev.to) return;
@@ -2197,6 +2216,7 @@ function matches(ev) {
       each((c, trig) => {
         if (trig.event !== ev.type) return;
         const w = trig.whose || 'your';
+        if (trig.firstUpkeep && ev.extra) return;
         if (w === 'enchanted') {
           const host = c.attachedTo && card(c.attachedTo);
           const pl = host ? host.controller : c.enchantedPlayer || opp(c.controller);
