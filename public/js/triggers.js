@@ -161,6 +161,29 @@ function parseTriggerText(text, speed) {
         add('p:cast', q[2], { pred: (c, ev) => { if (ev.controller !== c.controller) return false; const d = DB[ev.def]; const f = d && (d.faces[0] || {}); return !!d && ((d.cmc || 0) === k || +f.power === k || +f.toughness === k); } });
         continue;
       }
+      // Sewer Nemesis
+      if (/^As ~ enters, choose a player\.$/i.test(line)) {
+        add('enters', '', { self: true, fn: async (ctx, hit) => {
+          const me = card(hit.src.iid);
+          if (!me) return [];
+          const ps = seats().filter((p) => G.s.players[p] && !G.s.players[p].lost);
+          let pick;
+          if (isAI(ctx.me)) pick = [...ps].sort((a2, b2) => cardsIn(b2, 'graveyard').length - cardsIn(a2, 'graveyard').length)[0];
+          else { const a = await T.choosers[ctx.me].choose({ prompt: `${cardName(me)}: choose a player`, options: ps.map((p) => ({ label: seatName(p) })), aiPick: () => 0 }); pick = ps[a] || ps[0]; }
+          me.chosenPlayers = [pick];
+          return [`chooses ${seatName(pick)}`];
+        } });
+        continue;
+      }
+      if ((q = line.match(/^Whenever the chosen player casts a spell, (.+)$/i))) { add('p:cast', q[1], { pred: (c, ev) => (c.chosenPlayers || [])[0] === ev.controller && { thatPlayer: ev.controller } }); continue; }
+      // Battle Mammoth
+      if ((q = line.match(/^Whenever a permanent you control becomes the target of a spell or ability an opponent controls, (.+)$/i))) { add('p:becomesTarget', q[1], { pred: (c, ev) => { const t0 = card(ev.iid); return !!t0 && t0.controller === c.controller && ev.controller !== c.controller && { thatPlayer: ev.controller }; } }); continue; }
+      // Dissipation Field
+      if ((q = line.match(/^Whenever a permanent deals damage to you, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => ev.player === c.controller && !!card(ev.iid) && card(ev.iid).zone === 'battlefield' && { it: { iid: ev.iid } } }); continue; }
+      // Firkraag: "if that creature had to attack this combat" (goaded)
+      if ((q = line.match(/^Whenever a creature deals combat damage to one of your opponents, if that creature had to attack this combat, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => { const a = card(ev.iid); return !!a && opponents(c.controller).includes(ev.player) && isGoaded(a); } }); continue; }
+      // Baeloth Barrityl
+      if ((q = line.match(/^Whenever a goaded attacking or blocking creature dies, (.+)$/i))) { add('p:dies', q[1], { pred: (c, ev) => !!ev.wasGoaded && !!(ev.wasAttacking || ev.wasBlocking) }); continue; }
       // Sower of Discord
       if (/^As ~ enters, choose two players\.$/i.test(line)) {
         add('enters', '', { self: true, fn: async (ctx, hit) => {
@@ -2141,7 +2164,7 @@ function matches(ev) {
         // Fangorn: "Whenever one or more Treefolk you control attack" — that much = how many
         if (trig.kindCount) {
           if (c.controller !== ev.controller) return;
-          const one = trig.kindCount.replace(/ves$/, 'f').replace(/ies$/, 'y').replace(/(?<!s)s$/, ''); // "Dragons" → Dragon, "Elves" → Elf (Fangorn's Treefolk stays)
+          const one = trig.kindCount.replace(/ves$/, 'f').replace(/ies$/, 'y').replace(/(x|ch|sh|ss)es$/, '$1').replace(/(?<![sx])s$/, ''); // Sphinxes → Sphinx // "Dragons" → Dragon, "Elves" → Elf (Fangorn's Treefolk stays)
           const k = ((G.s.combat && G.s.combat.attackers) || []).map(card).filter((x) => x && (hasSubtype(x, trig.kindCount) || hasSubtype(x, one))).length;
           if (k) out.push({ src: c, trig, amount: k, thatPlayer: ev.defender });
           return;

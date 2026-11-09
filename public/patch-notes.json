@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.226",
+    "title": "The rest of the D&D precons",
+    "notes": [
+      "New precon decks: all four Adventures in the Forgotten Realms Commander decks (Aura of Courage, Draconic Rage, Dungeons of Death, Planar Portal) and the other three Battle for Baldur's Gate decks (Draconic Dissent, Exit from Exile, Mind Flayarrgh!).",
+      "Fixed cards in those decks: Domineering Will, Ebony Fly, Eternal Dragon (upkeep only), Firkraag's goad payoff, From the Catacombs, Green Slime, Izzet Chemister, Rod of Absorption, Sly Instigator, Will Kenrith's -2, Xenagos's -6, Journey to the Lost City (all three die results), Sewer Nemesis, Battle Mammoth, Dissipation Field and Baeloth Barrityl's Treasure trigger.",
+      "The Ur-Sphinx: its attack trigger never fired, because \"Sphinxes\" wasn't recognized as Sphinx. Fixed, along with any other \"one or more Xes you control attack\" cards.",
+      "Overgrown Battlement now taps for one green mana for each creature you control with defender (it made no mana before). Counting creatures \"with\" a keyword works for other cards too."
+    ]
+  },
+  {
     "version": "1.3.225",
     "title": "Moxite Refinery, Forger's Foundry and Jolly Gerbils",
     "notes": [

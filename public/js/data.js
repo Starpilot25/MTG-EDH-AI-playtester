@@ -3247,6 +3247,624 @@ Deck
 ${basics(15, 'Plains')}
 ${basics(15, 'Island')}`,
   },
+  afc_courage: {
+    label: "Aura of Courage (Galea, Kindler of Hope)",
+    set: "Forgotten Realms Commander",
+    bracket: 2,
+    text: `Commander
+1 Galea, Kindler of Hope
+
+Deck
+1 Angel of Finality
+1 Puresteel Paladin
+1 Realm-Cloaked Giant
+1 Sram, Senior Edificer
+1 Prognostic Sphinx
+1 Cold-Eyed Selkie
+1 Fleecemane Lion
+1 Knight of Autumn
+1 Riverwise Augur
+1 Acidic Slime
+1 Paradise Druid
+1 Winds of Rath
+1 Serum Visions
+1 Nature's Lore
+1 Heroic Intervention
+1 Valorous Stance
+1 Brainstorm
+1 Bant Charm
+1 Argentum Armor
+1 Basilisk Collar
+1 Masterwork of Ingenuity
+1 Moonsilver Spear
+1 Sword of the Animist
+1 Behemoth Sledge
+1 Arcane Signet
+1 Colossus Hammer
+1 Explorer's Scope
+1 Sol Ring
+1 Swiftfoot Boots
+1 Viridian Longbow
+1 Imprisoned in the Moon
+1 Greater Good
+1 Verdant Embrace
+1 Angelic Gift
+1 Gryff's Boon
+1 Curse of Verbosity
+1 Eel Umbra
+1 Psychic Impetus
+1 Abundant Growth
+1 Fertile Ground
+1 Kenrith's Transformation
+1 Rancor
+1 Utopia Sprawl
+1 Wild Growth
+1 Shielding Plax
+1 Canopy Vista
+1 Exotic Orchard
+1 Fortified Village
+1 Lumbering Falls
+1 Port Town
+1 Prairie Stream
+1 Skycloud Expanse
+1 Sungrass Prairie
+1 Evolving Wilds
+1 Azorius Chancery
+1 Bant Panorama
+1 Command Tower
+1 Flood Plain
+1 Grasslands
+1 Halimar Depths
+1 Mishra's Factory
+1 Path of Ancestry
+1 Seaside Citadel
+1 Simic Growth Chamber
+1 Terramorphic Expanse
+1 Thriving Grove
+1 Thriving Heath
+1 Thriving Isle
+1 Vitu-Ghazi, the City-Tree
+4 Island
+8 Forest
+2 Plains
+1 Storvald, Frost Giant Jarl
+1 Fey Steed
+1 Holy Avenger
+1 Mantle of the Ancients
+1 Robe of Stars
+1 Valiant Endeavor
+1 Diviner's Portent
+1 Netherese Puzzle-Ward
+1 Winged Boots
+1 Belt of Giant Strength
+1 Song of Inspiration
+1 Catti-brie of Mithral Hall
+1 Ride the Avalanche
+1 Clay Golem
+1 Ebony Fly
+1 Sword of Hours`,
+  },
+  afc_rage: {
+    label: "Draconic Rage (Vrondiss, Rage of Ancients)",
+    set: "Forgotten Realms Commander",
+    bracket: 2,
+    text: `Commander
+1 Vrondiss, Rage of Ancients
+
+Deck
+1 Bogardan Hellkite
+1 Demanding Dragon
+1 Dragonmaster Outcast
+1 Hoard-Smelter Dragon
+1 Opportunistic Dragon
+1 Scourge of Valkas
+1 Shivan Hellkite
+1 Skyline Despot
+1 Skyship Stalker
+1 Taurean Mauler
+1 Terror of Mount Velus
+1 Thunderbreak Regent
+1 Chameleon Colossus
+1 Atarka, World Render
+1 Anger
+1 Dragonlord's Servant
+1 Savage Ventmaw
+1 Dragonspeaker Shaman
+1 Chain Reaction
+1 Rishkar's Expertise
+1 Shamanic Revelation
+1 Rile
+1 Cultivate
+1 Explore
+1 Rampant Growth
+1 Magmaquake
+1 Spit Flame
+1 Decree of Savagery
+1 Kindred Summons
+1 Return of the Wildspeaker
+1 Beast Within
+1 Return to Nature
+1 Dragon's Hoard
+1 Arcane Signet
+1 Commander's Sphere
+1 Gruul Signet
+1 Heirloom Blade
+1 Sol Ring
+1 Gratuitous Violence
+1 Outpost Siege
+1 Warstorm Surge
+1 Colossal Majesty
+1 Garruk's Uprising
+1 Cinder Glade
+1 Crucible of the Spirit Dragon
+1 Exotic Orchard
+1 Game Trail
+1 Haven of the Spirit Dragon
+1 Mossfire Valley
+1 Mosswort Bridge
+1 Command Tower
+1 Desert
+1 Gruul Turf
+1 Path of Ancestry
+12 Mountain
+15 Forest
+1 Klauth, Unrivaled Ancient
+1 Berserker's Frenzy
+1 Chaos Dragon
+1 Maddening Hex
+1 Vengeful Ancestor
+1 Bag of Tricks
+1 Druid of Purification
+1 Indomitable Might
+1 Neverwinter Hydra
+1 Wild Endeavor
+1 Dragonborn Champion
+1 Klauth's Will
+1 Wulfgar of Icewind Dale
+1 Barbarian Class
+1 Earth-Cult Elemental
+1 Component Pouch
+1 Sword of Hours
+1 Underdark Rift`,
+  },
+  afc_dungeons: {
+    label: "Dungeons of Death (Sefris of the Hidden Ways)",
+    set: "Forgotten Realms Commander",
+    bracket: 2,
+    text: `Commander
+1 Sefris of the Hidden Ways
+
+Deck
+1 Cataclysmic Gearhulk
+1 Eternal Dragon
+1 Karmic Guide
+1 Sun Titan
+1 Sunblast Angel
+1 Champion of Wits
+1 Curator of Mysteries
+1 Phantasmal Image
+1 Doomed Necromancer
+1 Ashen Rider
+1 Baleful Strix
+1 Hostage Taker
+1 Solemn Simulacrum
+1 Ronom Unicorn
+1 Wall of Omens
+1 Merfolk Looter
+1 Mulldrifter
+1 Murder of Crows
+1 Plaguecrafter
+1 Reassembling Skeleton
+1 Shriekmaw
+1 Cloudblazer
+1 Necrotic Sliver
+1 Obsessive Stitcher
+1 Burnished Hart
+1 Meteor Golem
+1 Necromantic Selection
+1 Unburial Rites
+1 Victimize
+1 Utter End
+1 Swords to Plowshares
+1 Forbidden Alchemy
+1 Despark
+1 Vanish into Memory
+1 Arcane Signet
+1 Commander's Sphere
+1 Fellwar Stone
+1 Sol Ring
+1 Wayfarer's Bauble
+1 Lightning Greaves
+1 Propaganda
+1 Choked Estuary
+1 Darkwater Catacombs
+1 Exotic Orchard
+1 Geier Reach Sanitarium
+1 High Market
+1 Nimbus Maze
+1 Port Town
+1 Prairie Stream
+1 Sunken Hollow
+1 Evolving Wilds
+1 Arcane Sanctum
+1 Azorius Chancery
+1 Command Tower
+1 Dimir Aqueduct
+1 Esper Panorama
+1 Orzhov Basilica
+1 Terramorphic Expanse
+1 Thriving Heath
+1 Thriving Isle
+1 Thriving Moor
+7 Plains
+5 Island
+7 Swamp
+1 Nihiloor
+1 Immovable Rod
+1 Radiant Solar
+1 Revivify
+1 Thorough Investigation
+1 Arcane Endeavor
+1 Minn, Wily Illusionist
+1 Phantom Steed
+1 Rod of Absorption
+1 Grave Endeavor
+1 Wand of Orcus
+1 Extract Brain
+1 Midnight Pathlighter
+1 Minimus Containment
+1 Hama Pashar, Ruin Seeker
+1 Dungeon Map
+1 Bucknard's Everfull Purse
+1 Clay Golem
+1 Component Pouch`,
+  },
+  afc_portal: {
+    label: "Planar Portal (Prosper, Tome-Bound)",
+    set: "Forgotten Realms Commander",
+    bracket: 2,
+    text: `Commander
+1 Prosper, Tome-Bound
+
+Deck
+1 Chittering Witch
+1 Fiend of the Shadows
+1 Gonti, Lord of Luxury
+1 Marionette Master
+1 Ogre Slumlord
+1 Piper of the Swarm
+1 Pontiff of Blight
+1 Dark-Dweller Oracle
+1 Dire Fleet Daredevil
+1 Dream Pillager
+1 Etali, Primal Storm
+1 Izzet Chemister
+1 Tectonic Giant
+1 Loyal Apprentice
+1 Consuming Vapors
+1 Hex
+1 Apex of Power
+1 Disrupt Decorum
+1 Ignite the Future
+1 Phthisis
+1 Light Up the Stage
+1 Throes of Chaos
+1 Vandalblast
+1 Chaos Warp
+1 Commune with Lava
+1 Bedevil
+1 Bituminous Blast
+1 Rakdos Charm
+1 Terminate
+1 Chaos Wand
+1 Arcane Signet
+1 Commander's Sphere
+1 Fellwar Stone
+1 Mind Stone
+1 Orazca Relic
+1 Rakdos Signet
+1 Sol Ring
+1 Talisman of Indulgence
+1 Unstable Obelisk
+1 Dead Man's Chest
+1 Theater of Horrors
+1 Shiny Impetus
+1 Exotic Orchard
+1 Foreboding Ruins
+1 Shadowblood Ridge
+1 Smoldering Marsh
+1 Spinerock Knoll
+1 Bojuka Bog
+1 Command Tower
+1 Mortuary Mire
+1 Rakdos Carnarium
+1 Tainted Peak
+1 Zhalfirin Void
+14 Swamp
+13 Mountain
+1 Karazikar, the Eye Tyrant
+1 Bag of Devouring
+1 Danse Macabre
+1 Death Tyrant
+1 Grim Hireling
+1 Hellish Rebuke
+1 Lorcan, Warlock Collector
+1 Fiendlash
+1 Reckless Endeavor
+1 Share the Spoils
+1 Wild-Magic Sorcerer
+1 Fevered Suspicion
+1 Hurl Through Hell
+1 Warlock Class
+1 Chaos Channeler
+1 You Find Some Prisoners
+1 Bucknard's Everfull Purse
+1 Ebony Fly
+1 Underdark Rift`,
+  },
+  clb_dissent: {
+    label: "Draconic Dissent (Firkraag, Cunning Instigator)",
+    set: "Battle for Baldur's Gate Commander",
+    bracket: 2,
+    text: `Commander
+1 Firkraag, Cunning Instigator
+
+Deck
+1 Will Kenrith
+1 Rowan Kenrith
+1 Keiga, the Tide Star
+1 Pursued Whale
+1 Sly Instigator
+1 Agitator Ant
+1 Avatar of Slaughter
+1 Brash Taunter
+1 Chaos Dragon
+1 Drakuseth, Maw of Flames
+1 Geode Rager
+1 Goblin Spymaster
+1 Kazuul, Tyrant of the Cliffs
+1 Ryusei, the Falling Star
+1 Territorial Hellkite
+1 Thunder Dragon
+1 Vengeful Ancestor
+1 Warmonger Hellkite
+1 Niv-Mizzet, Parun
+1 Solemn Simulacrum
+1 Steel Hellkite
+1 Stuffy Doll
+1 Burnished Hart
+1 Sprite Dragon
+1 Aether Gale
+1 Curse of the Swine
+1 Blasphemous Act
+1 Chain Reaction
+1 Disrupt Decorum
+1 Compulsive Research
+1 Domineering Will
+1 Reins of Power
+1 Chaos Warp
+1 Midnight Clock
+1 Dragon's Hoard
+1 Arcane Signet
+1 Mind Stone
+1 Wayfarer's Bauble
+1 Bloodthirsty Blade
+1 Fellwar Stone
+1 Hedron Archive
+1 Izzet Signet
+1 Sol Ring
+1 Talisman of Creativity
+1 Dissipation Field
+1 The Akroan War
+1 Psychic Impetus
+1 Shiny Impetus
+1 Curse of Verbosity
+1 Propaganda
+1 Curse of Opulence
+1 Castle Vantress
+1 Desolate Lighthouse
+1 Kher Keep
+1 Temple of Epiphany
+1 Wandering Fumarole
+1 Command Tower
+1 Ash Barrens
+1 Izzet Boilerworks
+1 Myriad Landscape
+1 Path of Ancestry
+1 Prismari Campus
+1 Reliquary Tower
+1 Temple of the False God
+1 Terrain Generator
+12 Island
+12 Mountain
+1 Baeloth Barrityl, Entertainer
+1 Clan Crafter
+1 Artificer Class
+1 Astral Dragon
+1 Mocking Doppelganger
+1 Bothersome Quasit
+1 Death Kiss
+1 Loot Dispute
+1 Spectacular Showdown
+1 Angler Turtle`,
+  },
+  clb_exile: {
+    label: "Exit from Exile (Faldorn, Dread Wolf Herald)",
+    set: "Battle for Baldur's Gate Commander",
+    bracket: 2,
+    text: `Commander
+1 Faldorn, Dread Wolf Herald
+
+Deck
+1 Vivien, Champion of the Wilds
+1 Xenagos, the Reveler
+1 Aurora Phoenix
+1 Bonecrusher Giant
+1 Dire Fleet Daredevil
+1 Dream Pillager
+1 Etali, Primal Storm
+1 Greater Gargadon
+1 Izzet Chemister
+1 Laelia, the Blade Reforged
+1 Tectonic Giant
+1 Urabrask the Hidden
+1 Wild-Magic Sorcerer
+1 Arasta of the Endless Web
+1 Battle Mammoth
+1 End-Raze Forerunners
+1 Hornet Queen
+1 Lovestruck Beast
+1 Managorger Hydra
+1 Sweet-Gum Recluse
+1 Embereth Shieldbreaker
+1 Sakura-Tribe Elder
+1 Bloodbraid Elf
+1 Grumgully, the Generous
+1 Ignite the Future
+1 Jeska's Will
+1 Mizzium Mortars
+1 Ezuri's Predation
+1 Escape to the Wilds
+1 Nature's Lore
+1 Light Up the Stage
+1 Beanstalk Giant
+1 Cultivate
+1 Explore
+1 Kodama's Reach
+1 Search for Tomorrow
+1 Terramorph
+1 Three Visits
+1 Return of the Wildspeaker
+1 Demon Bolt
+1 Beast Within
+1 Natural Reclamation
+1 Chaos Wand
+1 Arcane Signet
+1 Sol Ring
+1 Outpost Siege
+1 Stolen Strategy
+1 Warstorm Surge
+1 Primeval Bounty
+1 Sandwurm Convergence
+1 Castle Embereth
+1 Cinder Glade
+1 Game Trail
+1 Kessig Wolf Run
+1 Mossfire Valley
+1 Mosswort Bridge
+1 Raging Ravine
+1 Spinerock Knoll
+1 Temple of Abandon
+1 Command Tower
+1 Ash Barrens
+1 Blighted Woodland
+1 Gruul Turf
+1 Highland Forest
+1 Myriad Landscape
+1 Temple of the False God
+11 Mountain
+12 Forest
+1 Durnan of the Yawning Portal
+1 Passionate Archaeologist
+1 Delayed Blast Fireball
+1 Nalfeshnee
+1 Green Slime
+1 Journey to the Lost City
+1 Tlincalli Hunter
+1 Venture Forth
+1 Sarevok's Tome
+1 Volcanic Torrent`,
+  },
+  clb_flayers: {
+    label: "Mind Flayarrgh! (Captain N'ghathrod)",
+    set: "Battle for Baldur's Gate Commander",
+    bracket: 2,
+    text: `Commander
+1 Captain N'ghathrod
+
+Deck
+1 Chasm Skulker
+1 Forgotten Creation
+1 Grazilaxx, Illithid Scholar
+1 Hullbreaker Horror
+1 Mind Flayer
+1 Overcharged Amalgam
+1 Sludge Monster
+1 Wharf Infiltrator
+1 Dark Hatchling
+1 Dross Harvester
+1 Guiltfeeder
+1 Hunted Horror
+1 Nighthowler
+1 Nihilith
+1 Sewer Nemesis
+1 Woe Strider
+1 Consuming Aberration
+1 Nemesis of Reason
+1 Phyrexian Revoker
+1 Psychosis Crawler
+1 Spellskite
+1 Dauthi Horror
+1 Dusk Mangler
+1 Phyrexian Rager
+1 Plague Spitter
+1 Ravenous Chupacabra
+1 Fractured Sanity
+1 Crippling Fear
+1 Hex
+1 In Garruk's Wake
+1 Feed the Swarm
+1 Syphon Mind
+1 Extract from Darkness
+1 Pull from Tomorrow
+1 Curtains' Call
+1 Memory Plunder
+1 Fact or Fiction
+1 Drown in the Loch
+1 Arcane Signet
+1 Mind Stone
+1 Dimir Keyrune
+1 Dimir Signet
+1 Everflowing Chalice
+1 Herald's Horn
+1 Lightning Greaves
+1 Mindcrank
+1 Sol Ring
+1 Talisman of Dominance
+1 Thought Vessel
+1 Leyline of Anticipation
+1 Reflections of Littjara
+1 Black Market
+1 Choked Estuary
+1 Creeping Tar Pit
+1 Darkwater Catacombs
+1 Drownyard Temple
+1 Exotic Orchard
+1 Nephalia Drownyard
+1 River of Tears
+1 Sunken Hollow
+1 Temple of Deceit
+1 Command Tower
+1 Ash Barrens
+1 Dimir Aqueduct
+1 Myriad Landscape
+1 Path of Ancestry
+1 Port of Karfell
+1 Rogue's Passage
+1 Tainted Isle
+1 Temple of the False God
+9 Island
+11 Swamp
+1 Zellix, Sanity Flayer
+1 Haunted One
+1 Aboleth Spawn
+1 Endless Evil
+1 Grell Philosopher
+1 Psionic Ritual
+1 Brainstealer Dragon
+1 From the Catacombs
+1 Uchuulon`,
+  },
   blc_army: {
     label: "Animated Army (Bello, Bard of the Brambles)",
     set: "Bloomburrow Commander",

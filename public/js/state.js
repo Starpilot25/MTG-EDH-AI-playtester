@@ -468,7 +468,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['voidCounter', 'deathLoses', 'copyDone', 'tripleVs', 'cantBlockWhile', 'ntGrants', 'noCombatDamageTurn', 'zenosChosen', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['unblockableUntil', 'voidCounter', 'deathLoses', 'copyDone', 'tripleVs', 'cantBlockWhile', 'ntGrants', 'noCombatDamageTurn', 'zenosChosen', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
@@ -564,7 +564,7 @@ export function move(iid, zone, opts = {}) {
         type: 'dies', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token,
         power: power(c), toughness: toughness(c), counters: { ...(c.counters || {}) }, isCommander: c.isCommander, merged: c.merged || [],
         granted: [c.extraText, c.eotText, pairGrant].filter(Boolean).join('\n') || undefined, // "When this creature dies, …" it gained (Rabid Attack)
-        wasBlitzed: c.castMode === 'blitz', wasAttacking: !!c.attacking, wasBlocking: !!c.blocking, dmgBy: c.dmgByTurn === s.turn ? c.dmgBy || [] : [], attached: attachedHere.map((a) => a.iid), attachedCtl: Object.fromEntries(attachedHere.map((a) => [a.iid, a.controller])),
+        wasBlitzed: c.castMode === 'blitz', wasGoaded: isGoaded(c), wasAttacking: !!c.attacking, wasBlocking: !!c.blocking, dmgBy: c.dmgByTurn === s.turn ? c.dmgBy || [] : [], attached: attachedHere.map((a) => a.iid), attachedCtl: Object.fromEntries(attachedHere.map((a) => [a.iid, a.controller])),
       });
     } else if (requested === 'graveyard') queueEvent({ type: 'putIntoGraveyard', iid, def: c.def, controller: c.controller, owner: c.owner, token: c.token, fromBattlefield: true, counters: { ...(c.counters || {}) } });
     queueEvent({ type: 'leaves', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, to: zone, wasAttacking: !!c.attacking, power: isCreature(c) ? power(c) : undefined, creature: isCreature(c), artifact: isType(c, 'Artifact'), counters: { ...(c.counters || {}) }, attached: attachedHere.map((a) => a.iid) });

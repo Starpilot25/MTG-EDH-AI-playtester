@@ -747,6 +747,17 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
       return vals.length ? Math.max(...vals) : 0;
     }
   }
+  // Overgrown Battlement: "for each creature you control with defender"
+  {
+    const km = p.match(/^((?:other |nontoken |untapped |tapped )*(?:[\w-]+ )?)creatures? (you control|your opponents control|an opponent controls|on the battlefield) with (defender|flying|reach|trample|haste|vigilance|deathtouch|lifelink|menace|first strike|double strike|hexproof|indestructible)$/);
+    if (km && G.s) {
+      const h = helpers && helpers.hasKw ? helpers : rulesHelpersObj;
+      const who = km[2] === 'you control' ? [pid] : km[2] === 'on the battlefield' ? seats() : opponents(pid);
+      const f = filterFrom(km[1]);
+      return who.flatMap((w) => G.s.players[w].zones.battlefield.map((i) => G.s.cards[i]))
+        .filter((c) => c && !c.phasedOut && h.isCreature(c) && (!/other/.test(km[1]) || c.iid !== srcIid) && matchesFilter(c, f, h) && h.hasKw(c, km[3])).length;
+    }
+  }
   // Temur Battlecrier: "for each creature you control with power 4 or greater"
   {
     const wm = p.match(/^((?:other |nontoken |untapped |tapped )*(?:[\w-]+ )?)creatures? (you control|your opponents control|an opponent controls|on the battlefield) with (power|toughness|mana value) (\d+) or (greater|less)$/);
@@ -823,6 +834,8 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   if (/^cards? in (?:target opponent's|an opponent's) hand/.test(p)) return inHand(opp);
   if (/^cards? in all graveyards/.test(p)) return seats().reduce((a, k) => a + gy(k).length, 0);
   if (/^creature cards in all graveyards/.test(p)) return seats().flatMap(gy).filter((c) => /Creature/.test(DB[c.def].typeLine)).length;
+  // Sewer Nemesis: "the number of cards in the chosen player's graveyard"
+  if (/^cards in the chosen player's graveyard$/.test(p)) { const me = srcIid && G.s && G.s.cards[srcIid]; const cp = me && (me.chosenPlayers || [])[0]; return cp ? gy(cp).length : 0; }
   if (/^creature cards in your graveyard/.test(p)) return gy(pid).filter((c) => /Creature/.test(DB[c.def].typeLine)).length;
   if (/^(?:instant and sorcery|instant or sorcery) cards in your graveyard/.test(p)) return gy(pid).filter((c) => /Instant|Sorcery/.test(DB[c.def].typeLine)).length;
   if (/^land cards in your graveyard/.test(p)) return gy(pid).filter((c) => /Land/.test(DB[c.def].typeLine)).length;

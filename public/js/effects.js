@@ -4940,8 +4940,130 @@ on(/^until end of turn, target creature with defender gains haste, can attack as
   t.toughDmgTurn = G.s.turn;
   env.did.push(`${nameTag(t)} can attack this turn, with haste, dealing damage equal to its toughness`);
 }, { first: true });
+// Domineering Will
+on(/^target player gains control of up to three target nonattacking creatures until end of turn\. untap those creatures\. they block this turn if able$/, async (m, env) => {
+  const [pl] = await playerTarget(env, 'target player', false);
+  if (!pl) return env.did.push('has no target player');
+  const objs = await objects(env, 'up to three target nonattacking creatures', { harm: pl === env.me });
+  if (!objs.length) env.did.push('takes no creatures');
+  for (const c of objs.filter((x) => !x.attacking)) {
+    const prev = c.controller;
+    if (prev !== pl) {
+      move(c.iid, 'battlefield', { controller: pl });
+      c.zone = 'battlefield';
+      G.s.delayed.push({ at: 'cleanup', kind: 'returnControl', iid: c.iid, pid: prev });
+    }
+    c.tapped = false;
+    c.mustBlockTurn = G.s.turn;
+    env.did.push(`${who(pl)} ${s_(pl, 'gain')} ${nameTag(c)} until end of turn; it blocks if able`);
+  }
+}, { first: true, multi: true });
+// Ebony Fly
+on(/^(?:until end of turn, )?(?:you may )?have ~ become an x\/x insect artifact creature with flying(?:, where x is the result)?(?: until end of turn)?$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  const x = env.roll || 0;
+  if (!c || c.zone !== 'battlefield') return;
+  if (!(await env.choosers[env.me].confirm(cardName(c), `Have ${cardName(c)} become a ${x}/${x} flying Insect artifact creature until end of turn?`, {}))) return env.did.push('stays an artifact');
+  c.animated = { ts: nextStamp(), p: x, t: x, types: 'Artifact Creature — Insect', until: 'eot', setsPT: true };
+  c.eotGrants = [...(c.eotGrants || []), 'flying'];
+  env.did.push(`${nameTag(c)} becomes a ${x}/${x} flying Insect until end of turn`);
+}, { first: true });
+// From the Catacombs
+on(/^put target creature card from a graveyard onto the battlefield under your control with a corpse counter on it$/, async (m, env) => {
+  const pool = seats().flatMap((pid) => cardsIn(pid, 'graveyard')).filter((c) => /Creature/.test(DB[c.def].faces[0].typeLine || ''));
+  if (!pool.length) return env.did.push('finds no creature card in a graveyard');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Put a creature card from a graveyard onto the battlefield with a corpse counter', cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'reanimate', src: env.src, aiScore: (c) => cardValue(c) });
+  if (!p) return;
+  toBattlefield(p, env.me);
+  const c = card(p);
+  if (c) { addCounters(c, 'corpse', 1); if (/would leave the battlefield, exile it instead/i.test(env.fullText || env.text || '')) c.exileIfLeaves = true; }
+  env.it = { iid: p };
+  env.did.push(`puts ${nameTag(c)} onto the battlefield with a corpse counter`);
+}, { first: true });
+on(/^if that creature would leave the battlefield, exile it instead of putting it anywhere else$/, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  if (c && c.zone === 'battlefield') c.exileIfLeaves = true;
+  env.did.handled = true;
+}, { first: true });
+// Green Slime
+on(/^counter target activated or triggered ability from an artifact or enchantment source\. if a permanent's ability is countered this way, destroy that permanent$/, async (m, env) => {
+  const slots = [G.s.stack, G.s.pstack].filter((x) => x && x.ability);
+  const st = slots.find((x) => { const c = card(x.iid); return c && /\b(?:Artifact|Enchantment)\b/.test((DB[c.def].faces[c.face || 0].typeLine || "")); });
+  if (!st) return env.did.push('has no artifact or enchantment ability to counter');
+  st.countered = true;
+  const src = card(st.iid);
+  env.did.push(`counters ${whose(src)} ${nameTag(src)}'s ability`);
+  if (src && src.zone === 'battlefield') { destroy(src.iid); env.did.push(`destroys ${nameTag(src)}`); }
+}, { first: true, multi: true });
+on(/^activate only during your upkeep$/, async (m, env) => { env.did.handled = true; }, { first: true }); // Eternal Dragon (checked when activating)
+// Grell Philosopher: the blue-mana rider (mana is spent by hand when needed)
+on(/^(?:you may )?spend blue mana as though it were mana of any color to activate those abilities$/, async (m, env) => { env.did.handled = true; }, { first: true });
+// Rod of Absorption
+on(/^(?:you may )?cast any number of spells from among cards exiled with ~ with total mana value x or less without paying their mana costs$/, async (m, env) => {
+  const cf = env.castFree || T.castFree;
+  let left = env.x || 0, k = 0;
+  for (;;) {
+    const pool = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && c.exiledWith === (env.src || {}).iid && (DB[c.def].cmc || 0) <= left);
+    if (!pool.length || !cf) break;
+    const [p] = await env.choosers[env.me].pickCards({ prompt: `Cast a spell exiled with ${cardName(env.src)} for free (${left} mana value left, or stop)`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'castFree', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
+    if (!p) break;
+    left -= DB[card(p).def].cmc || 0;
+    k++;
+    await cf(env.me, p, {});
+  }
+  env.did.push(k ? `casts ${k} spell${k === 1 ? '' : 's'} for free` : 'casts nothing');
+}, { first: true });
+// Sly Instigator
+on(/^until your next turn, target creature an opponent controls can't be blocked\. goad that creature$/, async (m, env) => {
+  const [t] = await objects(env, 'target creature an opponent controls', { harm: true });
+  if (!t) return env.did.push('has no target');
+  t.unblockableUntil = nextTurnNumber(env.me);
+  goad(t, env.me);
+  env.did.push(`${nameTag(t)} can't be blocked and is goaded until ${possOf(env.me)} next turn`);
+}, { first: true, multi: true });
+// Will Kenrith −2
+on(/^target player draws two cards\. until your next turn, instant, sorcery, and planeswalker spells that player casts cost \{2\} less to cast$/, async (m, env) => {
+  const [pl] = await playerTarget(env, 'target player', false);
+  if (!pl) return;
+  draw(pl, 2);
+  G.s.costLessUntil = [...(G.s.costLessUntil || []).filter((r) => r.until > G.s.turn), { pid: pl, until: nextTurnNumber(env.me), n: 2, types: 'Instant|Sorcery|Planeswalker' }];
+  env.did.push(`${who(pl)} ${s_(pl, 'draw')} two cards; ${possOf(pl)} instants, sorceries and planeswalkers cost {2} less until ${possOf(env.me)} next turn`);
+}, { first: true, multi: true });
+// Xenagos, the Reveler −6
+on(/^exile the top seven cards of your library\. you may put any number of creature and\/or land cards from among them onto the battlefield$/, async (m, env) => {
+  const ids = libTop(env.me, 7);
+  for (const i of ids) move(i, 'exile');
+  const pool = ids.filter((i) => card(i) && /\b(?:Creature|Land)\b/.test(DB[card(i).def].faces[0].typeLine || ''));
+  const picks = pool.length ? await env.choosers[env.me].pickCards({ prompt: 'Put any number of creature and/or land cards onto the battlefield', cards: pool, min: 0, max: pool.length, purpose: 'put', src: env.src, aiScore: () => 1 }) : [];
+  for (const p of picks) toBattlefield(p, env.me);
+  env.did.push(`exiles ${ids.length} and puts ${picks.length} onto the battlefield`);
+}, { first: true, multi: true });
+// Journey to the Lost City
+const thoseCards = (env) => (env.them_ || []).filter((i) => card(i) && card(i).zone === 'exile');
+on(/^(?:you may )?put a land card from among those cards onto the battlefield$/, async (m, env) => {
+  const pool = thoseCards(env).filter((i) => /\bLand\b/.test(DB[card(i).def].faces[0].typeLine || ''));
+  const [p] = pool.length ? await env.choosers[env.me].pickCards({ prompt: 'Put a land card onto the battlefield', cards: pool, min: 0, max: 1, purpose: 'put', src: env.src, aiScore: () => 1 }) : [];
+  if (!p) return env.did.push('puts no land onto the battlefield');
+  toBattlefield(p, env.me);
+  env.did.push(`puts ${nameTag(card(p))} onto the battlefield`);
+}, { first: true });
+on(/^create a 2\/2 green wolf creature token, then put a \+1\/\+1 counter on it for each creature card among those cards$/, async (m, env) => {
+  const k = thoseCards(env).filter((i) => /\bCreature\b/.test(DB[card(i).def].faces[0].typeLine || '')).length;
+  env.them_keep = env.them_;
+  await runSentence('create a 2/2 green wolf creature token', env);
+  const tok = env.it && card(env.it.iid);
+  if (tok && k) addCounters(tok, '+1/+1', k, { by: env.me });
+  env.them_ = env.them_keep;
+  env.did.push(`puts ${k} +1/+1 counter${k === 1 ? '' : 's'} on the Wolf`);
+}, { first: true, multi: true });
+on(/^put all permanent cards exiled with ~ onto the battlefield, then sacrifice (?:it|~)$/, async (m, env) => {
+  const ids = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && c.exiledWith === (env.src || {}).iid && /\b(?:Artifact|Creature|Enchantment|Land|Planeswalker|Battle)\b/.test(DB[c.def].faces[0].typeLine || '')).map((c) => c.iid);
+  for (const i of ids) toBattlefield(i, env.me);
+  if (env.src && card(env.src.iid) && card(env.src.iid).zone === 'battlefield') sacrifice(env.src.iid);
+  env.did.push(`puts ${ids.length} permanent card${ids.length === 1 ? '' : 's'} onto the battlefield and sacrifices ${nameTag(env.src)}`);
+}, { first: true, multi: true });
 // Forger's Foundry
-on(/^(?:you may )?cast any number of spells from among cards exiled with ~ without paying their mana costs$/, async (m, env) => {
+on(/^(?:you may )?cast any number of (?:spells from among )?cards exiled with ~ without paying their mana costs$/, async (m, env) => {
   const cf = env.castFree || T.castFree;
   let k = 0;
   for (;;) {

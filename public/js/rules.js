@@ -1754,6 +1754,7 @@ export function canBlock(blocker, attacker) {
   if (/(?:^|\n|\. )[^.\n]*can't be blocked\.?(?:$|\n)/.test(ao)) return false;
   // Whispersilk Cloak, Rogue's Passage-style grants: "Equipped creature can't be blocked and has shroud." / "Enchanted creature can't be blocked."
   if (G.s && Object.values(G.s.cards).some((x) => x.attachedTo === attacker.iid && x.zone === 'battlefield' && !abilitiesGone(x) && /(?:^|\n)(?:Equipped|Enchanted) creature (?:gets [+-]\d+\/[+-]\d+,? (?:and )?)?can't be blocked(?:\.| and )/i.test(oracle(x)))) return false;
+  if (attacker.unblockableUntil && G.s && attacker.unblockableUntil > G.s.turn) return false; // Sly Instigator: until your next turn
   if (attacker.unblockableTurn === (G.s && G.s.turn) && !(attacker.unblockableExcept && hasKw(blocker, attacker.unblockableExcept))) return false;
   if (attacker.unblockableColor && G.s && attacker.unblockableColor.turn === G.s.turn && colorsOf(blocker).includes({ white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }[attacker.unblockableColor.color])) return false; // Skrelv
   if (attacker.unblockableBy && G.s && attacker.unblockableBy.turn === G.s.turn && attacker.unblockableBy.pid === blocker.controller) return false; // The Black Gate
@@ -2007,7 +2008,7 @@ export function combatDamage(cards, attackers, blocks, defender, ownerOf, target
 }
 
 // handed to statics.js so it can test types without importing this module's state
-export const helpers = { typeLine, hasSubtype, isCreature, power, toughness };
+export const helpers = { typeLine, hasSubtype, isCreature, power, toughness, hasKw };
 
 // combat damage a creature assigns: its power, or its toughness (Kingpin of Crime, "assigns combat damage equal to its toughness")
 export function combatDmgOf(c) {

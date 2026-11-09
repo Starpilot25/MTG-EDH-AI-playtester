@@ -564,6 +564,8 @@ function genericAdjust(pid, c, opt) {
   if ((m = o.match(/Affinity for ([^\n(]+)/i))) delta -= countPhrase(pid, m[1].trim() + ' you control', helpers, c.iid) || 0;
   // Spellbinding Soprano: instants and sorceries cost {1} less this turn
   if (G.s.isDiscount && G.s.isDiscount[pid] && G.s.isDiscount[pid].turn === G.s.turn && /\b(?:Instant|Sorcery)\b/.test(f.typeLine || d.typeLine || '')) delta -= G.s.isDiscount[pid].n;
+  // Will Kenrith −2: "Until your next turn, instant, sorcery, and planeswalker spells that player casts cost {2} less to cast."
+  for (const r of (G.s.costLessUntil || [])) if (r.pid === pid && r.until > G.s.turn && new RegExp(`\\b(?:${r.types})\\b`).test(f.typeLine || d.typeLine || '')) delta -= r.n;
   // Mutated Cultist: "The next spell you cast this turn costs {1} less for each counter removed this way."
   if (G.s.nextSpellLess && G.s.nextSpellLess[pid] && G.s.nextSpellLess[pid].turn === G.s.turn && (!G.s.nextSpellLess[pid].isOnly || /\b(?:Instant|Sorcery)\b/.test(f.typeLine || d.typeLine || ''))) delta -= G.s.nextSpellLess[pid].n; // Kaza: instants and sorceries only
   // Don & Raph: "the next noncreature spell you cast this turn has affinity for artifacts"
@@ -2206,6 +2208,7 @@ export async function activateAbility(pid, c, ab, env) {
   if (/Activate only during your turn/i.test(ab.raw || ab.text || '') && s.active !== pid) return env.say('Activate only during your turn.');
   c.usedAbilities = c.usedAbilities || {};
   if (ab.once && c.usedAbilities[ab.raw] === (ab.exhaust ? 'ever' : s.turn)) return env.say('Already used.');
+  if (/Activate only during your upkeep/i.test(ab.text || '') && !(s.step === 'upkeep' && s.active === pid)) return env.say('Only during your upkeep.'); // Eternal Dragon
   const lifeCost = ab.payLife === 'identity' ? identityColors(pid) : +ab.payLife || 0;
   if (ab.payLife && s.players[pid].life < lifeCost) return env.say('Not enough life.');
   if (ab.payEnergy && s.players[pid].counters.energy < ab.payEnergy) return env.say('Not enough energy.');
@@ -2337,7 +2340,7 @@ export async function activateAbility(pid, c, ab, env) {
   await settle();
   if (G.s !== s) return true;
   const copiers = abilityCopiers(pid, c);
-  const abText = ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim();
+  const abText = ab.text.replace(/Activate only (?:as a sorcery|once each turn|during your upkeep)[^.]*\.?/gi, '').trim();
   if (await announceAbility(pid, srcSnap, abText, env)) return true;
   if (env.render) env.render(); // show the costs as paid (the source tapped, mana spent) while the ability resolves
   // copies made while it's on the stack (Rings of Brighthearth, Kurkesh, Lithoform Engine…) resolve first
@@ -2353,7 +2356,7 @@ export async function activateAbility(pid, c, ab, env) {
     if (env.choosers[pid] && env.choosers[pid].plan) env.choosers[pid].plan = null;
   }
   log(pid, did.length ? `${nameTag(srcSnap)}: ${did.join('; ')}.` : did.handled ? `${nameTag(srcSnap)}: nothing happens.` : `Apply “${esc(ab.text.slice(0, 90))}” by hand.`);
-  await copyAbility(pid, ab.text.replace(/Activate only (?:as a sorcery|once each turn)[^.]*\.?/gi, '').trim(), srcSnap, ctx({ x }), copiers);
+  await copyAbility(pid, ab.text.replace(/Activate only (?:as a sorcery|once each turn|during your upkeep)[^.]*\.?/gi, '').trim(), srcSnap, ctx({ x }), copiers);
   return true;
 }
 
