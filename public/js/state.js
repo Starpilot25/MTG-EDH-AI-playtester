@@ -468,7 +468,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['voidCounter', 'copyDone', 'tripleVs', 'cantBlockWhile', 'ntGrants', 'noCombatDamageTurn', 'zenosChosen', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['voidCounter', 'deathLoses', 'copyDone', 'tripleVs', 'cantBlockWhile', 'ntGrants', 'noCombatDamageTurn', 'zenosChosen', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
@@ -509,6 +509,7 @@ export function move(iid, zone, opts = {}) {
   }
   // Yawgmoth's Will: "If a card would be put into your graveyard from anywhere this turn, exile that card instead."
   if (zone === 'graveyard' && !c.token && (s.yawgWill || []).some((x) => x.turn === s.turn && x.pid === c.owner)) zone = requested = 'exile';
+  if (fromZone === 'battlefield' && zone === 'graveyard' && c.deathLoses && isCreature(c)) { const ow = c.owner; delete c.deathLoses; loseGame(ow, 'The Deck of Many Things'); }
   // a melded permanent leaving the battlefield: its two cards go to that zone instead (Brisela, Hanweir)
   if (fromZone === 'battlefield' && zone !== 'battlefield' && c.meldParts) {
     const parts = c.meldParts;

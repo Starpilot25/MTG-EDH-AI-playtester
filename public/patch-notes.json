@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.224",
+    "title": "11 more precons",
+    "notes": [
+      "New precons: Bloomburrow (Animated Army, Family Matters, Peace Offering), Outlaws of Thunder Junction (Grand Larceny, Quick Draw), Edge of Eternities (Counter Intelligence), Murders at Karlov Manor (Deep Clue Sea, Blame Game, Revenant Recon), Tarkir: Dragonstorm (Abzan Armor, Sultai Arisen). Every set's full set of decks is now available. Lists are the official Wizards decklists.",
+      "Fixed cards in those decks: Jolly Gerbils, Kishla Skimmer, Kaza, Leyline Dowser, Moxite Refinery, Tezzeret, Betrayer of Flesh's −2, Lonis, Enhanced Surveillance, Tree of Redemption, Wakestone Gargoyle, Walking Bulwark, Forger's Foundry.",
+      "Disciple of Bolas and other \"where X is that creature's power\" effects use the sacrificed creature's power. Before, X was 0.",
+      "The Deck of Many Things' reanimation result works."
+    ]
+  },
+  {
     "version": "1.3.223",
     "title": "Clones put onto the battlefield",
     "notes": [

@@ -565,7 +565,7 @@ function genericAdjust(pid, c, opt) {
   // Spellbinding Soprano: instants and sorceries cost {1} less this turn
   if (G.s.isDiscount && G.s.isDiscount[pid] && G.s.isDiscount[pid].turn === G.s.turn && /\b(?:Instant|Sorcery)\b/.test(f.typeLine || d.typeLine || '')) delta -= G.s.isDiscount[pid].n;
   // Mutated Cultist: "The next spell you cast this turn costs {1} less for each counter removed this way."
-  if (G.s.nextSpellLess && G.s.nextSpellLess[pid] && G.s.nextSpellLess[pid].turn === G.s.turn) delta -= G.s.nextSpellLess[pid].n;
+  if (G.s.nextSpellLess && G.s.nextSpellLess[pid] && G.s.nextSpellLess[pid].turn === G.s.turn && (!G.s.nextSpellLess[pid].isOnly || /\b(?:Instant|Sorcery)\b/.test(f.typeLine || d.typeLine || ''))) delta -= G.s.nextSpellLess[pid].n; // Kaza: instants and sorceries only
   // Don & Raph: "the next noncreature spell you cast this turn has affinity for artifacts"
   else if (G.s.affinityNext && G.s.affinityNext[pid] === G.s.turn && !/\bCreature\b/.test((f.typeLine || d.typeLine || '').split('—')[0]) && !/\bLand\b/.test(f.typeLine || d.typeLine || '')) delta -= cardsIn(pid, 'battlefield').filter((x) => isType(x, 'Artifact')).length;
   const nOpp = opponents(pid).filter((k) => G.s.players[k] && !G.s.players[k].lost).length;
@@ -774,6 +774,7 @@ export async function castSpell(pid, iid, opt, env) {
   }
   const gift = o.match(/(?:^|\n)Gift an? ([^\n(]+)/i);
   if (gift) info.gift = await ch.confirm(label, `Promise the gift (${gift[1].trim()}) to your opponent?`, { gift: true });
+  if (info.gift) queueEvent({ type: 'giftGiven', pid }); // Jolly Gerbils: "Whenever you give a gift"
   if (/(?:^|\n)Bargain\b/.test(o)) {
     const pool = cardsIn(pid, 'battlefield').filter((x) => isType(x, 'Artifact') || isType(x, 'Enchantment') || x.token);
     if (pool.length && (await ch.confirm(label, 'Bargain: sacrifice an artifact, enchantment, or token?', { bargain: true }))) {
@@ -1004,7 +1005,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (s.affinityNext && s.affinityNext[pid] === s.turn && !isCreature(c)) delete s.affinityNext[pid];
   if (s.convokeNext && s.convokeNext[pid] === s.turn && !opt.copy) delete s.convokeNext[pid];
   if (s.improviseNext && s.improviseNext[pid] === s.turn && !opt.copy) delete s.improviseNext[pid]; // Archway of Innovation
-  if (s.nextSpellLess && s.nextSpellLess[pid] && !opt.copy) delete s.nextSpellLess[pid];
+  if (s.nextSpellLess && s.nextSpellLess[pid] && !opt.copy && (!s.nextSpellLess[pid].isOnly || /\b(?:Instant|Sorcery)\b/.test(DB[c.def].faces[c.face || 0].typeLine || ''))) delete s.nextSpellLess[pid];
   for (const x of s.noCounter || []) if (x.next && !x.iid && x.pid === pid && x.turn === s.turn && !opt.copy) x.iid = c.iid; // Mistrise Village
   if (s.undauntedNext && s.undauntedNext[pid] && !opt.copy) {
     const slot = undauntedSlot(s.undauntedNext[pid], (DB[c.def].faces[opt.face || 0] || DB[c.def].faces[0]).typeLine || DB[c.def].typeLine || '');

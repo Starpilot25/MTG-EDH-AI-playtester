@@ -2013,6 +2013,7 @@ export const helpers = { typeLine, hasSubtype, isCreature, power, toughness };
 export function combatDmgOf(c) {
   if (c && c.noCombatDamageTurn === (G.s && G.s.turn)) return 0; // Master of Cruelties
   if (/assigns combat damage equal to its toughness/i.test(oracle(c))) return toughness(c);
+  if (c.toughDmgTurn === (G.s && G.s.turn)) return toughness(c); // Walking Bulwark
   const td = G.s && G.s.toughDmg && G.s.toughDmg[c.controller];
   if (td === G.s.turn && toughness(c) > power(c)) return toughness(c);
   return power(c);

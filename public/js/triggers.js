@@ -575,6 +575,12 @@ function parseTriggerText(text, speed) {
       add('combatDamagePlayer', m[1], { anyOfMine: true, faceUpTurn: true });
     else if ((m = line.match(/^Whenever an enchanted creature you control deals combat damage to a player, (.+)$/i)))
       add('combatDamagePlayer', m[1], { anyOfMine: true, enchanted: true });
+    // Kishla Skimmer: "Whenever a card leaves your graveyard during your turn, draw a card. This ability triggers only once each turn."
+    else if ((m = line.match(/^Whenever a card leaves your graveyard during your turn, (.+?)(?: This ability triggers only once each turn\.)?$/i)))
+      add('leftGraveyard', m[1], { mine: true, myTurn: true, oncePerTurn: true });
+    // Jolly Gerbils: "Whenever you give a gift"
+    else if ((m = line.match(/^Whenever you give a gift, (.+)$/i)))
+      add('giftGiven', m[1], { mine: true });
     else if ((m = line.match(/^Whenever one or more (?:other )?cards? leave your graveyard, (.+)$/i)))
       add('leftGraveyard', m[1], { mine: true }); // Advanced Reconstruction (level 2)
     // Cyan, Grim Reaper's Scythe: "Whenever one or more creature cards leave your graveyard"
@@ -2480,8 +2486,11 @@ function matches(ev) {
       if (sc && sc.zone === 'battlefield') for (const trig of triggersOf(sc)) if (trig.event === 'stateCounters' && trig.raw === ev.raw) out.push({ src: sc, trig });
       break;
     }
+    case 'giftGiven':
+      each((c, trig) => trig.event === 'giftGiven' && c.controller === ev.pid && out.push({ src: c, trig }));
+      break;
     case 'leftGraveyard':
-      each((c, trig) => trig.event === 'leftGraveyard' && c.controller === ev.owner && (!trig.kind || (ev.defs || [ev.def]).some((df) => df && DB[df] && (trig.kind === 'nonland' ? !/\bLand\b/.test(DB[df].typeLine || '') : trig.kind === 'permanent' ? /Artifact|Creature|Enchantment|Land|Planeswalker|Battle/.test(DB[df].typeLine || '') : new RegExp(trig.kind.split(' ')[0], 'i').test(DB[df].typeLine || '')))) && out.push({ src: c, trig, amount: ev.n }));
+      each((c, trig) => trig.event === 'leftGraveyard' && (!trig.myTurn || G.s.active === c.controller) && (!trig.oncePerTurn || c.onceTurn !== G.s.turn) && c.controller === ev.owner && (!trig.kind || (ev.defs || [ev.def]).some((df) => df && DB[df] && (trig.kind === 'nonland' ? !/\bLand\b/.test(DB[df].typeLine || '') : trig.kind === 'permanent' ? /Artifact|Creature|Enchantment|Land|Planeswalker|Battle/.test(DB[df].typeLine || '') : new RegExp(trig.kind.split(' ')[0], 'i').test(DB[df].typeLine || '')))) && (trig.oncePerTurn ? (c.onceTurn = G.s.turn) : 0, out.push({ src: c, trig, amount: ev.n })));
       break;
     case 'explored':
     case 'connived':
