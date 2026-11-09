@@ -747,6 +747,17 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
       return vals.length ? Math.max(...vals) : 0;
     }
   }
+  // Mantle of the Ancients: "for each Aura and Equipment attached to it" (it = the creature this is attached to)
+  {
+    const am = p.match(/^(auras?(?: and(?:\/or)? equipment)?|equipment) attached to (it|enchanted creature|equipped creature|~)$/);
+    if (am && G.s && srcIid) {
+      const me = G.s.cards[srcIid];
+      const host = me ? (am[2] === '~' ? me.iid : me.attachedTo || me.iid) : null;
+      if (!host) return 0;
+      const wantA = /aura/.test(am[1]), wantE = /equipment/.test(am[1]);
+      return Object.values(G.s.cards).filter((x) => x.zone === 'battlefield' && x.attachedTo === host && ((wantA && /\bAura\b/.test(DB[x.def].typeLine || '')) || (wantE && /\bEquipment\b/.test(DB[x.def].typeLine || '')))).length;
+    }
+  }
   // Zinnia, Valley's Voice: "other creatures you control with base power 1"
   {
     const bm = p.match(/^(other )?creatures? (you control|your opponents control|on the battlefield) with base power (\d+)(?: or (greater|less))?$/);

@@ -4942,6 +4942,20 @@ on(/^until end of turn, target creature with defender gains haste, can attack as
 }, { first: true });
 // Nalfeshnee: handled by "copy it" above
 on(/^if it's a permanent spell, the copy gains haste and "at the beginning of the end step, sacrifice (?:~|this permanent)\.?"$/, async (m, env) => { env.did.handled = true; }, { first: true });
+// Mantle of the Ancients
+on(/^return any number of target aura and\/or equipment cards from your graveyard to the battlefield attached to enchanted creature$/, async (m, env) => {
+  const host = env.src && card(env.src.iid) && card(env.src.iid).attachedTo && card(card(env.src.iid).attachedTo);
+  if (!host || host.zone !== 'battlefield') return env.did.push('has no enchanted creature');
+  const pool = cardsIn(env.me, 'graveyard').filter((c) => /\b(?:Aura|Equipment)\b/.test(DB[c.def].faces[0].typeLine || ''));
+  if (!pool.length) return env.did.push('finds no Aura or Equipment cards');
+  const picks = await env.choosers[env.me].pickCards({ prompt: `Return any number of Aura and/or Equipment cards attached to ${cardName(host)}`, cards: pool.map((c) => c.iid), min: 0, max: pool.length, purpose: 'reanimate', src: env.src, aiScore: () => 1 });
+  for (const i of picks) {
+    toBattlefield(i, env.me);
+    const c = card(i);
+    if (c && c.zone === 'battlefield') attachTo(c, host);
+  }
+  env.did.push(picks.length ? `returns ${picks.map((i) => nameTag(card(i))).join(', ')} attached to ${nameTag(host)}` : 'returns nothing');
+}, { first: true });
 // Domineering Will
 on(/^target player gains control of up to three target nonattacking creatures until end of turn\. untap those creatures\. they block this turn if able$/, async (m, env) => {
   const [pl] = await playerTarget(env, 'target player', false);

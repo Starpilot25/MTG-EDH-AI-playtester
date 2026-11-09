@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.230",
+    "title": "Clay Golem, Mantle of the Ancients",
+    "notes": [
+      "Clay Golem: activating it now rolls the d8, and it becomes monstrous with that many +1/+1 counters (before, it got none). Any ability with \"Roll a die\" in its cost works the same way.",
+      "Mantle of the Ancients: returns the Aura and Equipment cards you pick from your graveyard attached to the enchanted creature, and gives +1/+1 for each Aura and Equipment attached to it (the Mantle included)."
+    ]
+  },
+  {
     "version": "1.3.229",
     "title": "Zinnia, and smarter use of Signets and filter lands",
     "notes": [

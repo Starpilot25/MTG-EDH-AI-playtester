@@ -2262,6 +2262,8 @@ export async function activateAbility(pid, c, ab, env) {
     applyPayment(pid, p);
   }
   if (/Waterbend/i.test(ab.costText || '')) noteBend(pid, 'waterbend');
+  // Clay Golem: "{6}, Roll a d8: Monstrosity X, where X is the result." — the roll is part of the cost
+  { const rm = (ab.costText || '').match(/Roll an? d(\d+)/i); if (rm) { const sides = +rm[1]; const r = 1 + Math.floor(Math.random() * sides); queueEvent({ type: 'dieRolled', pid, sides, result: r }); log(pid, `${nameTag(c)}: ${pid === 'p' ? 'you roll' : seatName(pid) + ' rolls'} a d${sides}: ${r}.`); x = r; } }
   // other costs
   if (ab.tapOther) {
     if (!(await payOtherCost(pid, `tap ${tapK} untapped ${ab.tapOther[2].toLowerCase().replace(/ you control$/, '')} you control`, c, env))) throw new Cancelled();
