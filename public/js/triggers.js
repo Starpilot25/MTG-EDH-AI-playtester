@@ -363,14 +363,14 @@ function parseTriggerText(text, speed) {
       add('turnedFaceUp', m[1], { self: true });
     } else if ((m = line.match(/^Whenever a source deals damage to ~, (.+)$/i))) {
       add('dealtDamage', m[1], { self: true }); // Phyrexian Obliterator
-    } else if ((m = line.match(/^Whenever ~ is dealt damage, (.+)$/i))) {
+    } else if ((m = line.match(/^When(?:ever)? ~ is dealt damage, (.+)$/i))) {
       add('dealtDamage', m[1], { self: true });
     } else if ((m = line.match(/^Whenever (?:enchanted|equipped) creature is dealt damage, (.+)$/i))) {
       add('dealtDamage', m[1], { attachedTo: true });
     } else if ((m = line.match(/^Whenever ~ deals (\w+) or more damage, (.+)$/i))) {
       // Spinneret and Spiderling: "Whenever ~ deals 4 or more damage"
       add('dealsDamage', m[2], { self: true, minAmount: /^\d+$/.test(m[1]) ? +m[1] : { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7 }[m[1].toLowerCase()] || 1 });
-    } else if ((m = line.match(/^Whenever ~ deals damage(?: to a player| to an opponent)?, (.+)$/i)) && !/combat damage/i.test(line)) {
+    } else if ((m = line.match(/^When(?:ever)? ~ deals damage(?: to a player| to an opponent)?, (.+)$/i)) && !/combat damage/i.test(line)) {
       add(/to a player|to an opponent/i.test(line) ? 'dealsDamagePlayer' : 'dealsDamage', m[1], { self: true, oppOnly: /to an opponent/i.test(line) });
     } else if ((m = line.match(/^Whenever (?:enchanted|equipped) creature deals damage, (.+)$/i))) {
       add('dealsDamage', m[1], { attachedTo: true });
@@ -2298,6 +2298,17 @@ function matches(ev) {
         if (trig.self && c.iid === ev.iid) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player, it: ev.other ? { iid: ev.other } : null });
         else if (trig.attachedTo && c.attachedTo === ev.iid) out.push({ src: c, trig, amount: ev.amount, thatPlayer: ev.player, it: { iid: ev.iid } });
       });
+      // Enrage on a creature the damage killed (Vrondiss, Ripjaw Raptor): it left the battlefield, but its own "whenever ~ is dealt damage" still triggers
+      if (ev.type === 'dealtDamage') {
+        const dc = card(ev.iid);
+        if (dc && dc.zone !== 'battlefield' && !dc.phasedOut) {
+          const lk = { ...dc, zone: 'battlefield' };
+          for (const trig of triggersOf(lk)) {
+            if (trig.event !== 'dealtDamage' || !trig.self || (trig.noncombat && ev.combat) || (trig.minAmount && (ev.amount || 0) < trig.minAmount)) continue;
+            out.push({ src: dc, trig, amount: ev.amount, thatPlayer: ev.player, it: ev.other ? { iid: ev.other } : null, controller: ev.controller || dc.controller });
+          }
+        }
+      }
       break;
     case 'exiledBatch':
       each((c, trig) => {

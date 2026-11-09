@@ -6183,7 +6183,7 @@ export function damagePermanent(env, source, c, amount, log_) {
   env.lastAmount = amount;
   if (isCreature(c)) (env.damagedThisWay = env.damagedThisWay || []).push(c.iid);
   if (log_) env.did.push(`deals ${amount} damage to ${whose(c)} ${nameTag(c)}`);
-  queueEvent({ type: 'dealtDamage', iid: c.iid, amount, other: source && source.iid });
+  queueEvent({ type: 'dealtDamage', iid: c.iid, amount, other: source && source.iid, controller: c.controller });
   if (source && source.iid) (G.s.dmgPairs = G.s.dmgPairs || {})[source.iid + '>' + c.iid] = G.s.turn;
   if (source && source.iid) queueEvent({ type: 'dealsDamage', iid: source.iid, amount, other: c.iid });
 }

@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.228",
+    "title": "Vrondiss and enrage",
+    "notes": [
+      "Vrondiss (and other enrage creatures): when the damage kills it, its \"whenever this is dealt damage\" ability still triggers. Before, a dying Vrondiss made no Dragon Spirit.",
+      "Vrondiss's Dragon Spirit tokens are now sacrificed after they deal damage (\"When this token deals damage\" wasn't recognized). Other \"When ~ deals damage\" abilities are fixed too."
+    ]
+  },
+  {
     "version": "1.3.227",
     "title": "Aboleth Spawn, Nalfeshnee, Dissipation Field, Green Slime",
     "notes": [

@@ -1322,7 +1322,7 @@ function applyCombat(attackers, blocks, defender, targets = {}) {
     if (ev.amount > 0) {
       if (ev.type !== 'player' && card(ev.to)) { const vt = card(ev.to); if (vt.dmgByTurn !== s.turn) vt.dmgBy = []; vt.dmgByTurn = s.turn; vt.dmgBy = [...(vt.dmgBy || []), ev.from]; }
       fire({ type: 'dealsDamage', iid: ev.from, amount: ev.amount, other: ev.type !== 'player' ? ev.to : null, player: ev.type === 'player' ? ev.to || defender : null, combat: true });
-      if (ev.type !== 'player') fire({ type: 'dealtDamage', iid: ev.to, amount: ev.amount, other: ev.from, combat: true });
+      if (ev.type !== 'player') fire({ type: 'dealtDamage', iid: ev.to, amount: ev.amount, other: ev.from, combat: true, controller: card(ev.to) && card(ev.to).controller });
       if (ev.type === 'creature') fire({ type: 'combatDamageCreature', iid: ev.from, amount: ev.amount, other: ev.to });
       if (ev.type === 'player') fire({ type: 'dealsDamagePlayer', iid: ev.from, amount: ev.amount, player: ev.to || defender });
     }
