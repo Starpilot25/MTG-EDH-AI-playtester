@@ -2758,6 +2758,22 @@ export async function settle() {
       if (!ev) continue;
       if (G.s !== s0) break;
       if (await specialEvent(ev)) continue;
+      // a clone put onto the battlefield by an effect (Ureni, reanimation, Sneak Attack): it chooses what to copy as it enters,
+      // before its enters triggers are looked at (Deceptive Frostkite, Clone, Spark Double)
+      if (ev.type === 'enters') {
+        const ec = card(ev.iid);
+        if (ec && ec.zone === 'battlefield' && !ec.copyDone && !ec.origDef && /You may have [^.\n]+ enter(?: the battlefield)?(?: tapped)? as a copy of/i.test(DB[ec.def].faces[ec.face || 0].oracle || DB[ec.def].faces[0].oracle || '')) {
+          ec.copyDone = true;
+          const { enterAsCopy } = await import('./effects.js');
+          const model = await enterAsCopy(ec.controller, ec, T.choosers);
+          if (model && card(ev.iid)) {
+            const cc = card(ev.iid);
+            if (cc.enterExtra && cc.enterExtra.plus) addCounters(cc, '+1/+1', cc.enterExtra.plus);
+            if (cc.enterExtra && cc.enterExtra.loyalty) addCounters(cc, 'loyalty', cc.enterExtra.loyalty);
+            log(ec.controller, `${DB[cc.origDef || cc.def].name} enters as a copy of ${nameTag(model)}.`);
+          }
+        }
+      }
       // Electric Seaweed: "until end of turn, whenever another creature dies, ~ deals 1 damage to each non-Wall creature"
       if (ev.type === 'dies') for (const sw of (G.s.seaweed || []).filter((x) => x.turn === G.s.turn && x.iid !== ev.iid)) { const src = card(sw.iid); if (!src || src.zone !== 'battlefield') continue; const { damagePermanent } = await import('./effects.js'); for (const k of seats()) for (const x of cardsIn(k, 'battlefield')) if (isCreature(x) && !hasSubtype(x, 'Wall')) damagePermanent({ me: sw.pid, did: [] }, src, x, 1); log(sw.pid, `${nameTag(src)} deals 1 damage to each non-Wall creature.`); stateBased(); }
       // Infested Thrinax: "until end of turn, whenever a nontoken creature you control dies, create … Saprolings equal to that creature's power"

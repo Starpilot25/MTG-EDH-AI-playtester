@@ -1362,6 +1362,7 @@ async function resolveSpell(pid, c, opt, info, env) {
     // Clone & co.: choose what it copies before it enters
     const preName = cardName(c);
     const copied = await enterAsCopy(pid, c, env.choosers);
+    c.copyDone = true;
     toBattlefield(c.iid, pid, env.pos || {});
     // haste from how it was cast: Thundermane Dragon (from the top of the library), Carnelian Orb's mana
     if (card(c.iid) && isCreature(c) && (c.hasteOnEnter || (c.castFrom === 'library' && topAccess(pid).haste))) c.eotGrants = [...(c.eotGrants || []), 'haste'];
@@ -1736,6 +1737,7 @@ export function playLand(pid, iid, faceIdx = 0, pos = {}) {
   toBattlefield(iid, pid, pos);
   if (tapIt && card(iid)) { card(iid).tapped = true; delete card(iid).playTapped; }
   // Vesuva: "You may have ~ enter tapped as a copy of any land on the battlefield."
+  if (card(iid)) card(iid).copyDone = true;
   if (/You may have [^.\n]+ enter(?: tapped)? as a copy of/i.test(DB[c.def].faces[0].oracle || '') && T.choosers)
     enterAsCopy(pid, card(iid), T.choosers).then((model) => {
       if (model && card(iid)) {
