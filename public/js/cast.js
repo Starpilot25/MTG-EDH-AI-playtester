@@ -773,7 +773,7 @@ export async function castSpell(pid, iid, opt, env) {
     info.extraMana = (info.extraMana || '') + off;
   }
   const gift = o.match(/(?:^|\n)Gift an? ([^\n(]+)/i);
-  if (gift) info.gift = await ch.confirm(label, `Promise the gift (${gift[1].trim()}) to your opponent?`, { gift: true });
+  if (gift) info.gift = await ch.confirm(label, `Promise the gift (${gift[1].trim()}) to your opponent?`, { gift: true, text: o });
   if (info.gift) queueEvent({ type: 'giftGiven', pid }); // Jolly Gerbils: "Whenever you give a gift"
   if (/(?:^|\n)Bargain\b/.test(o)) {
     const pool = cardsIn(pid, 'battlefield').filter((x) => isType(x, 'Artifact') || isType(x, 'Enchantment') || x.token);
@@ -981,6 +981,14 @@ export async function castSpell(pid, iid, opt, env) {
       creature: payers.filter((i) => { const x = kindOf(i); return x && isCreature(x); }).length,
       treasure: payers.filter((i) => { const x = kindOf(i); return x && hasSubtype(x, 'Treasure'); }).length,
     };
+  }
+  // Forger's Foundry: "When you spend this mana to cast an instant or sorcery spell with mana value 3 or less, you may exile that spell … as it resolves"
+  if (!opt.copy && /\b(?:Instant|Sorcery)\b/.test((d.faces[fIdx] || d.faces[0]).typeLine || '') && (DB[c.def].cmc || 0) <= 3) {
+    const fdy = ((pay && pay.payers) || []).map((i) => (String(i).startsWith('pool:') ? null : card(i))).find((x) => x && /When you spend this mana to cast an instant or sorcery spell with mana value 3 or less, you may exile that spell/i.test(oracle(x)));
+    if (fdy && env.choosers[pid] && (await env.choosers[pid].confirm(cardName(fdy), `Exile ${cardName(c)} with ${cardName(fdy)} as it resolves?`, { foundry: true }))) {
+      s.exileOnResolve = { ...(s.exileOnResolve || {}), [c.iid]: true };
+      s.linkOnExile = { ...(s.linkOnExile || {}), [c.iid]: fdy.iid };
+    }
   }
   applyPayment(pid, pay);
   if (opt.payLife) { changeLife(pid, -opt.payLife, false); log(pid, `${pid === 'p' ? 'You pay' : seatName(pid) + ' pays'} ${opt.payLife} life for ${nameTag(c)}.`); } // Bolas's Citadel
@@ -2201,6 +2209,8 @@ export async function activateAbility(pid, c, ab, env) {
   const lifeCost = ab.payLife === 'identity' ? identityColors(pid) : +ab.payLife || 0;
   if (ab.payLife && s.players[pid].life < lifeCost) return env.say('Not enough life.');
   if (ab.payEnergy && s.players[pid].counters.energy < ab.payEnergy) return env.say('Not enough energy.');
+  const rxPool = ab.removeXFrom ? cardsIn(pid, 'battlefield').filter((y) => matchesFilter(y, ab.removeXFrom[1].toLowerCase()) && Object.values(y.counters || {}).some((v) => v > 0)) : [];
+  if (ab.removeXFrom && !rxPool.length && !/\{X\}/.test(ab.mana)) return env.say('No permanent with counters to remove.');
   if (ab.removeAmong && amongPiles(pid, ab.removeAmong).total < amongK(ab.removeAmong)) return env.say('Not enough counters.');
   if (ab.removeCounters) {
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[ab.removeCounters[1].toLowerCase()] || +ab.removeCounters[1] || 0;
@@ -2291,6 +2301,24 @@ export async function activateAbility(pid, c, ab, env) {
         left--;
       }
     }
+  }
+  if (ab.removeXFrom && rxPool.length) {
+    // Moxite Refinery: "Remove X counters from an artifact or creature you control" — X is the number removed
+    const tot = (y) => Object.values(y.counters || {}).reduce((a2, v) => a2 + (v > 0 ? v : 0), 0);
+    const [pick] = await ch.pickCards({ prompt: `${name}: remove counters from which permanent?`, cards: rxPool.map((y) => y.iid), min: 1, max: 1, purpose: 'removeCounters', src: c, aiScore: (y) => tot(y) - (isCreature(y) ? 2 : 0) });
+    const t = pick && card(pick);
+    if (!t) throw new Cancelled();
+    const n = await ch.chooseNumber({ prompt: `Remove how many counters from ${cardName(t)}? (X)`, min: 0, max: tot(t), ai: tot(t) });
+    let left = n;
+    while (left > 0) {
+      const [kind] = Object.entries(t.counters || {}).filter(([, v]) => v > 0).sort((a2, b) => b[1] - a2[1])[0] || [];
+      if (!kind) break;
+      t.counters[kind]--;
+      if (!t.counters[kind]) delete t.counters[kind];
+      left--;
+    }
+    x = n - left;
+    log(pid, `${nameTag(c)}: removes ${x} counter${x === 1 ? '' : 's'} from ${nameTag(t)}.`);
   }
   if (ab.putCounters) {
     const k = { a: 1, an: 1, one: 1, two: 2, three: 3 }[ab.putCounters[1].toLowerCase()] || +ab.putCounters[1] || 1;

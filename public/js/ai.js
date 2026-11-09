@@ -360,7 +360,13 @@ const chooserImpl = {
   },
   async confirm(title, question, info = {}) {
     info = info || {};
-    if (info.gift) return false;
+    // gifts help an opponent, so only when it pays off: Jolly Gerbils-style "whenever you give a gift" payoffs, or the spell gets better with it
+    if (info.foundry) return true; // Forger's Foundry: exiled spells can be recast for free later
+    if (info.gift) {
+      const me = this.seat || AI;
+      const payoff = cardsIn(me, 'battlefield').some((c) => /Whenever you give a gift/i.test(oracle(c)));
+      return payoff;
+    }
     if (info.cost) {
       const need = cmcOf(info.cost);
       if (this.budget >= need) {

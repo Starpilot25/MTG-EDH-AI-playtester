@@ -277,6 +277,7 @@ export function activatedAbilities(c) {
       discardN: (cost.match(/Discard (a|two|\d+) cards?/i) || [])[1],
       exert: /Exert ~/i.test(cost),
       removeCounters: cost.match(/Remove (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+|X) (?:([+-]\d+\/[+-]\d+|\w+) )?counters? from ~/i), // no kind: any counters (Ghost-Spider)
+      removeXFrom: cost.match(/Remove X counters from an? ([a-z ]+?) you control/i), // Moxite Refinery: X = counters removed
       removeAmong: cost.match(/Remove (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) ([+-]\d+\/[+-]\d+|\w+) counters? from among ([a-z ]+?) you control/i), // Iron Spider
       putCounters: cost.match(/Put (a|an|one|two|three|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on ~/i), // Mazemind Tome: "Put a page counter on ~"
       payLife: (cost.match(/Pay (\d+) life/i) || [])[1] || (/Pay life equal to the number of colors in your commanders?'? color identity/i.test(cost) ? 'identity' : undefined),

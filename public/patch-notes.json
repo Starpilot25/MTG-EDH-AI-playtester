@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.225",
+    "title": "Moxite Refinery, Forger's Foundry and Jolly Gerbils",
+    "notes": [
+      "Moxite Refinery: its cost now asks which artifact or creature to remove counters from and how many; X is the number removed.",
+      "Forger's Foundry: when its mana pays for an instant or sorcery with mana value 3 or less, you're asked whether to exile that spell with the Foundry as it resolves, so the Foundry's second ability can recast it.",
+      "The AI now promises gifts when it controls a 'whenever you give a gift' card such as Jolly Gerbils, so those triggers happen in AI games."
+    ]
+  },
+  {
     "version": "1.3.224",
     "title": "11 more precons",
     "notes": [
