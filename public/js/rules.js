@@ -1479,21 +1479,32 @@ function payCostMana(cost, sources, opts = {}) {
   const filters = sources.filter((s) => s.activation || s.filterAlt).map((s) => (s.filterAlt ? { ...s, ...s.filterAlt, filterAlt: undefined, kind: '' } : s));
   const plain = sources.filter((s) => !s.activation);
   let best = payCostRaw(cost, plain, opts);
-  if (best || !filters.length) return best;
-  const n = Math.min(filters.length, 6);
-  for (let mask = 1; mask < 1 << n && !best; mask++) {
+  if (!filters.length) return best;
+  // Signets and filter lands ({1}, {T}: Add two mana) are worth using when they mean tapping no more permanents than
+  // paying without them would (they turn one land's mana into two, or fix colors): ties go to them, since the lands
+  // they leave untapped are the more flexible mana. Treasures and pain count against a payment.
+  const tapScore = (r) => new Set([...(r.payers || []), ...(r.filtersOn || [])]).size + 10 * (r.sacs || []).length + 0.5 * (r.pains || []).length;
+  const plainOk = !!best;
+  let bestScore = best ? tapScore(best) : Infinity;
+  const n = Math.min(filters.length, plainOk ? 4 : 6);
+  for (let mask = 1; mask < 1 << n && !(best && !plainOk); mask++) {
     const on = filters.filter((_, k) => mask & (1 << k));
     const plainHere = plain.filter((p) => !on.some((o) => o.iid === p.iid));
     const extra = on.reduce((a, s) => a + s.activation, 0);
-    const tryPay = (strict) => payCostRaw(cost, [...plainHere, ...on.map((s) => ({ ...s, kind: '', ...(strict && s.filterPair ? { noGeneric: true } : {}) }))], { ...opts, extraGeneric: (opts.extraGeneric || 0) + extra, signets: on.map((s) => s.iid), nodeCap: 4000 });
+    const tryPay = (strict) => payCostRaw(cost, [...plainHere, ...on.map((s) => ({ ...s, kind: '', ...(strict ? { noGeneric: true } : {}) }))], { ...opts, extraGeneric: (opts.extraGeneric || 0) + extra, signets: on.map((s) => s.iid), nodeCap: 4000 });
     // filter lands: their activation has to come from another source, so first try keeping their own mana off the generic part
-    let r = on.some((s) => s.filterPair) ? tryPay(true) : null;
+    const fixLeft = (r0) => (r0 && !sources.some((s0) => s0.noGeneric) ? { ...r0, leftover: (r0.leftover || []).map((l) => l.replace(/@nogeneric$/, '')) } : r0);
+    let r = fixLeft(tryPay(true)); // signets and filter lands: their activation has to come from other mana, so first keep their own mana off the generic part
     if (!r || !signetChainOk(on, r.genericUnits || [])) r = tryPay(false);
     if (!r) continue;
     // a signet can't pay for its own activation, but it can pay for another one: a land pays signet A, A's mana pays
     // signet B, and so on. Activate them in order, paying each from the generic mana of lands and signets already on.
     if (!signetChainOk(on, r.genericUnits || [])) continue;
-    best = { ...r, filtersOn: on.map((s2) => s2.iid) }; // Opal Palace: which sources were used in their paid (colored) mode
+    const cand = { ...r, filtersOn: on.map((s2) => s2.iid) }; // Opal Palace: which sources were used in their paid (colored) mode
+    // every switched-on filter has to actually be used, or it's just a wasted tap
+    if (on.some((s2) => !(r.payers || []).includes(s2.iid))) continue;
+    const sc = tapScore(cand);
+    if (!best || sc <= bestScore) { best = cand; bestScore = sc; }
   }
   return best;
 }

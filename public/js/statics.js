@@ -747,6 +747,21 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
       return vals.length ? Math.max(...vals) : 0;
     }
   }
+  // Zinnia, Valley's Voice: "other creatures you control with base power 1"
+  {
+    const bm = p.match(/^(other )?creatures? (you control|your opponents control|on the battlefield) with base power (\d+)(?: or (greater|less))?$/);
+    if (bm && G.s) {
+      const h = helpers || rulesHelpersObj;
+      const who = bm[2] === 'you control' ? [pid] : bm[2] === 'on the battlefield' ? seats() : opponents(pid);
+      return who.flatMap((w) => G.s.players[w].zones.battlefield.map((i) => G.s.cards[i]))
+        .filter((c) => c && !c.phasedOut && h.isCreature(c) && (!bm[1] || c.iid !== srcIid))
+        .filter((c) => {
+          const f = DB[c.def].faces[c.face || 0] || DB[c.def].faces[0];
+          const bp = c.setPT && c.setPT.p != null ? +c.setPT.p : c.animated && c.animated.setsPT && c.animated.p != null ? +c.animated.p : +(f.power ?? DB[c.def].power ?? 0) || 0;
+          return bm[4] === 'greater' ? bp >= +bm[3] : bm[4] === 'less' ? bp <= +bm[3] : bp === +bm[3];
+        }).length;
+    }
+  }
   // Overgrown Battlement: "for each creature you control with defender"
   {
     const km = p.match(/^((?:other |nontoken |untapped |tapped )*(?:[\w-]+ )?)creatures? (you control|your opponents control|an opponent controls|on the battlefield) with (defender|flying|reach|trample|haste|vigilance|deathtouch|lifelink|menace|first strike|double strike|hexproof|indestructible)$/);

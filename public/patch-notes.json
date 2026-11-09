@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.229",
+    "title": "Zinnia, and smarter use of Signets and filter lands",
+    "notes": [
+      "Zinnia, Valley's Voice: your creature spells now offer offspring {2} while she's out, and her power counts only other creatures with base power 1 (offspring tokens included). Before, it counted every creature.",
+      "Auto-pay now uses Signets and filter lands (\"{1}, {T}: Add two mana\") whenever they tap no more permanents than paying without them, so your other lands stay open. With Plains, Island and Mystic Gate, Counterspell now taps Plains and the Gate and leaves the Island up.",
+      "Fixed: a Signet could fail to pay for a spell it should cover (Counterspell with Plains, Island, Forest and Azorius Signet was uncastable)."
+    ]
+  },
+  {
     "version": "1.3.228",
     "title": "Vrondiss and enrage",
     "notes": [

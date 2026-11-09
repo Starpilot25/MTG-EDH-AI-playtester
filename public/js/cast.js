@@ -769,7 +769,12 @@ export async function castSpell(pid, iid, opt, env) {
     info.squad = await ch.chooseNumber({ prompt: `Squad ${sq}: how many copies?`, min: 0, max: 6, ai: 0 });
     for (let k = 0; k < info.squad; k++) info.extraMana = (info.extraMana || '') + sq;
   }
-  const off = altCost(o, 'Offspring');
+  let off = altCost(o, 'Offspring');
+  // Zinnia, Valley's Voice: "Creature spells you cast gain offspring {2} as you cast them."
+  if (!off && /\bCreature\b/.test(((d.faces[fIdx] || d.faces[0]).typeLine || '')) && !opt.copy) {
+    const gz = cardsIn(pid, 'battlefield').map((x) => (oracle(x).match(/Creature spells you cast gain offspring (\{[^.]+?\}) as you cast them/i) || [])[1]).find(Boolean);
+    if (gz) off = gz;
+  }
   if (off && !env.free && (await ch.confirm(label, `Pay offspring ${off}?`, { cost: off }))) {
     info.offspring = true;
     info.extraMana = (info.extraMana || '') + off;

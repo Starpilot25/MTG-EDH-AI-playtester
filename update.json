@@ -1,23 +1,23 @@
 {
-  "version": "1.3.228",
+  "version": "1.3.229",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "5872630a246c145c8801ebec682b08ffb025e301eb128465ef41039c0dedc8d2",
     "public/index.html": "85bdb675b905c79ae85ba41a12ddcfc33922fde33f979df959763fd7b478ba43",
     "public/js/ai.js": "ceba4f91e74f6918fd7b4aa2565a071a7fcc011c7b06eec2f5497ea9a448460e",
     "public/js/aicombat.js": "764e9bdb24e75f0ad8357c5a5429c4313ea46274f195c172f95fca2fbbc6815d",
-    "public/js/cast.js": "ca0db4ae6d05613a3156f48b8e23f9f25a582c00d577e6c440f29106ba5a0bb6",
+    "public/js/cast.js": "ec178c58c149df8b2580699df696c7f3e2b50f0c619f5db377cf92d94f42f517",
     "public/js/data.js": "f43b48e7a3ce842178d0bcbdec31f509acbe57cff65b3f01cb795a03e9aa5532",
     "public/js/dungeon.js": "a42de281cbd9fed4f5470e03f56483a7ce8a82c9a52434f30f90cdaf655ee096",
     "public/js/effects.js": "b379fb447cabc8a1779957aa00427c7d48f70dd2ecf512cdd029dbffe2087194",
     "public/js/game.js": "a6a3c99b39f4e1dd2b6c3812a7c8c2dc0c4c5ba54f7c54864884e46127565e71",
     "public/js/main.js": "fbfdde2ff3717d9c087090339c8440d4dfe425b70d422d8296ad6bf7da3d3a89",
-    "public/js/rules.js": "1db77cf691ea955588b50626dc6f7bc135db38c9b5611c584850a57743b04c61",
+    "public/js/rules.js": "782c27e7572d6042aa14ab29c1e97368fb5e38c6f24a4614695a53ab809619c8",
     "public/js/state.js": "f584d861f072d0bcc0fb53e8801f2af05d8951d5dcaba1ec731ea659b7be0a49",
-    "public/js/statics.js": "b72a3bda88afcda474dfe9c0d82c0d978ef625b86e55924f53d87137f49caef1",
+    "public/js/statics.js": "158bb71901f7b595a50c4743b4ccb8894415bde2258643f300f30b310647b628",
     "public/js/triggers.js": "3101b7d8778d77c11088bb9214b078d443197eec91974f4a7460de6dbb2df5fd",
     "public/js/ui.js": "aa94b9d57a58da8c09e176e067a62425223af5baeb1231efa5e2ea7a5de6c86e",
     "public/js/voice.js": "4622a40593b7db7f8997e96207d0412fcbaa4fa4fe658247c91b3345de1dabe6",
-    "public/patch-notes.json": "8c566468af66f0add3dff83fe97eae50699045cf925283d4be0708486dc87e8d"
+    "public/patch-notes.json": "086a03c383fca827f73ea5057b63e9eb44922baadd5eb25c613f1ed76ba79154"
   }
 }
