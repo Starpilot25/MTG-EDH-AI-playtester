@@ -4940,6 +4940,8 @@ on(/^until end of turn, target creature with defender gains haste, can attack as
   t.toughDmgTurn = G.s.turn;
   env.did.push(`${nameTag(t)} can attack this turn, with haste, dealing damage equal to its toughness`);
 }, { first: true });
+// Nalfeshnee: handled by "copy it" above
+on(/^if it's a permanent spell, the copy gains haste and "at the beginning of the end step, sacrifice (?:~|this permanent)\.?"$/, async (m, env) => { env.did.handled = true; }, { first: true });
 // Domineering Will
 on(/^target player gains control of up to three target nonattacking creatures until end of turn\. untap those creatures\. they block this turn if able$/, async (m, env) => {
   const [pl] = await playerTarget(env, 'target player', false);
@@ -8223,6 +8225,11 @@ on(/^copy (it|~|this spell|that spell|target (?:instant or sorcery |instant |sor
     { const ex = env.sentence.match(/except the copy is an? (\d+)\/(\d+) ([a-z]+) in addition to its other types/); if (ex) for (const i of made) if (card(i)) { card(i).setPT = { ts: nextStamp(), p: +ex[1], t: +ex[2] }; card(i).addTypes = ((card(i).addTypes || '') + ' ' + capWords(ex[3])).trim(); } }
     // Spider-Verse: "If the copy is a permanent spell, it gains haste."
     if (/if the copy is a permanent spell, it gains haste/i.test(env.text || '')) for (const i of made) if (card(i)) card(i).grants = [...(card(i).grants || []), 'haste'];
+    // Nalfeshnee: "If it's a permanent spell, the copy gains haste and 'At the beginning of the end step, sacrifice this permanent.'"
+    if (/if it's a permanent spell, the copy gains haste and "at the beginning of the end step, sacrifice/i.test(env.text || '')) {
+      for (const i of made) if (card(i)) { card(i).grants = [...(card(i).grants || []), 'haste']; (G.s.delayed = G.s.delayed || []).push({ at: 'endStep', kind: 'sacrifice', iid: i, pid: env.me }); }
+      env.did.push('the copy has haste and is sacrificed at the next end step');
+    }
     queueEvent({ type: 'copySpell', controller: env.me, iid: target.iid });
     if (env.src && card(env.src.iid) && /do this only once each turn/i.test(env.text || '')) card(env.src.iid).onceTurn = G.s.turn;
     env.did.push(`copies ${nameTag(target)} (${made.length} token${made.length === 1 ? '' : 's'})`);

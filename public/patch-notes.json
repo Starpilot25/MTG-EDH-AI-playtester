@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.227",
+    "title": "Aboleth Spawn, Nalfeshnee, Dissipation Field, Green Slime",
+    "notes": [
+      "Aboleth Spawn: when a creature enters under an opponent's control and its own ability triggers, you may copy that ability (you get the copy).",
+      "Nalfeshnee: a copied permanent spell's token has haste and is sacrificed at the next end step.",
+      "Dissipation Field and \"whenever a creature deals damage to you\" cards now trigger on noncombat damage too, not just combat damage.",
+      "Green Slime: checked against an artifact ability on the stack; it counters the ability and destroys the source."
+    ]
+  },
+  {
     "version": "1.3.226",
     "title": "The rest of the D&D precons",
     "notes": [

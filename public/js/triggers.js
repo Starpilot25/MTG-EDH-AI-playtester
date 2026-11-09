@@ -161,6 +161,8 @@ function parseTriggerText(text, speed) {
         add('p:cast', q[2], { pred: (c, ev) => { if (ev.controller !== c.controller) return false; const d = DB[ev.def]; const f = d && (d.faces[0] || {}); return !!d && ((d.cmc || 0) === k || +f.power === k || +f.toughness === k); } });
         continue;
       }
+      // Aboleth Spawn: copied in settle() when the entering creature's own ability triggers
+      if (/^Whenever a creature entering under an opponent's control causes a triggered ability of that creature to trigger, you may copy that ability/i.test(line)) { add('ruleMarker', 'rule marker noop', {}); continue; }
       // Sewer Nemesis
       if (/^As ~ enters, choose a player\.$/i.test(line)) {
         add('enters', '', { self: true, fn: async (ctx, hit) => {
@@ -179,7 +181,7 @@ function parseTriggerText(text, speed) {
       // Battle Mammoth
       if ((q = line.match(/^Whenever a permanent you control becomes the target of a spell or ability an opponent controls, (.+)$/i))) { add('p:becomesTarget', q[1], { pred: (c, ev) => { const t0 = card(ev.iid); return !!t0 && t0.controller === c.controller && ev.controller !== c.controller && { thatPlayer: ev.controller }; } }); continue; }
       // Dissipation Field
-      if ((q = line.match(/^Whenever a permanent deals damage to you, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => ev.player === c.controller && !!card(ev.iid) && card(ev.iid).zone === 'battlefield' && { it: { iid: ev.iid } } }); continue; }
+      if ((q = line.match(/^Whenever a permanent deals damage to you, (.+)$/i))) { add('p:dealsDamagePlayer', q[1], { pred: (c, ev) => ev.player === c.controller && !!card(ev.iid) && card(ev.iid).zone === 'battlefield' && { it: { iid: ev.iid } } }); continue; }
       // Firkraag: "if that creature had to attack this combat" (goaded)
       if ((q = line.match(/^Whenever a creature deals combat damage to one of your opponents, if that creature had to attack this combat, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => { const a = card(ev.iid); return !!a && opponents(c.controller).includes(ev.player) && isGoaded(a); } }); continue; }
       // Baeloth Barrityl
@@ -1021,7 +1023,7 @@ function parseTriggerText(text, speed) {
       // Aurelia, the Law Above: "Whenever a player attacks with three or more creatures"
       if ((q = line.match(/^Whenever a player attacks with (three|four|five|six|\d+) or more creatures, (.+)$/i))) { const k = { three: 3, four: 4, five: 5, six: 6 }[q[1].toLowerCase()] || +q[1]; add('youAttack', q[2], { anyPlayerMin: k }); continue; }
       // No Mercy: "Whenever a creature deals damage to you, destroy it."
-      if ((q = line.match(/^Whenever a creature deals damage to you, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => ev.player === c.controller && !!card(ev.iid) && { it: { iid: ev.iid } } }); continue; }
+      if ((q = line.match(/^Whenever a creature deals damage to you, (.+)$/i))) { add('p:dealsDamagePlayer', q[1], { pred: (c, ev) => ev.player === c.controller && !!card(ev.iid) && (isCreature(card(ev.iid)) || ev.combat) && { it: { iid: ev.iid } } }); continue; }
       // Mindcrank: "Whenever an opponent loses life, that player mills that many cards."
       if ((q = line.match(/^Whenever an opponent loses life, (.+)$/i))) { add('p:lifeLost', q[1], { pred: (c, ev) => ev.pid !== c.controller && opponents(c.controller).includes(ev.pid) && { thatPlayer: ev.pid, amount: ev.amount } }); continue; }
       // Chronicle of Victory: "Whenever you cast a spell of the chosen type"
@@ -2815,6 +2817,23 @@ export async function settle() {
       // a copy of an Aura that entered without being cast (token copies, clones, Copy Enchantment): it goes on something
       if (ev.type === 'enters') { const ac = card(ev.iid); if (ac && ac.zone === 'battlefield' && !ac.attachedTo && !ac.enchantedPlayer && hasSubtype(ac, 'Aura') && !isCreature(ac)) { try { const { attachLooseAuras } = await import('./effects.js'); const d = await attachLooseAuras([ac.iid], ac.controller, T.choosers); if (d.length) log(ac.controller, d.join('; ') + '.'); } catch (e) { if (!(e instanceof Cancelled)) console.error(e); } } }
       let hits = withReadCache(() => matches(ev)); // finding who triggers only reads the board
+      // Aboleth Spawn: "Whenever a creature entering under an opponent's control causes a triggered ability of that creature to trigger, you may copy that ability."
+      if (ev.type === 'enters' && hits.length) {
+        const ec = card(ev.iid);
+        if (ec && isCreature(ec)) {
+          const own = hits.filter((h) => h.src && h.src.iid === ev.iid && !h.abolethCopy);
+          if (own.length) {
+            for (const ab of seats().flatMap((pid) => cardsIn(pid, 'battlefield')).filter((x) => !x.phasedOut && /Whenever a creature entering under an opponent's control causes a triggered ability of that creature to trigger, you may copy that ability/i.test(oracle(x)))) {
+              const ctl = ab.controller;
+              if (!opponents(ctl).includes(ec.controller)) continue;
+              for (const h of own) {
+                const yes = isAI(ctl) || (T.choosers[ctl] && (await T.choosers[ctl].confirm(cardName(ab), `Copy ${cardName(ec)}'s triggered ability?`, {})));
+                if (yes) hits.push({ ...h, controller: ctl, abolethCopy: true });
+              }
+            }
+          }
+        }
+      }
       // Windcrag Siege (Mardu), Isshin: attack triggers trigger an additional time
       if (ev.type === 'attacks' && hits.length) {
         const extra = [];
