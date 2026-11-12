@@ -1893,6 +1893,7 @@ export async function useZoneAbility(pid, iid, ab, env) {
       move(iid, 'exile', { faceDown: true });
       Object.assign(card(iid), { foretold: true, foretoldTurn: s.turn, faceDownOwnerSees: true });
       log(pid, `${pid === 'p' ? 'You foretell' : 'The AI foretells'} a card.`);
+      queueEvent({ type: 'foretold', pid, iid }); // Dream Devourer
       return true;
     }
     case 'plot': {

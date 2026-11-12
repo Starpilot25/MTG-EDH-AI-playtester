@@ -540,6 +540,8 @@ function hasKwRaw(inst, kw) {
   const gone = lostAbilitiesAt(inst);
   // "until your next turn" keywords (Vivien's reach and vigilance)
   if ((inst.ntGrants || []).some((g) => g.kw === kw && g.until > (G.s ? G.s.turn : 0))) return true;
+  // Aegis Angel: "for as long as you control ~"
+  if ((inst.whileGrants || []).some((g) => g.kw === kw && G.s && G.s.cards[g.src] && G.s.cards[g.src].zone === 'battlefield' && G.s.cards[g.src].controller === g.ctl)) return true;
   if (KEYWORD_COUNTERS.has(kw) && ((inst.counters || {})[kw] || 0) > 0 && !gone) return true;
   // keywords given by the same effect that took the rest away (Darksteel Mutation's indestructible, Deep Freeze's defender)
   for (const e of inst.layerFx || []) if ((e.grants || []).includes(kw)) return true;
@@ -1857,6 +1859,12 @@ function damageModsRaw(amount, src, victimPid, opts = {}) {
     return 0;
   }
   if (opts.victim && opts.victim.preventDmgTurn === G.s.turn) return 0; // Mutational Advantage
+  // Blinding Fog / Safe Passage / Eerie Interference: "Prevent all damage that would be dealt to creatures [you control] (and you) this turn [by creatures]"
+  for (const r of G.s.preventRules || []) {
+    if (r.turn !== G.s.turn) continue;
+    if (r.byCreatures && !(src && isCreature(src))) continue;
+    if (opts.victim ? isCreature(opts.victim) && (r.creatures === 'all' || (r.creatures === 'yours' && opts.victim.controller === r.pid)) : r.you && victimPid === r.pid) return 0;
+  }
   // Surge of Salvation: "Prevent all damage that black and/or red sources would deal to creatures you control this turn."
   if (opts.victim && src && isCreature(opts.victim) && (G.s.preventColorsTo || []).some((x) => x.turn === G.s.turn && x.pid === opts.victim.controller && (DB[src.def] ? DB[src.def].colors || [] : []).some((col) => x.colors.includes(col)))) return 0;
   if (victimPid && !opts.victim && G.s.preventAllTo && G.s.preventAllTo[victimPid] === G.s.turn) { if (opts.real && G.s.inkshield && G.s.inkshield.pid === victimPid && G.s.inkshield.turn === G.s.turn) G.s.inkshield.n = (G.s.inkshield.n || 0) + amount; return 0; } // Inkshield, Selfless Squire

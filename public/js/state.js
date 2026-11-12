@@ -468,7 +468,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['unblockableUntil', 'voidCounter', 'deathLoses', 'copyDone', 'tripleVs', 'cantBlockWhile', 'ntGrants', 'noCombatDamageTurn', 'zenosChosen', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['whileGrants', 'batchKeys', 'unblockableUntil', 'voidCounter', 'deathLoses', 'copyDone', 'tripleVs', 'cantBlockWhile', 'ntGrants', 'noCombatDamageTurn', 'zenosChosen', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
@@ -608,6 +608,7 @@ export function move(iid, zone, opts = {}) {
     // the player decides: it goes there, and a prompt offers the command zone
     else if (!auto && (gyEx || ((zone === 'hand' || zone === 'library') && (fromZone === 'battlefield' || fromZone === 'stack' || opts.fromStack)))) c.cmdAsk = zone;
   }
+  if (zone === 'command' && c.isCommander && fromZone !== 'command') queueEvent({ type: 'toCommand', pid: c.owner, iid }); // Myth Unbound
   // a mutated pile moves together
   if (c.merged && c.merged.length && fromZone === 'battlefield' && zone !== 'battlefield') {
     const under = c.merged;

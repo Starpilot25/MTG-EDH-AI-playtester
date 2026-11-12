@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.231",
+    "title": "About 165 more cards fixed",
+    "notes": [
+      "Checked the next 6,200 most-played Commander cards on EDHREC (ranks 5,000-12,000) plus the leftovers from the top 5,000, and fixed about 165 of them.",
+      "New trigger types: +1/+1 counters being put on your permanents (Animation Module, Wildwood Scourge, Earth Kingdom General), permanents becoming tapped (Deeproot Pilgrimage, Quest for Renewal, Hawkeye's Bow), foretelling (Dream Devourer), proliferating (Ezuri, Stalker of Spheres), lands tapped for mana (Manabarbs, Burning Earth, Price of Glory, Storm Cauldron), coin flips won (Okaun, Zndrsplt), a commander going to the command zone (Myth Unbound), rolling a specific number (Night Shift of the Living Dead), Samurai/Warriors attacking alone (Raiyuu, Selfless Samurai, Heiko, Norika) and more.",
+      "Damage \"equal to the number of ...\" (Corrupt, Honden of Infinite Rage, Massive Raid, Acidic Soil, Fateful Showdown), life totals becoming a number (Worldfire, Repay in Kind, Biorhythm, Captive Audience, Magister Sphinx), Pox/Pox Plague/Fraying Omnipotence, fogs that protect creatures (Blinding Fog, Safe Passage, Eerie Interference), several counter effects (Aetheric Amplifier, Kheru Goldkeeper, Scavenged Brawler, Abigale, Hex Parasite, Vampire Hexmage).",
+      "\"Until end of turn, target creature gets +1/+0 and gains indestructible\" and similar sentences with the duration first now work.",
+      "d20 table rows with a single number (\"20 | ...\") and labelled rows (\"Trapped! — ...\") now resolve."
+    ]
+  },
+  {
     "version": "1.3.230",
     "title": "Clay Golem, Mantle of the Ancients",
     "notes": [
