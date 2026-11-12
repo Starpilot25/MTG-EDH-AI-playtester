@@ -3356,7 +3356,7 @@ async function resolveTriggerRaw(hit, controller, ev) {
   }
   const ctx = {
     me: controller, choosers: T.choosers, forced: true, thatPlayer: hit.thatPlayer, it: hit.it || null, wasAttacking: hit.wasAttacking, castFree: T.castFree, deadCounters: ev && ev.counters,
-    kicked: src.kicked, bargained: src.bargained, x: hit.x !== undefined ? hit.x : src.xPaid || 0, castMode: src.castMode, castFrom: src.castFrom, event: ev,
+    kicked: src.kicked, bargained: src.bargained, x: hit.x !== undefined ? hit.x : (ev && ev.type === 'cast' && /\bX\b/.test(trig.text || '') && !/where X is/i.test(trig.text || '') && card(ev.iid) && card(ev.iid).xPaid) || src.xPaid || 0, // Nev: "put X +1/+1 counters" from the spell's X castMode: src.castMode, castFrom: src.castFrom, event: ev,
     // a spell waiting on the other side of the stack (Transcendent Dragon: "counter target spell")
     stackTarget: controller === 'p' && G.s.stack && !G.s.stack.ability ? G.s.stack.iid : isAI(controller) && G.s.pstack ? G.s.pstack.iid : null,
   };

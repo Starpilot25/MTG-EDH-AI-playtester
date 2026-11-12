@@ -520,7 +520,7 @@ export function hasKw(inst, kw) {
   kw = kw.toLowerCase();
   if (kw === 'indestructible' && G.s && inst.loseIndestructibleTurn === G.s.turn) return false; // Exterminatus, Smite the Deathless
   // Shadowspear / Arcane Lighthouse: "Permanents your opponents control lose hexproof and indestructible until end of turn"
-  if ((kw === 'hexproof' || kw === 'indestructible' || kw === 'shroud') && G.s && (G.s.loseKw || []).some((x) => x.turn === G.s.turn && x.kws.includes(kw) && inst.controller && inst.controller !== x.by && (!x.creatures || isCreature(inst)))) return false;
+  if ((kw === 'hexproof' || kw === 'indestructible' || kw === 'shroud') && G.s && (G.s.loseKw || []).some((x) => x.turn === G.s.turn && x.kws.includes(kw) && inst.controller && inst.controller !== x.by && (!x.creatures || isCreature(inst) || (x.vehicles && hasSubtype(inst, 'Vehicle'))))) return false;
   if (readCache.on) {
     const twin = cacheTwin(inst);
     if (twin && twin.grants === inst.grants && twin.eotGrants === inst.eotGrants && twin.ntGrants === inst.ntGrants && twin.auraBuffs === inst.auraBuffs) {

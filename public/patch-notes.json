@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.234",
+    "title": "Fixes found by watching AI games",
+    "notes": [
+      "Ran 160 AI games with random decks built from the top 12,000 Commander cards and fixed the cards that asked to be applied by hand or did nothing.",
+      "Life-total changes from a few recent fixes no longer show \"[object Object]\" in the log.",
+      "Fixed: Counterbalance, Chancellor of the Annex, Desecration Demon, Clackbridge Troll, Vexing Devil, Acidic Soil, Momentous Fall, Imposing Grandeur, Breakthrough, Death Cloud, Dream Cache, Hour of Devastation, Spectacular Pileup, Hunted Troll, Slime Against Humanity, Raubahn, Thorin, Hidden Blade, Headliner Scarlett, Connecting the Dots, Scrounging Bandar, Kassandra, Eldrazi Mimic, Yorvo, Trystan, Circuits Act, Goblin Assassin, Gather the Townsfolk, Balin, Butch DeLoria, Reaper's Scythe, Apothecary White (tapping X Foods), and Nev / Zaxara (X from the spell you cast)."
+    ]
+  },
+  {
     "version": "1.3.233",
     "title": "Engine: delayed triggers, type changes, copies, \"for as long as\", bidding",
     "notes": [

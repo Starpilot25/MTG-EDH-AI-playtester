@@ -2313,6 +2313,14 @@ export async function activateAbility(pid, c, ab, env) {
       }
     }
   }
+  if (ab.tapXUntapped) {
+    const kind = ab.tapXUntapped[1];
+    const pool = cardsIn(pid, 'battlefield').filter((y) => !y.tapped && y.iid !== c.iid && (hasSubtype(y, kind) || new RegExp(`\\b${kind}\\b`, 'i').test(DB[y.def].typeLine || '')));
+    const picks = pool.length ? await ch.pickCards({ prompt: `${name}: tap any number of untapped ${kind}s (X)`, cards: pool.map((y) => y.iid), min: 0, max: pool.length, purpose: 'tapCost', src: c, aiScore: () => 1 }) : [];
+    for (const i of picks) tapPerm(card(i));
+    x = picks.length;
+    log(pid, `${nameTag(c)}: taps ${x} ${kind}${x === 1 ? '' : 's'} (X = ${x}).`);
+  }
   if (ab.removeXFrom && rxPool.length) {
     // Moxite Refinery: "Remove X counters from an artifact or creature you control" — X is the number removed
     const tot = (y) => Object.values(y.counters || {}).reduce((a2, v) => a2 + (v > 0 ? v : 0), 0);

@@ -773,6 +773,16 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
       return Object.values(G.s.cards).filter((x) => x.zone === 'battlefield' && x.attachedTo === host && ((wantA && /\bAura\b/.test(DB[x.def].typeLine || '')) || (wantE && /\bEquipment\b/.test(DB[x.def].typeLine || '')))).length;
     }
   }
+  // Reaper's Scythe: "for each player who lost life this turn"
+  if (/^(?:players?|opponents?|of your opponents) who lost life this turn$/.test(p) && G.s && G.s.ts) return seats().filter((q) => (/opponent/.test(p) ? q !== pid : true) && G.s.ts[q] && G.s.ts[q].lifeLost > 0).length;
+  // Butch DeLoria: "for each other Rogue and/or Snake you control"
+  {
+    const am = p.match(/^(other )?([a-z]+?)s? and\/or ([a-z]+?)s? you control$/);
+    if (am && G.s && helpers && helpers.hasSubtype) {
+      const k1 = am[2][0].toUpperCase() + am[2].slice(1), k2 = am[3][0].toUpperCase() + am[3].slice(1);
+      return G.s.players[pid].zones.battlefield.map((i) => G.s.cards[i]).filter((c) => c && !c.phasedOut && (!am[1] || c.iid !== srcIid) && (helpers.hasSubtype(c, k1) || helpers.hasSubtype(c, k2))).length;
+    }
+  }
   // Zinnia, Valley's Voice: "other creatures you control with base power 1"
   {
     const bm = p.match(/^(other )?creatures? (you control|your opponents control|on the battlefield) with base power (\d+)(?: or (greater|less))?$/);
