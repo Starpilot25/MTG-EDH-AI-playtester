@@ -86,6 +86,7 @@ function applyTypes(t, ty) {
     if (ty.subSet !== undefined) sub = ty.subSet;
     if (ty.remove) main = main.replace(new RegExp('\\b' + ty.remove + '\\b'), '').replace(/\s+/g, ' ').trim(); // Weeping Angel: "isn't a creature until end of turn"
     if (ty.legendary && !/\bLegendary\b/.test(main)) main = 'Legendary ' + main;
+    if (ty.snow && !/\bSnow\b/.test(main)) main = 'Snow ' + main; // Thermal Flux
     if (ty.subAdd) for (const w of ty.subAdd.split(' ')) if (w && !new RegExp('\\b' + w + '\\b').test(sub)) sub = (sub + ' ' + w).trim();
   }
   return sub ? `${main} — ${sub}` : main;
@@ -1796,6 +1797,7 @@ export function canBlock(blocker, attacker) {
 }
 
 export function canAttack(inst) {
+  if (inst.cantAttackWhile && G.s && G.s.cards[inst.cantAttackWhile] && G.s.cards[inst.cantAttackWhile].zone === 'battlefield' && G.s.cards[inst.cantAttackWhile].controller === inst.cantAttackWhileCtl) return false; // Possession Engine
   if (!isCreature(inst) || inst.tapped || inst.pacifiedBy || inst.phasedOut) return false;
   // Lovestruck Beast: "This creature can't attack unless you control a 1/1 creature."
   if (G.s && /(?:^|\n)(?:~|This creature) can't attack unless you control a 1\/1 creature\./.test(oracle(inst).replace(new RegExp(DB[inst.def].faces[inst.face || 0].name.split(' // ')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '~')) && !G.s.players[inst.controller].zones.battlefield.some((i) => { const x = G.s.cards[i]; return x && isCreature(x) && power(x) === 1 && toughness(x) === 1; })) return false;

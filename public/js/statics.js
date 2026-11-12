@@ -364,6 +364,20 @@ function staticsOfRaw(c) {
 }
 
 // Emblems act like permanents for static effects (Elspeth's "+2/+2 and flying")
+// Delayed and "this turn" triggered abilities created by spells and abilities ("When you next cast an instant or sorcery
+// spell this turn, copy that spell twice", "Whenever that creature deals combat damage to a player this turn, draw a card").
+// Each is an invisible source the trigger engine scans like an emblem; one bound to a creature uses that creature's iid,
+// so "~" in its text is that creature.
+export function tempTriggerObjects(pid) {
+  const P = G.s.players[pid];
+  if (!P.tempTrig || !P.tempTrig.length) return [];
+  P.tempTrig = P.tempTrig.filter((t) => t.until >= G.s.turn);
+  return P.tempTrig.map((t) => {
+    const id = `temptrig:${t.name}:${t.text}`;
+    if (!DB[id]) DB[id] = { id, name: t.name, layout: 'emblem', cmc: 0, manaCost: '', typeLine: 'Emblem', colors: [], ci: [], keywords: [], produced: [], tokens: [], faces: [{ name: t.name, manaCost: '', typeLine: 'Emblem', oracle: t.text }] };
+    return { iid: t.bind || `tt-${t.id}`, def: id, controller: pid, owner: pid, zone: 'emblem', counters: {}, face: 0, tempId: t.id, tempOnce: !!t.once, tempPid: pid };
+  });
+}
 export function emblemObjects(pid) {
   return (G.s.players[pid].emblems || []).map((t, k) => {
     const id = 'emblem:' + t;

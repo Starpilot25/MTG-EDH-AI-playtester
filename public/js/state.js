@@ -468,7 +468,7 @@ export function log(who, html) {
 }
 
 // ------------------------------------------------------------ zone movement
-const RESET = ['whileGrants', 'batchKeys', 'unblockableUntil', 'voidCounter', 'deathLoses', 'copyDone', 'tripleVs', 'cantBlockWhile', 'ntGrants', 'noCombatDamageTurn', 'zenosChosen', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
+const RESET = ['cantAttackWhile', 'cantAttackWhileCtl', 'whileGrants', 'batchKeys', 'unblockableUntil', 'voidCounter', 'deathLoses', 'copyDone', 'tripleVs', 'cantBlockWhile', 'ntGrants', 'noCombatDamageTurn', 'zenosChosen', 'harnessed', 'copyWhileTapped', 'notedMana', 'chosenNumber', 'chosenCardType', 'fromLibTurn', 'hiddenExile', 'ianSrc', 'exiledFromHand', 'mayCastFromGy', 'mayCastFromGyTurn', 'lockeGroup', 'tapped', 'damage', 'deathtouched', 'auraBuffs', 'eot', 'eotGrants', 'pacifiedBy', 'attachedTo', 'attacking',
   'blocking', 'animated', 'crewedTurn', 'saddledTurn', 'stationCreature', 'regen', 'goaded', 'detainedUntil', 'monstrous',
   'renowned', 'classLevel', 'proto', 'setPT', 'modesUsed', 'chosenColor', 'lostAbilities', 'endOfTurn', 'eotUnlessBlessing', 'blightLand', 'becameLand', 'exileIfLeaves', 'noUntapUntil', 'phasedOut', 'phasedUntil', 'phaseInTapped', 'exiledLinked', 'sector', 'chosenType', 'floated',
   'cantBlockTurn', 'unblockableTurn', 'suspected', 'mutated', 'usedAbilities', 'kicked', 'bargained', 'castMode', 'xPaid', 'impending',
@@ -1355,7 +1355,7 @@ export function cleanupDamage() {
     c.deathtouched = false;
     c.attacking = false;
     c.blocking = false;
-    if (c.copyUntil === 'eot') endCopy(c);
+    if (c.copyUntil === 'eot' || (typeof c.copyUntil === 'number' && c.copyUntil <= G.s.turn + 1)) endCopy(c);
     if (c.ntTurn && c.ntTurn > s.turn) continue; // "until your next turn" effects last through the opponent's turn
     delete c.ntTurn;
     c.eot = null;
@@ -1365,7 +1365,7 @@ export function cleanupDamage() {
     if (c.lostAbilities === 'eot') delete c.lostAbilities;
     else if (c.lostAbilities) c.lostEotN = 0; // this turn's granted abilities are gone; next turn's start fresh
     if (c.switchPT === 'eot') delete c.switchPT;
-    if (c.layerFx) c.layerFx = c.layerFx.filter((e) => e.until !== 'eot');
+    if (c.layerFx) c.layerFx = c.layerFx.filter((e) => e.until !== 'eot' && !(typeof e.until === 'number' && e.until <= G.s.turn + 1));
     delete c.eotText;
     if (c.setPTUntil === 'eot') {
       delete c.setPT;
@@ -1632,6 +1632,7 @@ function legendRule() {
 
 // Put a card onto the battlefield, choosing a free spot for the player's side.
 export function toBattlefield(iid, pid, opts = {}) {
+  if (G.s) G.s.lastEntered = iid; // "That creature is a black Zombie…" after a reanimation
   const c = card(iid);
   const pos = pid === 'p' && (opts.x === undefined || opts.x === null) ? freeSpot(c) : {};
   const r = move(iid, 'battlefield', { controller: pid, ...pos, ...opts });

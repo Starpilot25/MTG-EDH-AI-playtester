@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.3.233",
+    "title": "Engine: delayed triggers, type changes, copies, \"for as long as\", bidding",
+    "notes": [
+      "Delayed and \"this turn\" triggers: \"When you next cast an instant or sorcery spell this turn, copy that spell X times\" (Storm King's Thunder, Complete the Circuit, Dual Strike), \"Whenever you cast a creature spell this turn, draw a card\" (Glimpse of Nature), \"When that creature dies this turn, ...\" (Scarblade's Malice, Rushed Rebirth, Cryptek), \"Whenever that creature deals combat damage to a player this turn, ...\" (Captain Howler, Azra Oddsmaker), \"Until end of turn / until your next turn, whenever ...\" (Don't Move, Benefactor's Draught) and similar.",
+      "Type and color changes: \"becomes an artifact in addition to its other types\" (Liquimetal Coating, Memnarch), \"is a black Zombie in addition to its other colors and types\" (Rise from the Grave, Ever After), Unctus, Thermal Flux, Tam, Amoeboid Changeling, Nameless Inversion.",
+      "Animation: lands and artifacts becoming creatures (Sylvan Awakening, Kamahl's Will, Nissa, Tough Cookie, The Mechanist, Hall of Storm Giants, Obuun, Jolrael), Scale Up and Secret Identity.",
+      "\"Becomes a copy of\" for creatures and groups (Fleeting Reflection, Shapesharer, Naga Fleshcrafter, Deceiver of Form, Loki, Mirrorform, Scion of the Ur-Dragon).",
+      "Copying cards and casting the copies (Mnemonic Deluge, Spelltwine, Zethi, Baron Helmut Zemo).",
+      "\"For as long as\": playing exiled cards while they stay exiled (Soul Partition, Release to the Wind, Outrageous Robbery, Extraordinary Journey), keywords and attack/block/untap restrictions while you control the source (Tale of Tinúviel, Possession Engine, Ty Lee, Shipbreaker Kraken), and Willbreaker's control change.",
+      "Bidding: Illicit Auction and Mages' Contest."
+    ]
+  },
+  {
     "version": "1.3.232",
     "title": "About 40 more cards fixed, smarter AI targeting",
     "notes": [

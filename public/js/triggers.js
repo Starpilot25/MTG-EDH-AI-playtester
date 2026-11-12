@@ -10,7 +10,7 @@ import {
   withReadCache, discard as discardCard, draw as drawCards, ringLevel, enterCounterBonus,
 } from './state.js';
 import { tapPerm } from './state.js';
-import { emblemObjects } from './statics.js';
+import { emblemObjects, tempTriggerObjects } from './statics.js';
 import {
   resolveEffects, stripName, knownEffect, bindTriggerHooks, addMana, Cancelled, attachTo, matchesFilter, spellText, pumpEOT, subtypeWords, evalCond,
 } from './effects.js';
@@ -239,6 +239,7 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever a player taps a nonbasic land for mana, ~ deals 1 damage to that player\.$/i))) { add('p:manaTapped', '~ deals 1 damage to that player', { pred: (c, ev) => !!ev.land && card(ev.iid) && !/\bBasic\b/.test(DB[card(ev.iid).def].typeLine || '') && { thatPlayer: ev.pid } }); continue; }
       if ((q = line.match(/^Whenever a player taps a land for mana, if it's not that player's turn, destroy that land\.$/i))) { add('p:manaTapped', 'destroy it', { pred: (c, ev) => !!ev.land && ev.pid !== G.s.active && { it: { iid: ev.iid } } }); continue; }
       // ---- batch F triggers
+      if ((q = line.match(/^Whenever a creature an opponent controls becomes the target of a spell or ability you control, (gain control of that creature for as long as you control ~\.)$/i))) { add('p:becomesTarget', q[1], { pred: (c, ev) => { const t = card(ev.iid); return !!t && isCreature(t) && opponents(c.controller).includes(t.controller) && ev.controller === c.controller && { it: { iid: t.iid } }; } }); continue; } // Willbreaker
       const tlOf = (def, face) => (DB[def] ? (DB[def].faces[face || 0] || DB[def].faces[0]).typeLine || '' : '');
       // Ulvenwald Observer, Arnyn
       if ((q = line.match(/^Whenever a creature you control with (power|toughness|power or toughness) (\d+) or (greater|less) dies, (.+)$/i))) {
@@ -2031,6 +2032,7 @@ function matches(ev) {
     for (const c of gyTriggerCards()) for (const trig of triggersOf({ ...c, controller: c.owner })) if (trig.fromGy) fn(c, trig);
     // emblems with triggered abilities (Garruk, Caller of Beasts: "Whenever you cast a creature spell, …")
     for (const pid of seats()) if ((G.s.players[pid].emblems || []).some((e) => /^(?:When|Whenever|At)\b/i.test(e))) for (const c of emblemObjects(pid)) for (const trig of triggersOf(c)) fn(c, trig);
+    for (const pid of seats()) if ((G.s.players[pid].tempTrig || []).length) for (const c of tempTriggerObjects(pid)) for (const trig of triggersOf(c)) fn(c, trig);
   };
   const whoOk = (trigWho, c, pid) => !trigWho || (trigWho === 'you' ? pid === c.controller : trigWho === 'an opponent' ? pid !== c.controller : true);
   // predicate triggers ('p:<event>'): the parse supplies a test (c, ev) → false | true | hit fields | [hit fields…]
@@ -2090,6 +2092,8 @@ function matches(ev) {
       const ghost = { ...dead, zone: 'battlefield', counters: ev.counters || {}, controller: ev.controller, ...(ev.granted ? { extraText: ev.granted } : {}) };
       for (const trig of triggersOf(ghost, ev.def)) if (trig.event === 'dies' && trig.self && !(trig.minPower && !(ev.power >= trig.minPower))) out.push({ src: dead, trig, controller: ev.controller });
       if (ev.wasBlitzed) out.push({ src: dead, trig: { event: 'dies', text: 'draw a card', raw: 'Blitz' }, controller: ev.controller });
+      // delayed "When that creature dies this turn, …" bound to this creature
+      for (const pid of seats()) for (const o of tempTriggerObjects(pid)) if (o.iid === ev.iid) for (const trig of triggersOf(o)) if (trig.event === 'dies' && trig.self) out.push({ src: o, trig, controller: pid, it: { iid: ev.iid } });
       // "When enchanted creature dies" / "Whenever equipped creature dies"
       for (const aid of ev.attached || []) {
         const a = card(aid);
@@ -2995,6 +2999,8 @@ export async function settle() {
       // a copy of an Aura that entered without being cast (token copies, clones, Copy Enchantment): it goes on something
       if (ev.type === 'enters') { const ac = card(ev.iid); if (ac && ac.zone === 'battlefield' && !ac.attachedTo && !ac.enchantedPlayer && hasSubtype(ac, 'Aura') && !isCreature(ac)) { try { const { attachLooseAuras } = await import('./effects.js'); const d = await attachLooseAuras([ac.iid], ac.controller, T.choosers); if (d.length) log(ac.controller, d.join('; ') + '.'); } catch (e) { if (!(e instanceof Cancelled)) console.error(e); } } }
       let hits = withReadCache(() => matches(ev)); // finding who triggers only reads the board
+      // "When you next …": a one-shot delayed trigger is used up by the first event that triggers it
+      for (const h of hits) if (h.src && h.src.tempOnce && G.s.players[h.src.tempPid]) G.s.players[h.src.tempPid].tempTrig = (G.s.players[h.src.tempPid].tempTrig || []).filter((t) => t.id !== h.src.tempId);
       // Aboleth Spawn: "Whenever a creature entering under an opponent's control causes a triggered ability of that creature to trigger, you may copy that ability."
       if (ev.type === 'enters' && hits.length) {
         const ec = card(ev.iid);

@@ -4945,6 +4945,279 @@ on(/^until end of turn, target creature with defender gains haste, can attack as
 }, { first: true });
 // Nalfeshnee: handled by "copy it" above
 on(/^if it's a permanent spell, the copy gains haste and "at the beginning of the end step, sacrifice (?:~|this permanent)\.?"$/, async (m, env) => { env.did.handled = true; }, { first: true });
+// ---------------- "for as long as" effects
+on(/^(?:for as long as (?:that card|it) remains exiled, )?its owner may (play|cast) it(?: without paying its mana cost)?(?: for as long as it remains exiled)?$/, async (m, env) => {
+  const c = (env.it && card(env.it.iid)) || (env.them_ && card(env.them_[0]));
+  if (!c || c.zone !== 'exile') return env.did.push('has nothing exiled');
+  grantPlay([c.iid], c.owner, { free: /without paying/.test(m[0]), castOnly: m[1] === 'cast' });
+  env.did.push(`${who(c.owner)} may ${m[1]} ${nameTag(c)} while it stays exiled`);
+}, { first: true });
+on(/^for each of those cards, its owner may play it for as long as it remains exiled$/, async (m, env) => {
+  const ids = (env.them_ || []).filter((i) => card(i) && card(i).zone === 'exile');
+  for (const i of ids) grantPlay([i], card(i).owner, {});
+  env.did.push(`their owners may play ${ids.length} exiled card${ids.length === 1 ? '' : 's'}`);
+}, { first: true });
+on(/^(?:you may )?look at and play (?:those cards|that card|it) for as long as (?:they remain|it remains) exiled$/, async (m, env) => {
+  const ids = (env.them_ || (env.it ? [env.it.iid] : [])).filter((i) => card(i) && card(i).zone === 'exile');
+  grantPlay(ids, env.me, {});
+  env.did.push(`may play ${ids.length} exiled card${ids.length === 1 ? '' : 's'}`);
+}, { first: true });
+on(/^(?:you may )?look at (?:it|that card|them|those cards) for as long as (?:it remains|they remain) exiled$/, async (m, env) => { env.did.handled = true; }, { first: true });
+on(/^(target creature you control|target creature|it|that creature) gains (indestructible|hexproof|[a-z]+) for as long as you control ~$/, async (m, env) => {
+  const [t] = await subjectObjs(env, m[1]);
+  if (!t) return env.did.push('has no target');
+  t.whileGrants = [...(t.whileGrants || []), { kw: m[2], src: env.src.iid, ctl: env.me }];
+  env.did.push(`${nameTag(t)} gains ${m[2]} while ${possOf(env.me)} ${cardName(env.src)} stays`);
+}, { first: true });
+on(/^(that creature|it|target creature) can't attack or block for as long as you control ~$/, async (m, env) => {
+  const [t] = await subjectObjs(env, m[1]);
+  if (!t) return env.did.push('has no target');
+  t.cantBlockWhile = env.src.iid;
+  t.cantAttackWhile = env.src.iid;
+  t.cantAttackWhileCtl = env.me;
+  env.did.push(`${nameTag(t)} can't attack or block while ${possOf(env.me)} ${cardName(env.src)} stays`);
+}, { first: true });
+on(/^(it|those creatures) (?:doesn't|don't) untap during (?:its controller's|their controllers') untap steps? for as long as you control ~$/, async (m, env) => {
+  const objs = m[1] === 'it' ? await subjectObjs(env, 'it') : (env.them_ || []).map(card).filter(Boolean);
+  for (const c of objs) { c.noUntapWhile = env.src.iid; c.noUntapWhileCtl = env.me; }
+  env.did.push(`${objs.map(nameTag).join(', ')} stay${objs.length === 1 ? 's' : ''} tapped while you control ${cardName(env.src)}`);
+}, { first: true });
+on(/^gain control of (that creature|it|target [^,]+?) for as long as you control ~$/, async (m, env) => {
+  const [t] = /^target/.test(m[1]) ? await objects(env, m[1], {}) : await subjectObjs(env, m[1]);
+  if (!t || t.controller === env.me) return env.did.push('has no creature to take');
+  const prev = t.controller;
+  move(t.iid, 'battlefield', { controller: env.me });
+  if (card(t.iid)) card(t.iid).controlWhile = { src: env.src.iid, prev, by: env.me, youControl: true };
+  env.did.push(`gains control of ${nameTag(t)} while it controls ${cardName(env.src)}`);
+}, { first: true });
+// ---------------- bidding: Illicit Auction, Mages' Contest
+async function bidLife(env, bidders, start, worth) {
+  let high = start, who_ = env.me;
+  for (let round = 0; round < 40; round++) {
+    let topped = false;
+    for (const p of bidders) {
+      if (p === who_) continue;
+      const life = G.s.players[p].life;
+      const want = (worth[p] || 0);
+      let bid = 0;
+      if (isAI(p)) bid = high + 1 <= Math.min(want, life - 5) ? high + 1 : 0;
+      else bid = await env.choosers[p].chooseNumber({ prompt: `Bid life (high bid ${high} by ${seatName(who_)}). 0 to pass.`, min: 0, max: Math.max(0, life - 1), ai: 0 });
+      if (bid > high) { high = bid; who_ = p; topped = true; }
+    }
+    if (!topped) break;
+  }
+  return { high, winner: who_ };
+}
+on(/^you and target spell's controller bid life\. you start the bidding with a bid of (\d+)\. in turn order, each player may top the high bid\. the bidding ends if the high bid stands\. the high bidder loses life equal to the high bid\. if you win the bidding, counter that spell$/, async (m, env) => {
+  const st = G.s.stack && !G.s.stack.ability ? G.s.stack : null;
+  if (!st) return env.did.push('has no spell to contest');
+  const opp = st.by || (card(st.iid) || {}).controller;
+  const val = Math.ceil(cardValue(card(st.iid) || {}) * 1.5);
+  const r = await bidLife(env, [env.me, opp], +m[1], { [env.me]: val, [opp]: val });
+  changeLife(r.winner, -r.high, { src: env.src, loss: true });
+  if (r.winner === env.me) { st.countered = true; env.did.push(`wins the bidding at ${r.high} life and counters ${nameTag(card(st.iid))}`); }
+  else env.did.push(`${who(r.winner)} ${s_(r.winner, 'win')} the bidding at ${r.high} life`);
+}, { first: true, multi: true });
+on(/^(?:each player may |players )bid life for control of target creature\. you start the bidding with a bid of (\d+)\. in turn order, each player may top the high bid\. the bidding ends if the high bid stands\. the high bidder loses life equal to the high bid and gains control of the creature$/, async (m, env) => {
+  const [t] = await objects(env, 'target creature', {});
+  if (!t) return env.did.push('has no target');
+  const ps = seats().filter((p) => !G.s.players[p].lost);
+  const val = Math.ceil(cardValue(t) * 2);
+  const worth = Object.fromEntries(ps.map((p) => [p, p === t.controller ? val : val]));
+  const r = await bidLife(env, turnOrderFrom(env.me).filter((p) => ps.includes(p)), +m[1], worth);
+  changeLife(r.winner, -r.high, { src: env.src, loss: true });
+  if (t.controller !== r.winner) move(t.iid, 'battlefield', { controller: r.winner });
+  env.did.push(`${who(r.winner)} ${s_(r.winner, 'win')} the auction at ${r.high} life and ${s_(r.winner, 'gain')} control of ${nameTag(t)}`);
+}, { first: true, multi: true });
+// ---------------- copy cards and cast the copies (Mnemonic Deluge, Spelltwine, Zethi, Baron Helmut Zemo)
+on(/^copy (that card|those cards|those exiled cards|the exiled cards|each exiled card you own with a kick counter on it)(?: (twice|three times|(\w+) times))?$/, async (m, env) => {
+  let srcs;
+  if (m[1] === 'that card') srcs = env.it && card(env.it.iid) ? [card(env.it.iid)] : [];
+  else if (/kick counter/.test(m[1])) srcs = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && c.owner === env.me && ((c.counters || {}).kick || 0) > 0);
+  else srcs = (env.them_ || []).map(card).filter(Boolean);
+  if (!srcs.length) srcs = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && c.exiledWith === (env.src || {}).iid);
+  if (!srcs.length) return env.did.push('has nothing to copy');
+  const times = !m[2] ? 1 : m[2] === 'twice' ? 2 : m[2] === 'three times' ? 3 : n(m[3]) || 1;
+  const copies = [];
+  for (const c of srcs) for (let i = 0; i < times; i++) { const cid = makeCard(c.def, env.me, 'exile'); card(cid).copyCard = true; card(cid).face = c.face || 0; copies.push(cid); }
+  env.copyCards = copies;
+  env.copyCard = copies[0];
+  env.did.push(`makes ${copies.length} cop${copies.length === 1 ? 'y' : 'ies'}`);
+}, { first: true });
+on(/^(?:you may )?cast (?:the copies|any number of the copies)(?: if able)? without paying their mana costs$/, async (m, env) => {
+  const ids = (env.copyCards || []).filter((i) => card(i));
+  if (!ids.length) return env.did.push('has no copies to cast');
+  await castFromPool(env, ids, { free: true, max: ids.length });
+  for (const cid of ids) if (card(cid) && card(cid).zone === 'exile') { delete G.s.cards[cid]; const z = zoneOf(env.me, 'exile'); const i = z.indexOf(cid); if (i >= 0) z.splice(i, 1); }
+  env.copyCards = null;
+}, { first: true });
+// ---------------- type, color and animation changes
+const COLOR_W = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
+const PERM_TYPES = ['artifact', 'enchantment', 'creature', 'land', 'planeswalker', 'battle'];
+async function subjectObjs(env, ph) {
+  ph = ph.trim();
+  if (ph === '~' || ph === 'he' || ph === 'she') return env.src && card(env.src.iid) ? [card(env.src.iid)] : [];
+  if (/^(?:it|that creature|that land|that permanent|that artifact|the creature)$/.test(ph)) {
+    const c = (env.it && card(env.it.iid)) || (env.pickedSoFar && card(env.pickedSoFar[env.pickedSoFar.length - 1])) || (G.s.lastEntered && card(G.s.lastEntered) && card(G.s.lastEntered).zone === 'battlefield' ? card(G.s.lastEntered) : null);
+    return c && c.zone === 'battlefield' ? [c] : [];
+  }
+  if (/^(?:they|them|those creatures|those lands|each of those creatures|those permanents|each of them)$/.test(ph)) return (env.them_ || []).map(card).filter((c) => c && c.zone === 'battlefield');
+  return objects(env, ph, { harm: false });
+}
+function untilOf(env, dur) {
+  if (!dur) return 'forever';
+  if (/end of turn/.test(dur)) return 'eot';
+  if (/your next turn/.test(dur)) return nextTurnNumber(env.me);
+  return 'eot';
+}
+function grantFor(c, kws, until) {
+  if (!kws.length) return;
+  if (until === 'eot') c.eotGrants = [...(c.eotGrants || []), ...kws];
+  else if (typeof until === 'number') c.ntGrants = [...(c.ntGrants || []), ...kws.map((kw) => ({ kw, until }))];
+  else c.grants = [...(c.grants || []), ...kws];
+}
+const kwSplit = (t) => (t || '').split(/,\s*(?:and\s+)?|\s+and\s+/).map((x) => x.trim()).filter(Boolean);
+// "That creature is a black Zombie in addition to its other colors and types." / "Target permanent becomes an artifact in addition to its other types until end of turn."
+on(/^(?:until end of turn, )?(.+?) (?:becomes?|is|are) (?:an? )?((?:[a-z]+ )*?[a-z]+?)s? in addition to (?:its|their|his|her) other (?:colors and |creature )?types( until end of turn)?(?: and gains? ([a-z ,]+))?$/, async (m, env) => {
+  const objs = await subjectObjs(env, m[1]);
+  if (!objs.length) return 'pass';
+  const until = m[3] || /^until end of turn/.test(m[0]) ? 'eot' : true;
+  const words = m[2].split(/\s+/);
+  const colors = words.filter((w) => COLOR_W[w]).map((w) => COLOR_W[w]);
+  const rest = words.filter((w) => !COLOR_W[w] && w !== 'and');
+  const legendary = rest.includes('legendary'), snow = rest.includes('snow');
+  const types = rest.filter((w) => PERM_TYPES.includes(w));
+  const subs = rest.filter((w) => !PERM_TYPES.includes(w) && w !== 'legendary' && w !== 'snow').map((w) => w[0].toUpperCase() + w.slice(1).replace(/s$/, (x) => (/[^s]s$/.test(w) && objs.length > 1 ? '' : x)));
+  for (const c of objs) {
+    for (const t of types.length ? types : [null]) addLayerFx(c, { until: until === true ? undefined : until, types: { ...(t ? { add: t[0].toUpperCase() + t.slice(1) } : {}), ...(subs.length ? { subAdd: subs.join(' ') } : {}), ...(legendary ? { legendary: true } : {}), ...(snow ? { snow: true } : {}) }, ...(colors.length ? { colors: { add: colors } } : {}) });
+    if (m[4]) grantFor(c, kwSplit(m[4]), until === true ? 'forever' : until);
+  }
+  env.did.push(`${objs.map(nameTag).join(', ')} ${objs.length > 1 ? 'become' : 'becomes'} ${m[2]} in addition to ${objs.length > 1 ? 'their' : 'its'} other types${until === 'eot' ? ' until end of turn' : ''}`);
+}, { first: true });
+on(/^(target nonsnow permanent|target permanent|it) becomes snow until end of turn$/, async (m, env) => {
+  const [c] = await subjectObjs(env, m[1]);
+  if (!c) return env.did.push('has no target');
+  addLayerFx(c, { until: 'eot', types: { snow: true } });
+  env.did.push(`${nameTag(c)} becomes snow until end of turn`);
+}, { first: true });
+on(/^(target creature(?: you control)?|it|that creature) becomes (all colors|the color or colors of your choice) until end of turn$/, async (m, env) => {
+  const [c] = await subjectObjs(env, m[1]);
+  if (!c) return env.did.push('has no target');
+  addLayerFx(c, { until: 'eot', colors: { set: ['W', 'U', 'B', 'R', 'G'] } });
+  env.did.push(`${nameTag(c)} becomes all colors until end of turn`);
+}, { first: true });
+on(/^(target creature|it|that creature) (?:gets ([+-]\d+)\/([+-]\d+) and )?loses all creature types until end of turn$/, async (m, env) => {
+  const [c] = await subjectObjs(env, m[1]);
+  if (!c) return env.did.push('has no target');
+  if (m[2]) pumpEOT(c, { p: +m[2], t: +m[3] });
+  addLayerFx(c, { until: 'eot', types: { subSet: '' } });
+  env.did.push(`${nameTag(c)}${m[2] ? ` gets ${m[2]}/${m[3]} and` : ''} loses all creature types until end of turn`);
+}, { first: true });
+// Animation: "Until end of turn, target noncreature artifact you control becomes a 4/4 artifact creature." /
+// "Until your next turn, all lands you control become 2/2 Elemental creatures with reach, indestructible, and haste. They're still lands."
+on(/^(?:(until end of turn|until your next turn), )?(?:have )?(.+?) (?:becomes?|become) (?:an? )?(x|\d+)\/(x|\d+) ((?:[a-z]+ )*?)(?:artifact )?creatures?(?: with ([a-z ,{}0-9]+?))?(?: that(?:'s| are) still (?:an? )?(?:planeswalker|lands?))?( until end of turn| until your next turn)?(?:, where x is (.+))?$/, async (m, env) => {
+  if (/\bcopy\b/.test(m[2])) return 'pass';
+  const objs = await subjectObjs(env, m[2]);
+  if (!objs.length) return env.did.push('has nothing to animate');
+  let x = env.x || 0;
+  if (m[8]) { const keep = env.xWhere; env.xWhere = [null, 'x', m[8]]; whereX(env); x = env.x || 0; env.xWhere = keep; }
+  const p = m[3] === 'x' ? x : +m[3], t = m[4] === 'x' ? x : +m[4];
+  const until = untilOf(env, m[1] || m[7]);
+  const words = (m[5] || '').trim().split(/\s+/).filter(Boolean);
+  const colors = words.filter((w) => COLOR_W[w]).map((w) => COLOR_W[w]);
+  const subs = words.filter((w) => !COLOR_W[w] && w !== 'and' && !PERM_TYPES.includes(w)).map((w) => (w[0].toUpperCase() + w.slice(1)).replace(/(?<=[^s])s$/, ''));
+  const artifact = /artifact creature/.test(m[0]);
+  for (const c of objs) {
+    c.animated = { ts: nextStamp(), p, t, types: subs.join(' ') || 'Creature', until: until === 'forever' ? 'forever' : until, setsPT: true };
+    if (artifact) addLayerFx(c, { until: until === 'forever' ? undefined : until, types: { add: 'Artifact' } });
+    if (colors.length) addLayerFx(c, { until: until === 'forever' ? undefined : until, colors: { set: colors } });
+    grantFor(c, kwSplit(m[6]), until);
+  }
+  env.did.push(`${objs.map(nameTag).join(', ')} ${objs.length > 1 ? 'become' : 'becomes'} ${p}/${t} creature${objs.length > 1 ? 's' : ''}${until === 'eot' ? ' until end of turn' : typeof until === 'number' ? ' until your next turn' : ''}`);
+}, { first: true });
+on(/^(?:until end of turn, )?(target creature you control|it|that creature) becomes an? (?:(white|blue|black|red|green) )?([a-z]+) with base power and toughness (\d+)\/(\d+)(?: and gains ([a-z ,]+))?( until end of turn)?$/, async (m, env) => {
+  const [c] = await subjectObjs(env, m[1]);
+  if (!c) return env.did.push('has no target');
+  const eot = /until end of turn/.test(m[0]);
+  addLayerFx(c, { until: eot ? 'eot' : undefined, base: { p: +m[4], t: +m[5] }, types: { subSet: m[3][0].toUpperCase() + m[3].slice(1) }, ...(m[2] ? { colors: { set: [COLOR_W[m[2]]] } } : {}) });
+  if (m[6]) grantFor(c, kwSplit(m[6]), eot ? 'eot' : 'forever');
+  env.did.push(`${nameTag(c)} becomes a ${m[4]}/${m[5]} ${m[3]}`);
+}, { first: true });
+// "becomes a copy of": Fleeting Reflection, Shapesharer, Naga Fleshcrafter, Deceiver of Form, Scion of the Ur-Dragon, Valki, Curie, Taskmaster
+function becomeCopy(self, model, until, except = '') {
+  if (!self.origDef) { self.origDef = self.def; self.origFace = self.face || 0; }
+  self.def = model.def;
+  self.face = model.face || 0;
+  delete self.setPT;
+  if (until) self.copyUntil = until;
+  if (/isn't legendary|not legendary/i.test(except)) self.notLegendary = true;
+  if (/it has flying/i.test(except)) grantFor(self, ['flying'], until || 'forever');
+  if (/except (?:its|his|her) name is ~/i.test('except ' + except)) self.nameOverride = self.nameOverride || DB[self.origDef].name;
+  exceptTypes(self, except, until === 'eot');
+}
+on(/^(?:until end of turn, |until your next turn, )?(?:have |you may have )?(.+?) (?:becomes?|become) (?:a )?cop(?:y|ies) of (.+?)( until end of turn| until your next turn| until the next end step)?(?:, except (.+))?$/, async (m, env) => {
+  const dur = m[3] || (/^until end of turn/.test(m[0]) ? ' until end of turn' : /^until your next turn/.test(m[0]) ? ' until your next turn' : '');
+  const until = /end of turn|next end step/.test(dur) ? 'eot' : /next turn/.test(dur) ? nextTurnNumber(env.me) : null;
+  let model;
+  const mp = m[2].trim();
+  if (/^(?:that card|it|that creature|the exiled creature|the exiled card|the chosen creature|a creature card exiled with ~)$/.test(mp)) model = (env.it && card(env.it.iid)) || (env.them_ && card(env.them_[env.them_.length - 1])) || null;
+  if (!model && /exiled with ~/.test(mp)) model = Object.values(G.s.cards).find((c) => c.zone === 'exile' && c.exiledWith === (env.src || {}).iid && /Creature/.test(DB[c.def].faces[0].typeLine || ''));
+  if (!model && /target|another creature|creature you control/.test(mp)) {
+    const pool = /graveyard|in exile|card/.test(mp) ? Object.values(G.s.cards).filter((c) => ['graveyard', 'exile', 'battlefield'].includes(c.zone) && isCreature({ ...c, zone: 'battlefield' }) && c.iid !== (env.src || {}).iid) : seats().flatMap((p) => cardsIn(p, 'battlefield')).filter((c) => isCreature(c) && c.iid !== (env.src || {}).iid && (!/you control/.test(mp) || c.controller === env.me) && (!/nonlegendary/.test(mp) || !/Legendary/.test(DB[c.def].typeLine || '')));
+    const [p] = pool.length ? await env.choosers[env.me].pickCards({ prompt: `Becomes a copy of which creature?`, cards: pool.map((c) => c.iid), min: /up to/.test(mp) ? 0 : 1, max: 1, purpose: 'copy', src: env.src, aiScore: (c) => cardValue(c) }) : [];
+    model = p && card(p);
+  }
+  if (!model) return env.did.push('has nothing to copy');
+  let selves;
+  if (/^(?:each other creature you control|creatures you control other than ~|each creature you control other than the chosen creature)$/.test(m[1])) selves = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && c.iid !== model.iid && c.iid !== (/other than ~/.test(m[1]) ? (env.src || {}).iid : null));
+  else if (/^(?:each nonland permanent you control)$/.test(m[1])) selves = cardsIn(env.me, 'battlefield').filter((c) => !isLand(c) && c.iid !== model.iid);
+  else selves = (await subjectObjs(env, m[1])).filter((c) => c.iid !== model.iid);
+  if (!selves.length) return env.did.push('has nothing to change');
+  for (const c of selves) becomeCopy(c, model, until, m[4] || '');
+  env.did.push(`${selves.map(nameTag).join(', ')} ${selves.length > 1 ? 'become copies' : 'becomes a copy'} of ${nameTag(model)}${until === 'eot' ? ' until end of turn' : until ? ' until your next turn' : ''}`);
+}, { first: true });
+// ---------------- delayed / "this turn" triggered abilities
+function addTempTrigger(env, text, o = {}) {
+  const P = G.s.players[env.me];
+  G.s.tempTrigN = (G.s.tempTrigN || 0) + 1;
+  const name = (env.src && cardName(env.src)) || 'Delayed trigger';
+  P.tempTrig = [...(P.tempTrig || []), { id: G.s.tempTrigN, text, until: o.until ?? G.s.turn, once: !!o.once, bind: o.bind || null, name }];
+  G.s.bfv = (G.s.bfv || 0) + 1;
+}
+const cap1 = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+// "When you next cast an instant or sorcery spell this turn, copy that spell X times."
+on(/^(?:[a-z]+ — )?when(?:ever)? you next (cast|attack|activate) (.*?)(?: this turn)?, (.+)$/, async (m, env) => {
+  let eff = m[3].replace(/\bx times\b/, `${env.x || 0} times`).replace(/\bx\b(?= life| cards?| damage)/, String(env.x || 0));
+  const what = m[1] === 'attack' ? 'attack' : `${m[1]} ${m[2]}`.replace(/ this turn$/, '');
+  addTempTrigger(env, `Whenever you ${what}, ${eff}.`, { once: true });
+  env.did.push(`the next time you ${what.replace(/^cast /, 'cast ')} this turn, ${eff}`);
+}, { first: true });
+// "When that creature dies this turn, return it to the battlefield tapped under your control."
+on(/^when(?:ever)? (that creature|it|~|target creature(?: other than ~)?(?: you control)?) (dies|dies under your control|is put into your graveyard|deals combat damage(?: to a player)?|is dealt damage) this turn, (.+)$/, async (m, env) => {
+  let t;
+  if (m[1] === '~') t = env.src && card(env.src.iid);
+  else if (/^target/.test(m[1])) [t] = await objects(env, m[1].replace(' other than ~', ''), { harm: false });
+  else t = (env.it && card(env.it.iid)) || (env.pickedSoFar && card(env.pickedSoFar[env.pickedSoFar.length - 1]));
+  if (!t) return env.did.push('has no creature');
+  const ev = m[2] === 'is put into your graveyard' || m[2] === 'dies under your control' ? 'dies' : m[2];
+  addTempTrigger(env, `When${/dies/.test(ev) ? '' : 'ever'} ~ ${ev}, ${m[3].replace(/\bthat card\b|\bthat creature\b/g, '~').replace(/\bit\b/, '~')}.`, { bind: t.iid, once: /dies/.test(ev) });
+  env.did.push(`sets up a trigger for ${nameTag(t)} this turn`);
+}, { first: true });
+// "Until end of turn, whenever a creature an opponent controls blocks, draw a card." / "Whenever you attack this turn, …"
+on(/^(?:until end of turn, |until your next turn, |until the end of your next turn, )?whenever (.+?)(?: this turn)?, (.+)$/, async (m, env) => {
+  if (!/^until /.test(m[0]) && !/^whenever [^,]*? this turn, /.test(m[0])) return 'pass';
+  let cond = m[1].replace(/ this turn$/, '');
+  let bind = null;
+  if (/\bthat creature\b|\bthose creatures\b/.test(cond)) {
+    const t = (env.it && card(env.it.iid)) || (env.pickedSoFar && card(env.pickedSoFar[env.pickedSoFar.length - 1]));
+    if (!t) return env.did.push('has no creature');
+    bind = t.iid;
+    cond = cond.replace(/\bthat creature\b|\bthose creatures\b/, '~');
+  }
+  const until = /^until your next turn/.test(m[0]) ? nextTurnNumber(env.me) - 1 : /^until the end of your next turn/.test(m[0]) ? nextTurnNumber(env.me) : G.s.turn;
+  addTempTrigger(env, `Whenever ${cond}, ${m[2]}.`, { until, bind });
+  env.did.push(`until ${until === G.s.turn ? 'end of turn' : 'later'}, whenever ${cond.replace('~', 'it')}, ${m[2]}`);
+}, { first: true });
 // ---------------- batch E
 // Jace, Multiverse Architect: "Draw two cards, then put a card from your hand on the bottom of your library."
 on(/^(draw (?:a|one|two|three|four|x) cards?),? then (put (?:a|one|two|three) cards? from your hand on (?:top|the bottom) of your library(?: in any order)?)$/, async (m, env) => {
