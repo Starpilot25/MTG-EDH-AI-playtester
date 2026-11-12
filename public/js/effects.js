@@ -1195,6 +1195,7 @@ async function pickTargets(env, phrase, opts = {}) {
       // damage: say how much (Scourge of Valkas, Warstorm Surge: "deals damage equal to its power")
       prompt: opts.prompt || `${opts.amount !== undefined ? `Deal ${opts.amount} damage — choose ` : 'Choose '}${count > 1 && count < 99 ? `target ${k + 1} of ${count}` : 'a target'}: ${String(kind).replace(/^(?:up to|any number of) \w+ /, '')}`,
       candidates: left.map((c) => c.iid), players: pl, harm: opts.harm !== undefined ? opts.harm : true, amount: opts.amount, src: env.src, purpose: opts.purpose,
+      ...(opts.aiScore ? { aiScore: opts.aiScore } : {}), // handlers that know what a good target is (Chief Miles O'Brien: the permanent with the most counters)
       optional: optional || k > 0 || (!left.length && !pl.length),
     });
     if (!pick) break;
@@ -4313,7 +4314,7 @@ async function airbendCards(env, ids) {
   }
   env.did.push(done.length ? `airbends ${done.join(', ')}` : 'airbends nothing');
 }
-on(/^airbend (up to one |any number of )?(other )?target (.+?)$/, async (m, env) => {
+on(/^airbend (up to one |any number of )?(other |another )?target (.+?)$/, async (m, env) => {
   const phrase = m[3];
   const other = !!m[2];
   const mineOnly = /you control/.test(phrase);
@@ -4573,7 +4574,7 @@ on(/^put target land card in a graveyard that was milled this turn onto the batt
   env.did.push(`puts ${nameTag(card(p))} onto the battlefield tapped`);
 }, { first: true });
 // Raffine
-on(/^target attacking creature connives x, where x is the number of attacking creatures$/, async (m, env) => {
+on(/^target attacking creature connives x(?:, where x is the number of attacking creatures)?$/, async (m, env) => {
   const k = (G.s.combat && G.s.combat.attackers || []).length;
   await runSentence(`target attacking creature connives ${k}`, env);
 }, { first: true });
@@ -4945,6 +4946,32 @@ on(/^until end of turn, target creature with defender gains haste, can attack as
 // Nalfeshnee: handled by "copy it" above
 on(/^if it's a permanent spell, the copy gains haste and "at the beginning of the end step, sacrifice (?:~|this permanent)\.?"$/, async (m, env) => { env.did.handled = true; }, { first: true });
 // ---------------- batch E
+// Jace, Multiverse Architect: "Draw two cards, then put a card from your hand on the bottom of your library."
+on(/^(draw (?:a|one|two|three|four|x) cards?),? then (put (?:a|one|two|three) cards? from your hand on (?:top|the bottom) of your library(?: in any order)?)$/, async (m, env) => {
+  await runSentence(m[1], env);
+  await runSentence(m[2], env);
+}, { first: true });
+on(/^activate only as a sorcery and only once each turn$/, async (m, env) => { env.did.handled = true; }, { first: true });
+on(/^each of that player's opponents draws (a|one|two|three) cards?$/, async (m, env) => {
+  const k = { a: 1, one: 1, two: 2, three: 3 }[m[1]];
+  const os = opponents(env.thatPlayer || env.me).filter((p) => !G.s.players[p].lost);
+  for (const o of os) draw(o, k);
+  env.did.push(`${os.map(who).join(', ')} draw${os.length === 1 ? 's' : ''} ${k}`);
+}, { first: true });
+// Derevi
+on(/^put ~ onto the battlefield from the command zone$/, async (m, env) => {
+  const c = env.src && card(env.src.iid);
+  if (!c || c.zone !== 'command') return env.did.push("isn't in the command zone");
+  toBattlefield(c.iid, c.owner);
+  env.did.push(`puts ${nameTag(c)} onto the battlefield`);
+}, { first: true });
+on(/^that player loses half their life, rounded (up|down)$/, async (m, env) => {
+  const pl = env.thatPlayer;
+  if (!pl || !G.s.players[pl]) return;
+  const k = (m[1] === 'up' ? Math.ceil : Math.floor)(Math.max(0, G.s.players[pl].life) / 2);
+  changeLife(pl, -k, { src: env.src, loss: true });
+  env.did.push(`${who(pl)} ${s_(pl, 'lose')} ${k} life`);
+}, { first: true });
 on(/^equipped creature deals (\d+) damage to each creature blocking it$/, async (m, env) => {
   const h = env.src && card(env.src.iid) && card(card(env.src.iid).attachedTo || '');
   const bl = ((env.event || {}).blockers || []).map((i) => card(i)).filter((x) => x && x.zone === 'battlefield');
@@ -5370,14 +5397,7 @@ on(/^those creatures don't untap during that player's next untap step$/, async (
 // ---------------- batch: EDHREC top-5000 leftovers
 // "Trapped! — You lose 3 life." (d20 table rows and other flavor labels ending in "!")
 on(/^[a-z][a-z' ,-]*! — (.+)$/, async (m, env) => { await runSentence(m[1], env); }, { first: true });
-// Aetheric Amplifier
-on(/^double the number of each kind of counter on target permanent$/, async (m, env) => {
-  const [t] = await objects(env, 'target permanent', { harm: false });
-  if (!t) return env.did.push('has no target');
-  const ks = Object.entries(t.counters || {}).filter(([, v]) => v > 0);
-  for (const [k, v] of ks) addCounters(t, k, v, { by: env.me });
-  env.did.push(ks.length ? `doubles the counters on ${nameTag(t)}` : `${nameTag(t)} has no counters`);
-}, { first: true });
+// Aetheric Amplifier (the permanent half is handled earlier)
 on(/^double the number of each kind of counter you have$/, async (m, env) => {
   const P = G.s.players[env.me];
   const got = [];
@@ -5412,14 +5432,16 @@ on(/^draw an additional card for each opponent who has one or fewer cards in han
   env.did.push(`draws ${k} additional card${k === 1 ? '' : 's'}`);
 }, { first: true });
 // Clown Car
-on(/^roll x six-sided dice\. for each even result, put a \+1\/\+1 counter on ~$/, async (m, env) => {
+on(/^roll x six-sided dice\.(?: for each odd result, (create [^.]+)\.)? for each even result, put a \+1\/\+1 counter on ~$/, async (m, env) => {
   const x = env.x || 0;
   const rolls = Array.from({ length: x }, () => 1 + Math.floor(Math.random() * 6));
   for (const r of rolls) queueEvent({ type: 'dieRolled', pid: env.me, sides: 6, result: r });
   const ev = rolls.filter((r) => r % 2 === 0).length;
+  const od = rolls.length - ev;
   const c = env.src && card(env.src.iid);
   if (c && ev) addCounters(c, '+1/+1', ev, { by: env.me });
-  env.did.push(`rolls ${rolls.join(', ') || 'no dice'}: ${ev} +1/+1 counter${ev === 1 ? '' : 's'}`);
+  if (m[1]) for (let i = 0; i < od; i++) await runSentence(m[1], env);
+  env.did.push(`rolls ${rolls.join(', ') || 'no dice'}: ${ev} +1/+1 counter${ev === 1 ? '' : 's'}${m[1] ? `, ${od} token${od === 1 ? '' : 's'}` : ''}`);
 }, { first: true, multi: true });
 // Demonic Junker
 on(/^for each player, destroy up to one target creature that player controls\. if a creature you controlled was destroyed this way, put two \+1\/\+1 counters on ~$/, async (m, env) => {
@@ -21147,5 +21169,10 @@ on(/^destroy all creatures with power (greater|less) than target creature's powe
 on(/^until end of turn, (.+)$/, async (m, env) => {
   const t2 = `${m[1]} until end of turn`;
   if (/^until end of turn/.test(m[1]) || !handled(t2)) return 'pass';
+  await runSentence(t2, env);
+});
+on(/^until your next turn, (.+)$/, async (m, env) => {
+  const t2 = `${m[1]} until your next turn`;
+  if (/^until /.test(m[1]) || !handled(t2)) return 'pass';
   await runSentence(t2, env);
 });

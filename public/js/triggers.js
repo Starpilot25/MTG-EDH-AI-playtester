@@ -223,7 +223,7 @@ function parseTriggerText(text, speed) {
       // Zahur, Glory's Past
       if ((q = line.match(/^Whenever a nontoken creature you control dies, (.+)$/i))) { add('p:dies', q[1], { pred: (c, ev) => ev.controller === c.controller && !ev.token }); continue; }
       // Eladamri's Vineyard, Magus of the Vineyard
-      if ((q = line.match(/^At the beginning of each player's (?:first|precombat) main phase, that player adds (\{[WUBRGC]\}+)\.$/i))) { const sy = q[1]; add('p:mainPhase', `that player adds ${sy}`, { pred: (c, ev) => ({ thatPlayer: ev.active }) }); continue; }
+      if ((q = line.match(/^At the beginning of each player's (?:first|precombat) main phase, that player adds ((?:\{[WUBRGC]\})+)\.$/i))) { const sy = q[1]; add('p:mainPhase', `that player adds ${sy}`, { pred: (c, ev) => ({ thatPlayer: ev.active }) }); continue; }
       // Well of Ideas, Righteous Authority
       if ((q = line.match(/^At the beginning of each other player's draw step, that player draws an additional card\.$/i))) { add('p:drawStep', 'that player draws a card', { pred: (c, ev) => ev.active !== c.controller && { thatPlayer: ev.active } }); continue; }
       if ((q = line.match(/^At the beginning of the draw step of enchanted creature's controller, that player draws an additional card\.$/i))) { add('p:drawStep', 'that player draws a card', { pred: (c, ev) => { const h = c.attachedTo && card(c.attachedTo); return !!h && h.controller === ev.active && { thatPlayer: ev.active }; } }); continue; }
@@ -238,6 +238,71 @@ function parseTriggerText(text, speed) {
       // Burning Earth, Price of Glory
       if ((q = line.match(/^Whenever a player taps a nonbasic land for mana, ~ deals 1 damage to that player\.$/i))) { add('p:manaTapped', '~ deals 1 damage to that player', { pred: (c, ev) => !!ev.land && card(ev.iid) && !/\bBasic\b/.test(DB[card(ev.iid).def].typeLine || '') && { thatPlayer: ev.pid } }); continue; }
       if ((q = line.match(/^Whenever a player taps a land for mana, if it's not that player's turn, destroy that land\.$/i))) { add('p:manaTapped', 'destroy it', { pred: (c, ev) => !!ev.land && ev.pid !== G.s.active && { it: { iid: ev.iid } } }); continue; }
+      // ---- batch F triggers
+      const tlOf = (def, face) => (DB[def] ? (DB[def].faces[face || 0] || DB[def].faces[0]).typeLine || '' : '');
+      // Ulvenwald Observer, Arnyn
+      if ((q = line.match(/^Whenever a creature you control with (power|toughness|power or toughness) (\d+) or (greater|less) dies, (.+)$/i))) {
+        const st = q[1].toLowerCase(), v = +q[2], gt = q[3].toLowerCase() === 'greater';
+        const ok = (x) => (gt ? x >= v : x <= v);
+        add('p:dies', q[4], { pred: (c, ev) => ev.controller === c.controller && /Creature/.test(tlOf(ev.def, ev.face)) && (st === 'power' ? ok(ev.power || 0) : st === 'toughness' ? ok(ev.toughness || 0) : ok(ev.power || 0) || ok(ev.toughness || 0)) });
+        continue;
+      }
+      // Perimeter Captain
+      if ((q = line.match(/^Whenever a creature you control with (defender|flying|reach) blocks, (.+)$/i))) { const kw = q[1].toLowerCase(); add('p:blocks', q[2], { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.controller === c.controller && hasKw(t, kw); } }); continue; }
+      // Lady Octopus, Tamiyo
+      if ((q = line.match(/^Whenever you draw your first or second card each turn, (.+)$/i))) { add('p:draw', q[1], { pred: (c, ev) => ev.pid === c.controller && (ev.nth === 1 || ev.nth === 2) }); continue; }
+      if ((q = line.match(/^When you draw your third card in a turn, (.+)$/i))) { add('p:draw', q[1], { pred: (c, ev) => ev.pid === c.controller && ev.nth === 3 }); continue; }
+      // Rielle
+      if ((q = line.match(/^Whenever you discard one or more cards for the first time each turn, draw that many cards\.$/i))) { add('p:discard', 'draw a card', { pred: (c, ev) => { if (ev.pid !== c.controller) return false; if (c.onceTurn === G.s.turn) return false; c.onceTurn = G.s.turn; return true; } }); continue; }
+      // Teysa, Opulent Oligarch
+      if ((q = line.match(/^Whenever an? ([A-Z]\w+) you control is put into a graveyard from the battlefield, (.+)$/i))) { const k = q[1]; add('p:leaves', q[2], { pred: (c, ev) => ev.to === 'graveyard' && ev.controller === c.controller && (new RegExp(`\\b${k}\\b`).test(tlOf(ev.def, ev.face))) }); continue; }
+      // Ringwraiths, Voidwing Hybrid (from the graveyard)
+      if ((q = line.match(/^When the Ring tempts you, (return ~ from your graveyard to your hand\.)$/i))) { add('p:ringTempts', q[1], { pred: (c, ev) => ev.pid === c.controller }); continue; }
+      if ((q = line.match(/^When you proliferate, (return ~ from your graveyard to your hand\.)$/i))) { add('p:proliferated', q[1], { pred: (c, ev) => ev.pid === c.controller }); continue; }
+      // Anje, Maid of Dishonor; Saradoc
+      if ((q = line.match(/^Whenever ~ and\/or one or more other ([A-Z]\w+?)s you control enter, (.+)$/i))) { const k = q[1]; add('p:enters', q[2], { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.controller === c.controller && (t.iid === c.iid || hasSubtype(t, k)) && onceKey(c, 'anje'); } }); continue; }
+      if ((q = line.match(/^Whenever ~ or another nontoken creature you control with power (\d+) or less enters, (.+)$/i))) { const v = +q[1]; add('p:enters', q[2], { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.controller === c.controller && isCreature(t) && (t.iid === c.iid || (!t.token && power(t) <= v)); } }); continue; }
+      // The Ghoul, Gunslinger
+      if ((q = line.match(/^Whenever ~ or another nontoken ([A-Z]\w+) or ([A-Z]\w+) you control dies, (.+)$/i))) { const a1 = q[1], a2 = q[2]; add('p:dies', q[3], { pred: (c, ev) => ev.controller === c.controller && !ev.token && (ev.iid === c.iid || new RegExp(`\\b(?:${a1}|${a2})\\b`).test(tlOf(ev.def, ev.face))), selfGone: true }); continue; }
+      // Haliya, Kassandra, Necrogen Rotpriest
+      if ((q = line.match(/^Whenever one or more creatures you control with \+1\/\+1 counters on them deal combat damage to a player, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.controller === c.controller && ((t.counters || {})['+1/+1'] || 0) > 0 && onceKey(c, 'hal'); } }); continue; }
+      if ((q = line.match(/^Whenever a creature you control with a legendary Equipment attached to it deals combat damage to a player, (.+)$/i))) { add('p:combatDamagePlayer', q[1], { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.controller === c.controller && Object.values(G.s.cards).some((e) => e.zone === 'battlefield' && e.attachedTo === t.iid && /Legendary/.test(DB[e.def].typeLine || '') && /Equipment/.test(DB[e.def].typeLine || '')); } }); continue; }
+      if ((q = line.match(/^Whenever a creature you control with toxic deals combat damage to a player, that player gets an additional poison counter\.$/i))) { add('p:combatDamagePlayer', 'that player gets a poison counter', { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.controller === c.controller && hasKw(t, 'toxic') && { thatPlayer: ev.player }; } }); continue; }
+      // Sonic the Hedgehog
+      if ((q = line.match(/^Whenever a creature you control with flash or haste is dealt damage, (.+)$/i))) { add('p:dealtDamage', q[1], { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.controller === c.controller && (hasKw(t, 'flash') || hasKw(t, 'haste')); } }); continue; }
+      // Pawpatch Recruit, Surrak, Silverfur Partisan
+      if ((q = line.match(/^Whenever a creature you control (?:or a creature spell you control )?becomes the target of a spell or ability an opponent controls, (.+)$/i))) { add('p:becomesTarget', q[1], { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.controller === c.controller && isCreature(t) && opponents(c.controller).includes(ev.controller) && { it: { iid: t.iid }, that: t.iid }; } }); continue; }
+      if ((q = line.match(/^Whenever an? ([A-Z]\w+) or ([A-Z]\w+) you control becomes the target of an instant or sorcery spell, (.+)$/i))) { const a1 = q[1], a2 = q[2]; add('p:becomesTarget', q[3], { pred: (c, ev) => { const t = card(ev.iid); const sp = ev.spell && card(ev.spell); return !!t && t.controller === c.controller && (hasSubtype(t, a1) || hasSubtype(t, a2)) && !!ev.bySpell && !!sp && /\b(?:Instant|Sorcery)\b/.test(DB[sp.def].typeLine || ''); } }); continue; }
+      // Shay Cormac
+      if ((q = line.match(/^Whenever a creature an opponent controls becomes the target of a spell or ability you control, (put a bounty counter on that creature\.)$/i))) { add('p:becomesTarget', 'put a bounty counter on it', { pred: (c, ev) => { const t = card(ev.iid); return !!t && isCreature(t) && opponents(c.controller).includes(t.controller) && ev.controller === c.controller && { it: { iid: t.iid } }; } }); continue; }
+      // Ancient Cornucopia, Questing Druid, April O'Neil
+      if ((q = line.match(/^Whenever you cast a spell that's one or more colors, you may gain 1 life for each of that spell's colors\. Do this only once each turn\.$/i))) { add('p:cast', 'you gain X life', { pred: (c, ev) => { if (ev.controller !== c.controller) return false; const k = ((DB[ev.def] || {}).colors || []).length; if (!k || c.onceTurn === G.s.turn) return false; c.onceTurn = G.s.turn; return { x: k, amount: k }; } }); continue; }
+      if ((q = line.match(/^Whenever you cast a spell that's ((?:white|blue|black|red|green)(?:, (?:or )?(?:white|blue|black|red|green))*), (.+)$/i))) { const CC = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }; const cs = q[1].toLowerCase().split(/,\s*(?:or\s+)?/).map((w) => CC[w.trim()]).filter(Boolean); add('p:cast', q[2], { pred: (c, ev) => ev.controller === c.controller && ((DB[ev.def] || {}).colors || []).some((x) => cs.includes(x)) }); continue; }
+      if ((q = line.match(/^Whenever a player casts an artifact, instant, or sorcery spell, (.+)$/i))) { add('p:cast', q[1], { pred: (c, ev) => /\b(?:Artifact|Instant|Sorcery)\b/.test((DB[ev.def] || {}).typeLine || '') }); continue; }
+      // Jon Irenicus
+      if ((q = line.match(/^Whenever a creature you own but don't control attacks, (.+)$/i))) { add('p:attacks', q[1], { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.owner === c.controller && t.controller !== c.controller; } }); continue; }
+      // Mila
+      if ((q = line.match(/^Whenever an opponent attacks one or more planeswalkers you control, (.+)$/i))) { add('p:attacks', q[1], { pred: (c, ev) => { const tg = card(ev.target); return !!tg && tg.controller === c.controller && isType(tg, 'Planeswalker') && onceKey(c, 'mila'); } }); continue; }
+      // Argent Dais
+      if ((q = line.match(/^Whenever two or more creatures attack, (.+)$/i))) { add('p:youAttack', q[1], { pred: () => Object.values(G.s.cards).filter((x) => x.zone === 'battlefield' && x.attacking).length >= 2 }); continue; }
+      // Elrond
+      if ((q = line.match(/^Whenever you activate an ability of a creature, (.+)$/i))) { add('p:activated', q[1], { pred: (c, ev) => ev.controller === c.controller && !!card(ev.iid) && isCreature(card(ev.iid)) }); continue; }
+      // Standstill
+      if ((q = line.match(/^When a player casts a spell, sacrifice ~\. If you do, each of that player's opponents draws three cards\.$/i))) { add('p:cast', "sacrifice ~. each of that player's opponents draws three cards.", { pred: (c, ev) => ({ thatPlayer: ev.controller }) }); continue; }
+      // Flesh Reaver
+      if ((q = line.match(/^Whenever ~ deals damage to a creature or opponent, ~ deals that much damage to you\.$/i))) { add('p:dealsDamage', '~ deals X damage to you', { pred: (c, ev) => ev.iid === c.iid && (ev.amount || 0) > 0 && { x: ev.amount, amount: ev.amount } }); add('p:dealsDamagePlayer', '~ deals X damage to you', { pred: (c, ev) => ev.iid === c.iid && ev.player !== c.controller && (ev.amount || 0) > 0 && { x: ev.amount, amount: ev.amount } }); continue; }
+      // Bristlebane Battler
+      if ((q = line.match(/^Whenever another creature you control enters while ~ has a -1\/-1 counter on it, (.+)$/i))) { add('p:enters', q[1], { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.iid !== c.iid && t.controller === c.controller && isCreature(t) && ((c.counters || {})['-1/-1'] || 0) > 0; } }); continue; }
+      // Michiko Konda
+      if ((q = line.match(/^Whenever a source an opponent controls deals damage to you, (that player sacrifices a permanent of their choice\.)$/i))) { add('p:dealsDamagePlayer', q[1], { pred: (c, ev) => { const sc = card(ev.iid); return ev.player === c.controller && !!sc && opponents(c.controller).includes(sc.controller) && { thatPlayer: sc.controller }; } }); continue; }
+      // Grievous Wound
+      if ((q = line.match(/^Whenever enchanted player is dealt damage, they lose half their life, rounded up\.$/i))) { add('p:dealsDamagePlayer', 'that player loses half their life, rounded up', { pred: (c, ev) => ev.player === c.attachedTo && { thatPlayer: ev.player } }); continue; }
+      // Eldrazi Repurposer
+      if ((q = line.match(/^When you cast ~ and when ~ dies, (.+)$/i))) { add('castSelf', q[1], { self: true }); add('dies', q[1], { self: true }); continue; }
+      // Thran Vigil, Dredger's Insight
+      if ((q = line.match(/^Whenever one or more artifact and\/or creature cards leave your graveyard( during your turn)?, (.+)$/i))) { const mt = !!q[1]; add('p:leftGraveyard', q[2], { pred: (c, ev) => ev.owner === c.controller && (!mt || G.s.active === c.controller) && (ev.defs || []).some((d) => /\b(?:Artifact|Creature)\b/.test(tlOf(d))) && onceKey(c, 'lgy2') }); continue; }
+      // Carth the Lion
+      if ((q = line.match(/^Whenever ~ enters or a planeswalker you control dies, (.+)$/i))) { add('enters', q[1], { self: true }); add('p:dies', q[1], { pred: (c, ev) => ev.controller === c.controller && /Planeswalker/.test(tlOf(ev.def, ev.face)) }); continue; }
       // ---- batch E triggers
       const hasEq = (t) => Object.values(G.s.cards).some((e) => e.zone === 'battlefield' && e.attachedTo === t.iid && /Equipment/.test(DB[e.def].typeLine || ''));
       if ((q = line.match(/^Whenever equipped creature becomes blocked, it deals (\d+) damage to each creature blocking it\.$/i))) { add('p:blocked', `equipped creature deals ${q[1]} damage to each creature blocking it`, { pred: (c, ev) => c.attachedTo === ev.iid && { blockers: ev.blockers || [] } }); continue; } // Trailblazer's Torch

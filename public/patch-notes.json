@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.232",
+    "title": "About 40 more cards fixed, smarter AI targeting",
+    "notes": [
+      "AI targeting: abilities that say which target is best (for example \"double the counters on target permanent\") now pass that to the AI. Before, the AI could pick a permanent with no counters. This affects about a dozen cards, including Aetheric Amplifier and Chief Miles O'Brien.",
+      "New triggers: creatures dying with a power/toughness condition (Ulvenwald Observer, Arnyn), defenders blocking (Perimeter Captain), first/second/third card drawn (Lady Octopus, Tamiyo), Clues and other types going to the graveyard (Teysa, Opulent Oligarch), graveyard returns on Ring temptation or proliferate (Ringwraiths, Voidwing Hybrid), creature types entering together (Anje, Maid of Dishonor; Saradoc), combat damage by creatures with counters, legendary Equipment or toxic (Haliya, Kassandra, Necrogen Rotpriest), opponents targeting your creatures (Pawpatch Recruit, Surrak, Silverfur Partisan), spell colors (Ancient Cornucopia, Questing Druid), Standstill, Flesh Reaver, Michiko Konda, Grievous Wound, Elrond, Argent Dais, Eldrazi Repurposer, Thran Vigil, Carth the Lion and more.",
+      "\"Until your next turn, ...\" sentences with the duration first now work (Jace, the Perfected Mind; Sorin, Solemn Visitor; Tax Collector; Linvala, Shield of Sea Gate).",
+      "Clown Car now makes its Clown Robot tokens for odd rolls; Raffine's connive works; Jace, Multiverse Architect's +1 resolves fully; Derevi can be put onto the battlefield from the command zone; Aang's airbend works."
+    ]
+  },
+  {
     "version": "1.3.231",
     "title": "About 165 more cards fixed",
     "notes": [
