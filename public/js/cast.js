@@ -1967,7 +1967,20 @@ export async function activateAbility(pid, c, ab, env) {
   const s = G.s;
   const ch = env.choosers[pid];
   const name = cardName(c);
+  // Tezzeret, Betrayer of Flesh: "The first activated ability of an artifact you activate each turn costs {2} less to activate."
+  const artLess = () => {
+    if (!c || c.zone !== 'battlefield' || !isType(c, 'Artifact') || ab.kind === 'mana' || ab.kind === 'loyalty') return 0;
+    const ts0 = (s.ts && s.ts[pid]) || {};
+    if (ts0.firstArtAbility) return 0;
+    return cardsIn(pid, 'battlefield').reduce((a, x) => { const mm = oracle(x).match(/The first activated ability of an artifact you activate each turn costs \{(\d+)\} less to activate/i); return a + (mm ? +mm[1] : 0); }, 0);
+  };
   const payM = async (cost, opts = {}) => {
+    const less = artLess();
+    if (less && cost) {
+      let left = less;
+      cost = cost.replace(/\{(\d+)\}/, (mm, d) => { const k = Math.max(0, +d - left); left -= +d - k; return k ? `{${k}}` : ''; });
+    }
+    if (c && c.zone === 'battlefield' && isType(c, 'Artifact') && ab.kind !== 'mana' && ab.kind !== 'loyalty') { s.ts = s.ts || {}; s.ts[pid] = s.ts[pid] || {}; s.ts[pid].firstArtAbility = true; }
     if (!cost) return { payers: [], x: 0 };
     const p = await env.pay(pid, cost, name, { ability: true, ...opts });
     if (!p) return null;

@@ -182,6 +182,8 @@ function parseTriggerText(text, speed) {
       if ((q = line.match(/^Whenever a permanent you control is put into a graveyard, (.+)$/i))) { add('p:leaves', q[1], { pred: (c, ev) => ev.to === 'graveyard' && ev.controller === c.controller }); continue; }
       // Super Shredder
       if ((q = line.match(/^Whenever another permanent leaves the battlefield, (.+)$/i))) { add('p:leaves', q[1], { pred: (c, ev) => ev.iid !== c.iid }); continue; }
+      // Tezzeret's emblem, Kolaghan Forerunners-likes: "Whenever an artifact you control becomes tapped, …"
+      if ((q = line.match(/^Whenever an? (artifact|land|permanent|creature or artifact) you control becomes tapped, (.+)$/i))) { const k = q[1].toLowerCase(); add('p:tapped', q[2], { pred: (c, ev) => { const t = card(ev.iid); return !!t && t.controller === c.controller && (k === 'permanent' || (k === 'artifact' ? isType(t, 'Artifact') : k === 'land' ? isLand(t) : isType(t, 'Artifact') || isCreature(t))) && { it: { iid: t.iid } }; } }); continue; }
       // Deeproot Pilgrimage, Quest for Renewal
       if ((q = line.match(/^Whenever (one or more|a) (nontoken )?([A-Z]\w+|creature)s? you control (?:become|becomes) tapped, (.+)$/i))) {
         const many = /one or more/i.test(q[1]), nontoken = !!q[2], kind = q[3];

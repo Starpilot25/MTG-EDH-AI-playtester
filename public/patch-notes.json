@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.236",
+    "title": "Tezzeret, Betrayer of Flesh",
+    "notes": [
+      "Tezzeret's static ability now works: the first activated ability of an artifact you activate each turn costs {2} less.",
+      "Tezzeret's −6 emblem (\"Whenever an artifact you control becomes tapped, draw a card\") now draws. The same fix covers other \"Whenever an artifact/land/permanent you control becomes tapped\" abilities."
+    ]
+  },
+  {
     "version": "1.3.235",
     "title": "Every Commander precon",
     "notes": [
