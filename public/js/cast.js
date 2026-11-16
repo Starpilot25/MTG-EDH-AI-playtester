@@ -1057,6 +1057,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (fromZone === 'command' && c.isCommander) s.players[pid].tax[c.iid] = (s.players[pid].tax[c.iid] || 0) + 1;
   const ts = s.ts[pid];
   ts.spells++;
+  ts.castSpells = [...(ts.castSpells || []), { mv: d.cmc || 0, tl: (d.faces[fIdx] || d.faces[0]).typeLine || d.typeLine || '' }]; // Rootha: "greatest mana value among instant and sorcery spells you've cast this turn"
   ts.castIids = [...(ts.castIids || []), iid]; // "your first instant or sorcery spell each turn"
   if (fromZone === 'hand') ts.spellsFromHand = (ts.spellsFromHand || 0) + 1; // Jem Lightfoote
   else if (!opt.copy) ts.spellsNotHand = (ts.spellsNotHand || 0) + 1; // The Twelfth Doctor: "the first spell you cast from anywhere other than your hand"

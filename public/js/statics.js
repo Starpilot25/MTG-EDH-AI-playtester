@@ -759,6 +759,14 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
         .map((c) => (gg[1] === 'mana value' ? DB[c.def].cmc || 0 : parseInt(gg[1] === 'power' ? DB[c.def].faces[0].power : DB[c.def].faces[0].toughness, 10) || 0));
       return vals.length ? Math.max(0, ...vals) : 0;
     }
+    { const rm = p.match(/^(?:the )?(greatest |total )?mana value among (instant and sorcery|instant|sorcery|creature|noncreature|artifact) spells you've cast this turn$/);
+      if (rm && G.s) {
+        const ts0 = (G.s.ts && G.s.ts[pid]) || {};
+        const want = rm[2] === 'instant and sorcery' ? /\b(?:Instant|Sorcery)\b/ : rm[2] === 'noncreature' ? null : new RegExp(`\\b${rm[2][0].toUpperCase() + rm[2].slice(1)}\\b`);
+        const mvs = (ts0.castSpells || []).filter((x) => (want ? want.test(x.tl) : !/\bCreature\b/.test(x.tl))).map((x) => x.mv);
+        return rm[1] === 'total ' ? mvs.reduce((a, b) => a + b, 0) : Math.max(0, ...mvs); // "where X is the greatest …" arrives without "the greatest"
+      }
+    }
     if (/^(?:the )?greatest mana value among (?:your commanders|commanders you own)$/.test(p) && G.s) {
       const vals = Object.values(G.s.cards).filter((c) => c.isCommander && c.owner === pid).map((c) => DB[c.def].cmc || 0);
       return vals.length ? Math.max(...vals) : 0;
