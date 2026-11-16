@@ -35,6 +35,7 @@ function filterFrom(words) {
     if (w === 'nontoken') f.nontoken = true;
     else if (w === 'token') f.token = true;
     else if (w === 'legendary') f.legendary = true;
+    else if (w === 'commander' || w === 'commanders') f.commander = true; // Dancer's Chakrams: "Other commanders you control"
     else if (w === 'attacking') f.attacking = true;
     else if (w === 'blocking') f.blocking = true;
     else if (w === 'tapped') f.tapped = true;
@@ -446,6 +447,7 @@ function matchesFilter(c, f, helpers) {
   const tl = helpers.typeLine(c);
   if (f.nontoken && c.token) return false;
   if (f.token && !c.token) return false;
+  if (f.commander && !c.isCommander) return false;
   if (f.legendary && !/Legendary/.test(tl)) return false;
   if (f.attacking && !c.attacking) return false;
   if (f.blocking && !c.blocking) return false;

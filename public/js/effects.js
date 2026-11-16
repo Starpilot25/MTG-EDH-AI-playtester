@@ -207,8 +207,8 @@ export function activatedAbilities(c) {
     let line = raw.trim().replace(/^Exhaust\s*[—-]\s*/i, '');
     // ability words in front of an activated ability: "Displacement — {3}{U}: Return ~ to its owner's hand."
     {
-      const aw = line.match(/^([A-Z][\w' -]{2,30}?) — (?=\{|(?:Sacrifice|Tap|Remove|Pay|Discard|Exile|Return|Put)\b[^:]*:)/);
-      if (aw && !KEYWORD_LINE.test(aw[1]) && /:/.test(line)) line = line.slice(aw[0].length);
+      const aw = line.match(/^([A-Z][\w' -]{2,30}?) — (?=\{|Equip\b|(?:Sacrifice|Tap|Remove|Pay|Discard|Exile|Return|Put)\b[^:]*:)/);
+      if (aw && !KEYWORD_LINE.test(aw[1]) && (/:/.test(line) || /^Equip\b/.test(line.slice(aw[0].length)))) line = line.slice(aw[0].length);
     }
     const loyal = line.match(/^([+−\-]?\d+|0|[+−\-]X):\s*(.+)$/);
     if (loyal && isType(c, 'Planeswalker')) {
@@ -18013,7 +18013,7 @@ export function auraGrants(o) {
       continue;
     }
     if (!/^(?:Enchanted|Equipped) (?:creature|permanent|planeswalker)\b/i.test(raw.trim())) continue;
-    const quotes = [...raw.matchAll(/"([^"]+)"/g)].map((q) => q[1]);
+    const quotes = [...raw.matchAll(/"([^"]+)"/g)].map((q) => q[1].trim().replace(/,$/, '.')); // Dancer's Chakrams: '…have lifelink,'
     out.texts.push(...quotes);
     const line = raw.replace(/"[^"]*"/g, '¤').replace(/\([^)]*\)/g, '');
     const bp = line.match(/base power and toughness (\d+)\/(\d+)/i);
@@ -18041,6 +18041,12 @@ export function attachTo(src, t) {
     }
   }
   src.attachedTo = t.iid;
+  // Dancer's Chakrams: "… and is a Performer in addition to its other types."
+  {
+    const tm = o.match(/(?:^|\n)(?:Enchanted|Equipped) creature [^\n]*?\bis an? ([A-Z][\w-]+) in addition to its other types/);
+    t.layerFx = (t.layerFx || []).filter((e) => e.until !== 'atype:' + src.iid);
+    if (tm) addLayerFx(t, { until: 'atype:' + src.iid, types: { subAdd: tm[1] } });
+  }
   // bestow creatures: "Nighthowler and enchanted creature each get +X/+X, where X is …"
   {
     const nm = DB[src.def].name.split(' // ')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

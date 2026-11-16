@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.238",
+    "title": "Dancer's Chakrams",
+    "notes": [
+      "Dancer's Chakrams: the granted \"Other commanders you control get +2/+2 and have lifelink\" now works, the equipped creature becomes a Performer, and its Equip {3} (written \"Krishna — Equip {3}\") can be activated.",
+      "Any equip cost with an ability-word label in front now works, and \"commanders you control\" anthems now apply to your commanders."
+    ]
+  },
+  {
     "version": "1.3.237",
     "title": "The missing precons",
     "notes": [

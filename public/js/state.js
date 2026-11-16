@@ -1502,10 +1502,10 @@ export function stateBased() {
         for (const k of Object.keys(c.auraBuffs))
           if (!s.cards[k] || s.cards[k].zone !== 'battlefield' || s.cards[k].attachedTo !== c.iid) delete c.auraBuffs[k];
       // layered effects from an Aura that's gone (Frogify, Darksteel Mutation…)
-      if (c.layerFx && c.layerFx.some((e) => String(e.until).startsWith('aura:'))) {
+      if (c.layerFx && c.layerFx.some((e) => /^(?:aura|atype):/.test(String(e.until)))) {
         const keep = c.layerFx.filter((e) => {
-          if (!String(e.until).startsWith('aura:')) return true;
-          const k = String(e.until).slice(5);
+          if (!/^(?:aura|atype):/.test(String(e.until))) return true;
+          const k = String(e.until).replace(/^(?:aura|atype):/, '');
           return s.cards[k] && s.cards[k].zone === 'battlefield' && s.cards[k].attachedTo === c.iid;
         });
         if (keep.length !== c.layerFx.length) c.layerFx = keep;
