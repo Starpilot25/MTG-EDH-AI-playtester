@@ -808,7 +808,7 @@ function entering(c, opts) {
   if (isType(c, 'Battle') && c.counters.defense === undefined) c.counters.defense = parseInt(f.defense, 10) || 0;
   let m;
   // "enters with N +1/+1 counters", "enters with X …", modular, graft, fading, vanishing, sunburst-ish
-  for (const mm of o.matchAll(/enters(?: the battlefield)? with (a|an|one|two|three|four|five|six|seven|eight|nine|ten|x|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|him|her|them)( for each time (?:it|he|she|~|this [a-z]+) was kicked)?(?: (if|unless) ([^.\n]+))?/gi)) {
+  for (const mm of o.matchAll(/enters(?: the battlefield)?(?: tapped)? with (a|an|one|two|three|four|five|six|seven|eight|nine|ten|x|\d+) ([+-]\d+\/[+-]\d+|[a-z]+) counters? on (?:it|him|her|them)( for each time (?:it|he|she|~|this [a-z]+) was kicked)?(?: (if|unless) ([^.\n]+))?/gi)) {
     const words = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
     const nW = mm[1].toLowerCase();
     let k = nW === 'x' ? c.xPaid || 0 : words[nW] || parseInt(nW, 10) || 0;

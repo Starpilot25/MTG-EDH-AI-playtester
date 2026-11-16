@@ -1046,6 +1046,17 @@ export function manaAbility(inst) {
   const symsOf = (t) => (/one mana of any color/i.test(t) ? ['W', 'U', 'B', 'R', 'G'] : (t.match(/\{[WUBRGC]\}/g) || []).map((x) => x[1]));
   for (const m of o.matchAll(/\{T\}: Add ([^.\n]+)\. [^.\n]*?deals 1 damage to you/g)) symsOf(m[1]).forEach((x) => painful.add(x));
   for (const m of o.matchAll(/\{T\}, Pay 1 life: Add ([^.\n]+)\./g)) symsOf(m[1]).forEach((x) => painful.add(x));
+  // Vivid lands: "{T}: Add {R}." plus "{T}, Remove a charge counter from this land: Add one mana of any color." — any color only
+  // while it has a counter, and using a color it can't make by itself costs a counter (applyPayment removes it)
+  {
+    const vm = o.match(/\{T\}, Remove an? ([a-z]+) counter from (?:this land|~|this artifact|this permanent): Add one mana of any color\./);
+    if (vm) {
+      const base = [...new Set([...o.matchAll(/(?:^|\n)\{T\}: Add ([^.\n]+)\./g)].flatMap((x) => symsOf(x[1])))];
+      const have = ((inst.counters || {})[vm[1]] || 0) > 0;
+      if (!have) return base.length ? { ...r, colors: base } : null;
+      return { ...r, colors: [...new Set([...base, 'W', 'U', 'B', 'R', 'G'])], pain: ['W', 'U', 'B', 'R', 'G'].filter((x) => !base.includes(x)), painCounter: vm[1] };
+    }
+  }
   if (!painful.size) return r;
   return { ...r, pain: (r.colors || []).filter((x) => painful.has(x)) };
 }

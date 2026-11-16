@@ -2223,7 +2223,11 @@ async function floatMana(c) {
       if (G.s.ts && G.s.ts.p) G.s.ts.p.energyPaid = (G.s.ts.p.energyPaid || 0) + (m.energyNeed || 1);
       log('p', `${nameTag(c)}: you pay ${m.energyNeed || 1} energy.`);
     }
-    if (m.pain && syms.some((x) => m.pain.includes(x))) {
+    if (m.painCounter && m.pain && syms.some((x) => m.pain.includes(String(x).split('@')[0]))) {
+      // Vivid lands: the any-color ability removes a charge counter instead of dealing damage
+      if ((c.counters || {})[m.painCounter] > 0) { c.counters[m.painCounter]--; if (!c.counters[m.painCounter]) delete c.counters[m.painCounter]; }
+      log('p', `${nameTag(c)}: you remove a ${m.painCounter} counter for any-color mana.`);
+    } else if (m.pain && syms.some((x) => m.pain.includes(x))) {
       changeLife('p', -1, false);
       log('p', `${nameTag(c)} costs you 1 life.`);
     }

@@ -187,7 +187,13 @@ export function applyPayment(pid, pay) {
     log(pid, `${[...eUsed.keys()].map((i) => nameTag(card(i))).join(', ')} ${pid === 'p' ? 'use' : 'uses'} ${tot} energy.`);
   }
   // pain lands and friends: 1 damage (or life) for each colored mana they made
-  const hurt = (pay.pains || []).filter((i) => card(i));
+  const ctrPaid = (i) => card(i) && (oracle(card(i)).match(/\{T\}, Remove an? ([a-z]+) counter from (?:this land|~|this artifact|this permanent): Add one mana of any color\./) || [])[1];
+  for (const i of (pay.pains || []).filter(ctrPaid)) {
+    const c = card(i), k = ctrPaid(i);
+    if ((c.counters || {})[k] > 0) { c.counters[k]--; if (!c.counters[k]) delete c.counters[k]; }
+    log(pid, `${nameTag(c)}: ${pid === 'p' ? 'you remove' : seatName(pid) + ' removes'} a ${k} counter for any-color mana.`);
+  }
+  const hurt = (pay.pains || []).filter((i) => card(i) && !ctrPaid(i));
   if (hurt.length) {
     changeLife(pid, -hurt.length, false);
     log(pid, `${hurt.map((i) => nameTag(card(i))).join(', ')} ${hurt.length === 1 ? 'costs' : 'cost'} ${seatName(pid)} ${hurt.length} life.`);

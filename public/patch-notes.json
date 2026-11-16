@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.241",
+    "title": "Vivid lands",
+    "notes": [
+      "Vivid lands (Vivid Crag, Creek, Grove, Marsh, Meadow) now enter tapped with two charge counters. They tap for their own color for free; tapping for any other color removes a charge counter, and with no counters left they only make their own color. Before, they had no counters and made any color for free.",
+      "Other permanents that \"enter tapped with\" counters now get them too."
+    ]
+  },
+  {
     "version": "1.3.240",
     "title": "Rootha, Mastering the Moment",
     "notes": [
