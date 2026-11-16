@@ -1125,6 +1125,11 @@ function splitSentences(text) {
         out.push(buf.trim());
         buf = '';
       }
+      // a quoted ability ending a sentence: 'token with "… to each opponent." Wizards you control get …'
+      else if (!q && ch === '"' && line[i - 1] === '.' && line[i + 1] === ' ' && /[A-Z]/.test(line[i + 2] || '') && /\btokens? with "[^"]*"$/.test(buf)) {
+        out.push(buf.trim());
+        buf = '';
+      }
     }
     if (buf.trim()) out.push(buf.trim());
   }
@@ -4336,6 +4341,20 @@ on(/^(?:you may )?have ~'s base power (and toughness )?become equal to that crea
   addLayerFx(me, { until: 'eot', base: { p: power(t), t: m[1] ? toughness(t) : basePT(me).t } });
   env.did.push(`${nameTag(me)} becomes ${power(t)}/${m[1] ? toughness(t) : basePT(me).t} until end of turn`);
 }, { first: true });
+// Nettling Nuisance
+on(/^the token is goaded for the rest of the game$/, async (m, env) => {
+  const t = (env.it && card(env.it.iid)) || (G.s.lastEntered && card(G.s.lastEntered));
+  if (!t) return;
+  goad(t, env.src ? env.src.controller || env.me : env.me, 1e9);
+  env.did.push(`${nameTag(t)} is goaded for the rest of the game`);
+}, { first: true });
+// Twisted Sewer-Witch
+on(/^(?:then )?for each ([a-z]+) you control, create an? ([a-z]+) role token attached to that \1$/, async (m, env) => {
+  const k = m[1][0].toUpperCase() + m[1].slice(1);
+  const hosts = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && hasSubtype(c, k));
+  for (const h of hosts) { env.it = { iid: h.iid }; await runSentence(`create a ${m[2]} role token attached to it`, env); }
+  env.did.push(`${hosts.length} ${k}${hosts.length === 1 ? '' : 's'} get a ${m[2]} Role`);
+}, { first: true });
 // Counterbalance
 on(/^you may reveal the top card of your library\. if you do, counter that spell if it has the same mana value as the revealed card$/, async (m, env) => {
   const [top] = libTop(env.me, 1);
@@ -5315,7 +5334,7 @@ on(/^(?:each player may |players )bid life for control of target creature\. you 
   env.did.push(`${who(r.winner)} ${s_(r.winner, 'win')} the auction at ${r.high} life and ${s_(r.winner, 'gain')} control of ${nameTag(t)}`);
 }, { first: true, multi: true });
 // ---------------- copy cards and cast the copies (Mnemonic Deluge, Spelltwine, Zethi, Baron Helmut Zemo)
-on(/^copy (that card|those cards|those exiled cards|the exiled cards|each exiled card you own with a kick counter on it)(?: (twice|three times|(\w+) times))?$/, async (m, env) => {
+on(/^copy (that card|those cards|those exiled cards|the exiled cards|each card exiled with ~|each exiled card you own with a kick counter on it)(?: (twice|three times|(\w+) times))?$/, async (m, env) => {
   let srcs;
   if (m[1] === 'that card') srcs = env.it && card(env.it.iid) ? [card(env.it.iid)] : [];
   else if (/kick counter/.test(m[1])) srcs = Object.values(G.s.cards).filter((c) => c.zone === 'exile' && c.owner === env.me && ((c.counters || {}).kick || 0) > 0);

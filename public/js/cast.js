@@ -1126,6 +1126,13 @@ export async function castSpell(pid, iid, opt, env) {
       }
     }
   }
+  // Zhulodok, Void Gorger: "Colorless spells you cast from your hand with mana value 7 or greater have "Cascade, cascade.""
+  if (!opt.copy && fromZone === 'hand' && (DB[c.def].cmc || 0) >= 7 && !((d.faces[fIdx] || d.faces[0]).colors || d.colors || []).length) {
+    for (const z of cardsIn(pid, 'battlefield').filter((x) => /Colorless spells you cast from your hand with mana value 7 or greater have "Cascade, cascade\."/i.test(oracle(x)))) {
+      cascades += 2;
+      log(pid, `${nameTag(z)}: ${nameTag(c)} has cascade, cascade.`);
+    }
+  }
   // --- responses
   let countered = false;
   // Jace, Unraveler of Secrets emblem: "Whenever an opponent casts their first spell each turn, counter that spell."
