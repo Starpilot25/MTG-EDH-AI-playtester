@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.245",
+    "title": "Stridehangar Automaton",
+    "notes": [
+      "Stridehangar Automaton now adds a 1/1 flying Thopter artifact creature token whenever you create one or more artifact tokens (Treasures, Clues, Servos and so on). Its +1/+1 for Thopters makes them 2/2."
+    ]
+  },
+  {
     "version": "1.3.244",
     "title": "Academy Manufactor with special Treasures",
     "notes": [

@@ -1704,6 +1704,16 @@ function tokenAdditions(defId, pid, n) {
       if (new RegExp('^' + m[2] + '$', 'i').test(d.name)) same++;
       else other.push({ label: m[2], n: 1 });
     }
+    // Stridehangar Automaton: "If one or more artifact tokens would be created under your control, those tokens plus an additional
+    // 1/1 colorless Thopter artifact creature token with flying are created instead."
+    for (const m of o.matchAll(/If one or more (artifact |creature )?tokens would be created under your control, those tokens plus an additional (\d+)\/(\d+) (colorless|white|blue|black|red|green) ([A-Z][a-z]+) (artifact )?creature token(?: with ([a-z ,]+?))? are created instead/g)) {
+      const kind = (m[1] || '').trim();
+      const tl = d.typeLine || (d.faces && d.faces[0].typeLine) || '';
+      if (kind === 'artifact' && !/\bArtifact\b/.test(tl)) continue;
+      if (kind === 'creature' && !/\bCreature\b/.test(tl)) continue;
+      const col = { colorless: [], white: ['W'], blue: ['U'], black: ['B'], red: ['R'], green: ['G'] }[m[4]];
+      other.push({ label: m[5], n: 1, pt: [+m[2], +m[3]], color: col, extra: { keywords: (m[7] || '').split(/,? and |, /).map((x) => x.trim()).filter(Boolean), ...(m[6] ? { types: 'Artifact' } : {}) } });
+    }
     if (/If one or more tokens would be created under your control, those tokens plus that many 1\/1 green Squirrel creature tokens are created instead/i.test(o) && !/^Squirrel$/i.test(d.name)) other.push({ label: 'Squirrel', n, pt: [1, 1], color: 'G' });
   }
   return { same, other };
@@ -1769,7 +1779,7 @@ export function createToken(defId, pid, n = 1, opts = {}) {
   }
   // the additional tokens come after the ones asked for (callers use the first for "it"/"that token")
   for (const o of add.other) {
-    const extra = o.pt ? genericTokenDef(o.pt[0], o.pt[1], o.label, o.color) : genericTokenDef(0, 0, o.label);
+    const extra = o.pt ? genericTokenDef(o.pt[0], o.pt[1], o.label, o.color, o.extra || {}) : genericTokenDef(0, 0, o.label);
     createToken(extra, pid, o.n, { noAdd: true, tapped: false });
   }
   for (const e of manuExtra || []) createToken(genericTokenDef(0, 0, e.k), pid, e.n, { noManufactor: true, tapped: opts.tapped });
