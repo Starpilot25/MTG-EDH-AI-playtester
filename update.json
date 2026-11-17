@@ -1,8 +1,8 @@
 {
-  "version": "1.3.250",
+  "version": "1.3.251",
   "minAppVersion": "1.0.0",
   "files": {
-    "public/css/style.css": "77cba0bb71c91214e6458f9473237ec9e80d76f86dd2aab2b1ea03a7e514bedc",
+    "public/css/style.css": "f3312b23025d84d8f56a69671d7ecf7fc6cc9183dc1d9f7c29e607b8cc40c584",
     "public/index.html": "85bdb675b905c79ae85ba41a12ddcfc33922fde33f979df959763fd7b478ba43",
     "public/js/ai.js": "ceba4f91e74f6918fd7b4aa2565a071a7fcc011c7b06eec2f5497ea9a448460e",
     "public/js/aicombat.js": "764e9bdb24e75f0ad8357c5a5429c4313ea46274f195c172f95fca2fbbc6815d",
@@ -12,12 +12,12 @@
     "public/js/effects.js": "84431993967bafb00982f872282f694eb1147e0ea8dcd4a77ff8cd61c2a0f54b",
     "public/js/game.js": "45b8493680d1be251313fee19051d269611221f0eca99525ea0c8115a038614b",
     "public/js/main.js": "fbfdde2ff3717d9c087090339c8440d4dfe425b70d422d8296ad6bf7da3d3a89",
-    "public/js/rules.js": "7b7de9bfb3b41a4884f78685bc2558db90fade21d22acb5ef4fa5fec51fa92f9",
+    "public/js/rules.js": "85e6435ac4c61d6da0adb7aeb5f51626a3906f9e9d3013c09454a07a62baa55d",
     "public/js/state.js": "1875539b3f5f7cbe0d0f04854dc3e5133281e9ef7253b6a296d8dc5748ed500a",
-    "public/js/statics.js": "0b0c5255102e19425b3af75fd6fba449320f21ba8ed144bc6dc2c32ff2cc7252",
+    "public/js/statics.js": "854375df531bfc00b56fe40e84300c8af810af3c177b09acc53fad157fc69dc3",
     "public/js/triggers.js": "0b7a94ea60c09207d8149ddfce239c25e83677816da7fb84ceaab05cb39de6df",
-    "public/js/ui.js": "fe6e276a35be8e62e9cd91ae3ae039f1ac2b6734f422109085b718c6374737ae",
+    "public/js/ui.js": "ac09dbe03aaf0542ab35bd79caf43d796131a6b093ee1aaaa5c9ce7817d2c21e",
     "public/js/voice.js": "4622a40593b7db7f8997e96207d0412fcbaa4fa4fe658247c91b3345de1dabe6",
-    "public/patch-notes.json": "4db5bc8721a4d4841d890ed24e4f195f7d6735b1aa944baf64cd9eaf0d917283"
+    "public/patch-notes.json": "0f6928077f15a9df534870c6256d15776cf3de9a494fc446bed4027c14ea7e58"
   }
 }

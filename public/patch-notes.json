@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.251",
+    "title": "Big boards; attacking with token piles",
+    "notes": [
+      "Fixed a slowdown that could freeze the game on big boards, for example when something put -1/-1 counters on every creature with lots of tokens out. Working out each creature's abilities scanned the whole board, and that was repeated for every permanent and every counter, so the cost grew with the cube of the creature count. Hundreds of creatures now resolve in about a second.",
+      "Declaring attackers with a pile of identical creatures: clicking the pile asks how many attack (1, half, all, or a number). Shift-click sends the whole pile with no prompt. Right-click has \"Attack with all N\" and \"Attack with some…\".",
+      "Attacking creatures from the same pile now stay stacked as one pile while you declare, and clicking that pile asks how many to pull back."
+    ]
+  },
+  {
     "version": "1.3.250",
     "title": "Step Between Worlds; spells that exile themselves",
     "notes": [

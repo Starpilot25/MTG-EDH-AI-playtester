@@ -1063,3 +1063,4 @@ body.pod.banner-on .field.opp.organized { padding-bottom: 12px; }
 .all-at { margin-top: 6px; align-items: center; flex-wrap: wrap; }
 .all-at-lbl { font-size: 12px; opacity: .75; margin-right: 2px; }
 .atk-all { padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.pile-quick { justify-content: flex-start; margin: 4px 0 8px; }

@@ -938,13 +938,50 @@ function renderOpp() {
 // each lane (creatures / other permanents / lands) shrinks its cards to fit before it wraps.
 function stackKey(c) {
   const cb = G.s.combat;
-  if (cb && (cb.attackers.includes(c.iid) || Object.values(cb.blocks || {}).some((b) => b.includes(c.iid)) || cb.selected === c.iid)) return null;
+  if (cb && (Object.values(cb.blocks || {}).some((b) => b.includes(c.iid)) || cb.selected === c.iid)) return null;
+  // attacking creatures stack with each other (a pile of attacking tokens stays one pile); blocked ones stand alone
+  const atk = cb && cb.attackers.includes(c.iid);
+  if (atk && (cb.stage !== 'declare' || (cb.blocks && cb.blocks[c.iid]))) return null;
   if (pendingTarget && pendingTarget.req.candidates.includes(c.iid)) return null;
   if (G.s.stack && G.s.stack.iid === c.iid) return null;
   if (isType(c, 'Planeswalker') || c.isCommander || c.faceDown || c.attachedTo) return null;
   const sick = isCreature(c) && c.sick && !hasKw(c, 'haste') && c.controller === G.s.active;
   return [c.def, c.face || 0, c.tapped ? 1 : 0, c.token ? 1 : 0, sick ? 1 : 0, c.damage || 0, JSON.stringify(c.counters || {}), JSON.stringify(c.grants || []), JSON.stringify(c.eot || null),
-    JSON.stringify(c.eotGrants || []), JSON.stringify(c.auraBuffs || {}), c.chosenType || '', c.chosenMode || '', c.chosenColor || '', c.chosenCardType || '', JSON.stringify(c.unlocked || null), c.prepared ? 1 : 0, c.pacifiedBy || '', c.notLegendary ? 1 : 0, c.sector || '', c.floated ? 1 : 0].join('|');
+    JSON.stringify(c.eotGrants || []), JSON.stringify(c.auraBuffs || {}), c.chosenType || '', c.chosenMode || '', c.chosenColor || '', c.chosenCardType || '', JSON.stringify(c.unlocked || null), c.prepared ? 1 : 0, c.pacifiedBy || '', c.notLegendary ? 1 : 0, c.sector || '', c.floated ? 1 : 0, atk ? 'A' : ''].join('|');
+}
+// the other cards in the same board pile as c (same stackKey, nothing attached to them)
+function pileMates(c) {
+  const k = stackKey(c);
+  if (!k) return [c];
+  const hosts = new Set(seats().flatMap((p) => cardsIn(p, 'battlefield')).filter((a) => a.attachedTo && !isCreature(a)).map((a) => a.attachedTo));
+  if (hosts.has(c.iid)) return [c];
+  return cardsIn(c.controller, 'battlefield').filter((x) => !hosts.has(x.iid) && stackKey(x) === k);
+}
+// declare attackers on a pile: how many of them go (or come back)
+async function pileAttack(c, all) {
+  const cb = G.s.combat;
+  const pile = pileMates(c);
+  const attacking = cb.attackers.includes(c.iid);
+  if (pile.length < 2) return toggleAttacker(c.iid);
+  const n = all ? pile.length : await askPileCount(c, pile.length, attacking);
+  if (!n) return;
+  for (const x of pile.slice(0, n)) if (cb.attackers.includes(x.iid) === attacking) toggleAttacker(x.iid);
+  render();
+}
+function askPileCount(c, max, removing) {
+  return new Promise((resolve) => {
+    const nm = esc(cardName(c));
+    const dlg = openDialog(`<form class="numform"><span class="eyebrow">${removing ? 'Remove from attack' : 'Declare attackers'}</span>
+      <h3>${removing ? `Pull back how many ${nm}?` : `Attack with how many ${nm}?`}</h3>
+      <div class="btns pile-quick"><button type="button" data-n="1">1</button>${max > 3 ? `<button type="button" data-n="${Math.ceil(max / 2)}">Half (${Math.ceil(max / 2)})</button>` : ''}<button type="button" class="primary" data-n="${max}">All ${max}</button></div>
+      <input id="num-input" type="number" value="${max}" min="1" max="${max}" step="1">
+      <div class="btns"><button type="submit">OK</button><button type="button" data-close>Cancel</button></div>
+      <p class="hint">Shift-click a pile to send the whole pile without this prompt.</p></form>`, { small: true, onClose: () => resolve(0) });
+    const done = (v) => { closeDialog(true); resolve(Math.max(0, Math.min(max, v || 0))); };
+    dlg.addEventListener('click', (e) => { const b = e.target.closest('button[data-n]'); if (b) done(+b.dataset.n); });
+    const input = $('#num-input', dlg);
+    $('form', dlg).addEventListener('submit', (e) => { e.preventDefault(); done(parseInt(input.value, 10)); });
+  });
 }
 
 function boardLanes(pid) {
@@ -2627,7 +2664,15 @@ function menuForCard(c, x, y) {
         }),
       });
     if (G.s.combat && G.s.combat.by === 'p' && G.s.combat.stage === 'declare' && isCreature(c))
+    {
       items.push({ label: G.s.combat.attackers.includes(c.iid) ? 'Remove from attack' : 'Attack with this', fn: () => toggleAttacker(c.iid) });
+      const pile = pileMates(c);
+      if (pile.length > 1) {
+        const atk = G.s.combat.attackers.includes(c.iid);
+        items.push({ label: `${atk ? 'Remove all' : 'Attack with all'} ${pile.length}`, fn: () => pileAttack(c, true) });
+        items.push({ label: `${atk ? 'Remove' : 'Attack with'} some…`, fn: () => pileAttack(c, false) });
+      }
+    }
     items.push('-');
   }
   // Oft-Nabbed Goat: "Only your opponents may activate this ability"
@@ -2897,7 +2942,7 @@ function onCardClick(iid, e) {
   const c = card(iid);
   const s = G.s;
   if (c.zone === 'battlefield') {
-    if (s.combat && s.combat.by === 'p' && s.combat.stage === 'declare' && isCreature(c)) return toggleAttacker(iid);
+    if (s.combat && s.combat.by === 'p' && s.combat.stage === 'declare' && isCreature(c)) return pileAttack(c, !!(e && e.shiftKey));
     if (s.combat && isAI(s.combat.by) && pendingBlocks) return blockClick(c);
     return toggleTap(iid);
   }

@@ -393,10 +393,10 @@ const tickCache = { s: null, v: -1, field: null, anthems: null };
 function tick() {
   const v = (G.s && G.s.bfv) || 0;
   if (tickCache.s !== G.s || tickCache.v !== v) {
-    if (tickCache.s === null) queueMicrotask(() => { tickCache.s = null; tickCache.field = tickCache.anthems = null; });
+    if (tickCache.s === null) queueMicrotask(() => { tickCache.s = null; tickCache.field = tickCache.anthems = tickCache.repl = null; });
     tickCache.s = G.s;
     tickCache.v = v;
-    tickCache.field = tickCache.anthems = null;
+    tickCache.field = tickCache.anthems = tickCache.repl = null;
   }
   return tickCache;
 }
@@ -634,10 +634,22 @@ export function costDelta(pid, c, fromZone, faceIdx = 0) {
 }
 
 // Replacement effects that matter for `pid` (or anyone when pid is null).
+// permanents with any replacement effect, cached like anthemSources (same board version, same synchronous run)
+function replSources() {
+  const tc = tick();
+  if (tc.repl) return tc.repl;
+  const res = [];
+  for (const src of field()) {
+    const r = staticsOf(src).repl;
+    for (const k in r) { res.push([src, r]); break; }
+  }
+  tc.repl = res;
+  return res;
+}
 export function repl(kind, pid) {
   let v = 0;
-  for (const src of field()) {
-    const r = staticsOf(src).repl[kind];
+  for (const [src, rs] of replSources()) {
+    const r = rs[kind];
     if (!r) continue;
     if (kind === 'gyExile' || kind === 'gyVoid') {
       if (r === 'all' || (r === 'opponents' && pid && src.controller !== pid)) return true;

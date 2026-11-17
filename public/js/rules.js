@@ -328,6 +328,38 @@ export function pairGrantText(inst) {
   }
   return out.join('\n');
 }
+// does this card's printed text (current face) grant abilities to others? Cached per card face, so the scans over a
+// player's whole battlefield in oracleRaw stay cheap on big boards (a pile of 100 tokens).
+const PRINTED_RE = {
+  grantTrig: /you control have "(?:When|Whenever|At)\b/,
+  landGrant: /(?:^|\n)Lands you control have "/,
+  pwGrant: /Planeswalkers you control have "/,
+  cmdGrant: /Commander creatures you own have "/,
+};
+// any face of the card could grant it (so a transform doesn't change who is a candidate; the loop reads the current face)
+const printedCache = new Map();
+function anyFaceHas(def, k) {
+  let e = printedCache.get(def);
+  if (!e) printedCache.set(def, (e = {}));
+  let v = e[k];
+  if (v === undefined) v = e[k] = !!DB[def] && DB[def].faces.some((f) => PRINTED_RE[k].test(f.oracle || ''));
+  return v;
+}
+// the permanents on `pid`'s battlefield that might grant abilities of kind k; rebuilt only when that battlefield changes
+// (new permanents are pushed on the end, so array, length and last id together notice any change)
+const grantSrcCache = new WeakMap();
+function grantSources(pid, k) {
+  const bf = G.s.players[pid].zones.battlefield;
+  let m = grantSrcCache.get(G.s);
+  if (!m) grantSrcCache.set(G.s, (m = {}));
+  const key = pid + '|' + k;
+  const e = m[key];
+  if (e && e.bf === bf && e.n === bf.length && e.last === bf[bf.length - 1]) return e.ids;
+  const ids = bf.filter((iid) => G.s.cards[iid] && anyFaceHas(G.s.cards[iid].def, k));
+  m[key] = { bf, n: bf.length, last: bf[bf.length - 1], ids };
+  return ids;
+}
+const printedHas = (src, k) => PRINTED_RE[k].test(face(src).oracle || '');
 function oracleRaw(inst) {
   const f = face(inst);
   if (treasured(inst)) return inst.becameTreasure ? inst.extraText || '' : '{T}, Sacrifice this artifact: Add one mana of any color.';
@@ -389,20 +421,19 @@ function oracleRaw(inst) {
   }
   // Bootleggers' Stash: 'Lands you control have "{T}: Create a Treasure token."' (non-mana activated abilities; mana ones come from grantedManaText)
   if (inst.zone === 'battlefield' && G.s && /\bLand\b/.test(typeLine(inst).split('—')[0])) {
-    for (const iid of G.s.players[inst.controller].zones.battlefield) {
+    for (const iid of grantSources(inst.controller, 'landGrant')) {
       const src = G.s.cards[iid];
-      if (!src || src.phasedOut || src.faceDown || abilitiesGone(src)) continue;
+      if (!src || src.phasedOut || src.faceDown || !printedHas(src, 'landGrant') || abilitiesGone(src)) continue;
       for (const m of (face(src).oracle || '').matchAll(/(?:^|\n)Lands you control have "([^"]+)"/g)) if (/:/.test(m[1]) && !/: Add /.test(m[1])) text += '\n' + m[1].replace(/\bthis land\b/gi, '~');
     }
   }
   // Locutus of Borg, Co-Option Adjutant: 'Artifact creatures you control have "Whenever this creature deals combat damage to a player, …"'
   // (granted triggered abilities; keyword and mana grants are handled elsewhere)
   if (inst.zone === 'battlefield' && G.s && isCreature(inst)) {
-    for (const iid of G.s.players[inst.controller].zones.battlefield) {
+    for (const iid of grantSources(inst.controller, 'grantTrig')) {
       const src = G.s.cards[iid];
-      if (!src || src.phasedOut || src.faceDown || abilitiesGone(src)) continue;
+      if (!src || src.phasedOut || src.faceDown || !printedHas(src, 'grantTrig') || abilitiesGone(src)) continue;
       const raw = face(src).oracle || '';
-      if (!/you control have "(?:When|Whenever|At)\b/.test(raw)) continue;
       for (const m of raw.matchAll(/(?:^|\n)(Other )?((?:[A-Z][a-z]+ )?(?:creatures|creature tokens)|[A-Z][a-z]+s) you control have "((?:When|Whenever|At)\b[^"]+)"/g)) {
         if (m[1] && src.iid === inst.iid) continue;
         const cls = m[2].toLowerCase();
@@ -417,9 +448,9 @@ function oracleRaw(inst) {
   }
   // Way of the Pyromancer and friends: "Planeswalkers you control have "[+1]: Add {R}.""
   if (inst.zone === 'battlefield' && G.s && /Planeswalker/.test(typeLine(inst).split('—')[0])) {
-    for (const iid of G.s.players[inst.controller].zones.battlefield) {
+    for (const iid of grantSources(inst.controller, 'pwGrant')) {
       const src = G.s.cards[iid];
-      if (!src || src.phasedOut || src.faceDown) continue;
+      if (!src || src.phasedOut || src.faceDown || !printedHas(src, 'pwGrant')) continue;
       const raw = face(src).oracle || '';
       for (const m of raw.matchAll(/Planeswalkers you control have "([^"]+)"(?: and "([^"]+)")?/g)) {
         for (const ab of [m[1], m[2]].filter(Boolean)) text += '\n' + ab.replace(/^\[([+−-]?\d+|[+−-]?X)\]:/, '$1:').replace(/\bthis planeswalker\b/gi, '~');
@@ -429,9 +460,9 @@ function oracleRaw(inst) {
   // Folk Hero & co.: "Commander creatures you own have "…""
   if (inst.isCommander && inst.zone === 'battlefield' && G.s && /Creature/.test(typeLine(inst).split('—')[0])) {
     const owner = inst.owner || inst.controller;
-    for (const iid of G.s.players[owner].zones.battlefield) {
+    for (const iid of grantSources(owner, 'cmdGrant')) {
       const src = G.s.cards[iid];
-      if (!src || src.phasedOut || src.faceDown || src.iid === inst.iid) continue;
+      if (!src || src.phasedOut || src.faceDown || src.iid === inst.iid || !printedHas(src, 'cmdGrant')) continue;
       const raw = face(src).oracle || '';
       for (const m of raw.matchAll(/Commander creatures you own have "([^"]+)"/g)) text += '\n' + m[1].replace(/\bthis creature\b/gi, '~');
     }
