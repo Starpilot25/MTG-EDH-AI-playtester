@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.250",
+    "title": "Step Between Worlds; spells that exile themselves",
+    "notes": [
+      "Step Between Worlds works: each player chooses whether to shuffle their hand and graveyard into their library, and each who does draws seven. The AI accepts when it is the caster or its hand is small.",
+      "Instants and sorceries that say \"Exile [this card]\" as part of their effect now actually end up in exile instead of the graveyard."
+    ]
+  },
+  {
     "version": "1.3.249",
     "title": "Investigate twice",
     "notes": [

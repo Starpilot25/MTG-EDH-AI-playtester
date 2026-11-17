@@ -5112,7 +5112,8 @@ on(/^if (?:that spell|those spells) would be put into your graveyard, exile (?:i
 // Invoke Calamity: "Exile Invoke Calamity." as the spell resolves
 on(/^exile ~$/, async (m, env) => {
   const c = env.src && card(env.src.iid);
-  if (!c || c.zone !== 'stack') return 'pass';
+  // a resolving spell stays in the zone it was cast from (castMode is only set while a spell resolves)
+  if (!c || !(c.zone === 'stack' || (env.castMode && c.zone !== 'battlefield' && /\b(?:Instant|Sorcery)\b/.test(DB[c.def].faces[0].typeLine || DB[c.def].typeLine || '')))) return 'pass';
   G.s.exileOnResolve = { ...(G.s.exileOnResolve || {}), [c.iid]: true };
 }, { first: true });
 // Tasha, the Witch Queen
@@ -8911,6 +8912,23 @@ on(/^each player may discard their hand and draw (\w+) cards$/, async (m, env) =
     env.did.push(`${who(pid)} ${s_(pid, 'discard')} ${hand.length} and ${s_(pid, 'draw')} ${k}`);
   }
 }, { first: true });
+// Step Between Worlds: "Each player may shuffle their hand and graveyard into their library. Each player who does draws seven cards."
+on(/^each player may shuffle their hand and graveyard into their library\. each player who does draws (\w+) cards$/, async (m, env) => {
+  const k = n(m[1], env.x);
+  const sid = env.src && env.src.iid;
+  for (const pid of [env.me, ...opponents(env.me)].filter(inGame)) {
+    const hand = cardsIn(pid, 'hand').filter((c) => c.iid !== sid);
+    const gy = cardsIn(pid, 'graveyard').filter((c) => c.iid !== sid);
+    const yes = isAI(pid)
+      ? pid === env.me || hand.length < k - 2
+      : await env.choosers.p.confirm(cardName(env.src), `Shuffle your hand (${hand.length}) and graveyard (${gy.length}) into your library and draw ${k}?`, {});
+    if (!yes) { env.did.push(`${who(pid)} ${pid === 'p' ? 'decline' : 'declines'}`); continue; }
+    for (const c of [...hand, ...gy]) move(c.iid, 'library');
+    shuffle(pid);
+    draw(pid, k, true);
+    env.did.push(`${who(pid)} ${s_(pid, 'shuffle')} in ${hand.length + gy.length} card${hand.length + gy.length === 1 ? '' : 's'} and ${s_(pid, 'draw')} ${k}`);
+  }
+}, { first: true, multi: true });
 // Curse of the Swine: "For each creature exiled this way, its controller creates a 2/2 green Boar creature token."
 on(/^for each (?:creature|permanent) (?:exiled|destroyed) this way, its controller creates (.+? tokens?)$/, async (m, env) => {
   const gone = (env.exiledThisWay || env.them_ || []).map(card).filter(Boolean);
