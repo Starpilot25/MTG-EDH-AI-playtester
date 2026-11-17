@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.259",
+    "title": "No coloured line under cards",
+    "notes": [
+      "Cards on the table no longer have a coloured line along their bottom edge."
+    ]
+  },
+  {
     "version": "1.3.258",
     "title": "Name plates in your commander's colours",
     "notes": [

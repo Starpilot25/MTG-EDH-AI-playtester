@@ -254,7 +254,7 @@ h1, .slot-head h2 { font-family: var(--f-display); }
 
 /* ===== Broadcast, fifth pass ===== */
 /* every permanent carries its controller's colour on its bottom edge */
-.seat-field .card, #my-field .card, #opp-field .card { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.12), 0 3px 0 0 var(--seat, #888), 0 6px 12px rgb(0 0 0 / 0.5); }
+.seat-field .card, #my-field .card, #opp-field .card { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.12), 0 6px 12px rgb(0 0 0 / 0.5); }
 .seat-field .card.attacking, #my-field .card.attacking, #opp-field .card.attacking { box-shadow: 0 0 0 2px var(--danger), 0 0 0 4px #0b1020, 0 0 22px rgb(255 77 94 / 0.55); }
 
 /* your panel as a proper player card: compact damage rows with full-width bars */
