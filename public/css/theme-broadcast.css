@@ -242,13 +242,6 @@ h1, .slot-head h2 { font-family: var(--f-display); }
 .cmd-dmg.warn::after { background: var(--danger); box-shadow: 0 0 10px rgb(255 77 94 / 0.7); }
 .cmd-dmg.warn b { color: var(--danger); }
 
-/* your hand: a slight fan, like cards held up to the camera */
-#hand { align-items: flex-end; padding-top: 10px; }
-#hand .card { transform-origin: 50% 120%; transition: transform 0.15s; }
-#hand .card:nth-child(odd) { transform: rotate(-1.2deg); }
-#hand .card:nth-child(even) { transform: rotate(1.2deg) translateY(2px); }
-#hand .card:hover { transform: translateY(-14px) rotate(0); z-index: 5; }
-@media (prefers-reduced-motion: reduce) { #hand .card { transition: none; } }
 
 /* panels: a darker band that separates the player cards from the play areas */
 .panel, .seat-panel { background: linear-gradient(180deg, #0e152a, #0a1022) !important; }
