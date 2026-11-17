@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.242",
+    "title": "Ring of Thune",
+    "notes": [
+      "Ring of Thune and its cycle (Ring of Kalonia, Valkas, Xathrid, Evos Isle): the upkeep trigger now puts a +1/+1 counter on the equipped creature when it's the right color. Before, it did nothing."
+    ]
+  },
+  {
     "version": "1.3.241",
     "title": "Vivid lands",
     "notes": [

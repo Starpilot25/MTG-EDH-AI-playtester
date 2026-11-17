@@ -4355,6 +4355,14 @@ on(/^(?:then )?for each ([a-z]+) you control, create an? ([a-z]+) role token att
   for (const h of hosts) { env.it = { iid: h.iid }; await runSentence(`create a ${m[2]} role token attached to it`, env); }
   env.did.push(`${hosts.length} ${k}${hosts.length === 1 ? '' : 's'} get a ${m[2]} Role`);
 }, { first: true });
+// Ring of Thune / Kalonia / Valkas / Xathrid / Evos Isle: "put a +1/+1 counter on equipped creature if it's white"
+on(/^(.+ (equipped|enchanted) creature) if it's ([a-z ,-]+)$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  const h = me && me.attachedTo && card(me.attachedTo);
+  if (!h || h.zone !== 'battlefield') return env.did.push(`isn't attached to a creature`);
+  if (!cardIsDesc(h, m[3])) return env.did.push(`${nameTag(h)} isn't ${m[3]}`);
+  await runSentence(m[1], env);
+}, { first: true });
 // Counterbalance
 on(/^you may reveal the top card of your library\. if you do, counter that spell if it has the same mana value as the revealed card$/, async (m, env) => {
   const [top] = libTop(env.me, 1);
