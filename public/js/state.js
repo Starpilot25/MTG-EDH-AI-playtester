@@ -1726,16 +1726,18 @@ export function createToken(defId, pid, n = 1, opts = {}) {
     }
   }
   // Academy Manufactor: "If you would create a Clue, Food, or Treasure token, instead create one of each." Each Manufactor
-  // applies once more to the whole batch (two of them turn one Treasure into three of each); the token asked for keeps its
-  // own characteristics (Vraska, Soul of Stone's 1/1 Sculpture Treasure) and the others are ordinary.
+  // applies once more to the whole batch (two of them turn one Treasure into three of each).
   let manuExtra = null;
   if (G.s && !opts.noManufactor && DB[defId]) {
     const tl = DB[defId].faces[0].typeLine || DB[defId].typeLine || '';
     const kind = ['Clue', 'Food', 'Treasure'].find((k) => new RegExp(`\\b${k}\\b`).test(tl));
     const mf = kind ? cardsIn(pid, 'battlefield').filter((x) => !x.phasedOut && !abilitiesGone(x) && /If you would create a Clue, Food, or Treasure token, instead create one of each/i.test(oracle(x))).length : 0;
     if (mf) {
+      // the replacement makes ordinary Clue, Food and Treasure tokens: a special version (Vraska, Soul of Stone's 1/1
+      // Sculpture Treasure creature) becomes a regular Treasure
       const each = n * 3 ** (mf - 1);
       n = each;
+      defId = canonicalToken(genericTokenDef(0, 0, kind));
       manuExtra = ['Clue', 'Food', 'Treasure'].filter((k) => k !== kind).map((k) => ({ k, n: each }));
     }
   }
