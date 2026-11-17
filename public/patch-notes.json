@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.256",
+    "title": "Softer start screen",
+    "notes": [
+      "The deck selection screen is softer: rounded corners on the deck panels, buttons and boxes, and each deck panel's header is a dark tint of that player's colour instead of bright white."
+    ]
+  },
+  {
     "version": "1.3.255",
     "title": "Straight hand",
     "notes": [

@@ -309,3 +309,14 @@ h1, .slot-head h2 { font-family: var(--f-display); }
 #log li.sys { border-left-color: var(--brass) !important; }
 .deck-slot { padding-top: 0; overflow: hidden; }
 .slot-head { margin: 0 -20px 4px; }
+
+/* setup screen: softer than the table — rounded corners, and a tinted header instead of a white plate */
+.deck-slot { border-radius: 14px; border: 1px solid #22305a; background: linear-gradient(180deg, #111a33, #0d1429); box-shadow: 0 12px 30px rgb(0 0 0 / 0.35); }
+.slot-head { background: linear-gradient(90deg, color-mix(in srgb, var(--seat, #888) 22%, #16203d), #16203d 70%); color: var(--ink); padding: 12px 14px 12px 20px; border-bottom: 1px solid #22305a; }
+.slot-head::before { width: 4px; top: 10px; bottom: 10px; left: 10px; border-radius: 2px; }
+.slot-head h2 { color: var(--ink); font-size: 21px; }
+#setup button, #setup select, #setup input, #setup textarea, #setup .seg button { border-radius: 8px !important; }
+#setup .seg { gap: 4px; }
+#setup .seg button { margin-left: 0; }
+#setup .deck-slot .load, #setup button.primary { border-radius: 8px; }
+.versus { font-style: normal; font-size: 30px; color: color-mix(in srgb, var(--brass) 70%, transparent); }
