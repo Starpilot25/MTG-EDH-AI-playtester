@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.247",
+    "title": "Neyali, Suns' Vanguard",
+    "notes": [
+      "Neyali's attack trigger now fires: whenever one or more tokens you control attack a player, it exiles the top card of your library, which you can play during any turn you attacked with a token. Before, the \"tokens\" wording was read as a creature type and never matched.",
+      "Same fix for other \"Whenever one or more creatures you control attack a player\" wordings."
+    ]
+  },
+  {
     "version": "1.3.246",
     "title": "Send all attackers at one player",
     "notes": [
