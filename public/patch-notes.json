@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.258",
+    "title": "Name plates in your commander's colours",
+    "notes": [
+      "Each player's name plate is now filled with their commander's colours: an Izzet deck fades from blue into red, Golgari from black into green, and a mono-colour deck gets one colour. The player whose turn it is gets an orange frame around their plate."
+    ]
+  },
+  {
     "version": "1.3.257",
     "title": "Softer whites",
     "notes": [

@@ -48,8 +48,11 @@ function identityBar(pid) {
   for (const c of Object.values(s.cards)) if (c.isCommander && c.owner === pid) for (const k of (DB[c.def] || {}).ci || []) set.add(k);
   const cols = 'WUBRG'.split('').filter((k) => set.has(k)).map((k) => MANA[k]);
   const bar = !cols.length ? '#a39e93' : cols.length === 1 ? cols[0] : `linear-gradient(90deg, ${cols.map((x, i) => `${x} ${(i * 100) / cols.length}% ${((i + 1) * 100) / cols.length}%`).join(', ')})`;
-  idBar.set(pid, bar);
-  return bar;
+  // the name plate: a soft blend of the same colours (tinted toward the plate grey so dark text stays readable)
+  const tint = (c) => `color-mix(in srgb, ${c} 62%, var(--plate))`;
+  const fade = !cols.length ? 'var(--plate)' : cols.length === 1 ? tint(cols[0]) : `linear-gradient(90deg, ${cols.map(tint).join(', ')})`;
+  idBar.set(pid, { bar, fade });
+  return idBar.get(pid);
 }
 
 const lastLife = new WeakMap(); // doc -> Map(pid -> life)
@@ -62,8 +65,9 @@ export function decorate(docs = []) {
     for (const pid of Object.keys(s.players)) {
       const el = panelOf(pid);
       if (!el) continue;
-      const bar = identityBar(pid);
+      const { bar, fade } = identityBar(pid);
       if (el.style.getPropertyValue('--id-bar') !== bar) el.style.setProperty('--id-bar', bar);
+      if (el.style.getPropertyValue('--id-fade') !== fade) el.style.setProperty('--id-fade', fade);
       const lv = el.querySelector('.lval');
       const life = s.players[pid].life;
       if (!lastLife.has(d) || lastLife.get(d).game !== s) lastLife.set(d, Object.assign(new Map(), { game: s }));
