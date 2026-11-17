@@ -7599,8 +7599,8 @@ on(/^create (.+?) tokens?(?: (?:that are |that's )?(tapped(?: and attacking)?)(?
   }
   await makeTokens(env, m[1] + (m[2] ? ' ' + m[2] : '') + (m[3] ? ' with ' + m[3] : ''), m[4]);
 });
-on(/^(?:you )?investigate(?: (\w+) times)?/, async (m, env) => {
-  const k = m[1] ? n(m[1], env.x) : 1;
+on(/^(?:you )?investigate(?: (\w+) times| (twice|thrice))?/, async (m, env) => {
+  const k = m[2] ? (m[2] === 'twice' ? 2 : 3) : m[1] ? n(m[1], env.x) : 1;
   createToken(genericTokenDef(0, 0, 'Clue'), env.me, k);
   { const ts = G.s.ts && G.s.ts[env.me]; const first = !!ts && !ts.investigated; if (ts) ts.investigated = (ts.investigated || 0) + k; if (k > 0) queueEvent({ type: 'investigated', pid: env.me, first }); } // Erdwal Illuminator
   env.did.push(`investigates${k > 1 ? ' ' + k + ' times' : ''}`);
