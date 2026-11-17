@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.243",
+    "title": "Academy Manufactor",
+    "notes": [
+      "Academy Manufactor now works: creating a Clue, Food or Treasure creates one of each instead. With two Manufactors you get three of each.",
+      "Special versions keep their own characteristics: with Vraska, Soul of Stone you get her 1/1 Sculpture Treasure creature plus an ordinary Clue and Food."
+    ]
+  },
+  {
     "version": "1.3.242",
     "title": "Ring of Thune",
     "notes": [

@@ -1725,6 +1725,20 @@ export function createToken(defId, pid, n = 1, opts = {}) {
       defId = genericTokenDef(+m[1], +m[2], m[4], [col], { keywords: kws });
     }
   }
+  // Academy Manufactor: "If you would create a Clue, Food, or Treasure token, instead create one of each." Each Manufactor
+  // applies once more to the whole batch (two of them turn one Treasure into three of each); the token asked for keeps its
+  // own characteristics (Vraska, Soul of Stone's 1/1 Sculpture Treasure) and the others are ordinary.
+  let manuExtra = null;
+  if (G.s && !opts.noManufactor && DB[defId]) {
+    const tl = DB[defId].faces[0].typeLine || DB[defId].typeLine || '';
+    const kind = ['Clue', 'Food', 'Treasure'].find((k) => new RegExp(`\\b${k}\\b`).test(tl));
+    const mf = kind ? cardsIn(pid, 'battlefield').filter((x) => !x.phasedOut && !abilitiesGone(x) && /If you would create a Clue, Food, or Treasure token, instead create one of each/i.test(oracle(x))).length : 0;
+    if (mf) {
+      const each = n * 3 ** (mf - 1);
+      n = each;
+      manuExtra = ['Clue', 'Food', 'Treasure'].filter((k) => k !== kind).map((k) => ({ k, n: each }));
+    }
+  }
   const made = [];
   let count = n;
   // several identical triggers resolving as one batch (Scute Swarm ×500): make that many times as many
@@ -1756,6 +1770,7 @@ export function createToken(defId, pid, n = 1, opts = {}) {
     const extra = o.pt ? genericTokenDef(o.pt[0], o.pt[1], o.label, o.color) : genericTokenDef(0, 0, o.label);
     createToken(extra, pid, o.n, { noAdd: true, tapped: false });
   }
+  for (const e of manuExtra || []) createToken(genericTokenDef(0, 0, e.k), pid, e.n, { noManufactor: true, tapped: opts.tapped });
   if (made.length) queueEvent({ type: 'tokensCreated', pid, ids: made });
   return made;
 }
