@@ -7,7 +7,8 @@ import { G, newGame, cardsIn, move, log, esc, emit } from './state.js';
 import { loadDungeons } from './dungeon.js';
 import { voiceSupported, speak, stopSpeaking } from './voice.js';
 import { run, aiMulligans, mulligan, bottomCount, startPlay } from './game.js';
-import { render, bindEvents, openDialog, closeDialog, cancelPending, toast, teardownTable } from './ui.js';
+import { currentTheme } from './theme.js';
+import { render, bindEvents, setTheme, openDialog, closeDialog, cancelPending, toast, teardownTable } from './ui.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -464,6 +465,8 @@ function initSetup() {
   if (!voiceSupported()) for (const id of ['#set-voice', '#gm-voice']) { const el = $(id); if (el) { el.value = 'off'; el.disabled = true; el.title = "This browser can't speak."; } }
   $('#set-voice').addEventListener('change', (e) => { if (e.target.value !== 'off') { stopSpeaking(); speak(e.target.value === 'read' ? 'A.I. announcements on. I will also read you the cards I cast.' : 'A.I. announcements on.'); } });
   $('#set-layout').value = st.boardLayout ?? 'organized';
+  $('#set-theme').value = currentTheme();
+  $('#set-theme').addEventListener('change', (e) => setTheme(e.target.value));
   $('#set-cmdzone').value = st.commanderZone ?? 'ask';
   $('#set-dorks').value = st.dorks ?? 'last';
   $('#set-life').value = st.startingLife ?? 40;
@@ -675,6 +678,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#set-layout').value = e.target.value;
     render();
   });
+  $('#gm-theme').addEventListener('change', (e) => {
+    setTheme(e.target.value);
+    $('#set-theme').value = e.target.value;
+  });
   $('#gm-dorks').addEventListener('change', (e) => {
     G.settings.dorks = e.target.value;
     store.set('settings', { ...store.get('settings', {}), dorks: e.target.value });
@@ -712,6 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#gm-aistyle').value = G.settings.aiStyle || 'casual';
     $('#gm-voice').value = G.settings.aiVoice || 'off';
     $('#gm-layout').value = G.settings.boardLayout || 'organized';
+    $('#gm-theme').value = currentTheme();
     $('#gm-cmdzone').value = G.settings.commanderZone || 'ask';
     $('#gm-dorks').value = G.settings.dorks || 'last';
     $('#gm-autodraw').checked = G.settings.autoDraw;

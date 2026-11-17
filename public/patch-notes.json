@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.254",
+    "title": "A new look",
+    "notes": [
+      "The app has a new look, styled like a tournament broadcast: name plates with each player's commander colours, scoreboard-style life totals, and a turn tracker that shows which step you're on.",
+      "Poison and commander damage now fill up bars toward 10 and 21. A commander damage bar turns red once it reaches 15.",
+      "Life totals flash red when a player loses life and green when they gain it. The player whose turn it is gets a lit name plate and play area.",
+      "Every card on the table has a thin line in its controller's colour, so you can see who controls what at a glance.",
+      "Prefer the old green-felt look? Pick Classic under Look in the settings on the start screen, or in the game menu. Your choice is remembered."
+    ]
+  },
+  {
     "version": "1.3.253",
     "title": "Performance on big boards",
     "notes": [

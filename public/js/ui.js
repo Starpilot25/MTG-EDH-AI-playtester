@@ -1,4 +1,5 @@
 // The tabletop: rendering, drag and drop, menus, dialogs and shortcuts.
+import { applyTheme, themeDoc, decorate } from './theme.js';
 import { DB, searchTokens, imageHooks } from './data.js';
 import {
   hasSubtype, isLand, isCreature, isType, power, toughness, basePT, oracle, isPermanentCard, canBlock, canAttack, mustAttack, hasKw, face, payCostKeep, keywordChanges, abilitiesGone,
@@ -468,6 +469,7 @@ function renderAll() {
   document.body.classList.toggle('pod', multiplayer());
   { const rb = $('#btn-reveal'); if (rb) rb.textContent = multiplayer() ? 'AI hands' : 'AI hand'; }
   for (const d of popDocs()) d.body.className = document.body.className + ' popout-body';
+  decorate(popDocs());
 }
 
 function renderTop() {
@@ -3348,6 +3350,7 @@ function openBoardWindow(key, title) {
     <link rel="stylesheet" href="${location.origin}/css/style.css"></head>
     <body class="popout-body"><div class="board popout-board"></div><div id="menu" class="pop" hidden></div></body></html>`);
   doc.close();
+  themeDoc(doc);
   return { w, doc, holder: doc.querySelector('.popout-board') };
 }
 // pid: 'ai' (1v1 board), 'p' (your board), 'pod' (every opponent still in the main window, in one window)
@@ -3564,3 +3567,9 @@ function onKey(e) {
 }
 
 export { refreshViewer, makeCard };
+
+// Switch the look (settings): main window and every pop-out window
+export function setTheme(t) {
+  applyTheme(t, popDocs());
+  render();
+}

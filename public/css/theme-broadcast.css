@@ -1,0 +1,318 @@
+/* Broadcast theme: loaded on top of style.css (the default look). Pick Classic in settings to switch it off. */
+/* ===================== Broadcast ===================== */
+:root {
+  --bg: #0b1020; --felt: #121a30; --felt-2: #172038; --felt-3: #1f2a46; --line: #27345a;
+  --ink: #f5f3ee; --muted: #9aa5c4; --brass: #ff9f43; --brass-ink: #1c0f02;
+  --you: #57b8ff; --ai: #ff6b5b; --ai2: #b48cff; --ai3: #3fd6a0; --danger: #ff4d5e; --ok: #46d690;
+  --f-display: 'Archivo Narrow', 'Arial Narrow', sans-serif; --f-body: 'Archivo', system-ui, sans-serif;
+  --shadow: 0 10px 30px rgb(0 0 0 / 0.55); --cr: 3px;
+}
+body { background: #0b1020; }
+.board { background: radial-gradient(ellipse 90% 80% at 50% 0%, #16224a 0%, #0b1020 70%); }
+.field { background: transparent !important; }
+#my-field, .seat-field { background: linear-gradient(180deg, rgb(255 255 255 / 0.015), transparent) !important; }
+/* name plates: an angled plate with a colour-identity bar */
+.panel, .seat-panel { background: #0e152a !important; border-color: #1d2747 !important; }
+.pname {
+  position: relative; font: 700 19px var(--f-display); letter-spacing: 0.01em;
+  background: #f5f3ee; color: #0b1020; padding: 4px 26px 6px 12px; margin: -2px 0 4px -10px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 100%, 0 100%);
+}
+.pname::after { content: ''; position: absolute; left: 0; right: 16px; bottom: 0; height: 4px; background: var(--id-bar, #888); }
+.pname small { color: #4a5578; font: 600 12px var(--f-body); }
+.pname .dot { display: none; }
+.pname .popout-btn, .pname .turn-tag { clip-path: none; }
+.turn-tag { background: var(--brass); color: #1c0f02; }
+.seat-panel { --id-bar: inherit; }
+/* life: a boxed tally */
+.life .lval {
+  font: 700 38px/1 var(--f-display); font-variant-numeric: tabular-nums;
+  flex: 0 0 auto; width: 84px; height: 56px; display: grid; place-items: center;
+  background: #0b1020; color: #fff; border: 2px solid #f5f3ee; border-radius: 0;
+}
+.seat-life .life .lval { flex: 0 0 auto; width: 64px; height: 44px; font-size: 28px; }
+.life .lbtn { border-radius: 0; background: #1a2442; border: 1px solid #2b3963; width: 28px; height: 28px; }
+/* poison and commander damage as fill-up meters (toward 10 and 21) */
+.subcounters { gap: 5px; }
+.cmd-dmg, .poison {
+  --v: 0; position: relative; display: grid !important; grid-template-columns: minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 4px;
+  padding: 3px 6px 7px; background: #111a33; border-left: 3px solid #2b3963; font-size: 12.5px;
+}
+.cmd-dmg::after, .poison::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: calc(var(--v) * 100%); background: linear-gradient(90deg, #ffb35a, #ff4d5e); transition: width 0.3s; }
+.cmd-dmg::before, .poison::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgb(255 255 255 / 0.08); }
+.poison::after { background: linear-gradient(90deg, #7be08a, #2fbf71); }
+.cmd-dmg b, .poison b { font: 700 15px var(--f-display); color: #fff; }
+.mini { border-radius: 0; background: transparent; border: 1px solid #2b3963; width: 20px; height: 20px; padding: 0; }
+/* zones: flat tiles with a count */
+.pile-face { border-radius: 2px !important; }
+.pile-n { font: 700 16px var(--f-display); background: #f5f3ee; color: #0b1020; padding: 0 5px; }
+.pile-label { font: 600 11.5px var(--f-display); color: var(--muted); }
+/* cards: crisp, thin outline */
+.card { border-radius: 4px; box-shadow: 0 0 0 1px rgb(255 255 255 / 0.12), 0 3px 8px rgb(0 0 0 / 0.5); }
+.card .pt { font: 700 13px var(--f-display); background: #f5f3ee; color: #0b1020; border-radius: 0; padding: 0 5px; }
+.card.noimg { background: #1a2340; border-color: #33426e; }
+.ctop b, .ctype { font-family: var(--f-display); }
+/* turn steps: a progress bar */
+.steps { gap: 3px; }
+.steps li { font: 600 13.5px var(--f-display); padding: 4px 7px 6px; border-radius: 0; background: transparent; position: relative; color: var(--muted); }
+.steps li::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #26325a; }
+.steps li.past { color: #c9cfdf; }
+.steps li.past::after { background: #5a6894; }
+.steps li.on { background: transparent; color: #fff; }
+.steps li.on::after { background: var(--brass); height: 4px; box-shadow: 0 0 10px rgb(255 159 67 / 0.7); }
+/* top bar: the broadcast header */
+.topbar { background: #070b17; border-bottom: 2px solid var(--brass); }
+.brand { font: 700 20px var(--f-display); color: #fff; }
+#turninfo .tnum { background: var(--brass); color: #1c0f02; font: 700 13px var(--f-display); padding: 1px 6px; }
+#turninfo .who { font: 700 20px var(--f-display); }
+button { border-radius: 0; font-family: var(--f-display); font-weight: 600; font-size: 14px; background: #18213d; border-color: #2b3963; }
+button.primary { background: var(--brass); color: #1c0f02; border-color: var(--brass); }
+/* the log: play-by-play */
+.rail { background: #0a0f1f !important; }
+#log li { font-size: 13.5px; padding-left: 10px; border-left-width: 3px; }
+#log li.turn { font: 700 15px var(--f-display); background: #f5f3ee; color: #0b1020; padding: 3px 10px; margin-top: 8px; border: 0; }
+/* hand */
+.hand-wrap { background: #080c19 !important; border-top: 2px solid #1d2747 !important; }
+.hand-label { font: 700 16px var(--f-display); }
+/* prompts: lower-third banner */
+.combat-bar, .stack, .thinking { background: #0b1020; border: 0; border-left: 6px solid var(--brass); border-radius: 0; box-shadow: 0 0 0 1px #2b3963, 0 18px 40px rgb(0 0 0 / 0.6); }
+.combat-bar.danger { border-left-color: var(--danger); }
+.combat-bar h3, .stack-copy h3 { font: 700 26px var(--f-display); }
+.eyebrow { font: 700 13px var(--f-display); text-transform: none; letter-spacing: 0.02em; }
+.combat-bar.danger .eyebrow { color: var(--danger); }
+/* setup */
+.deck-slot { background: #0e152a; border: 1px solid #1d2747; border-radius: 0; border-top: 4px solid var(--brass); }
+h1, .slot-head h2 { font-family: var(--f-display); }
+.seat.active .pname { box-shadow: none; }
+.seat.active .seat-panel { box-shadow: inset 0 3px 0 var(--brass); }
+
+.topbar { flex-wrap: nowrap; }
+.cmd-dmg::before, .poison::before { background: rgb(255 255 255 / 0.12); }
+
+/* ===== Broadcast, pushed further ===== */
+:root { --plate: #f5f3ee; --plate-ink: #0b1020; }
+#my-panel, .deck-slot[data-pid="p"] { --seat: var(--you); }
+.seat[data-seat="ai"], #opp-panel, .deck-slot[data-pid="ai"] { --seat: var(--ai); }
+.seat[data-seat="ai2"], .deck-slot[data-pid="ai2"] { --seat: var(--ai2); }
+.seat[data-seat="ai3"], .deck-slot[data-pid="ai3"] { --seat: var(--ai3); }
+
+/* studio floor: a faint perspective grid behind the mats */
+.board {
+  background:
+    linear-gradient(rgb(87 184 255 / 0.035) 1px, transparent 1px) 0 0 / 100% 48px,
+    linear-gradient(90deg, rgb(87 184 255 / 0.035) 1px, transparent 1px) 0 0 / 48px 100%,
+    radial-gradient(ellipse 90% 80% at 50% 0%, #16224a 0%, #0b1020 70%);
+}
+.seat { border-right: 1px solid #1d2747; }
+
+/* player card: a solid seat-colour tab, then the white plate with the identity stripe */
+.pname { padding-left: 46px; }
+.pname::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 34px;
+  background: var(--seat, #888);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+.pname > b, .pname > span:first-of-type { font-weight: 800; }
+/* whoever is on turn: the plate lights up */
+.seat.active .pname, #my-panel.on-turn .pname, #opp-panel.on-turn .pname { background: var(--brass); color: #1c0f02; }
+.seat.active .pname small { color: #5a3608; }
+.turn-tag { background: #0b1020; color: var(--brass); font: 700 12px var(--f-display); letter-spacing: 0.04em; border: 0; border-radius: 0; }
+
+/* life: a scoreboard box topped in the seat colour, with tabular digits */
+.life .lval { border: 0; background: #070b17; box-shadow: inset 0 4px 0 var(--seat, #888), inset 0 0 0 2px #2b3963; padding-top: 4px; font-size: 40px; }
+.seat-life .life .lval { font-size: 30px; }
+.life .lbtn { background: transparent; border-color: #2b3963; color: var(--muted); }
+
+/* zone counts as stat boxes */
+.pile-face { background: #111a33 !important; }
+.pile.cmdtile .pile-face { border: 1px solid var(--brass) !important; }
+.pile-label { text-transform: none; letter-spacing: 0.01em; }
+
+/* eliminated players: a struck-through, hatched bar */
+.seat.out { opacity: 1; }
+.seat.out .seat-panel { background: repeating-linear-gradient(-45deg, #0e152a 0 10px, #131c36 10px 20px) !important; }
+.seat.out .pname { background: #3a4466; color: #b8c0d8; text-decoration: line-through; text-decoration-thickness: 2px; }
+.seat.out .pname::before { background: #59627f; }
+.out-note { font-style: normal; font-weight: 600; color: var(--danger); font-family: var(--f-display); font-size: 14px; }
+
+/* attackers: an angled red call-out tag */
+.tag.atk { border-radius: 0; font: 700 11.5px var(--f-display); padding: 1px 9px 1px 6px; clip-path: polygon(0 0, 100% 0, calc(100% - 5px) 100%, 0 100%); }
+.card.attacking { box-shadow: 0 0 0 2px var(--danger), 0 0 0 4px #0b1020, 0 0 22px rgb(255 77 94 / 0.55); }
+
+/* top bar: turn counter and active player as one score-bug */
+#turninfo { display: inline-flex; align-items: stretch; gap: 0; }
+#turninfo .tnum { display: grid; place-items: center; padding: 2px 8px; font-size: 14px; }
+#turninfo .who { background: var(--plate); color: var(--plate-ink); padding: 2px 14px 2px 10px; clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%); font-size: 19px; }
+
+/* card preview: a featured-card lower third */
+#preview .pv-head { background: var(--plate); color: var(--plate-ink); padding: 4px 18px 4px 10px; margin: 6px 0 6px -2px; clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
+#preview .pv-head b { font: 700 18px var(--f-display); }
+#preview .pv-type { color: var(--brass); font-family: var(--f-display); font-weight: 600; }
+.log-head { font: 700 14px var(--f-display); letter-spacing: 0.02em; text-transform: none; color: #fff; border-bottom: 2px solid var(--brass); padding-bottom: 4px; }
+
+/* hand: a vertical plate */
+.hand-label { background: var(--brass); color: #1c0f02; }
+
+/* prompts: the lower third carries a red or brass label tab */
+.combat-bar .eyebrow { display: block; width: fit-content; background: var(--brass); color: #1c0f02; padding: 2px 14px 2px 8px; margin-bottom: 6px; clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 100%, 0 100%); }
+.combat-bar.danger .eyebrow { background: var(--danger); color: #fff; }
+.combat-bar, .stack, .thinking { border-left: 0; box-shadow: inset 0 3px 0 var(--brass), 0 0 0 1px #2b3963, 0 18px 40px rgb(0 0 0 / 0.6); }
+.combat-bar.danger { box-shadow: inset 0 3px 0 var(--danger), 0 0 0 1px #2b3963, 0 18px 40px rgb(0 0 0 / 0.6); }
+
+/* setup: each deck slot is a player card, with a big VS between you and the field */
+.deck-slot { border-top: 0; position: relative; padding-top: 0; }
+.slot-head { position: relative; background: var(--plate); color: var(--plate-ink); margin: 0 -1px 12px; padding: 8px 12px 10px 44px; }
+.slot-head::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 32px; background: var(--seat, #888); }
+.slot-head .dot { display: none; }
+.slot-head h2 { color: var(--plate-ink); font: 700 20px var(--f-display); }
+.versus { font: italic 800 44px var(--f-display); color: var(--brass); text-transform: uppercase; }
+
+/* ===== Broadcast, third pass ===== */
+#my-field { --seat: var(--you); }
+#opp-field { --seat: var(--ai); }
+/* big outlined lettering in the corner of each play area, painted behind the cards */
+.field { isolation: isolate; }
+.field::before {
+  position: absolute; right: 18px; bottom: 4px; pointer-events: none; z-index: -1;
+  font: italic 800 96px/1 var(--f-display); letter-spacing: -0.02em; white-space: nowrap;
+  color: transparent; -webkit-text-stroke: 1.5px color-mix(in srgb, var(--seat, #fff) 22%, transparent);
+}
+#my-field::before { content: 'You'; }
+#opp-field::before { content: 'AI'; }
+.seat[data-seat="ai"] .seat-field::before { content: 'AI 1'; }
+.seat[data-seat="ai2"] .seat-field::before { content: 'AI 2'; }
+.seat[data-seat="ai3"] .seat-field::before { content: 'AI 3'; }
+.seat .seat-field::before { font-size: 72px; }
+
+/* tally light: the seat on turn gets a lit rail across its top and a pulsing dot */
+.seat.active::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--brass); z-index: 3; box-shadow: 0 0 12px rgb(255 159 67 / 0.8); }
+.turn-tag::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); margin-right: 5px; vertical-align: 1px; animation: tally 1.4s ease-in-out infinite; }
+@keyframes tally { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .turn-tag::before { animation: none; } }
+
+/* the current step is a chevron */
+.steps li.on { background: var(--brass); color: #1c0f02; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%); padding-right: 14px; }
+.steps li.on::after { display: none; }
+
+/* top bar: a brass slash after the wordmark, chevron on the main action */
+.brand { position: relative; padding-right: 22px; }
+.brand::after { content: ''; position: absolute; right: 4px; top: -4px; bottom: -4px; width: 6px; background: var(--brass); transform: skewX(-18deg); }
+#btn-next.primary { clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%); padding-right: 22px; }
+
+/* the hand rail: hazard-style diagonal stripes behind the label */
+.hand-label { background: repeating-linear-gradient(-45deg, var(--brass) 0 10px, #e88e2e 10px 20px); }
+
+/* zone counters: white number plates, seat-colour underline on the commander tile */
+.pile.cmdtile .pile-face { box-shadow: inset 0 -3px 0 var(--seat, var(--brass)); }
+
+/* log: each line opens with a small tick in the speaker's colour, turn headers slant */
+#log li.turn { clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
+
+/* eliminated: a red "Out" stamp on the plate */
+.seat.out .pname::after { content: 'Out'; position: static; display: inline-block; height: auto; width: auto; margin-left: 10px; padding: 0 6px; background: var(--danger); color: #fff; font: 700 12px var(--f-display); text-decoration: none; }
+
+/* ===== Broadcast, fourth pass ===== */
+/* name plate on two lines: big name, deck underneath in small type */
+.pname { display: grid !important; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 8px; row-gap: 0; font-size: 22px; line-height: 1.05; padding-top: 5px; padding-bottom: 8px; }
+.pname small { grid-row: 2; grid-column: 1 / -1; font: 500 11.5px/1.3 var(--f-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pname .popout-btn { background: transparent; border: 1px solid rgb(11 16 32 / 0.25); color: inherit; box-shadow: none; }
+.seat.out .pname { grid-template-columns: auto minmax(0, 1fr); }
+
+/* spotlight: the area of the player on turn is lit from above */
+.seat.active .seat-field, #my-field.on-turn, #opp-field.on-turn {
+  background: radial-gradient(ellipse 70% 90% at 50% -10%, color-mix(in srgb, var(--seat) 18%, transparent), transparent 65%) !important;
+}
+
+/* the phase tracker: one connected chevron strip */
+.steps { gap: 0; background: #111a33; padding: 0; }
+.steps li { clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%, 8px 50%); margin-left: -4px; padding: 4px 11px 4px 14px; font-size: 13px; white-space: nowrap; background: #18213d; }
+.steps li:first-child { clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%); margin-left: 0; padding-left: 10px; }
+.steps li::after { display: none; }
+.steps li.past { background: #26325a; color: #c9cfdf; }
+.steps li.on { background: var(--brass); color: #1c0f02; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%, 8px 50%); padding-right: 14px; }
+
+/* life: bigger box with a soft glow in the seat colour */
+.life .lval { width: 88px !important; height: 56px !important; font-size: 42px !important; box-shadow: inset 0 4px 0 var(--seat, #888), inset 0 0 0 2px #2b3963, 0 0 26px color-mix(in srgb, var(--seat, #888) 22%, transparent); }
+.seat-life .life .lval { width: 74px !important; height: 50px !important; font-size: 34px !important; }
+
+/* commander damage and poison: thicker bars that turn red past 15 */
+.cmd-dmg, .poison { padding-top: 1px; padding-bottom: 8px; background: transparent; border-left: 0; border-bottom: 0; }
+.cmd-dmg::before, .poison::before, .cmd-dmg::after, .poison::after { height: 6px; }
+.cmd-dmg::after { background: #ffb35a; }
+.cmd-dmg.warn::after { background: var(--danger); box-shadow: 0 0 10px rgb(255 77 94 / 0.7); }
+.cmd-dmg.warn b { color: var(--danger); }
+
+/* your hand: a slight fan, like cards held up to the camera */
+#hand { align-items: flex-end; padding-top: 10px; }
+#hand .card { transform-origin: 50% 120%; transition: transform 0.15s; }
+#hand .card:nth-child(odd) { transform: rotate(-1.2deg); }
+#hand .card:nth-child(even) { transform: rotate(1.2deg) translateY(2px); }
+#hand .card:hover { transform: translateY(-14px) rotate(0); z-index: 5; }
+@media (prefers-reduced-motion: reduce) { #hand .card { transition: none; } }
+
+/* panels: a darker band that separates the player cards from the play areas */
+.panel, .seat-panel { background: linear-gradient(180deg, #0e152a, #0a1022) !important; }
+.seat .seat-panel { border-bottom: 2px solid #1d2747 !important; }
+
+.brand, .steps, .topbar { white-space: nowrap; flex-wrap: nowrap; }
+.steps { flex-wrap: nowrap !important; }
+#turninfo .who { min-width: 0; }
+.seat.active .seat-field { background: radial-gradient(ellipse 70% 90% at 50% -10%, color-mix(in srgb, var(--seat) 26%, transparent), transparent 70%) !important; }
+
+/* ===== Broadcast, fifth pass ===== */
+/* every permanent carries its controller's colour on its bottom edge */
+.seat-field .card, #my-field .card, #opp-field .card { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.12), 0 3px 0 0 var(--seat, #888), 0 6px 12px rgb(0 0 0 / 0.5); }
+.seat-field .card.attacking, #my-field .card.attacking, #opp-field .card.attacking { box-shadow: 0 0 0 2px var(--danger), 0 0 0 4px #0b1020, 0 0 22px rgb(255 77 94 / 0.55); }
+
+/* your panel as a proper player card: compact damage rows with full-width bars */
+#my-panel .subcounters { display: grid; gap: 1px; background: #1d2747; border: 1px solid #1d2747; margin: 4px 0 8px; }
+#my-panel .cmd-dmg, #my-panel .poison { background: #0b1020; padding: 4px 8px 9px; font-size: 12px; }
+#my-panel .cmd-dmg .lbl, #my-panel .poison .lbl { color: #c9cfdf; }
+#my-panel .cmd-dmg::before, #my-panel .poison::before, #my-panel .cmd-dmg::after, #my-panel .poison::after { left: 8px; bottom: 3px; height: 4px; }
+#my-panel .cmd-dmg::before, #my-panel .poison::before { right: 8px; }
+#my-panel .cmd-dmg::after, #my-panel .poison::after { width: calc(var(--v) * (100% - 16px)); }
+#my-panel .mini { width: 18px; height: 18px; font-size: 12px; }
+#my-panel .piles { margin-top: 2px; }
+.pile-label { line-height: 1.15; }
+
+/* motion that answers the game: an attack prompt sweeps in, life boxes flash on change */
+.combat-bar.danger { animation: sweep 0.38s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.combat-bar.danger .eyebrow { animation: tab 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes sweep { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes tab { from { transform: translateX(-24px); opacity: 0; } }
+.life .lval.hit { animation: hit 0.6s ease-out; }
+.life .lval.heal { animation: heal 0.6s ease-out; }
+@keyframes hit { 0% { background: var(--danger); color: #fff; } }
+@keyframes heal { 0% { background: var(--ok); color: #0b1020; } }
+@media (prefers-reduced-motion: reduce) { .combat-bar.danger, .combat-bar.danger .eyebrow, .life .lval.hit, .life .lval.heal { animation: none; } }
+
+/* card preview: a featured-card frame with a seat-agnostic brass rule */
+#preview { border-bottom: 2px solid #1d2747; padding-bottom: 10px; }
+#preview img { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.15), 0 14px 30px rgb(0 0 0 / 0.6); border-radius: 10px; }
+
+/* log: every line gets a small tick in the speaker's seat colour */
+#log li.p { border-left-color: var(--you); }
+#log li.ai { border-left-color: var(--ai); }
+#log li.ai2 { border-left-color: var(--ai2); }
+#log li.ai3 { border-left-color: var(--ai3); }
+#log li:not(.turn) { border-left-width: 3px; border-left-style: solid; }
+
+/* opponent hands: the face-down fan is a row of slim card-back slats */
+.hand-row { gap: 6px; }
+
+/* the "VS" on setup, and dice/turn-order rolls, in the same slanted heavy type */
+.d20, .dice-roll b { font-family: var(--f-display); font-style: italic; font-weight: 800; }
+#my-panel .life .lval { height: 50px !important; font-size: 38px !important; }
+#my-panel .subcounters { margin: 2px 0 4px; }
+#my-panel .cmd-dmg, #my-panel .poison { padding: 2px 8px 7px; }
+#my-panel .pname { padding-top: 3px; padding-bottom: 5px; margin-bottom: 2px; }
+
+/* ===== finishing fixes ===== */
+#log li:not(.turn) { border-left: 3px solid var(--line) !important; padding-left: 10px; }
+#log li.p { border-left-color: var(--you) !important; }
+#log li.ai { border-left-color: var(--ai) !important; }
+#log li.ai2 { border-left-color: var(--ai2) !important; }
+#log li.ai3 { border-left-color: var(--ai3) !important; }
+#log li.sys { border-left-color: var(--brass) !important; }
+.deck-slot { padding-top: 0; overflow: hidden; }
+.slot-head { margin: 0 -20px 4px; }
