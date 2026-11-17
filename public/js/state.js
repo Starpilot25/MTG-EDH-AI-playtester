@@ -49,6 +49,13 @@ export function noteExert(c) {
   c.noUntapUntil = nextTurnNumber(c.controller);
   queueEvent({ type: 'exerted', iid: c.iid, controller: c.controller });
 }
+// creatures that leave in the same synchronous run (one effect, one round of state-based actions) left simultaneously
+let dTick = 0;
+let dArmed = false;
+function deathTick() {
+  if (!dArmed) { dArmed = true; dTick++; queueMicrotask(() => { dArmed = false; }); }
+  return dTick;
+}
 export function queueEvent(ev) {
   if (G.s && G.s.phase === 'play') eventQueue.push({ ...ev, turn: G.s.turn });
 }
@@ -560,7 +567,11 @@ export function move(iid, zone, opts = {}) {
       if (c.tpringDraw && c.tpringDraw.turn === s.turn) { const tp = c.tpringDraw.pid; delete c.tpringDraw; draw(tp, 1, true); log(tp, `T'Pring: ${tp === 'p' ? 'you draw' : seatName(tp) + ' draws'} a card.`); }
       s.ts.creatureDied = true;
       s.ts.creaturesDiedN = (s.ts.creaturesDiedN || 0) + 1;
+      const lk = { iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token, counters: { ...(c.counters || {}) }, granted: [c.extraText, c.eotText, pairGrant].filter(Boolean).join('\n') || undefined, tick: deathTick() };
+      // creatures that die at the same time "see" each other die (Blood Artist dying alongside a board wipe)
+      s.recentDead = [...(s.recentDead || []).filter((x) => x.tick === lk.tick), lk];
       queueEvent({
+        tick: lk.tick,
         type: 'dies', iid, def: c.def, face: c.face || 0, controller: c.controller, owner: c.owner, token: c.token,
         power: power(c), toughness: toughness(c), counters: { ...(c.counters || {}) }, isCommander: c.isCommander, merged: c.merged || [],
         granted: [c.extraText, c.eotText, pairGrant].filter(Boolean).join('\n') || undefined, // "When this creature dies, …" it gained (Rabid Attack)

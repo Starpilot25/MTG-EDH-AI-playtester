@@ -2044,7 +2044,9 @@ function matches(ev) {
     if (!r) return;
     for (const x of [].concat(r)) out.push({ src: c, trig, ...extra, ...(x === true ? {} : x) });
   };
-  each((c, trig) => { if (trig.event === 'p:' + ev.type && trig.pred && !trig.selfGone) pushPred(c, trig); });
+  // selfGone triggers also fire from the battlefield ("~ or another creature you control dies": the "another" half);
+  // their predicates check the event's iid, so the "when ~ leaves" kind never matches a live source
+  each((c, trig) => { if (trig.event === 'p:' + ev.type && trig.pred) pushPred(c, trig); });
   // the permanent itself just left the battlefield (Ordeal of Nylea: "When you sacrifice ~", Psychomancer)
   if (ev.iid && (ev.type === 'leaves' || ev.type === 'sacrificed' || ev.type === 'dies')) {
     const g = card(ev.iid);
@@ -2101,6 +2103,38 @@ function matches(ev) {
         const a = card(aid);
         if (!a) continue;
         for (const trig of triggersOf({ ...a, zone: 'battlefield' })) if (trig.event === 'dies' && trig.attachedTo) out.push({ src: a, trig, controller: ev.attachedCtl && ev.attachedCtl[aid] || a.controller, it: { iid: ev.iid } });
+      }
+      const diesOk = (c, trig) => {
+        if (trig.event !== 'dies' || trig.self || trig.attachedTo) return false;
+        if (trig.other && c.iid === ev.iid) return false;
+        if (trig.notOwnedDies && ev.owner === ev.controller) return false;
+        if (trig.attackingOnly && !ev.wasAttacking) return false;
+        if (trig.nontoken && ev.token) return false;
+        if (trig.mine && ev.controller !== c.controller) return false;
+        if (trig.theirs && ev.controller === c.controller) return false;
+        if (trig.kind && !matchesFilter({ ...ghost, zone: 'battlefield' }, trig.kind)) return false;
+        if (trig.withCounter) {
+          const cs = ev.counters || {};
+          if (trig.withCounter === 'any' ? !Object.values(cs).some((v) => v > 0) : !(cs[trig.withCounter] > 0)) return false;
+          if (!(DB[ev.def] && /Creature/.test(DB[ev.def].typeLine || ''))) return false;
+        }
+        return true;
+      };
+      // leaves-the-battlefield abilities look back: creatures that died at the same time as this one also trigger
+      if (ev.tick) for (const lk of G.s.recentDead || []) {
+        if (lk.tick !== ev.tick || lk.iid === ev.iid) continue;
+        const was = card(lk.iid);
+        if (was && was.zone === 'battlefield') continue;
+        const src = was ? { ...was, controller: lk.controller } : { iid: lk.iid, def: lk.def, face: lk.face, controller: lk.controller, owner: lk.owner, zone: 'graveyard', counters: lk.counters, token: lk.token, grants: [] };
+        const g2 = { ...src, zone: 'battlefield', counters: lk.counters, ...(lk.granted ? { extraText: lk.granted } : {}) };
+        for (const trig of triggersOf(g2, lk.def)) {
+          if (trig.fromGy) continue;
+          if (trig.event === 'p:dies' && trig.pred) {
+            let r;
+            try { r = trig.pred(g2, ev); } catch (e) { r = false; }
+            if (r) for (const x of [].concat(r)) out.push({ src, trig, controller: lk.controller, ...(x === true ? {} : x) });
+          } else if (diesOk(g2, trig)) out.push({ src, trig, controller: lk.controller, it: { iid: ev.iid }, thatPlayer: ev.controller });
+        }
       }
       each((c, trig) => {
         if (trig.event !== 'dies' || trig.self || trig.attachedTo) return;

@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.252",
+    "title": "Death triggers: dying together, Zulaport Cutthroat",
+    "notes": [
+      "Creatures that die at the same time now see each other die, as in the real rules. A Blood Artist caught in a board wipe triggers for every creature that died with it, not just for itself.",
+      "Fixed \"Whenever this creature or another creature you control dies\" (Zulaport Cutthroat and similar) never triggering when another creature died. Only its own death counted before."
+    ]
+  },
+  {
     "version": "1.3.251",
     "title": "Big boards; attacking with token piles",
     "notes": [
