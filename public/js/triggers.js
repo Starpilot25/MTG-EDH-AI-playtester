@@ -68,7 +68,21 @@ export function triggersOf(c, defOverride) {
   const d = DB[defOverride || c.def];
   if (!d) return [];
   const inst = defOverride ? { ...c, def: d.id } : c;
-  let text = stripName(oracle(inst) || (d.faces[c.face || 0] || d.faces[0]).oracle || '', inst);
+  const raw = oracle(inst) || (d.faces[c.face || 0] || d.faces[0]).oracle || '';
+  const speed = G.s && c.controller ? G.s.players[c.controller].speed : 0;
+  // the whole text → parse pipeline only depends on the text, which card it is (the name becomes ~), the zone kind,
+  // harnessed and max speed: remember it per text (hundreds of identical tokens share one entry)
+  const sub = cardName(inst) + '|' + (inst.nameOverride || '') + '|' + (c.zone === 'command' ? 1 : 0) + (c.harnessed ? 1 : 0) + (speed >= 4 ? 1 : 0);
+  let byText = trigTextCache.get(raw);
+  if (!byText) { if (trigTextCache.size > 5000) trigTextCache.clear(); trigTextCache.set(raw, (byText = new Map())); }
+  let parsed = byText.get(sub);
+  if (!parsed) { parsed = triggersFromText(raw, inst, c, speed); byText.set(sub, parsed); }
+  const kw = keywordTriggers(c);
+  return kw.length ? parsed.concat(kw) : parsed.slice();
+}
+const trigTextCache = new Map();
+function triggersFromText(raw, inst, c, speed) {
+  let text = stripName(raw, inst);
   // Evendo Brushrazer: the cards it exiles are playable on your turn once you've sacrificed a nontoken permanent
   if (/During your turn, as long as you've sacrificed a nontoken permanent this turn, you may play cards exiled with ~\./.test(text)) text = text.replace(/(Whenever you sacrifice a nontoken permanent, exile the top card of your library)\./, '$1. You may play cards exiled this way during your turn if you sacrificed a nontoken permanent this turn.');
   if (c.zone === 'command') text = text.split('\n').filter((l) => /^Eminence — /.test(l)).join('\n');
@@ -77,8 +91,6 @@ export function triggersOf(c, defOverride) {
   text = text.split('\n').filter((l) => !/^∞ — /.test(l) || c.harnessed).map((l) => l.replace(/^∞ — /, '')).join('\n');
   text = text.replace(/\bthis Siege\b/g, '~'); // Invasion of Ikoria: "When this Siege enters"
   text = text.replace(/\([^)]*\)/g, '').replace(/\n(?=•)/g, ' ¶');
-  const speed = G.s && c.controller ? G.s.players[c.controller].speed : 0;
-  // the parse only depends on the text (and max speed): remember it (hundreds of identical tokens share one entry)
   const pkey = text + '|' + (speed >= 4 ? 1 : 0);
   let parsed = trigParseCache.get(pkey);
   if (!parsed) {
@@ -86,7 +98,7 @@ export function triggersOf(c, defOverride) {
     if (trigParseCache.size > 5000) trigParseCache.clear();
     trigParseCache.set(pkey, parsed);
   }
-  return parsed.concat(keywordTriggers(c));
+  return parsed;
 }
 // helpers for the predicate triggers ('p:<event>')
 const P = {
@@ -2127,7 +2139,9 @@ function matches(ev) {
         if (was && was.zone === 'battlefield') continue;
         const src = was ? { ...was, controller: lk.controller } : { iid: lk.iid, def: lk.def, face: lk.face, controller: lk.controller, owner: lk.owner, zone: 'graveyard', counters: lk.counters, token: lk.token, grants: [] };
         const g2 = { ...src, zone: 'battlefield', counters: lk.counters, ...(lk.granted ? { extraText: lk.granted } : {}) };
-        for (const trig of triggersOf(g2, lk.def)) {
+        // its abilities as it last existed, worked out once (a wipe of 300 creatures looks back at the same 300 each time)
+        if (!lk.trigs) lk.trigs = triggersOf(g2, lk.def).filter((t) => t.event === 'dies' || t.event === 'p:dies');
+        for (const trig of lk.trigs) {
           if (trig.fromGy) continue;
           if (trig.event === 'p:dies' && trig.pred) {
             let r;
@@ -2997,12 +3011,17 @@ export async function settle() {
   const s0 = G.s;
   try {
     let guard = 0;
-    let processed = 0; // runaway loops (Scute Swarm copying itself on every landfall…) stop after 400 events, as before
+    // runaway loops (Scute Swarm copying itself on every landfall…) stop after 400 rounds or 4000 events; a board wipe
+    // of a few hundred creatures (dies + leaves + … for each) still resolves in one go
+    const MAX_EVENTS = 4000;
+    let processed = 0;
     stateTriggerCheck();
-    while (eventQueue.length && guard++ < 400 && processed < 400) {
+    // when the queue runs dry, check state-based actions: creatures that die from them trigger in this same pass
+    const more = () => eventQueue.length > 0 || (G.s === s0 && (stateBased(), eventQueue.length > 0));
+    while (guard++ < 400 && processed < MAX_EVENTS && more()) {
       // everything that happened at once triggers together: collect the whole batch, then put it on the stack
       // (active player's first, so the other player's resolve first), letting you order your own
-      const batch = eventQueue.splice(0, Math.min(eventQueue.length, 400 - processed));
+      const batch = eventQueue.splice(0, Math.min(eventQueue.length, MAX_EVENTS - processed));
       processed += batch.length;
       const pending = [];
       const after = [];
@@ -3162,6 +3181,7 @@ export async function settle() {
         if (!/\bcreate\b/i.test(txt) || /\btarget\b|\byou may\b|\bchoose\b|\bsacrifice\b|\bexile\b|\breturn\b|\bdestroy\b|\bdamage\b|\bdraw\b|\bdiscard\b|\bpay\b|\bcounter\b|\bvote\b|\bthat many\b|\bthat much\b|\bx\b/i.test(txt)) return null;
         return [h.controller || h.src.controller, h.src.def, h.src.face || 0, h.trig.raw, q.ev && q.ev.type, h.text || ''].join('|');
       };
+      const passedAnn = new Set();
       for (let qi = 0; qi < queue.length; qi++) {
         const { hit, ev } = queue[qi];
         const controller = hit.controller || hit.src.controller;
@@ -3184,11 +3204,14 @@ export async function settle() {
           continue;
         }
         // the AI's trigger waits on the stack so you can respond to it (Stifle, an instant…)
-        if (isAI(controller) && T.announceTrigger && (await T.announceTrigger(hit, tText(hit)))) {
+        // a run of identical triggers (Blood Artist × 40 deaths) asks once; letting the first resolve lets the rest resolve too
+        const annKey = isAI(controller) ? (hit.src.def + '|' + tText(hit)) : null;
+        if (annKey && passedAnn.has(annKey)) { /* already offered a response to this one */ } else if (isAI(controller) && T.announceTrigger && (await T.announceTrigger(hit, tText(hit)))) {
           log('p', `You counter ${nameTag(hit.src)}'s triggered ability.`);
           if (G.s !== s0) return;
           continue;
         }
+        if (annKey) passedAnn.add(annKey);
         if (G.s !== s0) return;
         // Strionic Resonator, Lithoform Engine: copy this trigger first (the copy resolves before the original)
         const copies = await copyTriggerWith(hit, controller, tText(hit));

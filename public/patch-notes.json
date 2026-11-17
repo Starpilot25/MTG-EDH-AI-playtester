@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.253",
+    "title": "Performance on big boards",
+    "notes": [
+      "Big boards are much faster. A board wipe of about 300 creatures in a 4-player game with Blood Artists and Zulaports out now resolves in under 2 seconds, down from several seconds earlier today and much longer before that. Rules text, static abilities and triggered abilities of ordinary permanents (tokens and the like) are now worked out once and reused, not rebuilt for every event.",
+      "Triggers resolving in a row redraw the screen at most once per frame, not once per trigger.",
+      "When the AI has a run of identical triggers (40 Blood Artist triggers from one wipe) and you could respond, you're asked once. Letting the first resolve lets the rest resolve too.",
+      "Creatures killed by state-based actions (0 toughness, lethal damage) now have their death triggers handled right away. Before, they could wait in the queue until the next action. A very large wipe (hundreds of events) no longer splits its triggers across later actions either."
+    ]
+  },
+  {
     "version": "1.3.252",
     "title": "Death triggers: dying together, Zulaport Cutthroat",
     "notes": [

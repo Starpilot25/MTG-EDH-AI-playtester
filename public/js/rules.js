@@ -291,8 +291,37 @@ export function sections(text, kind) {
   return out;
 }
 
+// Rules text of ordinary permanents (most of a big board: tokens, plain creatures) only depends on a few fields, so it
+// is remembered per card and reused while those fields stay the same. Anything unusual skips this and is rebuilt.
+const plainCache = new Map();
+let plainCacheGame = null;
+function plainKey(inst) {
+  if (inst.unlocked || (inst.merged && inst.merged.length) || inst.kohChosen || inst.pairedWith || inst.grantedText || inst.craftedFrom || inst.isCommander
+    || inst.chosenCardType || inst.chosenMode || inst.chosenType || inst.becameTreasure || inst.minimusBy) return null;
+  if (inst.auraBuffs) for (const k in inst.auraBuffs) return null;
+  const s = G.s;
+  const ctl = inst.controller || inst.owner;
+  const P = ctl && s.players[ctl];
+  if (!P) return null;
+  // permanents that grant abilities to others make the text depend on the whole board
+  if (inst.zone === 'battlefield' && anyGrantSource(ctl)) return null;
+  const cs = inst.counters || {};
+  return { def: inst.def, face: inst.face || 0, zone: inst.zone, ctl, spd: (P.speed || 0) >= 4, lv: cs.level || 0, ch: cs.charge || 0, cl: inst.classLevel || 0, x: inst.extraText || '', e: inst.eotText || '' };
+}
+function plainOracle(inst) {
+  if (!G.s || !inst.iid) return null;
+  if (plainCacheGame !== G.s) { plainCache.clear(); plainCacheGame = G.s; }
+  const k = plainKey(inst);
+  if (!k) return null;
+  const hit = plainCache.get(inst.iid);
+  if (hit && hit.def === k.def && hit.face === k.face && hit.zone === k.zone && hit.ctl === k.ctl && hit.spd === k.spd && hit.lv === k.lv && hit.ch === k.ch && hit.cl === k.cl && hit.x === k.x && hit.e === k.e) return hit.v;
+  k.v = oracleRaw(inst);
+  plainCache.set(inst.iid, k);
+  return k.v;
+}
 export function oracle(inst) {
   if (!inst || inst.faceDown) return '';
+  { const v = plainOracle(inst); if (v !== null) return v; }
   const twin = readCache.on ? cacheTwin(inst) : null;
   if (twin) {
     const hit = readCache.oracle.get(twin);
@@ -347,17 +376,18 @@ function anyFaceHas(def, k) {
 }
 // the permanents on `pid`'s battlefield that might grant abilities of kind k; rebuilt only when that battlefield changes
 // (new permanents are pushed on the end, so array, length and last id together notice any change)
-const grantSrcCache = new WeakMap();
+const grantSrcCache = new WeakMap(); // player object -> { bf, n, last, ids: { kind: [...] } }
 function grantSources(pid, k) {
-  const bf = G.s.players[pid].zones.battlefield;
-  let m = grantSrcCache.get(G.s);
-  if (!m) grantSrcCache.set(G.s, (m = {}));
-  const key = pid + '|' + k;
-  const e = m[key];
-  if (e && e.bf === bf && e.n === bf.length && e.last === bf[bf.length - 1]) return e.ids;
-  const ids = bf.filter((iid) => G.s.cards[iid] && anyFaceHas(G.s.cards[iid].def, k));
-  m[key] = { bf, n: bf.length, last: bf[bf.length - 1], ids };
+  const P = G.s.players[pid];
+  const bf = P.zones.battlefield;
+  let e = grantSrcCache.get(P);
+  if (!e || e.bf !== bf || e.n !== bf.length || e.last !== bf[bf.length - 1]) grantSrcCache.set(P, (e = { bf, n: bf.length, last: bf[bf.length - 1], ids: {} }));
+  let ids = e.ids[k];
+  if (!ids) ids = e.ids[k] = bf.filter((iid) => G.s.cards[iid] && anyFaceHas(G.s.cards[iid].def, k));
   return ids;
+}
+function anyGrantSource(pid) {
+  return grantSources(pid, 'grantTrig').length > 0 || grantSources(pid, 'landGrant').length > 0 || grantSources(pid, 'pwGrant').length > 0;
 }
 const printedHas = (src, k) => PRINTED_RE[k].test(face(src).oracle || '');
 function oracleRaw(inst) {

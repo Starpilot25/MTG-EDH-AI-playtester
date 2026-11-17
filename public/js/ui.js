@@ -1693,7 +1693,13 @@ hooks.slavedAttack = () =>
     });
   });
 T.confirm = (title, body) => confirmDialog({ title, body }, 'Yes', 'No');
-T.render = () => render();
+// triggers resolving in a row redraw at most once per frame (a board wipe with Blood Artists out is hundreds of triggers)
+let renderQueued = false;
+T.render = () => {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => { renderQueued = false; render(); });
+};
 
 function finishTarget(result) {
   const pt = pendingTarget;

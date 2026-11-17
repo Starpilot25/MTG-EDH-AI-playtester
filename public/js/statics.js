@@ -7,7 +7,6 @@ import { abilitiesGone, helpers as rulesHelpersObj } from './rules.js';
 import { seats, opponents, opp as oppOf } from './state.js';
 
 const COLOR_WORDS = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' };
-const parsedCache = new Map();
 
 const lines = (text) =>
   String(text || '')
@@ -351,7 +350,18 @@ function staticsOfRaw(c) {
   const d = DB[c.def];
   if (!d) return { anthems: [], costs: [], repl: {}, player: {} };
   let text = textFn ? textFn(c) : (d.faces[c.face || 0] || d.faces[0]).oracle;
-  if (c.zone === 'command') text = eminenceText(text, d.name);
+  // the parse only depends on the text, the card's name and whether it's in the command zone: remember it
+  const rawText = text || '';
+  const sub = (c.zone === 'command' ? 'C|' : 'B|') + d.name;
+  let byText = staticsTextCache.get(rawText);
+  if (byText) { const hit = byText.get(sub); if (hit) return hit; } else staticsTextCache.set(rawText, (byText = new Map()));
+  const parsed = staticsParseText(rawText, c.zone === 'command', d);
+  byText.set(sub, parsed);
+  return parsed;
+}
+const staticsTextCache = new Map();
+function staticsParseText(text, inCommand, d) {
+  if (inCommand) text = eminenceText(text, d.name);
   else text = text.replace(/(^|\n)Eminence — As long as [^,]+? is in the command zone or on the battlefield, /g, '$1');
   // flavor ability words before a static line (Inquisitor Greyfax: "Unquestionable Wisdom — Other creatures you control get +1/+0 …")
   text = text.replace(/(^|\n)(?!Max speed|Eminence|Lieutenant|Chapter|Station|Companion|Coven|Metalcraft|Threshold|Delirium|Ferocious|Domain|Hellbent|Spell mastery|Revolt|Raid|Morbid|Formidable|Undergrowth|Kinship|Imprint)[A-Z][A-Za-z' ,.!?-]{1,40} — (?=(?:Other |Creatures |Each |Spells |Artifacts |Lands |Enchantments |You |Your |Permanents |Equipped |Enchanted ))/g, '$1');
@@ -359,9 +369,7 @@ function staticsOfRaw(c) {
   text = text.replace(/(^|\n)Each ((?:[a-z]+ )*?)(creature|artifact|land|permanent|enchantment)( you control) has /g, '$1$2$3s$4 have '); // Depthshaker Titan: "Each artifact creature you control has …"
   text = text.replace(/(^|\n)Each ((?:[a-z]+ )*?)creature you control with (a|one or more) \+1\/\+1 counters? on it has /g, '$1$2creatures you control with a +1/+1 counter on them have '); // Abzan Battle Priest
   text = text.replace(/(\b(?:Equipped|Enchanted) creature gets [+-]\d+\/[+-]\d+) and doesn't untap during its controller's untap step\./g, '$1.'); // T-45 Power Armor (the untap part lives in the untap step)
-  const key = c.def + ':' + (c.face || 0) + ':' + c.zone + ':' + text.length + ':' + (c.chosenType || '');
-  if (!parsedCache.has(key)) parsedCache.set(key, parseStatics(text, d.name));
-  return parsedCache.get(key);
+  return parseStatics(text, d.name);
 }
 
 // Emblems act like permanents for static effects (Elspeth's "+2/+2 and flying")
