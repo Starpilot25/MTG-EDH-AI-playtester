@@ -54,6 +54,20 @@ function act(fn) {
   settle(); // dies / landfall triggers from what you just did
 }
 
+// the same for something that asks you to choose (a dungeon, a room)
+async function actAsync(fn) {
+  snapshot();
+  try {
+    await fn();
+  } catch (e) {
+    if (!(e instanceof Cancelled)) console.error(e);
+  }
+  stateBased();
+  render();
+  refreshViewer();
+  settle();
+}
+
 function isMine(c) {
   return c && ((c.zone === 'battlefield' ? c.controller : c.owner) === 'p');
 }
@@ -2802,6 +2816,10 @@ function menuForMat(x, y) {
     { label: 'Search your library…', key: 'L', fn: () => searchLibrary() },
     { label: 'Shuffle your library', key: 'S', fn: () => act(() => { shuffle('p'); log('p', 'You shuffle your library.'); toast('Library shuffled'); }) },
     { label: 'Mill a card', fn: () => act(() => mill('p', 1)) },
+    '-',
+    { label: 'Venture into the dungeon', fn: () => actAsync(() => venture('p', playerEnv())) },
+    { label: G.s.initiative === 'p' ? 'Take the initiative (you have it)' : 'Take the initiative', fn: () => actAsync(() => takeInitiative('p', playerEnv())) },
+    { label: G.s.monarch === 'p' ? 'Become the monarch (you are)' : 'Become the monarch', fn: () => act(() => { if (G.s.monarch !== 'p') queueEvent({ type: 'becameMonarch', pid: 'p' }); G.s.monarch = 'p'; log('p', 'You become the monarch.'); }) },
     '-',
     { label: 'Gain 1 life', fn: () => act(() => { setLife('p', G.s.players.p.life + 1); log('p', 'You gain 1 life.'); }) },
     { label: 'Lose 1 life', fn: () => act(() => { setLife('p', G.s.players.p.life - 1); log('p', 'You lose 1 life.'); }) },

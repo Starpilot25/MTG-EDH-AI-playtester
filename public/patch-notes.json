@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.260",
+    "title": "Venture, initiative and monarch from the right-click menu",
+    "notes": [
+      "Right-click the table: new \"Venture into the dungeon\", \"Take the initiative\" and \"Become the monarch\" quick actions. Venturing asks which dungeon to enter (or moves you to the next room); taking the initiative ventures into Undercity. Both do everything they would from a card, including triggering cards that care."
+    ]
+  },
+  {
     "version": "1.3.259",
     "title": "No coloured line under cards",
     "notes": [
