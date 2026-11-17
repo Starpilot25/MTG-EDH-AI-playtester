@@ -1167,7 +1167,8 @@ function renderBanner() {
       html = `<div class="combat-bar"><span class="eyebrow">Declare attackers</span>
         <p>Click your untapped creatures to attack${multiplayer() ? ' (you choose which player each one attacks next)' : ' the AI'}. ${cb.attackers.length ? `<b>${cb.attackers.length}</b> attacking for <b>${pw}</b>.` : ''}${taxLine}</p>
         <div class="btns"><button class="primary" data-act="attack" ${cb.attackers.length ? '' : 'disabled'}>Attack</button>
-        <button data-act="all-attack">Select all</button><button data-act="skip-combat">Skip combat</button></div></div>`;
+        <button data-act="all-attack">Select all</button><button data-act="skip-combat">Skip combat</button></div>
+        ${multiplayer() ? `<div class="btns all-at"><span class="all-at-lbl">All attack:</span>${opponents('p').filter((o) => !G.s.players[o].lost).map((o) => `<button data-act="all-at" data-pid="${o}" title="Every creature that can attack goes at ${esc(seatName(o))}">${esc(seatName(o))}</button>`).join('')}</div>` : ''}</div>`;
     } else if (cb.stage === 'damage') {
       const bl = Object.keys(cb.blocks).length;
       html = `<div class="combat-bar"><span class="eyebrow">Blocks declared</span>
@@ -1374,8 +1375,11 @@ hooks.attackTargets = (attackers, options) =>
   new Promise((resolve) => {
     const sel = (iid) => `<select data-atk="${iid}">${options.map((o) => `<option value="${o.id}">${esc(o.label)}</option>`).join('')}</select>`;
     const dlg = openDialog(`<span class="eyebrow">Declare attackers</span><h3>What is each creature attacking?</h3>
+      ${attackers.length > 1 ? `<label class="atk-row atk-all"><span><b>Send all at</b></span><select data-all><option value="">—</option>${options.map((o) => `<option value="${o.id}">${esc(o.label)}</option>`).join('')}</select></label>` : ''}
       <div class="atk-targets">${attackers.map((i) => `<label class="atk-row"><span>${esc(cardName(card(i)))} <small>${power(card(i))}/${toughness(card(i))}</small></span>${sel(i)}</label>`).join('')}</div>
       <div class="btns"><button class="primary" id="at-ok">Attack</button><button id="at-cancel">Back</button></div>`, { onClose: () => resolve(null) });
+    const allSel = $('select[data-all]', dlg);
+    if (allSel) allSel.addEventListener('change', () => { if (allSel.value) $$('select[data-atk]', dlg).forEach((el) => (el.value = allSel.value)); });
     $('#at-ok', dlg).addEventListener('click', () => {
       const out = {};
       $$('select[data-atk]', dlg).forEach((el) => (out[el.dataset.atk] = el.value));
@@ -3134,6 +3138,14 @@ export function bindEvents() {
       return;
     }
     if (a === 'attack') return confirmAttacks();
+    if (a === 'all-at') {
+      const cb = G.s.combat;
+      for (const c of cardsIn('p', 'battlefield'))
+        if (canAttack(c) && !cb.attackers.includes(c.iid)) cb.attackers.push(c.iid);
+      if (!cb.attackers.length) return toast('Nothing can attack.');
+      cb.presetTarget = b.dataset.pid;
+      return confirmAttacks();
+    }
     if (a === 'all-attack') {
       const cb = G.s.combat;
       for (const c of cardsIn('p', 'battlefield'))

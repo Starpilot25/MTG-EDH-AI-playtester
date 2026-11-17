@@ -1,8 +1,8 @@
 {
-  "version": "1.3.245",
+  "version": "1.3.246",
   "minAppVersion": "1.0.0",
   "files": {
-    "public/css/style.css": "5872630a246c145c8801ebec682b08ffb025e301eb128465ef41039c0dedc8d2",
+    "public/css/style.css": "77cba0bb71c91214e6458f9473237ec9e80d76f86dd2aab2b1ea03a7e514bedc",
     "public/index.html": "85bdb675b905c79ae85ba41a12ddcfc33922fde33f979df959763fd7b478ba43",
     "public/js/ai.js": "ceba4f91e74f6918fd7b4aa2565a071a7fcc011c7b06eec2f5497ea9a448460e",
     "public/js/aicombat.js": "764e9bdb24e75f0ad8357c5a5429c4313ea46274f195c172f95fca2fbbc6815d",
@@ -10,14 +10,14 @@
     "public/js/data.js": "dc619f1fd0c63452053405d6278e2aa498e6f8f5d26899f0f7aeb3cee6627209",
     "public/js/dungeon.js": "a42de281cbd9fed4f5470e03f56483a7ce8a82c9a52434f30f90cdaf655ee096",
     "public/js/effects.js": "da3b5400ac66205d3cfb59ed7c016f4e96d55d92a65b4ce972bb47cfa4a4d2d7",
-    "public/js/game.js": "a6a3c99b39f4e1dd2b6c3812a7c8c2dc0c4c5ba54f7c54864884e46127565e71",
+    "public/js/game.js": "45b8493680d1be251313fee19051d269611221f0eca99525ea0c8115a038614b",
     "public/js/main.js": "fbfdde2ff3717d9c087090339c8440d4dfe425b70d422d8296ad6bf7da3d3a89",
     "public/js/rules.js": "7b7de9bfb3b41a4884f78685bc2558db90fade21d22acb5ef4fa5fec51fa92f9",
     "public/js/state.js": "1875539b3f5f7cbe0d0f04854dc3e5133281e9ef7253b6a296d8dc5748ed500a",
     "public/js/statics.js": "0b0c5255102e19425b3af75fd6fba449320f21ba8ed144bc6dc2c32ff2cc7252",
     "public/js/triggers.js": "ce7bbac97c26b2347c9737013110674b98476331e0870c1f57f23af164842d09",
-    "public/js/ui.js": "93b4e9f77ee86a0b954e45b6cf2485dd164b98b9c0daab5f0d554321ee1e1d29",
+    "public/js/ui.js": "fe6e276a35be8e62e9cd91ae3ae039f1ac2b6734f422109085b718c6374737ae",
     "public/js/voice.js": "4622a40593b7db7f8997e96207d0412fcbaa4fa4fe658247c91b3345de1dabe6",
-    "public/patch-notes.json": "7d49b06d996fac6be96c5c220621cf07edf4d8e50d7a88e2ed17f1d8bbe274ba"
+    "public/patch-notes.json": "3e2b097b1b5979332dd4b1800841e43064611e6ca236c2472fceef69e1c80027"
   }
 }

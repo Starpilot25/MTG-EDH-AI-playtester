@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.246",
+    "title": "Send all attackers at one player",
+    "notes": [
+      "In multiplayer, the Declare attackers bar now has an \"All attack:\" row with a button per opponent. One click sends every creature that can attack at that player, with no per-creature target dialog.",
+      "The per-creature target dialog also has a \"Send all at\" dropdown at the top that sets every row at once; you can still change individual rows afterwards (for example to hit a planeswalker)."
+    ]
+  },
+  {
     "version": "1.3.245",
     "title": "Stridehangar Automaton",
     "notes": [

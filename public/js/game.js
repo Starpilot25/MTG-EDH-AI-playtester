@@ -1049,6 +1049,8 @@ function odricAiBlocks(attackers, defender) {
 export async function confirmAttacks() {
   const s = G.s;
   const cb = s.combat;
+  const preset = cb.presetTarget;
+  delete cb.presetTarget;
   if (!cb.attackers.length) {
     await endCombat('p');
     afterCombat();
@@ -1060,7 +1062,8 @@ export async function confirmAttacks() {
     return hooks.render();
   }
   cb.stage = 'busy';
-  if (attackOptions('p').length > 1) {
+  if (preset) cb.targets = Object.fromEntries(cb.attackers.map((i) => [i, preset]));
+  else if (attackOptions('p').length > 1) {
     cb.targets = await hooks.attackTargets(cb.attackers, attackOptions('p'));
     if (G.s !== s) return;
     if (!cb.targets) {
