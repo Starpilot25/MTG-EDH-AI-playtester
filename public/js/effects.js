@@ -3673,6 +3673,11 @@ on(/^if you don't or can't make an exchange, sacrifice ~$/, async (m, env) => {
   const me = env.src && card(env.src.iid);
   if (me && me.zone === 'battlefield' && me.controller === env.me) { sacrifice(me.iid); env.did.push(`sacrifices ${nameTag(me)}`); }
 }, { first: true });
+// Reckless Handling: "search …, shuffle, then discard a card at random" — the tutor eats the whole sentence, so split it
+on(/^(search your library for [^.]+?, (?:then )?shuffle), then (discard (?:a|one|two) cards?(?: at random)?)$/, async (m, env) => {
+  await runSentence(m[1], env);
+  await runSentence(m[2], env);
+}, { first: true });
 // Reckless Handling
 on(/^if an artifact card was discarded this way, ~ deals (\d+) damage to each opponent$/, async (m, env) => {
   const hit = (env.discarded || []).some((i) => card(i) && /Artifact/.test(DB[card(i).def].typeLine || ''));

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.248",
+    "title": "Reckless Handling",
+    "notes": [
+      "Reckless Handling now discards a card at random after the tutor. Before, the tutor swallowed the rest of the sentence, so nothing was discarded and the 2 damage to each opponent never happened. If the random discard is an artifact (including the one you just found), each opponent takes 2."
+    ]
+  },
+  {
     "version": "1.3.247",
     "title": "Neyali, Suns' Vanguard",
     "notes": [
