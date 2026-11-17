@@ -2,7 +2,7 @@
 /* ===================== Broadcast ===================== */
 :root {
   --bg: #0b1020; --felt: #121a30; --felt-2: #172038; --felt-3: #1f2a46; --line: #27345a;
-  --ink: #f5f3ee; --muted: #9aa5c4; --brass: #ff9f43; --brass-ink: #1c0f02;
+  --ink: #e4e7ef; --muted: #9aa5c4; --brass: #ff9f43; --brass-ink: #1c0f02;
   --you: #57b8ff; --ai: #ff6b5b; --ai2: #b48cff; --ai3: #3fd6a0; --danger: #ff4d5e; --ok: #46d690;
   --f-display: 'Archivo Narrow', 'Arial Narrow', sans-serif; --f-body: 'Archivo', system-ui, sans-serif;
   --shadow: 0 10px 30px rgb(0 0 0 / 0.55); --cr: 3px;
@@ -15,7 +15,7 @@ body { background: #0b1020; }
 .panel, .seat-panel { background: #0e152a !important; border-color: #1d2747 !important; }
 .pname {
   position: relative; font: 700 19px var(--f-display); letter-spacing: 0.01em;
-  background: #f5f3ee; color: #0b1020; padding: 4px 26px 6px 12px; margin: -2px 0 4px -10px;
+  background: var(--plate); color: #0b1020; padding: 4px 26px 6px 12px; margin: -2px 0 4px -10px;
   clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 100%, 0 100%);
 }
 .pname::after { content: ''; position: absolute; left: 0; right: 16px; bottom: 0; height: 4px; background: var(--id-bar, #888); }
@@ -28,7 +28,7 @@ body { background: #0b1020; }
 .life .lval {
   font: 700 38px/1 var(--f-display); font-variant-numeric: tabular-nums;
   flex: 0 0 auto; width: 84px; height: 56px; display: grid; place-items: center;
-  background: #0b1020; color: #fff; border: 2px solid #f5f3ee; border-radius: 0;
+  background: #0b1020; color: #fff; border: 2px solid var(--plate); border-radius: 0;
 }
 .seat-life .life .lval { flex: 0 0 auto; width: 64px; height: 44px; font-size: 28px; }
 .life .lbtn { border-radius: 0; background: #1a2442; border: 1px solid #2b3963; width: 28px; height: 28px; }
@@ -45,11 +45,11 @@ body { background: #0b1020; }
 .mini { border-radius: 0; background: transparent; border: 1px solid #2b3963; width: 20px; height: 20px; padding: 0; }
 /* zones: flat tiles with a count */
 .pile-face { border-radius: 2px !important; }
-.pile-n { font: 700 16px var(--f-display); background: #f5f3ee; color: #0b1020; padding: 0 5px; }
+.pile-n { font: 700 16px var(--f-display); background: var(--plate); color: #0b1020; padding: 0 5px; }
 .pile-label { font: 600 11.5px var(--f-display); color: var(--muted); }
 /* cards: crisp, thin outline */
 .card { border-radius: 4px; box-shadow: 0 0 0 1px rgb(255 255 255 / 0.12), 0 3px 8px rgb(0 0 0 / 0.5); }
-.card .pt { font: 700 13px var(--f-display); background: #f5f3ee; color: #0b1020; border-radius: 0; padding: 0 5px; }
+.card .pt { font: 700 13px var(--f-display); background: var(--plate); color: #0b1020; border-radius: 0; padding: 0 5px; }
 .card.noimg { background: #1a2340; border-color: #33426e; }
 .ctop b, .ctype { font-family: var(--f-display); }
 /* turn steps: a progress bar */
@@ -70,7 +70,7 @@ button.primary { background: var(--brass); color: #1c0f02; border-color: var(--b
 /* the log: play-by-play */
 .rail { background: #0a0f1f !important; }
 #log li { font-size: 13.5px; padding-left: 10px; border-left-width: 3px; }
-#log li.turn { font: 700 15px var(--f-display); background: #f5f3ee; color: #0b1020; padding: 3px 10px; margin-top: 8px; border: 0; }
+#log li.turn { font: 700 15px var(--f-display); background: var(--plate); color: #0b1020; padding: 3px 10px; margin-top: 8px; border: 0; }
 /* hand */
 .hand-wrap { background: #080c19 !important; border-top: 2px solid #1d2747 !important; }
 .hand-label { font: 700 16px var(--f-display); }
@@ -90,7 +90,7 @@ h1, .slot-head h2 { font-family: var(--f-display); }
 .cmd-dmg::before, .poison::before { background: rgb(255 255 255 / 0.12); }
 
 /* ===== Broadcast, pushed further ===== */
-:root { --plate: #f5f3ee; --plate-ink: #0b1020; }
+:root { --plate: #c8cfde; --plate-ink: #0b1020; }
 #my-panel, .deck-slot[data-pid="p"] { --seat: var(--you); }
 .seat[data-seat="ai"], #opp-panel, .deck-slot[data-pid="ai"] { --seat: var(--ai); }
 .seat[data-seat="ai2"], .deck-slot[data-pid="ai2"] { --seat: var(--ai2); }

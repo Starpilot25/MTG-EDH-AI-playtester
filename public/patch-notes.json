@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.257",
+    "title": "Softer whites",
+    "notes": [
+      "The white name plates, log headers, card stats and counters on the game board are now a soft grey-white instead of bright white, so they're easier on the eyes."
+    ]
+  },
+  {
     "version": "1.3.256",
     "title": "Softer start screen",
     "notes": [
