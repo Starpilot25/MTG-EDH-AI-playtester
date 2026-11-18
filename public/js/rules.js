@@ -24,6 +24,7 @@ const LAYER_RE = [
   ['march', /Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value/i],
   ['bloodMoon', /(?:^|\n)Nonbasic lands are Mountains\./],
   ['lattice', /All permanents are artifacts in addition to their other types/i],
+  ['encroach', /Nonland permanents you control are artifacts in addition to their other types/i],
   ['latticeColor', /spells, and permanents are colorless/i],
   ['painter', /spells, and permanents are the chosen color in addition to their other colors/i],
   ['shifting', /All nonland permanents are the chosen color/i],
@@ -112,8 +113,15 @@ function typeFxOf(inst, base) {
       else if (g.k === 'march') fx.push({ ts: g.ts, ty: { add: 'Creature' }, when: (t) => /\bArtifact\b/.test(t.split('—')[0]) && !/\bCreature\b/.test(t.split('—')[0]) });
       else if (g.k === 'bloodMoon') fx.push({ ts: g.ts, ty: { subSet: 'Mountain' }, when: (t) => /\bLand\b/.test(t.split('—')[0]) && !/\bBasic\b/.test(t.split('—')[0]) });
       else if (g.k === 'lattice') fx.push({ ts: g.ts, ty: { add: 'Artifact' } });
+      else if (g.k === 'encroach' && g.src.controller === inst.controller) fx.push({ ts: g.ts, ty: { add: 'Artifact' }, when: (t) => !/\bLand\b/.test(t.split('—')[0]) });
       else if (g.k === 'adapt' && g.src.chosenType && g.src.controller === inst.controller) fx.push({ ts: g.ts, ty: g.m[1] ? { subAdd: g.src.chosenType } : { subSet: g.src.chosenType }, when: (t) => /\bCreature\b/.test(t.split('—')[0]) });
     }
+  // Encroaching Mycosynth also covers permanent spells you control and nonland permanent cards you own elsewhere
+  if (inst.zone !== 'battlefield' && G.s) {
+    const pid = inst.zone === 'stack' ? inst.controller || inst.owner : inst.owner;
+    for (const g of globalLayerFx())
+      if (g.k === 'encroach' && g.src.controller === pid) fx.push({ ts: g.ts, ty: { add: 'Artifact' }, when: (t) => !/\b(?:Land|Instant|Sorcery)\b/.test(t.split('—')[0]) });
+  }
   return fx.sort((a, b) => a.ts - b.ts);
 }
 // Ultima, Origin of Oblivion: "For as long as that land has a blight counter on it, it loses all land types and abilities and has "{T}: Add {C}.""
@@ -147,9 +155,11 @@ export function typeLine(inst) {
 function colorFx(inst) {
   const fx = [];
   for (const e of inst.layerFx || []) if (e.colors) fx.push({ ts: e.ts, c: e.colors });
+  // Mycosynth Lattice: cards that aren't on the battlefield, spells and permanents are colorless (every zone)
+  if (G.s) for (const g of globalLayerFx()) if (g.k === 'latticeColor') fx.push({ ts: g.ts, c: { set: [] } });
   if (inst.zone === 'battlefield')
     for (const g of globalLayerFx()) {
-      if (g.k === 'latticeColor') fx.push({ ts: g.ts, c: { set: [] } });
+      if (g.k === 'latticeColor') continue;
       else if (g.k === 'painter' && g.src.chosenColor) fx.push({ ts: g.ts, c: { add: [g.src.chosenColor] } });
       else if (g.k === 'shifting' && g.src.chosenColor && !isLand(inst)) fx.push({ ts: g.ts, c: { set: [g.src.chosenColor] } });
     }
@@ -202,7 +212,33 @@ function landsAnyColor(pid) {
   }
   return lanternCache.m[pid];
 }
+// Maskwood Nexus: "Creatures you control are every creature type. The same is true for creature spells you control and
+// creature cards you own that aren't on the battlefield."
+const maskCache = { v: -1, s: null, m: {} };
+function allTypesFor(pid) {
+  if (!G.s || !pid || !G.s.players[pid]) return false;
+  // rebuilt when this player's battlefield changes (array, length or newest permanent) or the board version moves
+  const bf = G.s.players[pid].zones.battlefield;
+  if (maskCache.s !== G.s || maskCache.v !== G.s.bfv) Object.assign(maskCache, { s: G.s, v: G.s.bfv, m: {} });
+  const e = maskCache.m[pid];
+  if (!e || e.bf !== bf || e.n !== bf.length || e.last !== bf[bf.length - 1]) {
+    maskCache.m[pid] = { bf, n: bf.length, last: bf[bf.length - 1], v: bf.some((i) => {
+      const x = G.s.cards[i];
+      return x && !x.phasedOut && !x.faceDown && /(?:^|\n)Creatures you control are every creature type\b/.test((DB[x.def].faces[x.face || 0] || {}).oracle || '') && !abilitiesGone(x);
+    }) };
+  }
+  return maskCache.m[pid].v;
+}
+function maskwood(inst) {
+  if (!G.s || !inst || inst.faceDown) return false;
+  const pid = inst.zone === 'battlefield' || inst.zone === 'stack' ? inst.controller : inst.owner;
+  if (!allTypesFor(pid)) return false;
+  return inst.zone === 'battlefield' ? isCreature(inst) : /\bCreature\b/.test(((DB[inst.def].faces[inst.face || 0] || DB[inst.def].faces[0]).typeLine || '').split('—')[0]);
+}
 export function hasSubtype(inst, t) {
+  if (maskwood(inst) && /^[A-Za-z][\w' -]*$/.test(t) && !/^(aura|equipment|vehicle|saga|class|case|room|food|treasure|clue)$/i.test(t) && !LAND_TYPES.test(t)) {
+    if (!/^(creature|artifact|enchantment|land|planeswalker|instant|sorcery|battle|kindred|tribal|legendary|token|basic|snow|nonland|noncreature|card|spell|permanent)$/i.test(t)) return true;
+  }
   if (everythingCounter(inst)) {
     if (isLand(inst) && LAND_TYPES.test(t)) return true;
     if (!isLand(inst) && isCreature(inst) && !/^(aura|equipment|vehicle|saga|class|case|room|food|treasure|clue)$/i.test(t) && !LAND_TYPES.test(t)) return true;
@@ -364,6 +400,7 @@ const PRINTED_RE = {
   landGrant: /(?:^|\n)Lands you control have "/,
   pwGrant: /Planeswalkers you control have "/,
   cmdGrant: /Commander creatures you own have "/,
+  latticeMana: /Players may spend mana as though it were mana of any color/i,
 };
 // any face of the card could grant it (so a transform doesn't change who is a candidate; the loop reads the current face)
 const printedCache = new Map();
@@ -1474,7 +1511,28 @@ function manaAbilityPlain(inst, o, produced) {
 // Signets cost {1} to activate: try paying with no signets, then with more of them switched on
 // Auto-tapping that keeps your other spells castable: if the cheapest way to pay would strand a card in your hand
 // (or your commander) that you could otherwise also cast, pick a payment that leaves it castable.
+// Mycosynth Lattice: "Players may spend mana as though it were mana of any color." Colored symbols become generic.
+function latticeMana() {
+  if (!G.s) return false;
+  for (const pid of Object.keys(G.s.players)) for (const i of grantSources(pid, 'latticeMana')) {
+    const x = G.s.cards[i];
+    if (x && !x.phasedOut && !x.faceDown && PRINTED_RE.latticeMana.test((DB[x.def].faces[x.face || 0] || {}).oracle || '')) return true;
+  }
+  return false;
+}
+function anyColorCost(cost) {
+  let gen = 0;
+  const keep = [];
+  for (const sym of String(cost || '').match(/\{[^}]+\}/g) || []) {
+    const v = sym.slice(1, -1);
+    if (/^\d+$/.test(v)) gen += +v;
+    else if (/^[WUBRG](?:\/[WUBRG])?$|^2\/[WUBRG]$/.test(v)) gen += /^2\//.test(v) ? 2 : 1;
+    else keep.push(sym);
+  }
+  return keep.join('') + (gen ? `{${gen}}` : '');
+}
 export function payCostKeep(cost, sources, opts = {}, pid) {
+  if (cost && latticeMana()) cost = anyColorCost(cost);
   const best = payCost(cost, sources, opts);
   if (!best || !G.s || !pid) return best;
   const seen = new Set();
@@ -1532,6 +1590,7 @@ function signetChainOk(on, genericUnits) {
 }
 // Phyrexian mana ({U/P}): paid with mana when possible, otherwise with 2 life each (cheapest first)
 export function payCost(cost, sources, opts = {}) {
+  if (cost && latticeMana()) cost = anyColorCost(cost);
   const r = payCostMana(cost, sources, opts);
   const phy = String(cost || '').match(/\{[WUBRGC]\/P\}|\{P\/[WUBRGC]\}/gi) || [];
   if (r || !phy.length || opts.noPhyLife) return r;

@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.280",
+    "title": "Maskwood Nexus, Mycosynth Lattice, Encroaching Mycosynth, Lord of Atlantis",
+    "notes": [
+      "Maskwood Nexus works: creatures you control (and creature spells you control and creature cards you own elsewhere) are every creature type, so they count for lords, tribal payoffs and \"choose a creature type\" effects. Its Shapeshifter token ability already worked.",
+      "Mycosynth Lattice: players can now spend mana as though it were mana of any color (a Mountain pays {G}), and cards that aren't on the battlefield and spells are colorless too. Permanents becoming colorless artifacts already worked.",
+      "Encroaching Mycosynth works: nonland permanents you control are artifacts, and so are your permanent spells and nonland permanent cards you own that aren't on the battlefield.",
+      "Lord of Atlantis and other lords worded \"Other Merfolk get +1/+1\" (a creature type without the word \"creatures\") now give their bonus. Before, they did nothing."
+    ]
+  },
+  {
     "version": "1.3.279",
     "title": "Sephiroth, Fallen Hero",
     "notes": [
