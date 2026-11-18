@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.270",
+    "title": "Tataru Taru",
+    "notes": [
+      "Tataru Taru's enter trigger now lets the target opponent draw a card too (the AI says yes unless its library is nearly empty). Before, only you drew. That draw happens on your turn, so it also gets you a Treasure from Scions' Secretary."
+    ]
+  },
+  {
     "version": "1.3.269",
     "title": "Gogo, Mysterious Mime",
     "notes": [

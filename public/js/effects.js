@@ -3857,6 +3857,15 @@ on(/^each of that player's opponents may draw a card$/, async (m, env) => {
   }
   env.did.push(got.length ? `${got.map(seatName).join(', ')} draw${got.length === 1 ? 's' : ''} a card` : 'no one draws');
 }, { first: true });
+// Tataru Taru: "you draw a card and target opponent may draw a card"
+on(/^you draw a card and target opponent may draw a card$/, async (m, env) => {
+  draw(env.me, 1, true);
+  const [o] = await playerTarget(env, 'target opponent');
+  if (!o || !inGame(o)) { env.did.push('you draw 1'); return; }
+  const yes = isAI(o) ? cardsIn(o, 'library').length > 5 : await env.choosers[o].confirm(cardName(env.src), 'Draw a card?');
+  if (yes) draw(o, 1, true);
+  env.did.push(`you draw 1; ${who(o)} ${yes ? (o === 'p' ? 'draw' : 'draws') + ' 1' : (o === 'p' ? 'decline' : 'declines')}`);
+}, { first: true });
 // Nine-Lives Familiar
 on(/^if it had a revival counter on it, return it to the battlefield with one fewer revival counter on it at the beginning of the next end step$/, async (m, env) => {
   const had = ((env.deadCounters || (env.event && env.event.counters)) || {}).revival || 0;
