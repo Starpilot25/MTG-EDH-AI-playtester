@@ -175,7 +175,6 @@ body, button, select, input { font-variant-numeric: lining-nums; }
 /* Direction B: Grimoire — dark ink-black pages with gold rules; parchment only for prompts and setup */
 .field, .seat-field, #my-field, #opp-field {
   background:
-    repeating-linear-gradient(180deg, transparent 0 46px, rgb(201 162 74 / 0.06) 46px 47px),
     radial-gradient(ellipse 120% 100% at 50% 50%, transparent 50%, rgb(0 0 0 / 0.45) 100%),
     linear-gradient(180deg, #1f1714, #151010) !important;
   color: var(--ink);
@@ -187,7 +186,6 @@ body, button, select, input { font-variant-numeric: lining-nums; }
 .seat.active .seat-field, #my-field.on-turn, #opp-field.on-turn {
   background:
     radial-gradient(ellipse 70% 80% at 50% 0%, rgb(212 171 85 / 0.16), transparent 70%),
-    repeating-linear-gradient(180deg, transparent 0 46px, rgb(201 162 74 / 0.06) 46px 47px),
     linear-gradient(180deg, #241a16, #151010) !important;
 }
 .card { box-shadow: 0 0 0 1px rgb(201 162 74 / 0.25), 0 6px 14px rgb(0 0 0 / 0.6); }
@@ -283,14 +281,12 @@ button.primary:hover:not(:disabled) { background: linear-gradient(180deg, #b8453
 .field, .seat-field, #my-field, #opp-field {
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .85 0 0 0 0 .7 0 0 0 0 .45 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
-    repeating-linear-gradient(180deg, transparent 0 46px, rgb(201 162 74 / 0.05) 46px 47px),
     radial-gradient(ellipse 120% 100% at 50% 50%, transparent 50%, rgb(0 0 0 / 0.5) 100%),
     linear-gradient(180deg, #1f1714, #151010) !important;
 }
 .seat.active .seat-field, #my-field.on-turn, #opp-field.on-turn {
   background-image:
     radial-gradient(ellipse 70% 80% at 50% 0%, rgb(212 171 85 / 0.16), transparent 70%),
-    repeating-linear-gradient(180deg, transparent 0 46px, rgb(201 162 74 / 0.05) 46px 47px),
     radial-gradient(ellipse 120% 100% at 50% 50%, transparent 50%, rgb(0 0 0 / 0.45) 100%),
     linear-gradient(180deg, #241a16, #151010) !important;
 }

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.278",
+    "title": "Spellbook: no ruled lines on the battlefield",
+    "notes": [
+      "The Spellbook look's play areas no longer have faint gold ruled lines across them."
+    ]
+  },
+  {
     "version": "1.3.277",
     "title": "New look: Desk",
     "notes": [

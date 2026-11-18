@@ -1,12 +1,12 @@
 {
-  "version": "1.3.277",
+  "version": "1.3.278",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "77e5e8a93749b666f5024666ad622933efabf14f00d3c2743ec86781a404590e",
     "public/css/theme-arcade.css": "4e666bd9ce239144500bad603ad9cac2cf147ba2422688cb3caf1990645903d9",
     "public/css/theme-broadcast.css": "8c27ca25187acee2d6dd15e74828b176cdb14e9eaf530c2c11c69abf51a80506",
     "public/css/theme-desk.css": "5ccfbbd81ce78c2f171d6b43d9fc1208cba37901364c93a675dec2119264ff6b",
-    "public/css/theme-spellbook.css": "ead03f8a6a71ebff6e0441f8769cf0791ec646d0ea9a8a690cc8889b51e17d4b",
+    "public/css/theme-spellbook.css": "02bb1164fc4a0931ebe88f76f1331de175ee460b3fa81ed709e8255a929c2605",
     "public/index.html": "82eaedb1933c9d1cae919a241e338e348ce5105d2608d079fa105c8edc1f019b",
     "public/js/ai.js": "ceba4f91e74f6918fd7b4aa2565a071a7fcc011c7b06eec2f5497ea9a448460e",
     "public/js/aicombat.js": "764e9bdb24e75f0ad8357c5a5429c4313ea46274f195c172f95fca2fbbc6815d",
@@ -23,6 +23,6 @@
     "public/js/triggers.js": "9a2ccc6117f6ff5c964a2ef3e3bf3bcc1455b9bc429eee7ac049cf062e70bd50",
     "public/js/ui.js": "feba532181d8214ab06ebcf924f35759ba940472fb3a4c20a279b3942938eec5",
     "public/js/voice.js": "4622a40593b7db7f8997e96207d0412fcbaa4fa4fe658247c91b3345de1dabe6",
-    "public/patch-notes.json": "03bbaaa2952229a51116e3fd9ca8ae033d7231a4ef811fa54e39fa4a96185d10"
+    "public/patch-notes.json": "b4e20aab67087d7ffd6a1764f06e74124dafbe9a926808a8451ac05fd353d694"
   }
 }
