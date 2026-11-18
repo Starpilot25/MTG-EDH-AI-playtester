@@ -38,7 +38,7 @@ body { background: #0b1020; }
   --v: 0; position: relative; display: grid !important; grid-template-columns: minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 4px;
   padding: 3px 6px 7px; background: #111a33; border-left: 3px solid #2b3963; font-size: 12.5px;
 }
-.cmd-dmg::after, .poison::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: calc(var(--v) * 100%); background: linear-gradient(90deg, #ffb35a, #ff4d5e); transition: width 0.3s; }
+.cmd-dmg::after, .poison::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: calc(var(--v) * 100%); background: linear-gradient(90deg, #ffb35a, #ff4d5e); }
 .cmd-dmg::before, .poison::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgb(255 255 255 / 0.08); }
 .poison::after { background: linear-gradient(90deg, #7be08a, #2fbf71); }
 .cmd-dmg b, .poison b { font: 700 15px var(--f-display); color: #fff; }
@@ -186,9 +186,7 @@ h1, .slot-head h2 { font-family: var(--f-display); }
 
 /* tally light: the seat on turn gets a lit rail across its top and a pulsing dot */
 .seat.active::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--brass); z-index: 3; box-shadow: 0 0 12px rgb(255 159 67 / 0.8); }
-.turn-tag::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); margin-right: 5px; vertical-align: 1px; animation: tally 1.4s ease-in-out infinite; }
-@keyframes tally { 50% { opacity: 0.25; } }
-@media (prefers-reduced-motion: reduce) { .turn-tag::before { animation: none; } }
+.turn-tag::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); margin-right: 5px; vertical-align: 1px; }
 
 /* the current step is a chevron */
 .steps li.on { background: var(--brass); color: #1c0f02; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%); padding-right: 14px; }
@@ -268,16 +266,6 @@ h1, .slot-head h2 { font-family: var(--f-display); }
 #my-panel .piles { margin-top: 2px; }
 .pile-label { line-height: 1.15; }
 
-/* motion that answers the game: an attack prompt sweeps in, life boxes flash on change */
-.combat-bar.danger { animation: sweep 0.38s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.combat-bar.danger .eyebrow { animation: tab 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
-@keyframes sweep { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
-@keyframes tab { from { transform: translateX(-24px); opacity: 0; } }
-.life .lval.hit { animation: hit 0.6s ease-out; }
-.life .lval.heal { animation: heal 0.6s ease-out; }
-@keyframes hit { 0% { background: var(--danger); color: #fff; } }
-@keyframes heal { 0% { background: var(--ok); color: #0b1020; } }
-@media (prefers-reduced-motion: reduce) { .combat-bar.danger, .combat-bar.danger .eyebrow, .life .lval.hit, .life .lval.heal { animation: none; } }
 
 /* card preview: a featured-card frame with a seat-agnostic brass rule */
 #preview { border-bottom: 2px solid #1d2747; padding-bottom: 10px; }

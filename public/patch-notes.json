@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.262",
+    "title": "Sharper card art, no animations",
+    "notes": [
+      "Card art on the table and in your hand is sharper on normal (non-high-DPI) screens: the app now uses a smaller Scryfall scan sized for the cards, instead of shrinking the full-size one so far that it turned grainy. High-DPI screens still get the full-size scan, and cards load a little faster on normal screens.",
+      "The new look's animations are gone: no blinking dot on the turn tag, no sweeping attack prompt, and no life-total flashes."
+    ]
+  },
+  {
     "version": "1.3.261",
     "title": "Commander's Insignia and other \"for each\" amounts",
     "notes": [

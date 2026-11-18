@@ -55,8 +55,7 @@ function identityBar(pid) {
   return idBar.get(pid);
 }
 
-const lastLife = new WeakMap(); // doc -> Map(pid -> life)
-// After a render: colour-identity stripes, damage/poison bar levels, life flashes, the lit field on your turn
+// After a render: commander-colour plates, damage/poison bar levels, the lit field on your turn
 export function decorate(docs = []) {
   const s = G.s;
   if (!s || document.documentElement.dataset.theme === 'classic') return;
@@ -68,16 +67,6 @@ export function decorate(docs = []) {
       const { bar, fade } = identityBar(pid);
       if (el.style.getPropertyValue('--id-bar') !== bar) el.style.setProperty('--id-bar', bar);
       if (el.style.getPropertyValue('--id-fade') !== fade) el.style.setProperty('--id-fade', fade);
-      const lv = el.querySelector('.lval');
-      const life = s.players[pid].life;
-      if (!lastLife.has(d) || lastLife.get(d).game !== s) lastLife.set(d, Object.assign(new Map(), { game: s }));
-      const was = lastLife.get(d).get(pid);
-      lastLife.get(d).set(pid, life);
-      if (lv && was !== undefined && was !== life) {
-        lv.classList.remove('hit', 'heal');
-        void lv.offsetWidth; // restart the animation
-        lv.classList.add(life < was ? 'hit' : 'heal');
-      }
     }
     for (const m of d.querySelectorAll('.cmd-dmg, .poison')) {
       const v = parseInt((m.querySelector('b') || {}).textContent || '0', 10) || 0;

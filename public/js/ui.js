@@ -99,6 +99,14 @@ function devotionOf(pid) {
 }
 // who goaded it, for the badge ("you", "the AI", "AI 2 and AI 3")
 const goaderNames = (c) => ((multiplayer() ? goadersOf(c) : [c.goaded.by]).map((k) => (k === 'p' ? 'you' : multiplayer() ? seatName(k) : 'the AI')).join(' and ') || 'nobody');
+// Scryfall's 'normal' scan is 488px wide but cards are drawn ~90px wide: on a normal-DPI screen the browser
+// shrinks it so far that the art turns grainy. Offer the 146px 'small' scan too and let the browser pick
+// (small on 1x screens, normal on high-DPI screens or very large boards).
+function srcset(src) {
+  if (!/cards\.scryfall\.io\/normal\//.test(src)) return '';
+  return ` srcset="${src.replace('/normal/', '/small/')} 146w, ${src} 488w" sizes="(min-width: 2200px) 160px, 100px"`;
+}
+
 function cardHTML(c, opts = {}) {
   if (hiddenFromMe(c)) c = { ...c, faceDown: true };
   const d = DB[c.def];
@@ -122,7 +130,7 @@ function cardHTML(c, opts = {}) {
   if (pendingTarget && pendingTarget.req.src && pendingTarget.req.src.iid === c.iid) cls.push('source');
   const style = opts.abs ? `style="left:${c.x}px;top:${c.y}px"` : '';
   let inner = src && !opts.textOnly
-    ? `<img src="${src}" alt="${esc(f.name)}" draggable="false" loading="lazy" onerror="this.parentNode.classList.add('noimg');this.remove()">`
+    ? `<img src="${src}"${srcset(src)} alt="${esc(f.name)}" draggable="false" loading="lazy" onerror="this.parentNode.classList.add('noimg');this.remove()">`
     : '';
   const typeShort = (f.typeLine || '').replace(/^Legendary /, '');
   inner += `<div class="ctext"><div class="ctop"><b>${esc(c.faceDown ? 'Face-down' : f.name)}</b><span>${c.faceDown ? '' : manaSymbols(f.manaCost)}</span></div><div class="ctype">${esc(c.faceDown ? '' : typeShort)}</div><div class="cora">${esc(c.faceDown ? '' : (f.oracle || '').slice(0, 160))}</div></div>`;
@@ -2524,7 +2532,7 @@ function tokenTile(id) {
   const d = DB[id];
   const f = d.faces[0];
   return `<button class="tok-tile" data-def="${id}" title="${esc(d.name)} — ${esc(f.typeLine)}">
-    ${f.img ? `<img src="${f.img}" alt="" loading="lazy">` : `<div class="tok-blank">${esc(d.name)}</div>`}
+    ${f.img ? `<img src="${f.img}"${srcset(f.img)} alt="" loading="lazy">` : `<div class="tok-blank">${esc(d.name)}</div>`}
     <span>${esc(d.name)}${f.power !== undefined && f.power !== null ? ` ${esc(f.power)}/${esc(f.toughness)}` : ''}</span></button>`;
 }
 
