@@ -5,8 +5,9 @@ Play Commander against AI opponents to test your decks: 1v1, or a 3–4 player p
 - **Import any deck.** Paste a plain-text list (Moxfield and Archidekt text exports work as-is).
 - **Built-in AI opponents.** They run locally, with no account or API key. They simulate combat, hold up counterspells and play at instant speed. In a pod each AI sizes up the table to decide who to attack.
 - **Real rules.** The engine reads each card's rules text and covers keyword mechanics from across Magic's history.
-- **Built-in decks** from Bracket 1 to cEDH, plus saved decks.
+- **178 official precons** from every Commander product since Commander 2011, ten built-in decks from Bracket 1 to cEDH, and your saved decks.
 - **Second screen:** pop the AI's board (or, in a pod, all the opponents) out into its own window.
+- **Your table, your way:** a casual or competitive AI, spoken AI announcements, two looks (Broadcast and Classic) and an organized or free-form board.
 - **Desktop app** for Windows, Mac and Linux that updates itself from this repository.
 
 ## Download
@@ -46,6 +47,8 @@ After an update the app shows a **patch notes** window listing what changed; cli
 
 The desktop app updates the game itself (rules, AI, cards, screens — everything in `public/`) from the GitHub repository **Starpilot25/MTG-EDH-AI-playtester**. Each time it opens it reads `update.json` from the repository; if that lists a newer version, it downloads just the changed files, checks each one against its fingerprint, and switches over. If GitHub can't be reached it keeps the version it has. The version is shown at the bottom of the start screen.
 
+Each new version's patch notes are also posted to the project's Discord update channel automatically (`.github/workflows/discord-updates.yml`, using the webhook stored in the `DISCORD_WEBHOOK_URL` repository secret).
+
 To publish an update:
 
 1. Bump `version` in `package.json`.
@@ -77,25 +80,7 @@ If older apps can't run the new game files at all, raise `minAppVersion` in `upd
   - Bracket 3: Gruul Stompy (Xenagos), Golgari Value (Meren)
   - Bracket 4: Jund Sacrifice (Korvold), Four-Color Counters (Atraxa)
   - Bracket 5 (cEDH): Simic Combo (Kinnan), Four-Color Blitz (Thrasios & Tymna)
-- **Precon**: official preconstructed Commander decks, grouped by product:
-  - Reality Fracture Commander: Multiverse Reforged (Jace, Multiverse Architect)
-  - Lorwyn Eclipsed Commander: Blight Curse (Auntie Ool, Cursewretch)
-  - Marvel Super Heroes Commander: Avengers Assemble (Captain America, Team Leader)
-  - Foundations Commander: Calling All Angels (Giada, Font of Hope), Keen Engineering (Sai, Master Thopterist), Wretched Ranks (Ghoulcaller Gisa), Reign of Dragons (Lathliss, Dragon Queen), Tramplesaurus Rex (Ghalta, Primal Hunger)
-  - Teenage Mutant Ninja Turtles Commander: Turtle Power! (Leonardo, the Balance; pick a second Character select turtle from the partner dropdown if you like)
-  - Edge of Eternities Commander: World Shaper (Hearthhull, the Worldseed)
-  - Tarkir: Dragonstorm Commander: Mardu Surge (Zurgo Stormrender)
-  - Aetherdrift Commander: Eternal Might (Temmet, Naktamun's Will)
-  - Bloomburrow Commander: Squirreled Away (Hazel of the Rootbloom)
-  - Modern Horizons 3 Commander: Graveyard Overdrive (Disa the Restless)
-  - Outlaws of Thunder Junction Commander: Desert Bloom (Yuma, Proud Protector), Most Wanted (Olivia, Opulent Outlaw)
-  - Murders at Karlov Manor Commander: Deadly Disguise (Kaust, Eyes of the Glade)
-  - Doctor Who Commander: Masters of Evil (Davros, Dalek Creator)
-  - Wilds of Eldraine Commander: Virtue and Valor (Ellivere of the Wild Court)
-  - The Lord of the Rings Commander: Food and Fellowship (Frodo, Adventurous Hobbit & Sam, Loyal Attendant)
-  - March of the Machine Commander: Growing Threat (Brimaz, Blight of Oreskos)
-  - Battle for Baldur's Gate Commander: Party Time (Nalia de'Arnise)
-  - Kamigawa: Neon Dynasty Commander: Buckle Up (Kotori, Pilot Prodigy)
+- **Precon**: 178 official preconstructed Commander decks from 50 products, grouped by product, from Commander 2011 to Reality Fracture Commander (Universes Beyond decks included). They're listed in one dropdown, grouped under each product's name.
 - **Mirror** (AI only) — the AI plays a copy of your deck.
 
 Partners, Partner with, Friends Forever, Doctor's companions and Backgrounds are supported: mark both commanders in your list. If no commander is marked, one is picked from the list — a legend with a matching partner or Background if there is one — and you can change both from the dropdowns. Each commander has its own tax and its own commander-damage count (a Background gets a counter if it's animated and deals combat damage).
@@ -164,14 +149,29 @@ Click **⧉ Pop out** next to the AI's name to move its board (life, piles, hand
 | Library options | Right-click your library: draw X, scry, surveil, mill, look at top X, search, exile top… |
 | Browse a zone | Click a graveyard or exile pile |
 | Your removal on the AI | Right-click an AI permanent → Destroy / Exile / Bounce / Damage / Gain control |
-| Attack | **To combat**, click your creatures, **Attack**; the AI blocks; **Deal damage** |
+| Attack | **To combat**, click your creatures, **Attack**; the AI blocks; **Deal damage**. Click a pile of identical creatures (a stack of tokens) to choose how many attack; Shift-click sends the whole pile. In a pod, **All attack: <player>** sends everything that can attack at one opponent |
 | Block | When the AI attacks, click your creature, then the attacker; **Confirm blocks** |
 | Counter an AI spell | When the AI casts something, double-click a glowing counterspell in your hand (or **Let it resolve**). With Arena-style casting off, a manual **Counter it** button appears instead |
+| Table actions | Right-click the table: venture into the dungeon, take the initiative, become the monarch, gain or lose life, and more |
 | Fix anything | Life totals, poison, commander damage all have +/−; Undo / Redo (Ctrl+Z / Ctrl+Shift+Z) |
 
 Shortcuts: `Enter` next step · `Shift+Enter` pass turn · `D` draw · `U` untap all · `S` shuffle · `C` create token · `L` search library · hover a card + `T` tap, `G` graveyard, `X` exile, `H` hand, `B` library bottom, `F` flip, `=`/`-` +1/+1 counter · `?` all shortcuts.
 
 Commander rules handled for you: 40 life, discarding to your maximum hand size at end of turn, commander tax, commanders return to the command zone, 21 commander damage, poison, London mulligan (first one free by default).
+
+## Settings
+
+On the setup screen, or from the ☰ menu during a game:
+
+- **Starting life** (40 by default).
+- **AI style:** *Casual* plays like a friendly pod (fewer all-in attacks, keeps blockers home, saves removal, wipes and counterspells for real threats); *Competitive* plays to win as fast as it can.
+- **AI speed:** Fast, Normal or Slow, for how long the AI pauses between plays.
+- **AI announcements:** the AI says what it's doing out loud, the way players at a table announce their plays, and can read you the cards it casts (uses your system's built-in voice). Off by default.
+- **Auto-tap mana creatures:** tap lands first (so your mana creatures can still attack or block) or mana creatures first.
+- **Commander leaving play:** ask each time whether your commander goes to the command zone, or always move it there.
+- **Look:** *Broadcast* (the default) or *Classic*, the original green-felt look.
+- **Board layout:** *Organized* lays your battlefield out in rows (creatures, other permanents, lands) with identical cards stacked; *Free* lets you drag cards anywhere.
+- **Arena-style casting** (see above).
 
 ## How the AI plays
 
@@ -194,7 +194,7 @@ updater.js         downloads newer game files from GitHub
 update.json        version + fingerprints of the game files (npm run manifest)
 server.js          local server + proxy for Scryfall
 public/index.html  the page
-public/css/        styles
+public/css/        styles (style.css, plus theme-broadcast.css for the Broadcast look)
 public/js/data.js  decklist parsing, deck import, card data, sample decks
 public/js/rules.js mana payment, power/toughness, keywords, combat damage
 public/js/statics.js anthems, cost changes, replacement effects
@@ -207,8 +207,11 @@ public/js/game.js  turn structure, turn-based keywords and combat flow
 public/js/ai.js    the AI opponent (spell choice, instant-speed play)
 public/js/aicombat.js threat scores, combat simulator, attack and block planning
 public/js/ui.js    the tabletop UI
+public/js/theme.js switches between the Broadcast and Classic looks
+public/js/voice.js spoken AI announcements
 public/js/main.js  setup screen and mulligans
 tools/make-manifest.js  writes update.json
+.github/           posts new patch notes to Discord on each version bump
 build/             app icons
 ```
 
