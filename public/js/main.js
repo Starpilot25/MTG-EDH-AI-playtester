@@ -385,6 +385,61 @@ function initSetup() {
       });
     }
   }
+  // A search box above a deck dropdown: typing hides the options that don't match (every word has to appear in the
+  // deck's name or its group, e.g. the precon's product), Enter loads the first match, Esc clears it.
+  function addDeckSearch(pid, sel, placeholder) {
+    if (!sel || sel.dataset.search) return;
+    sel.dataset.search = '1';
+    const row = sel.closest('.saved-row') || sel;
+    const box = document.createElement('input');
+    box.type = 'search';
+    box.className = 'deck-search';
+    box.placeholder = placeholder;
+    box.setAttribute('aria-label', placeholder.replace(/…$/, ''));
+    box.autocomplete = 'off';
+    row.parentNode.insertBefore(box, row);
+    const count = document.createElement('span');
+    count.className = 'hint deck-search-count';
+    row.parentNode.insertBefore(count, row);
+    const apply = () => {
+      const words = box.value.toLowerCase().split(/\s+/).filter(Boolean);
+      let shown = 0;
+      let first = null;
+      for (const g of [...sel.children]) {
+        const opts = g.tagName === 'OPTGROUP' ? [...g.children] : [g];
+        const glabel = g.tagName === 'OPTGROUP' ? (g.label || '').toLowerCase() : '';
+        let any = false;
+        for (const o of opts) {
+          const hay = (o.textContent + ' ' + glabel).toLowerCase();
+          const ok = !o.value || !words.length || words.every((w) => hay.includes(w));
+          o.hidden = !ok;
+          o.disabled = !ok && !!words.length;
+          if (ok && o.value) { any = true; shown++; if (!first) first = o; }
+        }
+        if (g.tagName === 'OPTGROUP') g.hidden = !any;
+      }
+      count.textContent = words.length ? (shown ? `${shown} match${shown === 1 ? '' : 'es'}` : 'No matches') : '';
+      const cur = sel.selectedOptions[0];
+      if (words.length && first && (!cur || cur.hidden)) sel.value = first.value;
+      return first;
+    };
+    box.addEventListener('input', apply);
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const first = apply();
+        const cur = sel.selectedOptions[0];
+        if (cur && !cur.hidden && cur.value) loadSlot(pid);
+        else if (first) { sel.value = first.value; loadSlot(pid); }
+      } else if (e.key === 'Escape' && box.value) {
+        e.preventDefault();
+        box.value = '';
+        apply();
+      }
+    });
+    // the saved list is rebuilt after saving or deleting: keep the filter applied
+    new MutationObserver(() => apply()).observe(sel, { childList: true });
+  }
   for (const pid of SLOT_IDS) {
     const el = slotEl(pid);
     const BRACKETS = { 1: 'Bracket 1 · Exhibition', 2: 'Bracket 2 · Core', 3: 'Bracket 3 · Upgraded', 4: 'Bracket 4 · Optimized', 5: 'Bracket 5 · cEDH' };
@@ -419,6 +474,8 @@ function initSetup() {
       $('.in-precon', el).value = pick;
       loadSlot(pid);
     });
+    addDeckSearch(pid, $('.in-precon', el), 'Search precons: deck, commander or set…');
+    addDeckSearch(pid, $('.in-saved', el), 'Search saved decks…');
     $('.in-saved', el).addEventListener('change', () => loadSlot(pid));
     $('.del-saved', el).addEventListener('click', async () => {
       const id = $('.in-saved', el).value;

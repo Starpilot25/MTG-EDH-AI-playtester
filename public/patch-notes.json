@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.281",
+    "title": "Search precons and saved decks",
+    "notes": [
+      "The Precon and Saved deck pickers now have a search box. Type part of a deck name, commander or product (for example \"giada\" or \"commander 2014\") and the list shrinks to the matches. Enter loads the top match, and Esc clears the search."
+    ]
+  },
+  {
     "version": "1.3.280",
     "title": "Maskwood Nexus, Mycosynth Lattice, Encroaching Mycosynth, Lord of Atlantis",
     "notes": [

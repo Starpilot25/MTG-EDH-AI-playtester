@@ -1113,3 +1113,6 @@ body.banner-dragging, body.banner-dragging * { cursor: grabbing !important; user
 #banner.floating .stack-card .card { --cw: 128px; --ch: 179px; }
 #banner.floating .combat-bar h3, #banner.floating .stack-copy h3 { font-size: 22px; }
 #banner.floating .cmd-ask .card { --cw: 52px; --ch: 72px; }
+.deck-search { width: 100%; box-sizing: border-box; margin: 2px 0 4px; }
+.deck-search-count { display: block; min-height: 0; margin: -2px 0 4px; font-size: 12px; }
+.deck-search-count:empty { display: none; }
