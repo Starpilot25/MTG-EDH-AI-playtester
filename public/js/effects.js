@@ -3498,7 +3498,7 @@ on(/^choose a counter on target permanent\. put an additional counter of that ki
 }, { first: true, multi: true });
 // Thunderclap Drake
 on(/^when you next cast an instant or sorcery spell this turn, copy it for each time you've cast your commander from the command zone this game(?:\. you may choose new targets for the copies)?$/, async (m, env) => {
-  const k = G.s.players[env.me].commanderCasts || Object.values(G.s.players[env.me].tax || {}).reduce((a, v) => a + v / 2, 0) || 0;
+  const k = Object.values(G.s.players[env.me].tax || {}).reduce((a, v) => a + (v || 0), 0); // tax counts casts from the command zone
   if (!k) return env.did.push("hasn't cast a commander yet, so there are no copies");
   G.s.copyNext = [...(G.s.copyNext || []), { pid: env.me, turn: G.s.turn, types: ['Instant', 'Sorcery'], n: k }];
   env.did.push(`will copy the next instant or sorcery spell ${k} time${k === 1 ? '' : 's'}`);
@@ -16017,7 +16017,7 @@ on(/^(?:if it was a creature, )?(?:return it to the battlefield\. )?it's an aura
 }, { first: true, multi: true });
 // Hatut Zeraze Strike Force
 on(/^copy it for each time you've cast your commander from the command zone this game$/, async (m, env) => {
-  const k = G.s.players[env.me].commanderCasts || Object.values(G.s.players[env.me].tax || {}).reduce((a, v) => a + v / 2, 0) || 0;
+  const k = Object.values(G.s.players[env.me].tax || {}).reduce((a, v) => a + (v || 0), 0); // tax counts casts from the command zone
   const sp = env.src && card(env.src.iid);
   if (!sp || !k) return env.did.push('no commander casts yet');
   env.it = { iid: sp.iid };

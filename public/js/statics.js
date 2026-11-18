@@ -692,6 +692,7 @@ export function playerFlag(pid, flag) {
 
 // ------------------------------------------------------------ counting phrases
 // "the number of creatures you control", "cards in your hand", "your devotion to black"…
+queueMicrotask(() => { G.countPhraseHook = (pid, phrase, srcIid) => countPhrase(pid, phrase, rulesHelpersObj, srcIid); });
 export function countPhrase(pid, phrase, helpers, srcIid) {
   let p = String(phrase || '').toLowerCase().replace(/^(?:the )?(?:total )?number of /, '').replace(/\.$/, '').trim()
     .replace(/\b(?:defending player|that player|the defending player) controls$/, 'an opponent controls'); // two players: the only one it can be
@@ -707,6 +708,10 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
         && (dm[2] === 'permanent' || (dm[2] === 'creature' ? x.creature : dm[2] === 'nonartifact creature' ? x.creature && !x.artifact : dm[2] === 'creature with flying' ? x.creature && x.flying : x.def && new RegExp('\\b' + dm[2], 'i').test(DB[x.def].typeLine || '')))
         && (!dm[3] || (dm[3] === 'your opponents' ? x.controller !== pid : x.controller === pid))).length;
     }
+  }
+  // Commander's Insignia, Jeska: "time you've cast your commander (a commander) from the command zone this game"
+  if (/^times? you've cast (?:your|a) commanders? from the command zone this game$/.test(p) && G.s) {
+    return Object.values(G.s.players[pid].tax || {}).reduce((a, b) => a + (b || 0), 0);
   }
   // Anzrag's Rampage: "artifacts that were put into graveyards from the battlefield this turn"
   if (/^artifacts? (?:that were )?put into graveyards from the battlefield this turn$/.test(p) && G.s) return G.s.artToGy && G.s.artToGy.turn === G.s.turn ? G.s.artToGy.n : 0;

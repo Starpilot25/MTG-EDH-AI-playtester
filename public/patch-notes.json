@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.3.261",
+    "title": "Commander's Insignia and other \"for each\" amounts",
+    "notes": [
+      "Commander's Insignia now gives +1/+1 for each time you've cast your commander from the command zone. Before, it was a flat +1/+1 no matter how many times you'd cast it.",
+      "Jeska, Thrice Reborn enters with one loyalty counter per command-zone commander cast (counting the cast that's putting her onto the battlefield), not always one.",
+      "Thunderclap Drake's copies (and similar \"copy it for each time you've cast your commander\" effects) were only counting half your commander casts. Fixed.",
+      "Permanents that enter with counters \"for each\" something now get the full amount: Dawn of a New Age (a hope counter for each creature you control), Golgari Grave-Troll (a +1/+1 counter for each creature card in your graveyard) and similar. Before, they got just one."
+    ]
+  },
+  {
     "version": "1.3.260",
     "title": "Venture, initiative and monarch from the right-click menu",
     "notes": [
