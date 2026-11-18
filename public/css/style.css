@@ -792,11 +792,12 @@ body.banner-on .field.opp.organized { padding-bottom: 30px; }
 .er-item.ready .card { box-shadow: 0 0 0 1px var(--brass), 0 2px 6px rgb(0 0 0 / 0.5); }
 
 /* commander left play: command zone? */
-.cmd-choice { border: 1px solid var(--brass); border-radius: 8px; padding: 6px 6px 8px; margin-bottom: 8px; background: rgb(211 170 82 / 0.08); }
-.cmd-choice .cc-row { display: flex; gap: 8px; align-items: center; }
-.cmd-choice .card { --cw: 52px; --ch: 72px; flex: none; }
-.cc-btns { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
-.cc-btns button { font-size: 12px; padding: 5px 8px; }
+.combat-bar.cmd-ask { border-color: var(--brass); }
+.cmd-ask .cc-row { display: flex; gap: 14px; align-items: center; text-align: left; }
+.cmd-ask .card { --cw: 64px; --ch: 89px; flex: none; }
+.cmd-ask .cc-copy { min-width: 0; }
+.cmd-ask .btns { justify-content: flex-start; }
+#banner > .combat-bar + * { margin-top: 8px; }
 
 /* dungeon map on the side panel */
 .dg-map { border: 1px solid #6b5a33; border-radius: 8px; padding: 6px 6px 8px; margin: 0 12px 8px; background: rgb(211 170 82 / 0.06); cursor: pointer; }
@@ -1064,3 +1065,7 @@ body.pod.banner-on .field.opp.organized { padding-bottom: 12px; }
 .all-at-lbl { font-size: 12px; opacity: .75; margin-right: 2px; }
 .atk-all { padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.12); }
 .pile-quick { justify-content: flex-start; margin: 4px 0 8px; }
+
+/* the battlefield and player panels scroll without showing scrollbars (mouse wheel / trackpad still scroll them) */
+.field, .seat-field, .panel, .seat-panel { scrollbar-width: none; }
+.field::-webkit-scrollbar, .seat-field::-webkit-scrollbar, .panel::-webkit-scrollbar, .seat-panel::-webkit-scrollbar { display: none; }

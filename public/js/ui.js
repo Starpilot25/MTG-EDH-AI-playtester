@@ -776,15 +776,18 @@ function graveyardReady(pid) {
   </div>`;
 }
 
-// your commander just left play: you choose whether it goes to the command zone
+// your commander just left play: you choose whether it goes to the command zone (shown in the banner, where it can't be missed)
 function commanderChoice() {
   const items = Object.values(G.s.cards).filter((c) => c.owner === 'p' && c.isCommander && c.cmdAsk && c.cmdAsk === c.zone);
   if (!items.length) return '';
   const where = { graveyard: 'graveyard', exile: 'exile', hand: 'hand', library: 'library' };
-  return items.map((c) => `<div class="cmd-choice" data-iid="${c.iid}">
-    <div class="er-title">Commander went to your ${where[c.zone]}</div>
+  return items.map((c) => `<div class="combat-bar cmd-ask" data-iid="${c.iid}">
     <div class="cc-row">${cardHTML(c, { small: true })}
-      <div class="cc-btns"><button class="primary" data-cmdzone="yes" data-iid="${c.iid}">Command zone</button><button data-cmdzone="no" data-iid="${c.iid}">Leave in ${where[c.zone]}</button></div>
+      <div class="cc-copy"><span class="eyebrow">Your commander left play</span>
+        <h3>${esc(cardName(c))} went to your ${where[c.zone]}</h3>
+        <p>Move it to the command zone, or leave it where it is?</p>
+        <div class="btns"><button class="primary" data-cmdzone="yes" data-iid="${c.iid}">Command zone</button><button data-cmdzone="no" data-iid="${c.iid}">Leave in ${where[c.zone]}</button></div>
+      </div>
     </div></div>`).join('');
 }
 
@@ -1147,7 +1150,6 @@ function renderMine() {
     <div class="pname"><span class="dot you"></span>You <small>${esc(s.decks.p.name)}</small></div>
     ${lifeBlock('p')}
     <div class="piles">${pile('p', 'library', 'Library')}${pile('p', 'graveyard', 'Grave')}${pile('p', 'exile', 'Exile')}${commandZone('p')}</div>
-    ${commanderChoice()}
     ${libraryTop('p')}
     ${exileReady('p')}
     ${graveyardReady('p')}`;
@@ -1261,6 +1263,8 @@ function renderBanner() {
       ? `<div class="thinking attacking"><span class="spinner"></span>${esc(seatName(cb.by))} is attacking ${fight}…</div>`
       : `<div class="thinking"><span class="spinner"></span>${s.active === 'p' ? `${multiplayer() ? 'The AIs are' : 'AI is'} deciding whether to respond…` : multiplayer() ? `${esc(seatName(s.active))} is taking its turn…` : 'AI is taking its turn…'}</div>`;
   }
+  // a commander choice goes on top of whatever else is showing (except game over or picking a target)
+  if (!over && !pendingTarget) html = commanderChoice() + html;
   el.innerHTML = html;
   el.hidden = !html;
   // leave room at the middle seam for the banner, so it doesn't sit on top of the creatures
