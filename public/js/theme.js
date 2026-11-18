@@ -1,11 +1,11 @@
-// Looks for the app: 'broadcast' (default) or 'classic' (the original style.css on its own).
-// The Broadcast stylesheet is <link id="theme-css"> in index.html; this switches it on and off,
+// Looks for the app: 'broadcast' (default), 'spellbook', or 'classic' (the original style.css on its own).
+// The theme stylesheet is <link id="theme-css"> in index.html; this points it at css/theme-<look>.css (or switches it off for Classic),
 // and after each render fills in the few values the theme draws from game state.
 import { G } from './state.js';
 import { DB } from './data.js';
 
 const KEY = 'edhpt:theme';
-export const THEMES = ['broadcast', 'classic'];
+export const THEMES = ['broadcast', 'spellbook', 'classic'];
 
 export function currentTheme() {
   try {
@@ -31,10 +31,14 @@ export function themeDoc(d, t = currentTheme()) {
     link = d.createElement('link');
     link.id = 'theme-css';
     link.rel = 'stylesheet';
-    link.href = `${location.origin}/css/theme-broadcast.css`;
     d.head.appendChild(link);
   }
-  if (link) link.disabled = t !== 'broadcast';
+  if (!link) return;
+  if (t !== 'classic') {
+    const href = `${location.origin}/css/theme-${t}.css`;
+    if (link.href !== href) link.href = href;
+  }
+  link.disabled = t === 'classic';
 }
 
 const MANA = { W: '#efe3b4', U: '#4d93d6', B: '#8a7393', R: '#de5b3f', G: '#4fa864' };

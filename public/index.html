@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans+SC:wght@500;700;800&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=Fira+Mono:wght@500&family=Archivo:wght@400;500;600;700&family=Archivo+Narrow:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/theme-broadcast.css" id="theme-css">
-<script>try { if (JSON.parse(localStorage.getItem('edhpt:theme')) === 'classic') { document.getElementById('theme-css').disabled = true; document.documentElement.dataset.theme = 'classic'; } } catch (e) {}</script>
+<script>try { const t = JSON.parse(localStorage.getItem('edhpt:theme')), l = document.getElementById('theme-css'); if (t === 'classic') { l.disabled = true; document.documentElement.dataset.theme = 'classic'; } else if (t === 'spellbook') { l.href = 'css/theme-spellbook.css'; document.documentElement.dataset.theme = 'spellbook'; } } catch (e) {}</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='7' y='3' width='18' height='26' rx='3' fill='%23c9a24a'/%3E%3Crect x='10' y='6' width='12' height='20' rx='2' fill='%2314231f'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -120,8 +120,8 @@
       <label title="When your commander goes to the graveyard or exile (or is bounced or tucked), ask whether to move it to the command zone, or always move it automatically.">Commander leaving play
         <select id="set-cmdzone"><option value="ask" selected>Ask me</option><option value="auto">Always command zone</option></select>
       </label>
-      <label title="Broadcast: the new look. Classic: the original green-felt look.">Look
-        <select id="set-theme"><option value="broadcast" selected>Broadcast</option><option value="classic">Classic</option></select>
+      <label title="Broadcast: the tournament-coverage look. Spellbook: parchment pages in a leather-bound book. Classic: the original green-felt look.">Look
+        <select id="set-theme"><option value="broadcast" selected>Broadcast</option><option value="spellbook">Spellbook</option><option value="classic">Classic</option></select>
       </label>
       <label title="Organized: your battlefield is laid out in rows (creatures, other permanents, lands) with identical cards stacked. Free: drag your cards anywhere.">Board layout
         <select id="set-layout"><option value="organized" selected>Organized</option><option value="free">Free</option></select>
@@ -177,7 +177,7 @@
           <label>AI announcements <select id="gm-voice"><option value="off">Off (game log only)</option><option value="plays">Say its plays out loud</option><option value="read">Say its plays and read its cards</option></select></label>
           <label>Auto-tap mana creatures <select id="gm-dorks"><option value="last">After lands</option><option value="first">Before lands</option></select></label>
           <label>Commander leaving play <select id="gm-cmdzone"><option value="ask">Ask me</option><option value="auto">Always command zone</option></select></label>
-          <label>Look <select id="gm-theme"><option value="broadcast">Broadcast</option><option value="classic">Classic</option></select></label>
+          <label>Look <select id="gm-theme"><option value="broadcast">Broadcast</option><option value="spellbook">Spellbook</option><option value="classic">Classic</option></select></label>
           <label>Board layout <select id="gm-layout"><option value="organized">Organized</option><option value="free">Free</option></select></label>
           <label>AI speed <select id="gm-speed"><option value="250">Fast</option><option value="650">Normal</option><option value="1200">Slow</option></select></label>
         </div>

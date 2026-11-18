@@ -1,0 +1,319 @@
+/* Spellbook theme: loaded on top of style.css (the Classic look). Leather-bound covers, parchment pages,
+   gold tooling and wax seals. Pick another look under Look in settings to switch it off. */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400;1,500&display=swap');
+
+:root {
+  --bg: #1d110d; --felt: #2a1812; --felt-2: #331e16; --felt-3: #3d251b; --line: #5a3a26;
+  --ink: #f1e6cc; --muted: #c2ab86; --brass: #d4ab55; --brass-ink: #2b1a0c;
+  --you: #4f7fb8; --ai: #b2442f; --ai2: #7b58a8; --ai3: #3f8a5c; --danger: #b8332a; --ok: #4d8a4a;
+  --f-display: 'Cormorant Garamond', Georgia, serif; --f-body: 'Alegreya', Georgia, serif; --f-mono: 'Alegreya', Georgia, serif;
+  --page: #eadcbc; --page-2: #dfcda6; --page-ink: #2e1f14; --page-muted: #7a6146; --gold: #c9a24a; --wax: #8e2a20;
+  --plate: var(--page); --plate-ink: var(--page-ink);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .22 0 0 0 0 .1 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --leather: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='turbulence' baseFrequency='.045' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+#my-panel, .deck-slot[data-pid="p"] { --seat: var(--you); }
+.seat[data-seat="ai"], #opp-panel, #opp-field, .deck-slot[data-pid="ai"] { --seat: var(--ai); }
+.seat[data-seat="ai2"], .deck-slot[data-pid="ai2"] { --seat: var(--ai2); }
+.seat[data-seat="ai3"], .deck-slot[data-pid="ai3"] { --seat: var(--ai3); }
+#my-field { --seat: var(--you); }
+
+body { background: var(--leather), radial-gradient(ellipse at 50% 30%, #3a2117, #1d110d 75%); font-family: var(--f-body); }
+
+/* ---------- the open book: parchment pages for every play area ---------- */
+.board { background: var(--leather), linear-gradient(180deg, #2a1812, #1d110d); }
+.field, .seat-field, #my-field, #opp-field {
+  background:
+    var(--grain),
+    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 55%, rgb(120 80 35 / 0.28) 100%),
+    linear-gradient(180deg, var(--page), var(--page-2)) !important;
+  color: var(--page-ink);
+  box-shadow: inset 0 0 0 1px rgb(70 40 20 / 0.35), inset 0 0 30px rgb(110 70 30 / 0.25);
+}
+.field .field-hint, .field .empty, .field em, .lane-empty { color: var(--page-muted); }
+.lane + .lane, .lane.others, .lane.lands { border-color: rgb(90 60 30 / 0.25) !important; }
+/* the gutter between pages */
+.seat { border-right: 6px solid #1d110d; box-shadow: inset -1px 0 0 rgb(201 162 74 / 0.25); }
+/* a faint ornament in the corner of each page */
+.field { isolation: isolate; }
+.field::before {
+  content: '❦'; position: absolute; right: 18px; bottom: 6px; z-index: -1; pointer-events: none;
+  font: 72px/1 var(--f-display); color: rgb(110 70 30 / 0.16);
+}
+/* the player on turn: their page is lit like a candle is near it */
+.seat.active .seat-field, #my-field.on-turn, #opp-field.on-turn {
+  background:
+    var(--grain),
+    radial-gradient(ellipse 70% 80% at 50% 0%, rgb(255 236 180 / 0.55), transparent 70%),
+    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 55%, rgb(120 80 35 / 0.28) 100%),
+    linear-gradient(180deg, #f1e5c7, var(--page-2)) !important;
+}
+
+/* ---------- cards: tipped onto the page ---------- */
+.card { box-shadow: 0 1px 0 rgb(60 35 15 / 0.4), 0 6px 12px rgb(60 35 15 / 0.35); }
+.card.noimg { background: linear-gradient(170deg, #f6edd8, #e3d2ad); color: var(--page-ink); border-color: #b39566; }
+.card.noimg .ctype, .card.noimg .cora { color: var(--page-muted); }
+.ctop b, .ctype { font-family: var(--f-display); font-weight: 700; }
+.card .pt { font: 700 13px var(--f-body); background: var(--page); color: var(--page-ink); border: 1px solid #a7895a; border-radius: 3px; }
+.card.attacking { box-shadow: 0 0 0 2px var(--wax), 0 0 16px rgb(142 42 32 / 0.55); }
+
+/* ---------- covers: leather panels with gold tooling ---------- */
+.panel, .seat-panel {
+  background: var(--leather), linear-gradient(180deg, #3a2218, #2a1812) !important;
+  border-color: #140a07 !important;
+  box-shadow: inset 0 0 0 1px rgb(201 162 74 / 0.45), inset 0 0 0 4px transparent, inset 0 0 0 5px rgb(201 162 74 / 0.2);
+  color: var(--ink);
+}
+/* name: an illuminated heading with a ribbon in the commander's colours */
+.pname { position: relative; font: italic 700 24px/1.05 var(--f-display); color: #f4e4b8; padding-bottom: 8px; margin-bottom: 4px; }
+.pname::after { content: ''; position: absolute; left: 0; right: 30%; bottom: 0; height: 3px; border-radius: 2px; background: var(--id-bar, var(--gold)); opacity: 0.9; }
+.pname small { font: 400 12.5px var(--f-body); font-style: normal; color: var(--muted); }
+.pname .dot { box-shadow: 0 0 0 2px rgb(201 162 74 / 0.5); }
+.seat.active .pname, #my-panel.on-turn .pname, #opp-panel.on-turn .pname { color: var(--brass); text-shadow: 0 0 12px rgb(212 171 85 / 0.45); }
+.turn-tag { background: var(--wax); color: #f6e7c8; border: 0; border-radius: 3px; font: italic 600 13px var(--f-display); }
+.popout-btn { background: transparent; border: 1px solid rgb(201 162 74 / 0.4); color: var(--muted); }
+
+/* life: a wax seal */
+.life { align-items: center; gap: 8px; }
+.life .lval {
+  flex: 0 0 auto; width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center; padding: 0;
+  font: 700 34px/1 var(--f-display); font-variant-numeric: lining-nums tabular-nums; color: #f8e9cf;
+  background: radial-gradient(circle at 38% 32%, #c4473a, var(--wax) 55%, #5e1912);
+  border: 0; text-shadow: 0 -1px 0 rgb(0 0 0 / 0.45), 0 1px 0 rgb(255 200 170 / 0.2);
+  box-shadow: inset 0 0 0 4px rgb(0 0 0 / 0.14), inset 0 0 0 7px rgb(255 190 160 / 0.1), 0 3px 6px rgb(0 0 0 / 0.5);
+}
+.seat-life .life .lval { width: 58px; height: 58px; font-size: 27px; }
+.life .lbtn { width: 28px; height: 28px; border-radius: 50%; background: transparent; border: 1px solid rgb(201 162 74 / 0.5); color: var(--brass); font: 700 17px var(--f-body); }
+
+/* poison and commander damage: a ledger, with an ink line filling toward 10 and 21 */
+.subcounters { gap: 3px; }
+.cmd-dmg, .poison { --v: 0; position: relative; padding-bottom: 6px; font-size: 13px; color: var(--muted); }
+.cmd-dmg::before, .poison::before { content: ''; position: absolute; left: 0; right: 0; bottom: 1px; border-bottom: 1px dotted rgb(201 162 74 / 0.35); }
+.cmd-dmg::after, .poison::after { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--v) * 100%); background: var(--brass); border-radius: 2px; }
+.poison::after { background: #6e9a4a; }
+.cmd-dmg.warn::after { background: #d0503f; }
+.cmd-dmg b, .poison b { font: 700 16px var(--f-display); color: #f4e4b8; }
+.mini { border-radius: 50%; background: transparent; border: 1px solid rgb(201 162 74 / 0.4); color: var(--brass); }
+
+/* zones: small gilt-edged tiles */
+.pile-face { border-radius: 4px !important; }
+.pile.cmdtile .pile-face { border: 1px solid var(--gold) !important; box-shadow: 0 0 10px rgb(201 162 74 / 0.3); }
+.pile-n { font: 700 15px var(--f-display); background: var(--page); color: var(--page-ink); border-radius: 3px; }
+.pile-label { font: italic 600 13px var(--f-display); color: var(--muted); }
+
+/* ---------- the top of the book: title, ribbon bookmarks for steps ---------- */
+.topbar { background: var(--leather), linear-gradient(180deg, #3a2218, #24140f); border-bottom: 2px solid #140a07; box-shadow: inset 0 -1px 0 rgb(201 162 74 / 0.35), 0 4px 12px rgb(0 0 0 / 0.5); }
+.brand { font: italic 700 25px var(--f-display); color: var(--brass); letter-spacing: 0.01em; }
+#turninfo .tnum { font: italic 600 15px var(--f-display); color: var(--muted); }
+#turninfo .who { font: italic 700 23px var(--f-display); color: #f4e4b8; }
+.steps { gap: 2px; }
+.steps li { font: 600 15px var(--f-display); color: var(--muted); padding: 3px 10px 9px; border-radius: 0; background: transparent; }
+.steps li.past { color: #8e7656; }
+.steps li.on { background: var(--wax); color: #f8e9cf; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 6px), 0 100%); box-shadow: none; }
+
+/* buttons: parchment labels; the main action is sealed in wax */
+button { font-family: var(--f-body); font-weight: 500; border-radius: 4px; background: #3d251b; color: var(--ink); border: 1px solid rgb(201 162 74 / 0.35); }
+button:hover:not(:disabled) { border-color: var(--gold); }
+button.primary { background: linear-gradient(180deg, #a83a2c, var(--wax)); color: #f8e9cf; border-color: #5e1912; box-shadow: inset 0 1px 0 rgb(255 200 170 / 0.25); }
+select, input, textarea { font-family: var(--f-body); }
+
+/* ---------- the margin: card preview and the game log as a journal ---------- */
+.rail { background: var(--leather), linear-gradient(180deg, #2f1b13, #24140f) !important; border-left: 1px solid #140a07 !important; box-shadow: inset 1px 0 0 rgb(201 162 74 / 0.25); }
+.log-head { font: italic 700 19px var(--f-display); color: var(--brass); text-transform: none; letter-spacing: 0; }
+#log { font-family: var(--f-body); }
+#log li { font-size: 14px; color: #ead9b8; border-left: 2px solid rgb(201 162 74 / 0.25); }
+#log li.p { border-left-color: var(--you); }
+#log li.ai { border-left-color: var(--ai); }
+#log li.ai2 { border-left-color: var(--ai2); }
+#log li.ai3 { border-left-color: var(--ai3); }
+#log li.turn { font: italic 700 16px var(--f-display); color: var(--brass); text-transform: none; letter-spacing: 0; border: 0; padding-top: 10px; }
+#log li.turn::before { content: '❧ '; color: rgb(201 162 74 / 0.7); }
+#log a, #log .cref { color: #f0c46c; }
+#preview .pv-head b { font: italic 700 20px var(--f-display); color: #f4e4b8; }
+#preview .pv-type { color: var(--brass); font-style: italic; }
+
+/* the hand: a leather tray at the foot of the book */
+.hand-wrap { background: var(--leather), linear-gradient(180deg, #2a1812, #1d110d) !important; border-top: 2px solid #140a07 !important; box-shadow: inset 0 1px 0 rgb(201 162 74 / 0.3); }
+.hand-label { font: italic 700 17px var(--f-display); color: var(--brass); }
+
+/* ---------- prompts: a slip of parchment ---------- */
+.combat-bar, .stack, .thinking {
+  background: var(--grain), linear-gradient(180deg, #f2e6c9, var(--page-2)); color: var(--page-ink);
+  border: 1px solid #a7895a; border-radius: 6px;
+  box-shadow: inset 0 0 0 4px rgb(255 250 235 / 0.35), inset 0 0 0 5px rgb(167 137 90 / 0.5), 0 14px 30px rgb(0 0 0 / 0.55);
+}
+.combat-bar p, .stack-copy p, .thinking { color: #4a3523; }
+.combat-bar h3, .stack-copy h3 { font: italic 700 25px var(--f-display); color: var(--page-ink); }
+.eyebrow, .stack-copy .eyebrow { font: italic 600 15px var(--f-display); color: var(--wax); text-transform: none; letter-spacing: 0; }
+.combat-bar.danger { border-color: var(--wax); }
+.combat-bar button:not(.primary), .stack button:not(.primary) { background: #f6eedb; color: var(--page-ink); border-color: #a7895a; }
+.combat-bar kbd, .stack kbd { background: rgb(0 0 0 / 0.15); color: inherit; border-color: rgb(0 0 0 / 0.2); }
+#banner.floating, #banner { --bg: #24140f; }
+.banner-grip { color: var(--muted); }
+.cmd-ask .cc-copy p { color: #4a3523; }
+
+/* ---------- the setup screen: the book's opening pages ---------- */
+.deck-slot {
+  background: var(--grain), linear-gradient(180deg, #efe2c4, var(--page-2)); color: var(--page-ink);
+  border: 1px solid #a7895a; border-radius: 8px;
+  box-shadow: inset 0 0 0 5px rgb(255 250 235 / 0.3), inset 0 0 0 6px rgb(167 137 90 / 0.45), 0 14px 30px rgb(0 0 0 / 0.45);
+}
+.deck-slot label, .deck-slot .hint, .deck-slot small, .deck-slot p { color: #5a4330; }
+.slot-head h2 { font: italic 700 24px var(--f-display); color: var(--page-ink); }
+.slot-head .dot { box-shadow: 0 0 0 2px rgb(0 0 0 / 0.15); }
+.deck-slot button:not(.primary), .deck-slot select, .deck-slot input, .deck-slot textarea { background: #f8f1e0; color: var(--page-ink); border-color: #a7895a; }
+.deck-slot .seg button.on, .deck-slot .seg button[aria-pressed="true"] { background: #4a2d1f; color: #f4e4b8; }
+.setup-head h1, h1 { font-family: var(--f-display); font-style: italic; color: var(--brass); }
+.versus { font: italic 700 34px var(--f-display); color: var(--brass); }
+
+/* lining figures everywhere (Alegreya's default old-style figures make 0 look like o) */
+body, button, select, input { font-variant-numeric: lining-nums; }
+.deck-slot b, .deck-slot strong, .deck-slot .stat b, .deck-slot .n { color: var(--wax); }
+.deck-slot .mix b { color: var(--wax); }
+.deck-slot .cmd-names { color: #6b3a1c; }
+.deck-slot .mix { color: #6a5038; }
+/* Direction B: Grimoire — dark ink-black pages with gold rules; parchment only for prompts and setup */
+.field, .seat-field, #my-field, #opp-field {
+  background:
+    repeating-linear-gradient(180deg, transparent 0 46px, rgb(201 162 74 / 0.06) 46px 47px),
+    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 50%, rgb(0 0 0 / 0.45) 100%),
+    linear-gradient(180deg, #1f1714, #151010) !important;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px rgb(201 162 74 / 0.22), inset 0 0 0 6px transparent, inset 0 0 0 7px rgb(201 162 74 / 0.1);
+}
+.field::before { color: rgb(201 162 74 / 0.1); }
+.field .field-hint, .field .empty, .field em, .lane-empty { color: #8e7656; }
+.lane + .lane, .lane.others, .lane.lands { border-color: rgb(201 162 74 / 0.15) !important; }
+.seat.active .seat-field, #my-field.on-turn, #opp-field.on-turn {
+  background:
+    radial-gradient(ellipse 70% 80% at 50% 0%, rgb(212 171 85 / 0.16), transparent 70%),
+    repeating-linear-gradient(180deg, transparent 0 46px, rgb(201 162 74 / 0.06) 46px 47px),
+    linear-gradient(180deg, #241a16, #151010) !important;
+}
+.card { box-shadow: 0 0 0 1px rgb(201 162 74 / 0.25), 0 6px 14px rgb(0 0 0 / 0.6); }
+.card.noimg { background: linear-gradient(170deg, #2e221c, #201814); color: var(--ink); border-color: #5a3a26; }
+.card.noimg .ctype, .card.noimg .cora { color: var(--muted); }
+
+/* ===== Grimoire, going further ===== */
+* { font-variant-numeric: lining-nums !important; }
+
+/* pages: an illuminated border — gold corner flourishes on every page */
+.field::after {
+  content: ''; position: absolute; inset: 6px; z-index: -1; pointer-events: none;
+  --c: rgb(201 162 74 / 0.55); --l: 22px; --t: 2px;
+  background:
+    linear-gradient(var(--c), var(--c)) top left / var(--l) var(--t) no-repeat,
+    linear-gradient(var(--c), var(--c)) top left / var(--t) var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) top right / var(--l) var(--t) no-repeat,
+    linear-gradient(var(--c), var(--c)) top right / var(--t) var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom left / var(--l) var(--t) no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom left / var(--t) var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom right / var(--l) var(--t) no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom right / var(--t) var(--l) no-repeat;
+}
+/* each page is titled with its owner's name in faint gilt script */
+.field::before { font: italic 600 84px/1 var(--f-display); color: transparent; -webkit-text-stroke: 1px rgb(201 162 74 / 0.2); right: 24px; bottom: 10px; }
+#my-field::before { content: 'You'; }
+#opp-field::before { content: 'AI'; }
+.seat[data-seat="ai"] .seat-field::before { content: 'AI 1'; }
+.seat[data-seat="ai2"] .seat-field::before { content: 'AI 2'; }
+.seat[data-seat="ai3"] .seat-field::before { content: 'AI 3'; }
+.seat .seat-field::before { font-size: 64px; }
+/* the player on turn: candlelight and a gilt frame */
+.seat.active .seat-field, #my-field.on-turn, #opp-field.on-turn { box-shadow: inset 0 0 0 1px rgb(212 171 85 / 0.6), inset 0 0 40px rgb(212 171 85 / 0.12); }
+.seat.active .seat-field::after, #my-field.on-turn::after, #opp-field.on-turn::after { --c: var(--brass); --l: 34px; }
+
+/* the spine: a stitched seam between the opponents' pages and yours */
+#my-field, #my-panel { border-top: 0 !important; }
+.board #my-panel::before, .board #my-field.organized::before { }
+#pod-opps, #opp-panel, #opp-field { border-bottom: 3px solid #120a08 !important; box-shadow: inset 0 -1px 0 rgb(201 162 74 / 0.35); }
+
+/* covers: brass corner clasps on the leather panels */
+.panel, .seat-panel { position: relative; }
+.panel::after, .seat-panel::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  --k: rgb(201 162 74 / 0.75);
+  background:
+    linear-gradient(135deg, var(--k) 0 9px, transparent 9px) top left / 14px 14px no-repeat,
+    linear-gradient(225deg, var(--k) 0 9px, transparent 9px) top right / 14px 14px no-repeat,
+    linear-gradient(45deg, var(--k) 0 9px, transparent 9px) bottom left / 14px 14px no-repeat,
+    linear-gradient(315deg, var(--k) 0 9px, transparent 9px) bottom right / 14px 14px no-repeat;
+}
+
+/* commander tile: a glowing sigil */
+.pile.cmdtile .pile-face { border: 1px solid var(--brass) !important; box-shadow: 0 0 0 3px rgb(18 10 8 / 0.9), 0 0 0 4px rgb(201 162 74 / 0.45), 0 0 16px rgb(212 171 85 / 0.45); }
+
+/* life: a deeper, embossed seal */
+.life .lval { box-shadow: inset 0 0 0 3px rgb(0 0 0 / 0.18), inset 0 0 0 6px rgb(255 190 160 / 0.12), inset 0 0 0 9px rgb(0 0 0 / 0.08), 0 2px 0 #3d0f0a, 0 6px 10px rgb(0 0 0 / 0.55); }
+
+/* cards on the page: a thin gilt edge, and an arcane glow when you can act with them */
+.card:hover { box-shadow: 0 0 0 1px var(--brass), 0 0 18px rgb(212 171 85 / 0.45), 0 8px 16px rgb(0 0 0 / 0.6); }
+
+/* game log: a dark ruled page in the margin */
+.rail { background:
+  repeating-linear-gradient(180deg, transparent 0 27px, rgb(201 162 74 / 0.05) 27px 28px),
+  linear-gradient(180deg, #1f1714, #151010) !important; }
+#log li.turn { border-top: 1px solid rgb(201 162 74 / 0.2); margin-top: 6px; }
+
+/* prompts: a parchment slip pinned with a wax seal */
+.combat-bar, .stack, .thinking { position: relative; }
+.combat-bar::after, .stack::after {
+  content: ''; position: absolute; top: -9px; right: 14px; width: 26px; height: 26px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #c4473a, var(--wax) 55%, #5e1912);
+  box-shadow: inset 0 0 0 3px rgb(0 0 0 / 0.18), 0 2px 4px rgb(0 0 0 / 0.5);
+}
+.combat-bar.danger::after { background: radial-gradient(circle at 38% 32%, #e0574a, #a3261b 55%, #5e1912); }
+
+/* hand: the tray gets a stitched inner edge */
+.hand-wrap { box-shadow: inset 0 1px 0 rgb(201 162 74 / 0.3), inset 0 7px 0 -5px transparent; outline: 1px dashed rgb(201 162 74 / 0.22); outline-offset: -6px; }
+
+/* setup: each deck page is sealed in its player's colour */
+.slot-head { position: relative; }
+.slot-head .dot { width: 18px; height: 18px; box-shadow: inset 0 0 0 2px rgb(0 0 0 / 0.2), 0 1px 2px rgb(0 0 0 / 0.4); }
+
+/* ===== Grimoire, third pass ===== */
+/* setup fixes: each AI's seal in its own colour, sentence-case label, wax buttons stay wax on hover */
+.deck-slot[data-pid="ai"] .slot-head .dot { background: var(--ai); }
+.deck-slot[data-pid="ai2"] .slot-head .dot { background: var(--ai2); }
+.deck-slot[data-pid="ai3"] .slot-head .dot { background: var(--ai3); }
+.pod-lbl { font: italic 600 18px var(--f-display); text-transform: none; letter-spacing: 0; color: var(--brass); }
+button.primary:hover:not(:disabled) { background: linear-gradient(180deg, #b84535, #9a2e23); color: #fff3dc; }
+
+/* vellum: a faint grain on the dark pages so they don't read as flat */
+.field, .seat-field, #my-field, #opp-field {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .85 0 0 0 0 .7 0 0 0 0 .45 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(180deg, transparent 0 46px, rgb(201 162 74 / 0.05) 46px 47px),
+    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 50%, rgb(0 0 0 / 0.5) 100%),
+    linear-gradient(180deg, #1f1714, #151010) !important;
+}
+.seat.active .seat-field, #my-field.on-turn, #opp-field.on-turn {
+  background-image:
+    radial-gradient(ellipse 70% 80% at 50% 0%, rgb(212 171 85 / 0.16), transparent 70%),
+    repeating-linear-gradient(180deg, transparent 0 46px, rgb(201 162 74 / 0.05) 46px 47px),
+    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 50%, rgb(0 0 0 / 0.45) 100%),
+    linear-gradient(180deg, #241a16, #151010) !important;
+}
+
+/* the spine: gold stitching along the seam between the opponents' pages and yours */
+#my-field, #my-panel { border-top: 2px dashed rgb(201 162 74 / 0.35) !important; }
+
+/* titles and the turn tag */
+.brand::after { content: ' ❦'; font-style: normal; font-size: 0.7em; color: rgb(201 162 74 / 0.6); }
+.turn-tag { clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%); padding: 2px 8px 7px; }
+.steps li.past { color: #7a6448; text-decoration: line-through; text-decoration-color: rgb(201 162 74 / 0.35); }
+
+/* card preview: a gilt portrait frame */
+#preview img { border-radius: 10px; box-shadow: 0 0 0 2px #120a08, 0 0 0 3px rgb(201 162 74 / 0.7), 0 0 0 6px #2a1812, 0 0 0 7px rgb(201 162 74 / 0.35), 0 16px 30px rgb(0 0 0 / 0.6); }
+
+/* the drag grip on prompts: an ornamental rule */
+.banner-grip { background: none; padding-top: 4px; font: italic 600 13px var(--f-display); color: var(--muted); }
+.banner-grip::before { content: '— ❦ — '; color: rgb(201 162 74 / 0.6); font-style: normal; }
+.banner-grip::after { content: ' — ❦ —'; color: rgb(201 162 74 / 0.6); font-style: normal; }
+
+/* a defeated player's page: ink faded, struck from the book */
+.seat.out .seat-panel { filter: grayscale(0.7) brightness(0.8); }
+.seat.out .pname { text-decoration: line-through; text-decoration-color: var(--wax); text-decoration-thickness: 2px; }
+
+/* hand: cards rest on the stitched tray with a little shadow beneath */
+#hand .card { box-shadow: 0 0 0 1px rgb(201 162 74 / 0.25), 0 8px 14px rgb(0 0 0 / 0.55); }

@@ -1,10 +1,11 @@
 {
-  "version": "1.3.273",
+  "version": "1.3.274",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "77e5e8a93749b666f5024666ad622933efabf14f00d3c2743ec86781a404590e",
     "public/css/theme-broadcast.css": "8c27ca25187acee2d6dd15e74828b176cdb14e9eaf530c2c11c69abf51a80506",
-    "public/index.html": "abe82abe861598c1bb1ba77f2b74f674010f73957459bf141181b655507a53ab",
+    "public/css/theme-spellbook.css": "ead03f8a6a71ebff6e0441f8769cf0791ec646d0ea9a8a690cc8889b51e17d4b",
+    "public/index.html": "7f93ee181968930b5e6da6243ca8ff938dd203c5c962231eee9358bd47e26bd4",
     "public/js/ai.js": "ceba4f91e74f6918fd7b4aa2565a071a7fcc011c7b06eec2f5497ea9a448460e",
     "public/js/aicombat.js": "764e9bdb24e75f0ad8357c5a5429c4313ea46274f195c172f95fca2fbbc6815d",
     "public/js/cast.js": "045cbf736fce303d01a35c2f81a753df41fd7695ca4f5fa1d59d5800e805fcf4",
@@ -16,10 +17,10 @@
     "public/js/rules.js": "70c5d4a07e60ad9301b3387d1cead87037762522f48caa7fbfac093ae054c2bb",
     "public/js/state.js": "ceb2d7cc7b78102de59b3b1d75d32ae80fe3bbac016cd1d5b9bc7b4ef9da8164",
     "public/js/statics.js": "73256bf2917eaa1ba2a4d3f4de917aff85530f774af7243781c187e139a2cadd",
-    "public/js/theme.js": "96a01e6503551f3c6a24f7f610660c70eb0a1607e7ff0239735dab5cfdd14e1f",
+    "public/js/theme.js": "9e76bd42fbb97e89c8ed592fb51bf14cf5e7050d9231ade4b4cb085f907956ea",
     "public/js/triggers.js": "9a2ccc6117f6ff5c964a2ef3e3bf3bcc1455b9bc429eee7ac049cf062e70bd50",
     "public/js/ui.js": "feba532181d8214ab06ebcf924f35759ba940472fb3a4c20a279b3942938eec5",
     "public/js/voice.js": "4622a40593b7db7f8997e96207d0412fcbaa4fa4fe658247c91b3345de1dabe6",
-    "public/patch-notes.json": "ab9e208c0290467472cb9c852c21fddce06f8d88482755881a265e265797e20a"
+    "public/patch-notes.json": "935648eb20fe3704594feed132aef08d78a01e593b50e734c63f0483b87aa957"
   }
 }
