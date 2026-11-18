@@ -674,9 +674,9 @@ function turnHistoryCond(c, env) {
   if (/^a creature died under an opponent's control this turn$/.test(c)) return !!(((ts[them] || {}).diedTypes || []).length);
   if ((m = c.match(/^another ([a-z]+) died under your control this turn$/))) return (my.diedTypes || []).some((t) => new RegExp('\\b' + m[1], 'i').test(t));
   // sacrifices, discards, cycling
-  if (/^you sacrificed (?:a permanent|one or more permanents) this turn$/.test(c)) return (my.sacrificed || 0) > 0;
-  if ((m = c.match(/^you sacrificed (\w+) or more ([a-z]+?)s? this turn$/))) return (my.sacTypes || []).filter((t) => new RegExp('\\b' + m[2], 'i').test(t)).length >= n(m[1]);
-  if ((m = c.match(/^you sacrificed an? ([a-z]+) this turn$/))) return (my.sacTypes || []).some((t) => new RegExp('\\b' + m[1], 'i').test(t));
+  if (/^(?:you've|you have|you) sacrificed (?:a permanent|one or more permanents) this turn$/.test(c)) return (my.sacrificed || 0) > 0;
+  if ((m = c.match(/^(?:you've|you have|you) sacrificed (\w+) or more ([a-z]+?)s? this turn$/))) return (my.sacTypes || []).filter((t) => new RegExp('\\b' + m[2], 'i').test(t)).length >= n(m[1]);
+  if ((m = c.match(/^(?:you've|you have|you) sacrificed an? ([a-z]+) this turn$/))) return (my.sacTypes || []).some((t) => new RegExp('\\b' + m[1], 'i').test(t));
   if (/^you discarded a card this turn$/.test(c)) return (my.discarded || []).length > 0;
   if (/^an opponent discarded a card this turn$/.test(c)) return ((ts[them] || {}).discarded || []).length > 0;
   if (/^a player discarded a card this turn$/.test(c)) return seats().some((k) => ((ts[k] || {}).discarded || []).length > 0);

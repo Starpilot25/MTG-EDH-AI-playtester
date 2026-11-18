@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.267",
+    "title": "Detective's Satchel",
+    "notes": [
+      "Detective's Satchel's Thopter ability can only be activated if you've sacrificed an artifact this turn (a Clue counts). Before, the condition wasn't understood, so you could always activate it. Same fix for other \"if you've sacrificed …\" conditions."
+    ]
+  },
+  {
     "version": "1.3.266",
     "title": "Anthem amount badge",
     "notes": [
