@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.271",
+    "title": "Fractured Powerstone",
+    "notes": [
+      "Fractured Powerstone's \"Roll the planar die\" ability is now recognized. As its official ruling says, it has no effect outside Planechase: activating it taps the Powerstone and logs the roll. Before, the game didn't understand the text. Its mana ability works as before."
+    ]
+  },
+  {
     "version": "1.3.270",
     "title": "Tataru Taru",
     "notes": [

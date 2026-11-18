@@ -3857,6 +3857,11 @@ on(/^each of that player's opponents may draw a card$/, async (m, env) => {
   }
   env.did.push(got.length ? `${got.map(seatName).join(', ')} draw${got.length === 1 ? 's' : ''} a card` : 'no one draws');
 }, { first: true });
+// Fractured Powerstone: "Roll the planar die." There are no planes here, and the card's ruling says it does
+// nothing outside Planechase: the ability can still be activated (taps it), it just has no effect.
+on(/^roll the planar die$/, async (m, env) => {
+  env.did.push('rolls the planar die (no effect outside Planechase)');
+}, { first: true });
 // Tataru Taru: "you draw a card and target opponent may draw a card"
 on(/^you draw a card and target opponent may draw a card$/, async (m, env) => {
   draw(env.me, 1, true);
