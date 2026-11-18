@@ -8610,6 +8610,18 @@ on(/^(?:until end of turn, )?(target creature|it|that creature|enchanted creatur
   }
   env.did.push(`${objs.map(nameTag).join(', ')} becomes a ${m[2] || ''}${m[3]} ${m[4]}/${m[5]} with no abilities${eot ? ' until end of turn' : ''}`);
 }, { first: true });
+// Vedalken Humiliator: "creatures your opponents control lose all abilities and have base power and toughness 1/1 until end of turn"
+// (the creatures they control as it resolves; counters and pumps still apply on top)
+on(/^(?:until end of turn, )?(creatures your opponents control|all other creatures|all creatures|creatures target (?:player|opponent) controls) lose all abilities and have base power and toughness (\d+)\/(\d+)( until end of turn)?$/, async (m, env) => {
+  let objs;
+  if (/^creatures your opponents control/.test(m[1])) objs = opponents(env.me).filter(inGame).flatMap((o) => cardsIn(o, 'battlefield'));
+  else if (/target/.test(m[1])) { const [t] = await playerTarget(env, /opponent/.test(m[1]) ? 'target opponent' : 'target player'); objs = t ? cardsIn(t, 'battlefield') : []; }
+  else objs = allBf().filter((c) => !/other/.test(m[1]) || !env.src || c.iid !== env.src.iid);
+  objs = objs.filter(isCreature);
+  const eot = !!m[4] || /^until end of turn/.test(env.sentence || '');
+  for (const c of objs) addLayerFx(c, { until: eot ? 'eot' : true, loseAll: true, base: { p: +m[2], t: +m[3] } });
+  env.did.push(`${objs.length} creature${objs.length === 1 ? '' : 's'} lose all abilities and become ${m[2]}/${m[3]}${eot ? ' until end of turn' : ''}`);
+}, { first: true });
 // Ovinize: "Until end of turn, target creature loses all abilities and has base power and toughness 0/1."
 on(/^(?:until end of turn, )?(target creature|it|that creature) loses all abilities and has base power and toughness (\d+)\/(\d+)( until end of turn)?$/, async (m, env) => {
   const objs = await objects(env, m[1], { harm: true });
