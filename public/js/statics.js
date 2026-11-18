@@ -709,6 +709,11 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
         && (!dm[3] || (dm[3] === 'your opponents' ? x.controller !== pid : x.controller === pid))).length;
     }
   }
+  // Converge (Crystalline Crawler): "color of mana spent to cast it"
+  if (/^colou?rs? of mana spent to cast (?:it|~|this (?:spell|creature|card))$/.test(p) && G.s) {
+    const c = srcIid && G.s.cards[srcIid];
+    return c ? c.colorsSpent || 0 : 0;
+  }
   // Commander's Insignia, Jeska: "time you've cast your commander (a commander) from the command zone this game"
   if (/^times? you've cast (?:your|a) commanders? from the command zone this game$/.test(p) && G.s) {
     return Object.values(G.s.players[pid].tax || {}).reduce((a, b) => a + (b || 0), 0);
@@ -926,6 +931,14 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   if (/^(?:instant and sorcery|instant or sorcery) cards in your graveyard/.test(p)) return gy(pid).filter((c) => /Instant|Sorcery/.test(DB[c.def].typeLine)).length;
   if (/^land cards in your graveyard/.test(p)) return gy(pid).filter((c) => /Land/.test(DB[c.def].typeLine)).length;
   if (/^cards? in your graveyard/.test(p)) return gy(pid).length;
+  // Diregraf Colossus: "Zombie card in your graveyard" (after the plural fix-up: "zombie cards in your graveyard")
+  {
+    const tm = p.match(/^([a-z-]+) cards in your graveyard$/);
+    if (tm && G.s && !/^(?:creature|land|artifact|enchantment|instant|sorcery|planeswalker|battle|legendary|nonland|noncreature)$/.test(tm[1])) {
+      const re = new RegExp('\\b' + tm[1] + 's?\\b', 'i');
+      return gy(pid).filter((c) => re.test((DB[c.def].faces[c.face || 0] || DB[c.def].faces[0]).typeLine || '')).length;
+    }
+  }
   if (/^card types among cards in (?:your|all) graveyards?/.test(p)) {
     const types = new Set();
     for (const c of /all/.test(p) ? seats().flatMap(gy) : gy(pid))

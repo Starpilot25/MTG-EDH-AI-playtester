@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.263",
+    "title": "Diregraf Colossus, converge and sunburst",
+    "notes": [
+      "Diregraf Colossus enters with a +1/+1 counter for each Zombie card in your graveyard. Before, it always got one. Other \"for each <creature type> card in your graveyard\" counts work the same way.",
+      "Converge and sunburst (Crystalline Crawler and others) now count the colors of mana actually spent. Before, they counted the colors in the mana cost, so Crystalline Crawler ({4}) never got a counter. Lands and other sources that can make several colors are counted in the way that gives the most colors. A spell cast without paying its mana cost counts 0."
+    ]
+  },
+  {
     "version": "1.3.262",
     "title": "Sharper card art, no animations",
     "notes": [

@@ -117,6 +117,26 @@ export function manaLifeGain(c) {
   return m ? +m[1] : 0;
 }
 // Tap / sacrifice / exile what paid for a cost.
+// How many different colors of mana paid for a spell: its colored pips are paid in their colors; the other payers
+// each made one of the colors they can make, chosen to add as many new colors as possible (the player picks).
+function colorsSpentBy(manaCost, payerOptions) {
+  const pips = (manaCost.match(/\{([^}]+)\}/g) || []).map((x) => x.slice(1, -1));
+  const fixed = new Set();
+  let colored = 0;
+  for (const p of pips) {
+    const cs = p.split('/').filter((x) => /^[WUBRG]$/.test(x));
+    if (cs.length === 1 && !/\d/.test(p)) { fixed.add(cs[0]); colored++; }
+  }
+  const free = payerOptions.slice(colored).map((o) => o.filter((x) => /^[WUBRG]$/.test(x) && !fixed.has(x)));
+  // greedy matching: colors with the fewest sources get a payer first
+  const got = new Set();
+  const left = free.map((o, i) => ({ o, i }));
+  for (const col of ['W', 'U', 'B', 'R', 'G'].filter((x) => !fixed.has(x)).sort((a, b) => free.filter((o) => o.includes(a)).length - free.filter((o) => o.includes(b)).length)) {
+    const k = left.findIndex((x) => x.o.includes(col));
+    if (k >= 0) { got.add(col); left.splice(k, 1); }
+  }
+  return fixed.size + got.size;
+}
 export function applyPayment(pid, pay) {
   if (!pay) return;
   if (pay.phyLife) {
@@ -124,6 +144,13 @@ export function applyPayment(pid, pay) {
     log(pid, `${pid === 'p' ? 'You pay' : 'The AI pays'} ${pay.phyLife} life for Phyrexian mana.`);
   }
   // Jeweled Amulet: remember what kind of mana paid for this
+  // every color each paying source could have made, for converge / sunburst ("for each color of mana spent to cast it")
+  try {
+    G.s.lastPayOptions = (pay.payers || []).map((iid) => {
+      if (String(iid).startsWith('pool:')) { const m = ((G.s.pool || {})[pid] || [])[+String(iid).slice(5)]; const k = typeof m === 'string' ? m : (m && (m.color || m.c)) || ''; return k === 'ANY' ? ['W', 'U', 'B', 'R', 'G'] : [k]; }
+      return ((manaAbility(card(iid)) || { colors: [] }).colors || []).map((x) => (x === 'ANY' ? ['W', 'U', 'B', 'R', 'G'] : [x])).flat();
+    });
+  } catch (e) { G.s.lastPayOptions = []; }
   try { G.s.lastPayColors = (pay.payers || []).map((iid) => (String(iid).startsWith('pool:') ? ((G.s.pool || {})[pid] || [])[+String(iid).slice(5)] : ((manaAbility(card(iid)) || { colors: [] }).colors || [])[0])).filter(Boolean); } catch (e) { G.s.lastPayColors = []; }
   const usedPool = [];
   for (const iid of new Set(pay.payers || [])) {
@@ -1074,7 +1101,7 @@ export async function castSpell(pid, iid, opt, env) {
   if (opt.mode === 'handPermit') s.handPermit = { ...(s.handPermit || {}), [opt.permitSrc]: s.turn };
   Object.assign(c, { castMode: opt.mode === 'normal' ? null : opt.mode, kicked: info.kicked, xPaid: info.x, castFrom: fromZone, castFace: fIdx, bargained: !!info.bargained });
   if (fromZone === 'library' && !opt.copy) await fourthDoctorUsed(pid, c);
-  c.colorsSpent = new Set((f.manaCost || '').match(/[WUBRG]/g) || []).size;
+  c.colorsSpent = env.free || opt.free ? 0 : colorsSpentBy(f.manaCost || '', G.s.lastPayOptions || []);
   const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse|gyPermit|coram|freecast)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode === 'handPermit' ? `free, ${card(opt.permitSrc) ? cardName(card(opt.permitSrc)) : 'permission'}` : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
   log(pid, tag);
   const stackSlot = pid === 'p' && s.stack ? 'pstack' : pid === 'p' ? 'pstack' : 'stack';
