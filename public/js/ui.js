@@ -198,6 +198,18 @@ function cardHTML(c, opts = {}) {
       badges.push(`<span class="badge ring" title="${esc(tip)}">💍 ${rl}/4</span>`);
     }
   }
+  // Commander's Insignia and other "creatures you control get +1/+1 for each …" anthems: show the bonus they give right now
+  if (c.zone === 'battlefield' && !c.faceDown && G.countPhraseHook) {
+    const am = oracle(c).match(/\b([A-Za-z ,'-]+?) (?:you control )?gets? \+(\d+)\/\+(\d+) for each ([^.\n]+)/);
+    if (am && !/^(?:~|this creature|it|enchanted creature|equipped creature)$/i.test(am[1].trim()) && !new RegExp('^' + cardName(c).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i').test(am[1].trim())) {
+      let n = null;
+      try { n = G.countPhraseHook(c.controller, am[4].trim().toLowerCase(), c.iid); } catch (e) { n = null; }
+      if (typeof n === 'number') {
+        const bp = n * +am[2], bt = n * +am[3];
+        badges.push(`<span class="badge plus" title="${esc(am[1].trim() + (/ you control gets? \+/.test(am[0]) ? ' you control' : ''))} get +${bp}/+${bt} right now (${n} × ${esc(am[4].trim())})">+${bp}/+${bt}</span>`);
+      }
+    }
+  }
   // Nyx Lotus, Theros gods, Karametra's Acolyte…: show the controller's current devotion
   if (c.zone === 'battlefield' && !c.faceDown && /devotion to/i.test(oracle(c))) {
     const o = oracle(c).toLowerCase();

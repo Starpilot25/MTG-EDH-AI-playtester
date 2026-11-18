@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.266",
+    "title": "Anthem amount badge",
+    "notes": [
+      "Commander's Insignia and other \"creatures you control get +1/+1 for each …\" permanents now show a badge with the bonus they're giving right now (for example +2/+2 after two command-zone casts). Hover it to see what's being counted."
+    ]
+  },
+  {
     "version": "1.3.265",
     "title": "Commander prompt you can't miss; no scrollbars on the board",
     "notes": [
