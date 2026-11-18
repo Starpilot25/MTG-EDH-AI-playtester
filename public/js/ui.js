@@ -1,6 +1,21 @@
 // The tabletop: rendering, drag and drop, menus, dialogs and shortcuts.
 import { applyTheme, themeDoc, decorate } from './theme.js';
-import { DB, searchTokens, imageHooks } from './data.js';
+import { DB, searchTokens, imageHooks, forgetCachedCard } from './data.js';
+// A card picture that doesn't load (the saved address went stale, e.g. Scryfall replaced the scan): try once more through
+// Scryfall's by-name image link, and forget the saved card so the next deck load picks up the current picture.
+window.cardImgError = (img) => {
+  const name = img.getAttribute('alt') || '';
+  if (!img.dataset.retried && name && name !== 'Face-down') {
+    img.dataset.retried = '1';
+    img.removeAttribute('srcset');
+    const big = /\/large\//.test(img.getAttribute('src') || '');
+    img.src = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name.split(' // ')[0])}&format=image&version=${big ? 'large' : 'normal'}`;
+    try { forgetCachedCard(name); } catch (e) { /* storage blocked */ }
+    return;
+  }
+  if (img.parentNode) img.parentNode.classList.add('noimg');
+  img.remove();
+};
 import {
   hasSubtype, isLand, isCreature, isType, power, toughness, basePT, oracle, isPermanentCard, canBlock, canAttack, mustAttack, hasKw, face, payCostKeep, keywordChanges, abilitiesGone,
 } from './rules.js';
@@ -130,7 +145,7 @@ function cardHTML(c, opts = {}) {
   if (pendingTarget && pendingTarget.req.src && pendingTarget.req.src.iid === c.iid) cls.push('source');
   const style = opts.abs ? `style="left:${c.x}px;top:${c.y}px"` : '';
   let inner = src && !opts.textOnly
-    ? `<img src="${src}"${srcset(src)} alt="${esc(f.name)}" draggable="false" loading="lazy" onerror="this.parentNode.classList.add('noimg');this.remove()">`
+    ? `<img src="${src}"${srcset(src)} alt="${esc(f.name)}" draggable="false" loading="lazy" onerror="cardImgError(this)">`
     : '';
   const typeShort = (f.typeLine || '').replace(/^Legendary /, '');
   inner += `<div class="ctext"><div class="ctop"><b>${esc(c.faceDown ? 'Face-down' : f.name)}</b><span>${c.faceDown ? '' : manaSymbols(f.manaCost)}</span></div><div class="ctype">${esc(c.faceDown ? '' : typeShort)}</div><div class="cora">${esc(c.faceDown ? '' : (f.oracle || '').slice(0, 160))}</div></div>`;
@@ -1385,7 +1400,7 @@ function renderPreview() {
     extras.push(`<span>P/T <b>${power(c)}/${toughness(c)}</b>${c.damage ? ` · ${c.damage} damage` : ''}</span>`);
   }
   if (c && c.attachedTo && card(c.attachedTo)) extras.push(`<span>Attached to ${esc(cardName(card(c.attachedTo)))}</span>`);
-  el.innerHTML = `${src ? `<img src="${src}" alt="${esc(f.name)}">` : ''}
+  el.innerHTML = `${src ? `<img src="${src}" alt="${esc(f.name)}" onerror="cardImgError(this)">` : ''}
     <div class="pv-text">
       <div class="pv-head"><b>${esc(f.name)}</b><span>${manaSymbols(f.manaCost)}</span></div>
       <div class="pv-type">${esc(f.typeLine)}</div>

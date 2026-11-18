@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.283",
+    "title": "Card pictures that stopped loading",
+    "notes": [
+      "When a card's picture doesn't load (for example Utter End, whose scan Scryfall replaced), the app now tries again through Scryfall's link for that card's current picture. It also forgets the saved copy of that card, so the next deck load gets fresh data. Before, a card stayed picture-less for good once its saved image address went stale."
+    ]
+  },
+  {
     "version": "1.3.282",
     "title": "Vedalken Humiliator",
     "notes": [

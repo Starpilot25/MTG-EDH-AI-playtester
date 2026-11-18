@@ -164,6 +164,17 @@ const storeSave = () => {
     }
   }
 };
+// A saved card whose picture no longer loads (Scryfall replaced the image): forget it, so the next deck load asks again
+export function forgetCachedCard(name) {
+  const st = store();
+  const nm = String(name || '').toLowerCase();
+  let gone = 0;
+  for (const k of Object.keys(st)) {
+    const c = st[k] && st[k].c;
+    if (k === 'n:' + nm || (c && String(c.name || '').toLowerCase().split(' // ')[0] === nm.split(' // ')[0])) { delete st[k]; gone++; }
+  }
+  if (gone) storeSave();
+}
 const identKey = (x) => (x.id ? 'id:' + x.id : x.set && x.collector_number ? `sc:${x.set}/${x.collector_number}`.toLowerCase() : 'n:' + String(x.name || '').toLowerCase());
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 export const loadStats = { cached: 0, fetched: 0, ms: 0 };
