@@ -15227,6 +15227,13 @@ on(/^each opponent chooses money, friends, or secrets\. for each player who chos
     env.did.push(`${who(o)} ${s_(o, 'choose')} ${['money', 'friends', 'secrets'][k] || 'secrets'}`);
   }
 }, { first: true, multi: true });
+// Sephiroth, Fallen Hero: "Until end of turn, each modified creature you control has base power and toughness 7/5."
+// (the creatures that are modified as it resolves; counters on them still apply on top)
+on(/^until end of turn, each modified creature you control has base power and toughness (\d+)\/(\d+)$/, async (m, env) => {
+  const objs = cardsIn(env.me, 'battlefield').filter((c) => isCreature(c) && isModified(c));
+  for (const c of objs) addLayerFx(c, { until: 'eot', base: { p: +m[1], t: +m[2] } });
+  env.did.push(`${objs.length} modified creature${objs.length === 1 ? '' : 's'} ${objs.length === 1 ? 'has' : 'have'} base power and toughness ${m[1]}/${m[2]} until end of turn`);
+}, { first: true });
 // Mirror-Style Master
 on(/^for each attacking modified creature you control, create a tapped and attacking token that's a copy of that creature\. exile those tokens at end of combat$/, async (m, env) => {
   const cb = G.s.combat;

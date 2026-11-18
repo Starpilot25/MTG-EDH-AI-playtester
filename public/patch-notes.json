@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.279",
+    "title": "Sephiroth, Fallen Hero",
+    "notes": [
+      "Sephiroth's attack trigger now gives each modified creature you control base power and toughness 7/5 until end of turn (counters still add on top, so a creature with a +1/+1 counter is 8/6). Before, the 7/5 was applied to Sephiroth itself instead."
+    ]
+  },
+  {
     "version": "1.3.278",
     "title": "Spellbook: no ruled lines on the battlefield",
     "notes": [
