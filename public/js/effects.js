@@ -9384,6 +9384,13 @@ on(/^return all creatures that aren't of the chosen type to their owners' hands$
   for (const c of objs) move(c.iid, 'hand');
   env.did.push(`returns ${objs.length} creature${objs.length === 1 ? '' : 's'} that aren't ${t || 'the chosen type'} to their owners' hands`);
 }, { first: true });
+// Kindred Judgment, Kindred Dominance: "Destroy all creatures that aren't of the chosen type." (also exile)
+on(/^(destroy|exile) all creatures that aren't of the chosen type$/, async (m, env) => {
+  const t = env.chosen || (env.src && env.src.chosen);
+  const objs = allBf().filter((c) => isCreature(c) && !(t && hasSubtype(c, t)));
+  for (const c of objs) (m[1] === 'exile' ? move(c.iid, 'exile') : destroy(c.iid));
+  env.did.push(`${m[1] === 'exile' ? 'exiles' : 'destroys'} ${objs.length} creature${objs.length === 1 ? '' : 's'} that aren't ${t || 'the chosen type'}`);
+}, { first: true });
 // Where Ancients Tread: "you may have ~ deal 5 damage to any target"
 on(/^have ~ deal (\d+|x) damage to (.+)$/, async (m, env) => runSentence(`~ deals ${m[1]} damage to ${m[2]}`, env), { first: true });
 // Well of Lost Dreams: "you may pay {X}, where X is less than or equal to the amount of life you gained. If you do, draw X cards."

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.273",
+    "title": "Kindred Judgment",
+    "notes": [
+      "Kindred Judgment (and Kindred Dominance) now spare creatures of the chosen type. Before, the type was chosen but every creature was destroyed anyway."
+    ]
+  },
+  {
     "version": "1.3.272",
     "title": "Move the prompts wherever you like",
     "notes": [
