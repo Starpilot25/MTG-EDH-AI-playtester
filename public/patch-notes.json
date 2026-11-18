@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.272",
+    "title": "Move the prompts wherever you like",
+    "notes": [
+      "Prompts now have a dotted grip at the top: drag it to move the prompts anywhere on screen. They stay where you put them, even after restarting. Double-click the grip to put them back in the right column."
+    ]
+  },
+  {
     "version": "1.3.271",
     "title": "Fractured Powerstone",
     "notes": [

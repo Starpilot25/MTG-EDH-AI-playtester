@@ -1178,6 +1178,71 @@ function renderHand() {
   $('#hand-count').textContent = hand.length;
 }
 
+// where you've dragged the prompts to ({x, y} in the window), or null for their usual place
+let bannerPos = (() => {
+  try {
+    const v = JSON.parse(localStorage.getItem('edhpt:bannerPos'));
+    return v && Number.isFinite(v.x) && Number.isFinite(v.y) ? v : null;
+  } catch (e) {
+    return null;
+  }
+})();
+function saveBannerPos() {
+  try {
+    if (bannerPos) localStorage.setItem('edhpt:bannerPos', JSON.stringify(bannerPos));
+    else localStorage.removeItem('edhpt:bannerPos');
+  } catch (e) { /* private mode: it just won't be remembered */ }
+}
+function placeBanner(el) {
+  el.classList.toggle('floating', !!bannerPos);
+  if (!bannerPos) {
+    el.style.left = el.style.top = '';
+    return;
+  }
+  // keep at least the grip inside the window
+  const w = el.offsetWidth || 300;
+  const x = Math.min(Math.max(0, bannerPos.x), window.innerWidth - Math.min(w, 120));
+  const y = Math.min(Math.max(0, bannerPos.y), window.innerHeight - 40);
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+}
+function bindBannerDrag() {
+  document.addEventListener('pointerdown', (e) => {
+    const grip = e.target.closest && e.target.closest('#banner .banner-grip');
+    if (!grip || e.button !== 0) return;
+    e.preventDefault();
+    const el = document.getElementById('banner');
+    const r = el.getBoundingClientRect();
+    const dx = e.clientX - r.left, dy = e.clientY - r.top;
+    document.body.classList.add('banner-dragging');
+    const moveTo = (ev) => {
+      bannerPos = { x: Math.round(ev.clientX - dx), y: Math.round(ev.clientY - dy) };
+      placeBanner(el);
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', moveTo);
+      document.removeEventListener('pointerup', up);
+      document.body.classList.remove('banner-dragging');
+      saveBannerPos();
+      const g = el.querySelector('.banner-grip');
+      if (g && bannerPos) g.textContent = 'Double-click to put back';
+    };
+    document.addEventListener('pointermove', moveTo);
+    document.addEventListener('pointerup', up);
+  });
+  document.addEventListener('dblclick', (e) => {
+    if (!(e.target.closest && e.target.closest('#banner .banner-grip'))) return;
+    bannerPos = null;
+    saveBannerPos();
+    const el = document.getElementById('banner');
+    placeBanner(el);
+    const g = el.querySelector('.banner-grip');
+    if (g) g.textContent = 'Drag to move';
+  });
+  window.addEventListener('resize', () => placeBanner(document.getElementById('banner')));
+}
+bindBannerDrag();
+
 function renderBanner() {
   const s = G.s;
   const el = $('#banner');
@@ -1277,12 +1342,14 @@ function renderBanner() {
   }
   // a commander choice goes on top of whatever else is showing (except game over or picking a target)
   if (!over && !pendingTarget) html = commanderChoice() + html;
+  // a grip on top lets you drag the prompt anywhere (double-click it to put it back)
+  if (html) html = `<div class="banner-grip" title="Drag to move these prompts anywhere. Double-click to put them back.">${bannerPos ? 'Double-click to put back' : 'Drag to move'}</div>` + html;
   el.innerHTML = html;
   el.hidden = !html;
-  // leave room at the middle seam for the banner, so it doesn't sit on top of the creatures
   const on = !!html;
-  // wide screens dock it in the right column (style.css); narrow screens float it over the table
+  // wide screens dock it in the right column (style.css), narrow screens float it over the table, unless you've moved it
   el.style.top = '';
+  placeBanner(el);
   const padChanged = false;
   if (document.body.classList.contains('banner-on') !== on || padChanged) {
     document.body.classList.toggle('banner-on', on);
