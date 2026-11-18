@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.268",
+    "title": "Prompts moved to the right column",
+    "notes": [
+      "Prompts (declaring attackers, blocking, spells being cast, your commander leaving play) now appear at the top of the right-hand column instead of floating over the middle of the table, so they no longer cover your creatures. The card preview comes back as soon as the prompt is gone. On narrow windows they still float over the table."
+    ]
+  },
+  {
     "version": "1.3.267",
     "title": "Detective's Satchel",
     "notes": [

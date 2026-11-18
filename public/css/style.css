@@ -497,6 +497,26 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   padding: 0 16px;
 }
 #banner > * { pointer-events: auto; }
+/* wide screens: prompts dock at the top of the right column (over the card preview), so nothing on the table is covered */
+@media (min-width: 1101px) {
+  #banner {
+    left: auto; right: 0; width: 300px; top: 0; padding: 10px;
+    flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 8px;
+    max-height: 78%; overflow-y: auto; scrollbar-width: none;
+    background: var(--bg); border-left: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    box-shadow: 0 12px 24px rgb(0 0 0 / 0.45);
+  }
+  #banner::-webkit-scrollbar { display: none; }
+  #banner > * { max-width: none; width: auto; }
+  #banner > .combat-bar + * { margin-top: 0; }
+  #banner .stack { flex-direction: column; align-items: stretch; transform: none; }
+  #banner .stack-card { align-self: center; }
+  #banner .stack-card .card { --cw: 128px; --ch: 179px; }
+  #banner .combat-bar p { flex-basis: 100%; }
+  #banner .cmd-ask .card { --cw: 52px; --ch: 72px; }
+  #banner .cmd-ask h3 { font-size: 19px; }
+  #banner .combat-bar h3, #banner .stack-copy h3 { font-size: 22px; }
+}
 .combat-bar, .stack, .thinking {
   background: rgb(19 33 29 / 0.97);
   border: 1px solid var(--brass);

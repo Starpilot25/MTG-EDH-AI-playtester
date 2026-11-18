@@ -1281,10 +1281,8 @@ function renderBanner() {
   el.hidden = !html;
   // leave room at the middle seam for the banner, so it doesn't sit on top of the creatures
   const on = !!html;
-  // pods: centred over the seam between the opponents and your board (as in 1v1); nothing on the table resizes
-  const wrap = document.getElementById('pod-opps');
-  if (multiplayer() && wrap && !wrap.hidden && window.innerWidth > 1100) el.style.top = `${wrap.offsetTop + wrap.offsetHeight - 40}px`;
-  else el.style.top = '';
+  // wide screens dock it in the right column (style.css); narrow screens float it over the table
+  el.style.top = '';
   const padChanged = false;
   if (document.body.classList.contains('banner-on') !== on || padChanged) {
     document.body.classList.toggle('banner-on', on);
