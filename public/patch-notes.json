@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.276",
+    "title": "Arcade: no scanlines",
+    "notes": [
+      "The Arcade look no longer draws faint scanlines over the screen, so card text is easier to read."
+    ]
+  },
+  {
     "version": "1.3.275",
     "title": "New look: Arcade",
     "notes": [

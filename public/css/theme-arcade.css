@@ -1,5 +1,5 @@
 /* Arcade theme: loaded on top of style.css (the Classic look). An 80s neon cabinet: glowing tubes,
-   a synthwave grid floor under every play area, scoreboard digits and faint scanlines. */
+   a glow along the top of every play area and scoreboard digits. */
 @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@400;500;600;700&family=Press+Start+2P&display=swap');
 
 :root {
@@ -16,8 +16,6 @@
 .seat[data-seat="ai3"], .deck-slot[data-pid="ai3"] { --seat: var(--ai3); }
 
 body { background: #07040f; font-family: var(--f-body); }
-/* faint CRT scanlines over everything */
-body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(180deg, rgb(0 0 0 / 0.09) 0 1px, transparent 1px 3px); }
 
 /* ---------- play areas ---------- */
 .board { background: radial-gradient(ellipse 80% 60% at 50% 0%, #1d0f3d, #07040f 70%); }
