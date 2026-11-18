@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.264",
+    "title": "Selvala, Heart of the Wilds",
+    "notes": [
+      "Selvala's draw now checks its condition: the creature that entered has to have more power than every other creature on the battlefield (a tie isn't enough). Before, any creature entering let its controller draw."
+    ]
+  },
+  {
     "version": "1.3.263",
     "title": "Diregraf Colossus, converge and sunburst",
     "notes": [

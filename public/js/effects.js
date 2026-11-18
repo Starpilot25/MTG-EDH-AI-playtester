@@ -854,6 +854,14 @@ export function evalCond(cond, env) {
   const s = G.s;
   const ts = s.ts || { p: {}, ai: {} };
   let m;
+  // Selvala, Heart of the Wilds: "if its power is greater than each other creature's power" (the creature that entered)
+  if (/^its power is greater than each other creature's power$/.test(c)) {
+    const ev = env.event || {};
+    const t = (ev.iid && card(ev.iid)) || (env.it && card(env.it.iid || env.it));
+    if (!t || t.zone !== 'battlefield') return null;
+    const p = power(t);
+    return seats().every((w) => cardsIn(w, 'battlefield').every((x) => x.iid === t.iid || !isCreature(x) || power(x) < p));
+  }
   // Pelt Collector: "if that creature's power is greater than ~'s" (the creature that entered or died)
   if ((m = c.match(/^that creature's power is greater than ~'s$/))) {
     const ev = env.event || {};
