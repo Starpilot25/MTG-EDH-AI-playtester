@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.275",
+    "title": "New look: Arcade",
+    "notes": [
+      "A fourth look to choose under Look in settings: Arcade, an 80s neon cabinet. Play areas glow in each player's neon colour, life totals are LED scoreboards, poison and commander damage are segmented health bars, turn steps have little LEDs, and faint scanlines run over the screen.",
+      "Broadcast stays the default; Spellbook and Classic are still there too."
+    ]
+  },
+  {
     "version": "1.3.274",
     "title": "New look: Spellbook",
     "notes": [

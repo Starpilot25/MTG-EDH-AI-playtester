@@ -1,0 +1,207 @@
+/* Arcade theme: loaded on top of style.css (the Classic look). An 80s neon cabinet: glowing tubes,
+   a synthwave grid floor under every play area, scoreboard digits and faint scanlines. */
+@import url('https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@400;500;600;700&family=Press+Start+2P&display=swap');
+
+:root {
+  --bg: #07040f; --felt: #110a22; --felt-2: #170e2e; --felt-3: #20143f; --line: #3a2470;
+  --ink: #efe9ff; --muted: #a497cc; --brass: #ffe14d; --brass-ink: #1a1200;
+  --you: #22e4ff; --ai: #ff3d8b; --ai2: #b26bff; --ai3: #6dff6a; --danger: #ff3d6e; --ok: #39ff88;
+  --pink: #ff2bd6; --cyan: #22e4ff; --yellow: #ffe14d;
+  --f-display: 'Bungee', 'Arial Black', sans-serif; --f-body: 'Chakra Petch', system-ui, sans-serif; --f-pixel: 'Press Start 2P', monospace;
+  --plate: #efe9ff; --plate-ink: #07040f;
+}
+#my-panel, #my-field, .deck-slot[data-pid="p"] { --seat: var(--you); }
+.seat[data-seat="ai"], #opp-panel, #opp-field, .deck-slot[data-pid="ai"] { --seat: var(--ai); }
+.seat[data-seat="ai2"], .deck-slot[data-pid="ai2"] { --seat: var(--ai2); }
+.seat[data-seat="ai3"], .deck-slot[data-pid="ai3"] { --seat: var(--ai3); }
+
+body { background: #07040f; font-family: var(--f-body); }
+/* faint CRT scanlines over everything */
+body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(180deg, rgb(0 0 0 / 0.09) 0 1px, transparent 1px 3px); }
+
+/* ---------- play areas ---------- */
+.board { background: radial-gradient(ellipse 80% 60% at 50% 0%, #1d0f3d, #07040f 70%); }
+.field, .seat-field, #my-field, #opp-field {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--seat, var(--pink)) 16%, transparent) 0%, transparent 28%),
+    linear-gradient(180deg, #0d0720, #07040f) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--seat, var(--pink)) 55%, transparent), inset 0 0 22px color-mix(in srgb, var(--seat, var(--pink)) 22%, transparent);
+}
+.field .field-hint, .field .empty, .field em { color: var(--muted); }
+/* the player name, big in the corner like a cabinet marquee */
+.field { isolation: isolate; }
+.field::before {
+  position: absolute; right: 16px; bottom: 6px; z-index: -1; pointer-events: none; white-space: nowrap;
+  font: 64px/1 var(--f-display); color: transparent; -webkit-text-stroke: 1px color-mix(in srgb, var(--seat, var(--pink)) 40%, transparent);
+}
+#my-field::before { content: 'P1'; }
+#opp-field::before { content: 'CPU'; }
+.seat[data-seat="ai"] .seat-field::before { content: 'CPU 1'; }
+.seat[data-seat="ai2"] .seat-field::before { content: 'CPU 2'; }
+.seat[data-seat="ai3"] .seat-field::before { content: 'CPU 3'; }
+.seat .seat-field::before { font-size: 48px; }
+/* the player on turn: their tubes light up fully */
+.seat.active .seat-field, #my-field.on-turn, #opp-field.on-turn {
+  box-shadow: inset 0 0 0 2px var(--seat), inset 0 0 34px color-mix(in srgb, var(--seat) 38%, transparent), 0 0 18px color-mix(in srgb, var(--seat) 35%, transparent);
+}
+
+/* cards: a thin neon rim */
+.card { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.14), 0 6px 14px rgb(0 0 0 / 0.6); }
+.card:hover { box-shadow: 0 0 0 1px var(--cyan), 0 0 16px rgb(34 228 255 / 0.55); }
+.card.noimg { background: linear-gradient(170deg, #1d1238, #120a24); border-color: #3a2470; }
+.ctop b, .ctype { font-family: var(--f-body); font-weight: 700; }
+.card .pt { font: 10px var(--f-pixel); background: #07040f; color: var(--yellow); border: 1px solid var(--yellow); border-radius: 2px; padding: 3px 4px; }
+.card.attacking { box-shadow: 0 0 0 2px var(--danger), 0 0 20px rgb(255 61 110 / 0.75); }
+
+/* ---------- player panels: a cabinet control panel ---------- */
+.panel, .seat-panel { background: linear-gradient(180deg, #170e2e, #0d0720) !important; border-color: #2a1a52 !important; }
+.pname { font: 20px/1.1 var(--f-display); color: var(--seat, var(--ink)); text-shadow: 0 0 10px color-mix(in srgb, var(--seat, #fff) 60%, transparent); position: relative; padding-bottom: 7px; }
+.pname::after { content: ''; position: absolute; left: 0; right: 35%; bottom: 0; height: 3px; border-radius: 2px; background: var(--id-bar, var(--seat)); box-shadow: 0 0 8px color-mix(in srgb, var(--seat, #fff) 60%, transparent); }
+.pname small { font: 500 12px var(--f-body); color: var(--muted); text-shadow: none; }
+.seat.active .pname, #my-panel.on-turn .pname, #opp-panel.on-turn .pname { animation: none; color: #fff; text-shadow: 0 0 6px var(--seat), 0 0 16px var(--seat); }
+.turn-tag { font: 9px var(--f-pixel); background: var(--yellow); color: #1a1200; border: 0; border-radius: 2px; padding: 4px 6px; box-shadow: 0 0 10px rgb(255 225 77 / 0.6); }
+.popout-btn { background: transparent; border: 1px solid #3a2470; color: var(--muted); }
+
+/* life: a scoreboard readout */
+.life { gap: 8px; align-items: center; }
+.life .lval {
+  flex: 0 0 auto; min-width: 86px; height: 54px; display: grid; place-items: center; padding: 0 8px;
+  font: 24px/1 var(--f-pixel); color: var(--seat, var(--yellow));
+  background: #040208; border: 2px solid color-mix(in srgb, var(--seat, var(--yellow)) 70%, transparent); border-radius: 6px;
+  text-shadow: 0 0 8px var(--seat, var(--yellow)); box-shadow: inset 0 0 14px rgb(0 0 0 / 0.9), 0 0 12px color-mix(in srgb, var(--seat, var(--yellow)) 30%, transparent);
+}
+.seat-life .life .lval { min-width: 70px; height: 44px; font-size: 18px; }
+.life .lbtn { width: 30px; height: 30px; border-radius: 50%; background: #20143f; border: 2px solid #3a2470; color: var(--ink); font: 700 18px var(--f-body); box-shadow: 0 3px 0 #07040f; }
+
+/* poison and commander damage: segmented health bars toward 10 and 21 */
+.subcounters { gap: 4px; }
+.cmd-dmg, .poison { --v: 0; position: relative; padding-bottom: 9px; font-size: 12.5px; color: var(--muted); }
+.cmd-dmg::before, .poison::before, .cmd-dmg::after, .poison::after { content: ''; position: absolute; left: 0; bottom: 0; height: 5px; }
+.cmd-dmg::before, .poison::before { right: 0; background: repeating-linear-gradient(90deg, #2a1a52 0 6px, transparent 6px 8px); }
+.cmd-dmg::after { width: calc(var(--v) * 100%); background: repeating-linear-gradient(90deg, var(--yellow) 0 6px, transparent 6px 8px); filter: drop-shadow(0 0 3px rgb(255 225 77 / 0.7)); }
+.cmd-dmg.warn::after { background: repeating-linear-gradient(90deg, var(--danger) 0 6px, transparent 6px 8px); filter: drop-shadow(0 0 4px rgb(255 61 110 / 0.8)); }
+.poison::after { width: calc(var(--v) * 100%); background: repeating-linear-gradient(90deg, var(--ok) 0 6px, transparent 6px 8px); }
+.cmd-dmg b, .poison b { font: 11px var(--f-pixel); color: var(--ink); }
+.mini { border-radius: 50%; background: #20143f; border: 1px solid #3a2470; }
+
+/* zones */
+.pile-face { border-radius: 4px !important; }
+.pile.cmdtile .pile-face { border: 1px solid var(--pink) !important; box-shadow: 0 0 12px rgb(255 43 214 / 0.5); }
+.pile-n { font: 9px var(--f-pixel); background: #07040f; color: var(--cyan); padding: 3px 4px; border-radius: 2px; }
+.pile-label { font: 600 12px var(--f-body); color: var(--muted); }
+
+/* ---------- the marquee (top bar) ---------- */
+.topbar { background: linear-gradient(180deg, #170e2e, #0b0618); border-bottom: 2px solid var(--pink); box-shadow: 0 0 18px rgb(255 43 214 / 0.45); }
+.brand { font: 22px var(--f-display); color: var(--pink); text-shadow: 0 0 8px var(--pink), 0 0 22px rgb(255 43 214 / 0.6); }
+#turninfo .tnum { font: 10px var(--f-pixel); color: var(--yellow); }
+#turninfo .who { font: 19px var(--f-display); color: var(--cyan); text-shadow: 0 0 10px rgb(34 228 255 / 0.6); }
+.steps { gap: 4px; }
+.steps li { font: 600 13px var(--f-body); letter-spacing: 0.03em; color: var(--muted); padding: 3px 9px; border: 1px solid #3a2470; border-radius: 999px; background: transparent; }
+.steps li.past { color: #6d5f99; border-color: #241848; }
+.steps li.on { background: var(--yellow); color: #1a1200; border-color: var(--yellow); box-shadow: 0 0 12px rgb(255 225 77 / 0.7); }
+
+/* buttons: arcade buttons */
+button { font-family: var(--f-body); font-weight: 600; border-radius: 8px; background: #20143f; color: var(--ink); border: 1px solid #3a2470; box-shadow: 0 3px 0 #07040f; }
+button:hover:not(:disabled) { border-color: var(--cyan); box-shadow: 0 3px 0 #07040f, 0 0 10px rgb(34 228 255 / 0.4); }
+button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #07040f; }
+button.primary { background: var(--pink); color: #fff; border-color: #ff7be6; text-shadow: 0 1px 0 rgb(0 0 0 / 0.3); box-shadow: 0 3px 0 #8c0f74, 0 0 16px rgb(255 43 214 / 0.55); }
+button.primary:hover:not(:disabled) { background: #ff4fde; }
+
+/* ---------- side column: card preview and a CRT terminal log ---------- */
+.rail { background: #06030d !important; border-left: 1px solid #2a1a52 !important; }
+.log-head { font: 15px var(--f-display); color: var(--cyan); text-shadow: 0 0 8px rgb(34 228 255 / 0.6); text-transform: none; letter-spacing: 0.02em; }
+#log li { font-size: 13.5px; color: #d9d1f5; border-left: 2px solid #2a1a52; }
+#log li.p { border-left-color: var(--you); }
+#log li.ai { border-left-color: var(--ai); }
+#log li.ai2 { border-left-color: var(--ai2); }
+#log li.ai3 { border-left-color: var(--ai3); }
+#log li.turn { font: 10px/1.7 var(--f-pixel); color: var(--yellow); text-transform: none; letter-spacing: 0; border: 0; padding-top: 12px; text-shadow: 0 0 6px rgb(255 225 77 / 0.5); }
+#log a, #log .cref { color: var(--cyan); }
+#preview .pv-head b { font: 17px var(--f-display); color: var(--ink); }
+#preview .pv-type { color: var(--pink); }
+#preview img { box-shadow: 0 0 0 1px var(--cyan), 0 0 22px rgb(34 228 255 / 0.35); border-radius: 10px; }
+
+/* hand */
+.hand-wrap { background: linear-gradient(180deg, #110a22, #07040f) !important; border-top: 2px solid var(--cyan) !important; box-shadow: 0 -6px 18px rgb(34 228 255 / 0.25); }
+.hand-label { font: 15px var(--f-display); color: var(--cyan); text-shadow: 0 0 8px rgb(34 228 255 / 0.6); }
+
+/* ---------- prompts: an attract-mode dialog box ---------- */
+.combat-bar, .stack, .thinking {
+  background: #0b0618; color: var(--ink); border: 2px solid var(--cyan); border-radius: 10px;
+  box-shadow: 0 0 0 4px #07040f, 0 0 0 6px rgb(255 43 214 / 0.8), 0 0 26px rgb(255 43 214 / 0.45), 0 18px 40px rgb(0 0 0 / 0.6);
+}
+.combat-bar.danger { border-color: var(--danger); }
+.combat-bar h3, .stack-copy h3 { font: 20px/1.15 var(--f-display); color: #fff; }
+.eyebrow, .stack-copy .eyebrow { font: 9px/1.6 var(--f-pixel); color: var(--yellow); text-transform: none; letter-spacing: 0; }
+.combat-bar.danger .eyebrow { color: var(--danger); }
+#banner, #banner.floating { --bg: #07040f; }
+.banner-grip { font: 8px var(--f-pixel); color: var(--muted); background: none; padding-top: 4px; }
+
+/* ---------- setup: a row of cabinets ---------- */
+.setup-head h1, h1 { font-family: var(--f-display); color: var(--pink); text-shadow: 0 0 10px var(--pink), 0 0 30px rgb(255 43 214 / 0.5); }
+.deck-slot { background: linear-gradient(180deg, #170e2e, #0d0720); border: 2px solid color-mix(in srgb, var(--seat, var(--pink)) 70%, transparent); border-radius: 14px; box-shadow: 0 0 22px color-mix(in srgb, var(--seat, var(--pink)) 25%, transparent); }
+.slot-head h2 { font: 20px var(--f-display); color: var(--seat, var(--ink)); text-shadow: 0 0 10px color-mix(in srgb, var(--seat, #fff) 55%, transparent); }
+.deck-slot[data-pid="ai"] .slot-head .dot { background: var(--ai); }
+.deck-slot[data-pid="ai2"] .slot-head .dot { background: var(--ai2); }
+.deck-slot[data-pid="ai3"] .slot-head .dot { background: var(--ai3); }
+.pod-lbl { font: 10px var(--f-pixel); text-transform: none; letter-spacing: 0; color: var(--yellow); }
+.versus { font: 30px var(--f-display); color: var(--yellow); text-shadow: 0 0 12px rgb(255 225 77 / 0.7); }
+.mix b { color: var(--cyan); }
+
+/* ===== Neon cabinet, second pass ===== */
+.sum-head h3 { font: 700 17px/1.25 var(--f-body); color: var(--ink); }
+
+/* each play area: a dark screen with a glow along its top edge in the player's colour (no grid lines) */
+.field, .seat-field, #my-field, #opp-field {
+  background:
+    linear-gradient(180deg, #07040f 0%, transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--seat, var(--pink)) 26%, transparent) 0, transparent 3px),
+    radial-gradient(ellipse 70% 40% at 50% 0%, color-mix(in srgb, var(--seat, var(--pink)) 22%, transparent), transparent 70%),
+    linear-gradient(180deg, #0d0720, #07040f) !important;
+}
+/* CRT corners: each screen is a little darker at its edges */
+.field::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse 110% 110% at 50% 50%, transparent 60%, rgb(0 0 0 / 0.45) 100%); }
+
+/* scoreboard: unlit segments behind the digits, like a real LED display */
+.life .lval { position: relative; }
+.life .lval::before { content: '888'; position: absolute; inset: 0; display: grid; place-items: center; color: color-mix(in srgb, var(--seat, var(--yellow)) 12%, transparent); text-shadow: none; pointer-events: none; }
+
+/* control panels: brushed-metal screws in the corners */
+.panel::after, .seat-panel::after {
+  content: ''; position: absolute; inset: 5px; pointer-events: none;
+  background:
+    radial-gradient(circle, #6d5f99 0 2px, transparent 2.5px) top left / 10px 10px no-repeat,
+    radial-gradient(circle, #6d5f99 0 2px, transparent 2.5px) top right / 10px 10px no-repeat,
+    radial-gradient(circle, #6d5f99 0 2px, transparent 2.5px) bottom left / 10px 10px no-repeat,
+    radial-gradient(circle, #6d5f99 0 2px, transparent 2.5px) bottom right / 10px 10px no-repeat;
+}
+.panel, .seat-panel { position: relative; }
+
+/* turn steps: an LED beside each one — dim once passed, lit on the current step */
+.steps li::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: #2a1a52; }
+.steps li.past::before { background: #3d8a5a; }
+.steps li.on::before { background: #1a1200; box-shadow: 0 0 0 1px rgb(26 18 0 / 0.4); }
+
+/* the marquee's sunset stripes under the top bar */
+.topbar { border-bottom: 0; box-shadow: 0 0 18px rgb(255 43 214 / 0.35); position: relative; }
+.topbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: linear-gradient(180deg, #ffe14d 0 1px, #ff8a3d 1px 2px, #ff2bd6 2px 3px, #8a3dff 3px 4px); }
+
+/* the card preview sits in a cabinet screen bezel */
+#preview img { border-radius: 14px; box-shadow: 0 0 0 3px #07040f, 0 0 0 5px #2a1a52, 0 0 0 6px var(--cyan), 0 0 26px rgb(34 228 255 / 0.4); }
+
+/* hand: the tray gets a neon floor line and the sunset stripes */
+.hand-wrap { border-top: 0 !important; position: relative; box-shadow: 0 -10px 24px rgb(34 228 255 / 0.12); }
+.hand-wrap::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: linear-gradient(180deg, #8a3dff 0 1px, #ff2bd6 1px 2px, #ff8a3d 2px 3px, #ffe14d 3px 4px); }
+
+/* prompts: a "player" tab hangs off the top of the dialog */
+.combat-bar, .stack { position: relative; margin-top: 10px; }
+.combat-bar::before, .stack::before {
+  content: 'PLAYER 1'; position: absolute; top: -11px; left: 14px; padding: 3px 7px;
+  font: 8px var(--f-pixel); color: #07040f; background: var(--cyan); border-radius: 3px; box-shadow: 0 0 10px rgb(34 228 255 / 0.6);
+}
+.stack::before { content: 'INCOMING'; background: var(--pink); color: #fff; box-shadow: 0 0 10px rgb(255 43 214 / 0.6); }
+.combat-bar.danger::before { content: 'WARNING'; background: var(--danger); color: #fff; box-shadow: 0 0 10px rgb(255 61 110 / 0.7); }
+
+/* a knocked-out player: GAME OVER across their panel */
+.seat.out .seat-panel { filter: saturate(0.3) brightness(0.7); }
+.seat.out .pname::before { content: 'GAME OVER '; font: 10px var(--f-pixel); color: var(--danger); text-shadow: 0 0 8px var(--danger); }
