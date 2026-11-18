@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.269",
+    "title": "Gogo, Mysterious Mime",
+    "notes": [
+      "Gogo's \"If you do, Gogo and that creature each get +2/+0 and gain haste until end of turn and attack this turn if able\" now happens after it becomes a copy. Before, only the copy part worked."
+    ]
+  },
+  {
     "version": "1.3.268",
     "title": "Prompts moved to the right column",
     "notes": [

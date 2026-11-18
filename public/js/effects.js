@@ -9535,8 +9535,22 @@ on(/^(?:have )?(~|target creature you control) becomes? a copy of (it|that creat
   if (/it has haste/i.test(m[4] || '')) self.eotGrants = [...(self.eotGrants || []), 'haste'];
   if (/isn't legendary|not legendary/i.test(m[4] || '')) { self.notLegendary = true; if (m[3]) self.copyNotLegendary = true; }
   exceptTypes(self, m[4] || '', !!m[3]); // Shore Leave Planet: "it's a Robot artifact in addition to its other types"
+  G.s.lastCopy = { self: self.iid, model: model.iid, at: G.s.turn }; // for an "If you do, ~ and that creature …" that follows
   env.did.push(`${keepName || wasName} becomes a copy of ${nameTag(model)}${m[3] ? ' until end of turn' : ''}`);
 });
+// Gogo, Mysterious Mime: "If you do, Gogo and that creature each get +2/+0 and gain haste until end of turn and attack this turn if able."
+on(/^(?:if you do, )?~ and that creature each get \+(\d+)\/\+(\d+)(?: and gain ([a-z ]+?))? until end of turn( and attack this turn if able)?$/, async (m, env) => {
+  const lc = G.s.lastCopy;
+  const me = env.src && card(env.src.iid);
+  if (!lc || !me || lc.self !== me.iid || lc.at !== G.s.turn) return 'pass'; // didn't become a copy
+  for (const iid of [lc.self, lc.model]) {
+    const c = card(iid);
+    if (!c || c.zone !== 'battlefield') continue;
+    pumpEOT(c, { p: +m[1], t: +m[2], grants: m[3] ? m[3].split(/,? and |, /) : [] });
+    if (m[4]) c.mustAttackTurn = G.s.turn;
+  }
+  env.did.push(`both get +${m[1]}/+${m[2]}${m[3] ? ' and ' + m[3] : ''}${m[4] ? ' and attack this turn if able' : ''}`);
+}, { first: true });
 // Clone, Phantasmal Image, Spark Double, Vesuva: "You may have ~ enter (tapped) as a copy of any creature on the battlefield[, except …]."
 // Called just before the permanent enters, so a 0/0 Clone becomes the copy instead of dying.
 // "except it's an Illusion artifact in addition to its other types" / "she's a legendary Trill in addition to her other types"
