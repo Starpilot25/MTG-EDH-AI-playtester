@@ -1,11 +1,11 @@
-// Looks for the app: 'broadcast' (default), 'spellbook', 'arcade', or 'classic' (the original style.css on its own).
+// Looks for the app: 'broadcast' (default), 'spellbook', 'arcade', 'desk', or 'classic' (the original style.css on its own).
 // The theme stylesheet is <link id="theme-css"> in index.html; this points it at css/theme-<look>.css (or switches it off for Classic),
 // and after each render fills in the few values the theme draws from game state.
 import { G } from './state.js';
 import { DB } from './data.js';
 
 const KEY = 'edhpt:theme';
-export const THEMES = ['broadcast', 'spellbook', 'arcade', 'classic'];
+export const THEMES = ['broadcast', 'spellbook', 'arcade', 'desk', 'classic'];
 
 export function currentTheme() {
   try {

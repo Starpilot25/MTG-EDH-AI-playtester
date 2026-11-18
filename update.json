@@ -1,12 +1,13 @@
 {
-  "version": "1.3.276",
+  "version": "1.3.277",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "77e5e8a93749b666f5024666ad622933efabf14f00d3c2743ec86781a404590e",
     "public/css/theme-arcade.css": "4e666bd9ce239144500bad603ad9cac2cf147ba2422688cb3caf1990645903d9",
     "public/css/theme-broadcast.css": "8c27ca25187acee2d6dd15e74828b176cdb14e9eaf530c2c11c69abf51a80506",
+    "public/css/theme-desk.css": "5ccfbbd81ce78c2f171d6b43d9fc1208cba37901364c93a675dec2119264ff6b",
     "public/css/theme-spellbook.css": "ead03f8a6a71ebff6e0441f8769cf0791ec646d0ea9a8a690cc8889b51e17d4b",
-    "public/index.html": "5ee1c14f5b11bc0122a4c3d3a2d72792a63ae605dd1c269519e47ffd83d603ec",
+    "public/index.html": "82eaedb1933c9d1cae919a241e338e348ce5105d2608d079fa105c8edc1f019b",
     "public/js/ai.js": "ceba4f91e74f6918fd7b4aa2565a071a7fcc011c7b06eec2f5497ea9a448460e",
     "public/js/aicombat.js": "764e9bdb24e75f0ad8357c5a5429c4313ea46274f195c172f95fca2fbbc6815d",
     "public/js/cast.js": "045cbf736fce303d01a35c2f81a753df41fd7695ca4f5fa1d59d5800e805fcf4",
@@ -18,10 +19,10 @@
     "public/js/rules.js": "70c5d4a07e60ad9301b3387d1cead87037762522f48caa7fbfac093ae054c2bb",
     "public/js/state.js": "ceb2d7cc7b78102de59b3b1d75d32ae80fe3bbac016cd1d5b9bc7b4ef9da8164",
     "public/js/statics.js": "73256bf2917eaa1ba2a4d3f4de917aff85530f774af7243781c187e139a2cadd",
-    "public/js/theme.js": "1590ffeff0bc9e9a65af49d61b0845c6aa4df496eded46db9168ed68410f8775",
+    "public/js/theme.js": "92998e58cd2e023c5f5c1e19bdb6f3b86322e8f390203c529e4d65f9c7e50160",
     "public/js/triggers.js": "9a2ccc6117f6ff5c964a2ef3e3bf3bcc1455b9bc429eee7ac049cf062e70bd50",
     "public/js/ui.js": "feba532181d8214ab06ebcf924f35759ba940472fb3a4c20a279b3942938eec5",
     "public/js/voice.js": "4622a40593b7db7f8997e96207d0412fcbaa4fa4fe658247c91b3345de1dabe6",
-    "public/patch-notes.json": "b3bea637d1b8459e67ca32be9cfcb8a093f2c99762beedfdbb4e4455d9ae12c9"
+    "public/patch-notes.json": "03bbaaa2952229a51116e3fd9ca8ae033d7231a4ef811fa54e39fa4a96185d10"
   }
 }

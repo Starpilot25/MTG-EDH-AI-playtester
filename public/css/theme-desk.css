@@ -1,0 +1,248 @@
+/* Desk theme: loaded on top of style.css (the Classic look). A planeswalker's study desk: dark walnut,
+   felt playmats, brass fittings, a cork board for the game log and index cards for prompts. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Libre+Franklin:wght@400;500;600;700&family=Caveat:wght@500;600;700&display=swap');
+
+:root {
+  --bg: #1c120c; --felt: #23170f; --felt-2: #2b1d13; --felt-3: #352418; --line: #4a3322;
+  --ink: #f2e8d8; --muted: #c4ad8e; --brass: #d8b25c; --brass-ink: #2a1c06;
+  --you: #3f7fc4; --ai: #c0452f; --ai2: #7b5aa6; --ai3: #3e8d5a; --danger: #c43a2a; --ok: #4f9a5c;
+  --f-display: 'Fraunces', Georgia, serif; --f-body: 'Libre Franklin', system-ui, sans-serif; --f-hand: 'Caveat', 'Comic Sans MS', cursive;
+  --card-paper: #efe09a; --card-ink: #2a2118; --pen: #2b4a8a;
+  --plate: #efe09a; --plate-ink: #2a2118;
+  --wood: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004 .09' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .05 0 0 0 0 .02 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E");
+  --felt-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --cork: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .2 0 0 0 0 .08 0 0 0 .45 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E");
+}
+#my-panel, #my-field, .deck-slot[data-pid="p"] { --seat: var(--you); }
+.seat[data-seat="ai"], #opp-panel, #opp-field, .deck-slot[data-pid="ai"] { --seat: var(--ai); }
+.seat[data-seat="ai2"], .deck-slot[data-pid="ai2"] { --seat: var(--ai2); }
+.seat[data-seat="ai3"], .deck-slot[data-pid="ai3"] { --seat: var(--ai3); }
+
+/* ---------- the desk ---------- */
+body { background: var(--wood), linear-gradient(180deg, #4a2e1b, #2e1c10); font-family: var(--f-body); }
+.board { background: var(--wood), linear-gradient(90deg, #3d2516, #4a2e1b 50%, #3d2516); }
+
+/* playmats: dark felt in the player's colour, with a stitched edge, lying on the wood */
+.field, .seat-field, #my-field, #opp-field {
+  background:
+    var(--felt-tex),
+    radial-gradient(ellipse 90% 80% at 50% 45%, color-mix(in srgb, var(--seat, #5a6a4a) 30%, #1d2a22), color-mix(in srgb, var(--seat, #5a6a4a) 14%, #121a15) 100%) !important;
+  border-radius: 14px;
+  outline: 1.5px dashed rgb(255 245 225 / 0.18); outline-offset: -7px;
+  box-shadow: 0 0 0 4px rgb(0 0 0 / 0.0), 0 6px 14px rgb(0 0 0 / 0.55), inset 0 0 26px rgb(0 0 0 / 0.45);
+  margin: 4px;
+}
+.field .field-hint, .field .empty, .field em { color: rgb(255 245 225 / 0.45); }
+/* the player on turn: a desk lamp over their mat */
+.seat.active .seat-field, #my-field.on-turn, #opp-field.on-turn {
+  background:
+    radial-gradient(ellipse 60% 70% at 50% 0%, rgb(255 228 160 / 0.2), transparent 70%),
+    var(--felt-tex),
+    radial-gradient(ellipse 90% 80% at 50% 45%, color-mix(in srgb, var(--seat) 36%, #1d2a22), color-mix(in srgb, var(--seat) 16%, #121a15) 100%) !important;
+  outline-color: rgb(216 178 92 / 0.55);
+}
+
+/* cards */
+.card { box-shadow: 0 1px 0 rgb(0 0 0 / 0.35), 0 6px 12px rgb(0 0 0 / 0.45); }
+.card.noimg { background: linear-gradient(170deg, #efe09a, #e2d185); color: var(--card-ink); border-color: #b8a660; }
+.card.noimg .ctype, .card.noimg .cora { color: #6d5a42; }
+.ctop b, .ctype { font-family: var(--f-display); font-weight: 600; }
+.card .pt { font: 700 12.5px var(--f-body); background: var(--card-paper); color: var(--card-ink); border: 1px solid #b59f78; border-radius: 3px; }
+.card.attacking { box-shadow: 0 0 0 2px var(--danger), 0 0 14px rgb(196 58 42 / 0.55); }
+
+/* ---------- player panels: a leather desk pad with a brass nameplate ---------- */
+.panel, .seat-panel {
+  background: linear-gradient(180deg, #2f2015, #24180f) !important; border-color: #120b06 !important;
+  box-shadow: inset 0 0 0 1px rgb(255 235 200 / 0.06), inset 0 0 0 5px transparent, inset 0 0 0 6px rgb(255 235 200 / 0.05);
+}
+.pname {
+  display: inline-flex; align-items: baseline; gap: 8px; max-width: 100%;
+  font: 700 18px/1.15 var(--f-display); color: #2a1c06;
+  background: linear-gradient(180deg, #ecd08a, #c9a24e 55%, #b38c3c); border-radius: 4px; padding: 4px 10px 5px;
+  box-shadow: inset 0 1px 0 rgb(255 250 225 / 0.6), inset 0 -1px 0 rgb(80 50 10 / 0.4), 0 2px 4px rgb(0 0 0 / 0.5);
+  text-shadow: 0 1px 0 rgb(255 245 210 / 0.5);
+}
+.pname small { font: 500 11.5px var(--f-body); color: #4a3510; text-shadow: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pname .dot { box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.3); }
+.pname .popout-btn { background: rgb(255 250 225 / 0.35); border: 1px solid rgb(80 50 10 / 0.35); color: #2a1c06; box-shadow: none; }
+.seat.active .pname, #my-panel.on-turn .pname, #opp-panel.on-turn .pname { background: linear-gradient(180deg, #fff0b8, #e7c062 55%, #c99b3e); box-shadow: inset 0 1px 0 rgb(255 255 240 / 0.8), 0 0 14px rgb(255 214 120 / 0.55), 0 2px 4px rgb(0 0 0 / 0.5); }
+.turn-tag { font: 700 18px var(--f-hand); background: transparent; color: #8a1f12; border: 0; padding: 0 2px; transform: rotate(-4deg); }
+
+/* life: a big brass spindown die */
+.life { align-items: center; gap: 8px; }
+.life .lval {
+  flex: 0 0 auto; width: 70px; height: 70px; display: grid; place-items: center; padding: 0;
+  font: 700 32px/1 var(--f-display); font-variant-numeric: lining-nums tabular-nums; color: #2a1c06;
+  background: radial-gradient(circle at 35% 30%, #fff1bd, #e2bb5e 40%, #a77d2e 80%);
+  clip-path: polygon(50% 0, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  border: 0; border-radius: 0; text-shadow: 0 1px 0 rgb(255 245 210 / 0.6);
+  filter: drop-shadow(0 3px 3px rgb(0 0 0 / 0.55));
+}
+.seat-life .life .lval { width: 56px; height: 56px; font-size: 25px; }
+.life .lbtn { width: 28px; height: 28px; border-radius: 50%; background: #3a2818; border: 1px solid #5a3f27; color: var(--ink); font: 700 17px var(--f-body); }
+
+/* poison and commander damage: tally marks on a scorepad */
+.cmd-dmg, .poison { --v: 0; position: relative; padding-bottom: 6px; font-size: 12.5px; color: var(--muted); }
+.cmd-dmg::after, .poison::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: calc(var(--v) * 100%); background: repeating-linear-gradient(90deg, #e9dcc1 0 2px, transparent 2px 5px); border-radius: 1px; }
+.cmd-dmg.warn::after { background: repeating-linear-gradient(90deg, #e2614f 0 2px, transparent 2px 5px); }
+.cmd-dmg b, .poison b { font: 700 15px var(--f-display); color: var(--ink); }
+.mini { border-radius: 50%; background: #3a2818; border: 1px solid #5a3f27; }
+
+/* zones */
+.pile-face { border-radius: 5px !important; }
+.pile.cmdtile .pile-face { border: 1px solid var(--brass) !important; box-shadow: 0 0 10px rgb(216 178 92 / 0.3); }
+.pile-n { font: 700 13px var(--f-body); background: var(--card-paper); color: var(--card-ink); border-radius: 3px; }
+.pile-label { font: 500 12px var(--f-body); color: var(--muted); }
+
+/* ---------- the shelf above the desk ---------- */
+.topbar { background: var(--wood), linear-gradient(180deg, #5a3820, #3d2516); border-bottom: 3px solid #1c120c; box-shadow: inset 0 -2px 0 rgb(255 220 170 / 0.15), 0 4px 10px rgb(0 0 0 / 0.5); }
+.brand { font: 700 22px var(--f-display); color: #f5e3bf; text-shadow: 0 1px 0 #1c120c; }
+#turninfo .tnum { font: 600 12px var(--f-body); color: var(--muted); }
+#turninfo .who { font: 700 22px var(--f-hand); color: #fff3d6; }
+/* turn steps: a row of tabbed dividers; the current one is pulled up */
+.steps { gap: 3px; align-items: flex-end; }
+.steps li { font: 600 12.5px var(--f-body); color: #6d5a42; padding: 4px 10px; background: #b9a47c; border-radius: 6px 6px 0 0; box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.12); }
+.steps li.past { background: #9c8865; color: #4a3b28; }
+.steps li.on { background: #efe09a; color: #8a1f12; padding-top: 7px; padding-bottom: 6px; box-shadow: 0 -2px 6px rgb(0 0 0 / 0.25); }
+
+/* buttons: brass and leather */
+button { font-family: var(--f-body); font-weight: 600; border-radius: 6px; background: #3a2818; color: var(--ink); border: 1px solid #5a3f27; box-shadow: inset 0 1px 0 rgb(255 235 200 / 0.08); }
+button:hover:not(:disabled) { border-color: var(--brass); }
+button.primary { background: linear-gradient(180deg, #ecd08a, #c9a24e 60%, #b38c3c); color: #2a1c06; border-color: #8a6a28; box-shadow: inset 0 1px 0 rgb(255 250 225 / 0.6), 0 2px 4px rgb(0 0 0 / 0.4); }
+button.primary:hover:not(:disabled) { background: linear-gradient(180deg, #f5dc9a, #d4ad58 60%, #be963f); }
+
+/* ---------- the cork board: card preview pinned up, game log as notes ---------- */
+.rail { background: var(--cork), linear-gradient(180deg, #b98a57, #a87a49) !important; border-left: 6px solid #3d2516 !important; box-shadow: inset 4px 0 8px rgb(0 0 0 / 0.35); color: var(--card-ink); }
+.log-head { font: 700 24px var(--f-hand); color: #2a1c06; text-transform: none; letter-spacing: 0; }
+#log { background: var(--card-paper); border-radius: 2px; box-shadow: 0 4px 10px rgb(0 0 0 / 0.35); background-image: repeating-linear-gradient(180deg, transparent 0 27px, rgb(70 90 120 / 0.22) 27px 28px); padding-top: 4px; }
+#log li { font-size: 13.5px; color: var(--card-ink); border-left: 3px solid #b39e78; }
+#log li.p { border-left-color: var(--you); }
+#log li.ai { border-left-color: var(--ai); }
+#log li.ai2 { border-left-color: var(--ai2); }
+#log li.ai3 { border-left-color: var(--ai3); }
+#log li.turn { font: 700 21px/1.1 var(--f-hand); color: var(--pen); text-transform: none; letter-spacing: 0; border: 0; padding-top: 10px; }
+#log a, #log .cref { color: #8a3a12; }
+#preview { color: var(--card-ink); }
+#preview .pv-head b { font: 700 18px var(--f-display); color: var(--card-ink); }
+#preview .pv-type { color: #6d3a12; }
+#preview img { box-shadow: 0 8px 16px rgb(0 0 0 / 0.45); transform: rotate(-1.2deg); border-radius: 10px; }
+#preview .pv-text, #preview p { color: var(--card-ink); }
+#stackview { color: var(--card-ink); }
+
+/* the hand: a wooden card rack at the front edge of the desk */
+.hand-wrap { background: var(--wood), linear-gradient(180deg, #5a3820, #3d2516) !important; border-top: 3px solid #1c120c !important; box-shadow: inset 0 2px 0 rgb(255 220 170 / 0.15); }
+.hand-label { font: 700 22px var(--f-hand); color: #fff3d6; }
+
+/* ---------- prompts: an index card held with a push pin ---------- */
+.combat-bar, .stack, .thinking {
+  position: relative; color: var(--card-ink); border: 0; border-radius: 3px;
+  background:
+    linear-gradient(180deg, transparent 0 38px, rgb(200 60 50 / 0.55) 38px 39px, transparent 39px),
+    repeating-linear-gradient(180deg, transparent 0 23px, rgb(80 120 180 / 0.22) 23px 24px) 0 39px,
+    var(--card-paper);
+  box-shadow: 0 10px 22px rgb(0 0 0 / 0.5);
+}
+.combat-bar::after, .stack::after {
+  content: ''; position: absolute; top: -7px; left: 50%; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff8a7a, #c4302a 60%, #7a1a14); box-shadow: 0 3px 3px rgb(0 0 0 / 0.4);
+}
+.combat-bar.danger::after { background: radial-gradient(circle at 35% 30%, #ff8a7a, #d02a20 60%, #7a1a14); }
+.combat-bar p, .stack-copy p, .thinking { color: #4a3a2a; }
+.combat-bar h3, .stack-copy h3 { font: 700 21px var(--f-display); color: var(--card-ink); }
+.eyebrow, .stack-copy .eyebrow { font: 700 21px/1 var(--f-hand); color: #a52a1a; text-transform: none; letter-spacing: 0; }
+.combat-bar button:not(.primary), .stack button:not(.primary) { background: #f6ebb6; color: var(--card-ink); border-color: #c9b896; }
+.combat-bar kbd, .stack kbd { background: rgb(0 0 0 / 0.1); color: inherit; }
+#banner, #banner.floating { --bg: #3d2516; }
+.banner-grip { font: 600 16px var(--f-hand); color: var(--muted); background: none; padding-top: 4px; }
+
+/* ---------- setup: deck boxes on the desk ---------- */
+.setup-head h1, h1 { font-family: var(--f-display); color: #f5e3bf; }
+.deck-slot {
+  background:
+    linear-gradient(180deg, transparent 0 60px, rgb(200 60 50 / 0.45) 60px 61px, transparent 61px),
+    var(--card-paper);
+  color: var(--card-ink); border: 0; border-radius: 4px; box-shadow: 0 12px 26px rgb(0 0 0 / 0.5);
+}
+.deck-slot label, .deck-slot small, .deck-slot p, .deck-slot .mix { color: #5a4a36; }
+.slot-head h2 { font: 700 26px var(--f-hand); color: var(--pen); }
+.deck-slot[data-pid="ai"] .slot-head .dot { background: var(--ai); }
+.deck-slot[data-pid="ai2"] .slot-head .dot { background: var(--ai2); }
+.deck-slot[data-pid="ai3"] .slot-head .dot { background: var(--ai3); }
+.deck-slot button:not(.primary), .deck-slot select, .deck-slot input, .deck-slot textarea { background: #f6ebb6; color: var(--card-ink); border-color: #c9b896; }
+.deck-slot .sum-head h3 { color: var(--card-ink); font-family: var(--f-display); }
+.deck-slot .cmd-names { color: #8a3a12; }
+.deck-slot .mix b { color: var(--pen); }
+.pod-lbl { font: 700 22px var(--f-hand); text-transform: none; letter-spacing: 0; color: #f5e3bf; }
+.versus { font: 700 34px var(--f-hand); color: #f5e3bf; }
+/* card names in the log and on prompts: dark red ink, readable on the manila paper */
+#log .cn, .combat-bar .cn, .stack .cn, #preview .cn { color: #8a2a12; border-bottom-color: rgb(138 42 18 / 0.4); }
+#log li.sys { color: #6d4a12; }
+
+/* ===== legal pad, going further ===== */
+/* the log is a yellow legal pad: a gummed binding strip on top, a red double margin, blue rules */
+#log {
+  position: relative; padding-left: 34px; border-top: 14px solid #7a2e1e;
+  box-shadow: inset 0 3px 0 rgb(0 0 0 / 0.18), 0 6px 14px rgb(0 0 0 / 0.4);
+  background:
+    linear-gradient(90deg, transparent 0 26px, rgb(200 50 40 / 0.55) 26px 27px, transparent 27px 29px, rgb(200 50 40 / 0.55) 29px 30px, transparent 30px),
+    repeating-linear-gradient(180deg, transparent 0 27px, rgb(70 110 170 / 0.28) 27px 28px),
+    var(--card-paper);
+}
+#log li { border-left-width: 3px; }
+/* prompts and deck pages: legal-pad sheets with the red margin */
+.combat-bar, .stack, .thinking {
+  padding-left: 34px;
+  background:
+    linear-gradient(90deg, transparent 0 22px, rgb(200 50 40 / 0.5) 22px 23px, transparent 23px 25px, rgb(200 50 40 / 0.5) 25px 26px, transparent 26px),
+    repeating-linear-gradient(180deg, transparent 0 23px, rgb(70 110 170 / 0.26) 23px 24px),
+    var(--card-paper);
+  border-top: 8px solid #7a2e1e;
+}
+.deck-slot {
+  border-top: 14px solid #7a2e1e;
+  background:
+    linear-gradient(90deg, transparent 0 14px, rgb(200 50 40 / 0.4) 14px 15px, transparent 15px 17px, rgb(200 50 40 / 0.4) 17px 18px, transparent 18px),
+    repeating-linear-gradient(180deg, transparent 0 29px, rgb(70 110 170 / 0.2) 29px 30px),
+    var(--card-paper);
+}
+/* the push pin moves to the binding */
+.combat-bar::after, .stack::after { top: -12px; }
+
+/* ===== desk, third pass ===== */
+/* whose turn it is: a sticky note stuck to the shelf */
+#turninfo .who {
+  display: inline-block; background: linear-gradient(180deg, #ffe873, #f5d94e); color: #3a2a06;
+  padding: 1px 12px 3px; transform: rotate(-2deg); font: 700 21px/1.2 var(--f-hand);
+  box-shadow: 0 4px 6px rgb(0 0 0 / 0.35); clip-path: polygon(0 0, 100% 0, 100% 78%, 92% 100%, 0 100%);
+}
+/* the cork board shows around the pad and the preview; the preview card is clipped on */
+.rail { padding-left: 10px; padding-right: 10px; }
+#log { margin: 4px 4px 12px; transform: rotate(0.4deg); }
+#preview { position: relative; }
+#preview::before {
+  content: ''; position: absolute; top: 2px; left: 26px; width: 11px; height: 34px; z-index: 2; pointer-events: none;
+  border: 2px solid #b9bcc2; border-radius: 6px; box-shadow: inset 0 0 0 2px transparent, 1px 1px 1px rgb(0 0 0 / 0.35);
+  transform: rotate(8deg);
+}
+#preview::after {
+  content: ''; position: absolute; top: 9px; left: 29px; width: 5px; height: 22px; z-index: 2; pointer-events: none;
+  border: 2px solid #d4d7dc; border-radius: 4px; transform: rotate(8deg);
+}
+.log-head { padding-left: 6px; }
+/* brass nameplates get tiny screws at each end */
+.pname { position: relative; padding-left: 16px; padding-right: 16px; }
+.pname::before, .pname::after { content: ''; position: absolute; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff2c4, #7a5a1c); box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.4); }
+.pname::before { left: 5px; }
+.pname::after { right: 5px; }
+/* the commander sits in a brass frame */
+.pile.cmdtile .pile-face { border: 2px solid #c9a24e !important; box-shadow: inset 0 0 0 1px rgb(255 240 200 / 0.5), 0 0 0 1px #6b4c18, 0 3px 6px rgb(0 0 0 / 0.5); }
+/* the hand rack: a wooden lip along the top edge, cards stand in the groove */
+.hand-wrap { box-shadow: inset 0 2px 0 rgb(255 220 170 / 0.18), inset 0 10px 0 -6px rgb(0 0 0 / 0.35), inset 0 -14px 18px -10px rgb(0 0 0 / 0.5); }
+/* the brass die gets a bevelled edge */
+.life .lval { background: radial-gradient(circle at 35% 30%, #fff4c8, #e8c266 38%, #b88a33 72%, #7a5a1c 100%); }
+/* turn steps: handwritten on their tabs */
+.steps li { font: 700 17px/1 var(--f-hand); padding-top: 5px; }
+.steps li.on { font-size: 18px; }
+/* buttons on paper look like rubber stamps */
+.combat-bar button.primary, .stack button.primary { background: transparent; color: #a52a1a; border: 2px solid #a52a1a; box-shadow: none; font-weight: 700; letter-spacing: 0.02em; transform: rotate(-1deg); }
+.combat-bar button.primary:hover:not(:disabled), .stack button.primary:hover:not(:disabled) { background: rgb(165 42 26 / 0.1); }

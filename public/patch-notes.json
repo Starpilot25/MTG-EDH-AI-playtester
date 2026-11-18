@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.277",
+    "title": "New look: Desk",
+    "notes": [
+      "A fifth look to choose under Look in settings: Desk, a planeswalker's study desk. Each player plays on a felt mat on a walnut desk, life totals are brass dice, names are on brass nameplates, the game log is a yellow legal pad pinned to a cork board, prompts are legal-pad sheets with a push pin and a rubber-stamp button, and a sticky note shows whose turn it is.",
+      "Broadcast stays the default; Spellbook, Arcade and Classic are still there too."
+    ]
+  },
+  {
     "version": "1.3.276",
     "title": "Arcade: no scanlines",
     "notes": [
