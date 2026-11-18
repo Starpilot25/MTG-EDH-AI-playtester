@@ -1,0 +1,25 @@
+name: Post updates to Discord
+
+# Whenever a push to main changes the version in package.json, post the new
+# patch-notes entries to the Discord update channel (webhook in the
+# DISCORD_WEBHOOK_URL repository secret). Does nothing if the secret is missing.
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Post new patch notes
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: node .github/scripts/discord-notes.mjs
