@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.287",
+    "title": "Valkyrie's Call, The Ooze, Jackdaw Savior, Norin the Wary, Song of Freyalise",
+    "notes": [
+      "Valkyrie's Call works: when a nontoken, non-Angel creature you control dies, it comes back with a +1/+1 counter as a flying Angel in addition to its other types.",
+      "The Ooze: when a creature you control with +1/+1 counters leaves the battlefield, you get a Mutagen token for each of those counters.",
+      "Jackdaw Savior: when it or another creature you control with flying dies, you return a creature card with lesser mana value from your graveyard to the battlefield.",
+      "Norin the Wary: whenever any player casts a spell or any creature attacks, Norin is exiled and returns at the beginning of the next end step.",
+      "Song of Freyalise: chapters I and II give your creatures \"{T}: Add one mana of any color\" until your next turn.",
+      "All five did nothing before."
+    ]
+  },
+  {
     "version": "1.3.286",
     "title": "Nim Deathmantle, Court of Ardenvale, Grave Betrayal",
     "notes": [

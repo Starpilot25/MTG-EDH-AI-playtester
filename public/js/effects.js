@@ -9342,6 +9342,40 @@ on(/^that creature is (?:a |an )?(black|white|blue|red|green)? ?([A-Z]?[a-z]+) i
   for (const d of env.delayedNow || []) d.becomes = { color: m[1] ? { black: 'B', white: 'W', blue: 'U', red: 'R', green: 'G' }[m[1].toLowerCase()] : null, sub: m[2][0].toUpperCase() + m[2].slice(1) };
   if ((env.delayedNow || []).length) env.did.push(`it'll be a ${m[1] ? m[1] + ' ' : ''}${m[2]}`);
 }, { first: true });
+// Song of Freyalise: 'Until your next turn, creatures you control gain "{T}: Add one mana of any color."'
+// (only "{T}: Add …" grants; Rain of Filth's "Sacrifice this land: Add {B}" isn't a tap ability and isn't handled here)
+on(/^until (end of turn|your next turn), (creatures|lands|artifacts|permanents) you control gain "(\{t\}: add [^"]*)"$/i, async (m, env) => {
+  const text = m[3].replace(/\{([a-z0-9/]+)\}/gi, (x, y) => `{${y.toUpperCase()}}`).replace(/\badd\b/i, 'Add').replace(/^./, (ch) => ch.toUpperCase());
+  const kind = { creatures: 'creature', lands: 'land', artifacts: 'artifact', permanents: 'permanent' }[m[2].toLowerCase()];
+  G.s.tempManaGrants = [...(G.s.tempManaGrants || []).filter((g) => (g.until === 'eot' ? G.s.turn === g.turn : ((G.s.turns || {})[g.pid] || 0) === g.turnsAt)),
+    /end of turn/i.test(m[1]) ? { pid: env.me, kind, text, until: 'eot', turn: G.s.turn } : { pid: env.me, kind, text, until: 'next', turnsAt: (G.s.turns || {})[env.me] || 0 }];
+  env.did.push(`${m[2].toLowerCase()} you control gain "${text}" until ${m[1].toLowerCase()}`);
+}, { first: true });
+// The Ooze: "create a Mutagen token for each +1/+1 counter on it" (the creature that left; X from the trigger)
+on(/^create a mutagen token for each \+1\/\+1 counter on it$/, async (m, env) => {
+  const n = env.x || 0;
+  if (n > 0) createToken(genericTokenDef(0, 0, 'Mutagen'), env.me, n);
+  env.did.push(`${n} Mutagen token${n === 1 ? '' : 's'}`);
+}, { first: true });
+// Valkyrie's Call: "It has flying and is an Angel in addition to its other types." (the card that just returned)
+on(/^it has ([a-z]+) and is an? ([A-Z]?[a-z]+) in addition to its other types$/i, async (m, env) => {
+  const c = env.it && card(env.it.iid);
+  if (!c || c.zone !== 'battlefield') return;
+  addLayerFx(c, { until: true, types: { subAdd: capWords(m[2]) }, grants: [m[1].toLowerCase()] });
+  env.did.push(`${nameTag(c)} has ${m[1].toLowerCase()} and is an ${capWords(m[2])}`);
+}, { first: true });
+// Jackdaw Savior: "return another target creature card with lesser mana value from your graveyard to the battlefield"
+on(/^return another target creature card with lesser mana value from your graveyard to the battlefield$/, async (m, env) => {
+  const dead = (env.it && card(env.it.iid)) || (env.event && card(env.event.iid));
+  const mv = dead ? DB[dead.def].cmc || 0 : 0;
+  const cands = cardsIn(env.me, 'graveyard').filter((c) => (!dead || c.iid !== dead.iid) && /\bCreature\b/.test((DB[c.def].faces[0] || {}).typeLine || DB[c.def].typeLine || '') && (DB[c.def].cmc || 0) < mv);
+  if (!cands.length) { env.did.push('no creature card with lesser mana value'); return; }
+  const [pick] = await env.choosers[env.me].pickCards({ prompt: `Return a creature card with mana value less than ${mv}`, cards: cands.map((c) => c.iid), min: 1, max: 1, purpose: 'cheat', src: env.src, aiScore: (c) => DB[c.def].cmc || 0 });
+  const c = pick && card(pick);
+  if (!c) return;
+  toBattlefield(c.iid, env.me);
+  env.did.push(`returns ${nameTag(c)} to the battlefield`);
+}, { first: true });
 // Nim Deathmantle: "return that card to the battlefield and attach ~ to it"
 on(/^return that card to the battlefield and attach ~ to it$/, async (m, env) => {
   const iid = (env.it && env.it.iid) || (env.event && env.event.iid);

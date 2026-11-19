@@ -1204,6 +1204,13 @@ function grantedManaText(inst) {
       if (ok) out.push(m[2]);
     }
   }
+  // Song of Freyalise / Rain of Filth: mana abilities granted for a while ("Until your next turn, creatures you control gain …")
+  for (const g of G.s.tempManaGrants || []) {
+    if (g.pid !== inst.controller) continue;
+    const live = g.until === 'eot' ? G.s.turn === g.turn : ((G.s.turns || {})[g.pid] || 0) === g.turnsAt;
+    if (!live) continue;
+    if (g.kind === 'creature' ? isCreature(inst) : g.kind === 'land' ? isLand(inst) : g.kind === 'artifact' ? isType(inst, 'Artifact') : true) out.push(g.text);
+  }
   return out.join('\n');
 }
 function manaAbilityRaw(inst) {
