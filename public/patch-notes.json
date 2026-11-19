@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.286",
+    "title": "Nim Deathmantle, Court of Ardenvale, Grave Betrayal",
+    "notes": [
+      "Nim Deathmantle: after you pay {4}, the creature that died now returns to the battlefield with Nim Deathmantle attached (+2/+2, intimidate, black Zombie). Before, you paid and nothing came back.",
+      "Court of Ardenvale: while you're the monarch, the permanent card it picks now goes onto the battlefield instead of into your hand. Before, nothing happened when you were the monarch.",
+      "Grave Betrayal works: whenever a creature you don't control dies, it comes back under your control at the beginning of the next end step with an extra +1/+1 counter, as a black Zombie in addition to its other colors and types. Before, it never triggered."
+    ]
+  },
+  {
     "version": "1.3.285",
     "title": "Pantlaza, Sun-Favored",
     "notes": [

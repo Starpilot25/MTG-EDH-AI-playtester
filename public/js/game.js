@@ -9,7 +9,7 @@ import {
 import {
   G, card, cardsIn, allOnField, zoneOf, move, draw, log, nameTag, aiSlaved, untapAll, cleanupDamage, stateBased, shuffle, opp, checkLoss,
   freshTurnStats, changeLife, setLife, sacrifice, addCounters, toBattlefield, cardName, queueEvent, discard as discardCard,
-  tappedHook, inkshieldFlush, destroy, createToken, genericTokenDef, loseGame,
+  tappedHook, inkshieldFlush, destroy, createToken, genericTokenDef, loseGame, nextStamp,
 } from './state.js';
 import { maxHandSize } from './statics.js';
 import { fire, settle, T } from './triggers.js';
@@ -604,6 +604,8 @@ async function endStepThings(pid) {
       // Phelia: "If it entered under your control, put a +1/+1 counter on Phelia."
       if (d.pheliaSrc && card(d.iid) && card(d.iid).controller === d.pheliaCtl && card(d.pheliaSrc) && card(d.pheliaSrc).zone === 'battlefield') addCounters(card(d.pheliaSrc), '+1/+1', 1);
       if (d.tapped && card(d.iid)) card(d.iid).tapped = true;
+      // Grave Betrayal: "That creature is a black Zombie in addition to its other colors and types."
+      if (d.becomes && card(d.iid) && card(d.iid).zone === 'battlefield') { const r = card(d.iid); r.layerFx = [...(r.layerFx || []), { ts: nextStamp(), until: true, types: { subAdd: d.becomes.sub }, ...(d.becomes.color ? { colors: { add: [d.becomes.color] } } : {}) }]; }
       if (d.counter && card(d.iid)) {
         const r = card(d.iid);
         if (isType(r, 'Planeswalker') && !isCreature(r)) r.counters.loyalty = (r.counters.loyalty || 0) + 1;

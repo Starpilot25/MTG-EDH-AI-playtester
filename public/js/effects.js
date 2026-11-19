@@ -9327,6 +9327,31 @@ on(/^at the beginning of the next end step, return (that card|those cards|them|i
     env.did.push(`${nameTag(card(i))} will return at the next end step`);
   }
 });
+// Grave Betrayal: "return it to the battlefield under your control with an additional +1/+1 counter on it at the beginning
+// of the next end step. That creature is a black Zombie in addition to its other colors and types."
+on(/^return it to the battlefield under your control with an additional \+1\/\+1 counter on it at the beginning of the next end step$/, async (m, env) => {
+  const iid = (env.it && env.it.iid) || (env.event && env.event.iid);
+  const c = iid && card(iid);
+  if (!c || c.token || (c.zone !== 'graveyard' && c.zone !== 'exile')) return;
+  const d = { at: 'endStep', kind: 'returnFromExile', iid, pid: env.me, counter: '+1/+1' };
+  G.s.delayed.push(d);
+  env.delayedNow = [d];
+  env.did.push(`${nameTag(c)} will return under your control at the next end step`);
+}, { first: true });
+on(/^that creature is (?:a |an )?(black|white|blue|red|green)? ?([A-Z]?[a-z]+) in addition to its other colors and types$/i, async (m, env) => {
+  for (const d of env.delayedNow || []) d.becomes = { color: m[1] ? { black: 'B', white: 'W', blue: 'U', red: 'R', green: 'G' }[m[1].toLowerCase()] : null, sub: m[2][0].toUpperCase() + m[2].slice(1) };
+  if ((env.delayedNow || []).length) env.did.push(`it'll be a ${m[1] ? m[1] + ' ' : ''}${m[2]}`);
+}, { first: true });
+// Nim Deathmantle: "return that card to the battlefield and attach ~ to it"
+on(/^return that card to the battlefield and attach ~ to it$/, async (m, env) => {
+  const iid = (env.it && env.it.iid) || (env.event && env.event.iid);
+  const c = iid && card(iid);
+  const eq = env.src && card(env.src.iid);
+  if (!c || c.zone !== 'graveyard') return;
+  toBattlefield(iid, env.me);
+  if (eq && eq.zone === 'battlefield' && card(iid).zone === 'battlefield') attachTo(eq, card(iid));
+  env.did.push(`returns ${nameTag(c)} to the battlefield${eq ? ` with ${nameTag(eq)} attached` : ''}`);
+}, { first: true });
 on(/^each of them enters with an additional \+1\/\+1 counter on it/, async (m, env) => {
   for (const d of env.delayedNow || []) d.counter = '+1/+1';
   if ((env.delayedNow || []).length) env.did.push('each returns with an extra counter');
@@ -17233,8 +17258,15 @@ async function runText(text, env) {
       skip.add(i);
       continue;
     }
-    // "…deals 2 damage to any target. If kicked, it deals 4 damage instead." → change the number in place
+    // Court of Ardenvale: "return target … from your graveyard to your hand. If you're the monarch, return that card to
+    // the battlefield instead." → the same target goes to the battlefield
     const prev = sentences[i - 1];
+    if (/^return that (?:permanent |creature |artifact |enchantment )?card to the battlefield$/i.test(sm[2]) && /^return (?:up to one )?target [^.]+ to (?:your|its owner's) hand\.?$/i.test(prev.trim())) {
+      sentences[i - 1] = prev.replace(/ to (?:your|its owner's) hand(\.?)\s*$/i, ' to the battlefield$1');
+      skip.add(i);
+      continue;
+    }
+    // "…deals 2 damage to any target. If kicked, it deals 4 damage instead." → change the number in place
     const dm = sm[2].match(/^(?:it|~|this spell) deals (\w+) damage(?: to (?:that|those|each of those) [a-z ]+)?$/i);
     const dr = sm[2].match(/^(?:you )?draws? (\w+) cards?$/i);
     const gm = sm[2].match(/^(?:you )?gains? (\w+) life$/i);
