@@ -9349,10 +9349,29 @@ on(/^(gain|lose) (\d+|x) life$/, async (m, env) => {
   env.did.push(`${who(env.me)} ${s_(env.me, m[1])} ${k} life`);
 });
 // --- choices
+// "choose an opponent" is a choice (not a target): you pick; the AI picks the one the rest of the text favors most
+// (Sandstone Oracle / Slithermuse: the biggest hand; "more lands than you": the most lands), else its usual pick
+async function chooseOpponent(env) {
+  const opps = opponents(env.me).filter(inGame);
+  if (opps.length <= 1) return opps[0] || opp(env.me);
+  if (!isAI(env.me)) {
+    const pick = await env.choosers[env.me].target({ prompt: 'Choose an opponent', candidates: [], players: opps });
+    return (pick && pick.player) || opps[0];
+  }
+  const t = String(env.fullText || env.text || '').toLowerCase();
+  const by = /cards in hand than you/.test(t) ? (o) => cardsIn(o, 'hand').length
+    : /lands than you/.test(t) ? (o) => cardsIn(o, 'battlefield').filter((c) => isType(c, 'Land')).length
+    : /creatures than you/.test(t) ? (o) => cardsIn(o, 'battlefield').filter(isCreature).length
+    : /life than you/.test(t) ? (o) => G.s.players[o].life
+    : null;
+  if (by) return opps.reduce((a, b) => (by(b) > by(a) ? b : a));
+  return opp(env.me);
+}
 on(/^choose (an opponent|target opponent|target player)$/, async (m, env) => {
-  const [pid] = m[1] === 'an opponent' ? [opp(env.me)] : await playerTarget(env, m[1]);
+  const [pid] = m[1] === 'an opponent' ? [await chooseOpponent(env)] : await playerTarget(env, m[1]);
   env.thatPlayer = pid;
   env.it = { player: pid };
+  if (m[1] === 'an opponent' && pid) env.did.push(`chooses ${who(pid)}`);
 });
 on(/^choose (target [^.]+)$/, async (m, env) => {
   const [c] = await objects(env, m[1], { harm: !/you control/.test(m[1]) });

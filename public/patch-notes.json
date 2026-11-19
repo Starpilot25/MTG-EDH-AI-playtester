@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.284",
+    "title": "\"Choose an opponent\" (Sandstone Oracle and others)",
+    "notes": [
+      "\"Choose an opponent\" now lets you pick which opponent. Before, it always took the first one, so Sandstone Oracle could draw you fewer cards than it should. The AI picks the opponent that helps it most: the biggest hand for Sandstone Oracle and Slithermuse, the most lands for \"more lands than you\" effects, and so on."
+    ]
+  },
+  {
     "version": "1.3.283",
     "title": "Card pictures that stopped loading",
     "notes": [
