@@ -17899,7 +17899,8 @@ function whereX(env) {
   // Elenda's Hierophant: "where X is its power" as it died (last known information)
   // Disciple of Bolas: "where X is that creature's power" (the creature sacrificed or chosen a moment ago)
   if (/^that creature's (power|toughness)$/.test(ph)) {
-    const it = env.it && (card(env.it.iid) || null);
+    // Pantlaza: with no creature chosen a moment ago, "that creature" is the one whose entering (dying…) triggered this
+    const it = (env.it && (card(env.it.iid) || null)) || (env.event && env.event.iid && card(env.event.iid)) || (src && isCreature(src) ? src : null);
     const pt = env.itPT || (it ? (it.zone === 'battlefield' ? { p: power(it), t: toughness(it) } : lkiPT(it)) : { p: 0, t: 0 });
     v = /power/.test(ph) ? pt.p : pt.t;
   } else

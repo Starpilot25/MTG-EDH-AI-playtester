@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.285",
+    "title": "Pantlaza, Sun-Favored",
+    "notes": [
+      "Pantlaza now discovers X, where X is the toughness of the Dinosaur that entered (4 when Pantlaza itself enters), once each turn. Before, it worked out X as 0 and did nothing. The same fix applies to other \"where X is that creature's power/toughness\" triggers."
+    ]
+  },
+  {
     "version": "1.3.284",
     "title": "\"Choose an opponent\" (Sandstone Oracle and others)",
     "notes": [
