@@ -1411,6 +1411,19 @@ function wardPartsPayable(pid, t, text) {
 }
 
 function wardCost(c) {
+  const w = wardCostRaw(c);
+  // Unsettled Mariner: "Whenever you or a permanent you control becomes the target of a spell or ability an opponent controls,
+  // counter that spell or ability unless its controller pays {1}." — works like an extra ward {1} on your permanents
+  if (c && c.zone === 'battlefield' && G.s) {
+    const k = cardsIn(c.controller, 'battlefield').filter((x) => !x.phasedOut && !abilitiesGone(x) && /Whenever you or a permanent you control becomes the target of a spell or ability an opponent controls, counter that spell or ability unless its controller pays \{(\d+)\}/i.test(oracle(x))).length;
+    if (k) {
+      if (!w) return { n: k, raw: `{${k}}` };
+      if (w.n !== undefined && !w.life && !w.discard && !w.sac) return { ...w, n: w.n + k, raw: `{${w.n + k}}` };
+    }
+  }
+  return w;
+}
+function wardCostRaw(c) {
   if (c.faceDown && c.wardTwo) return { n: 2, raw: '{2}' };
   // Gold-Forged Thopteryx: "Each legendary permanent you control has ward {2}."
   if (c.zone === 'battlefield' && /Legendary/.test(typeLine(c))) {
@@ -9350,6 +9363,19 @@ on(/^until (end of turn|your next turn), (creatures|lands|artifacts|permanents) 
   G.s.tempManaGrants = [...(G.s.tempManaGrants || []).filter((g) => (g.until === 'eot' ? G.s.turn === g.turn : ((G.s.turns || {})[g.pid] || 0) === g.turnsAt)),
     /end of turn/i.test(m[1]) ? { pid: env.me, kind, text, until: 'eot', turn: G.s.turn } : { pid: env.me, kind, text, until: 'next', turnsAt: (G.s.turns || {})[env.me] || 0 }];
   env.did.push(`${m[2].toLowerCase()} you control gain "${text}" until ${m[1].toLowerCase()}`);
+}, { first: true });
+// Reluctant Role Model: "if it had counters on it, put those counters on up to one target creature" (the creature that died)
+on(/^if it had counters on it, put those counters on up to one target creature$/, async (m, env) => {
+  const ev = env.event || {};
+  const cs = Object.entries((env.it && env.it.counters) || ev.counters || {}).filter(([, v]) => v > 0);
+  if (!cs.length) { env.did.push('it had no counters'); return; }
+  const pool = allBf().filter((c) => isCreature(c) && canTarget(c, env.me, env.src));
+  if (!pool.length) return;
+  const [p] = await env.choosers[env.me].pickCards({ prompt: `Put ${cs.map(([k, v]) => v + ' ' + k).join(', ')} counter(s) on up to one target creature`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'buff', src: env.src, aiScore: (c) => (c.controller === env.me ? 10 + power(c) : -10) });
+  const t = p && card(p);
+  if (!t || t.zone !== 'battlefield') { env.did.push('puts the counters on nothing'); return; }
+  for (const [k, v] of cs) addCounters(t, k, v);
+  env.did.push(`puts ${cs.map(([k, v]) => `${v} ${k}`).join(', ')} counter${cs.length === 1 && cs[0][1] === 1 ? '' : 's'} on ${nameTag(t)}`);
 }, { first: true });
 // The Ooze: "create a Mutagen token for each +1/+1 counter on it" (the creature that left; X from the trigger)
 on(/^create a mutagen token for each \+1\/\+1 counter on it$/, async (m, env) => {
@@ -18000,7 +18026,9 @@ async function fetchLands(t, me, choose, src, did, env) {
   const basic = /basic/.test(t);
   const types = (t.match(/search your library for [^.]*?card/) || [''])[0].match(/forest|island|swamp|mountain|plains/g) || [];
   const m = t.match(/up to (\w+) (?:basic )?land cards?|up to (\w+) basic|up to (\w+) cards?|up to (\w+) (?:forest|island|swamp|mountain|plains)(?:,? (?:and\/)?or (?:forest|island|swamp|mountain|plains))* cards?/);
-  const count = m ? n(m[1] || m[2] || m[3] || m[4], env && env.x) : /two basic land|two land/.test(t) ? 2 : 1;
+  // The Earth King: "up to that many basic land cards" = the number the trigger counted
+  const count = /up to that many /.test(t) ? (env && (env.thatMuch || env.lastAmount)) || 0
+    : m ? n(m[1] || m[2] || m[3] || m[4], env && env.x) : /two basic land|two land/.test(t) ? 2 : 1;
   const cands = lib.map(card).filter((c) => {
     if (!isLand(c)) return false;
     if (basic && !/Basic/.test(DB[c.def].typeLine)) return false;
@@ -18060,8 +18088,9 @@ async function fetchLands(t, me, choose, src, did, env) {
 export const aiHelpers = { landScore: () => 0 };
 
 async function tutor(t, me, choose, src, did, env) {
-  const m = t.match(/search your library (?:and graveyard )?for (?:a|an|up to (\w+)|two|three) ([^.,]*?)cards?(?: with ([^,.]+))?/);
-  const count = m && m[1] ? n(m[1]) : /for two /.test(t) ? 2 : /for three /.test(t) ? 3 : 1;
+  const m = t.match(/search your library (?:and graveyard )?for (?:a|an|up to (that many|\w+)|two|three) ([^.,]*?)cards?(?: with ([^,.]+))?/);
+  // The Earth King: "up to that many" = the number the trigger counted
+  const count = m && m[1] ? (m[1] === 'that many' ? (env && (env.thatMuch || env.lastAmount)) || 0 : n(m[1])) : /for two /.test(t) ? 2 : /for three /.test(t) ? 3 : 1;
   let phrase = m ? (m[2] + ' ' + (m[3] || '')).trim() : '';
   // "a basic Plains card or a creature card with mana value 1 or less" (Starfield Shepherd): either description fits
   const desc = (t.match(/search your library (?:and graveyard )?for (?:a|an) ([^.]+?)(?:, reveal|, put|, exile|\.|$)/) || [])[1] || '';

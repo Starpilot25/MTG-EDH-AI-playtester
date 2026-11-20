@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.288",
+    "title": "Ob Nixilis Captive Kingpin, The Earth King, Reluctant Role Model, Unsettled Mariner",
+    "notes": [
+      "Ob Nixilis, Captive Kingpin works: when one or more opponents each lose exactly 1 life at the same time, it gets a +1/+1 counter and exiles the top card of your library, which you can play until your next end step. That's once per moment, so \"each opponent loses 1 life\" triggers it once, not once per opponent.",
+      "The Earth King: when your creatures with power 4 or greater attack, you now search for up to that many basic lands. Before, it only ever found one.",
+      "Reluctant Role Model: when it or another creature you control dies with counters on it, those counters move to up to one target creature.",
+      "Unsettled Mariner: opponents' spells and abilities that target your permanents are countered unless their controller pays {1} (on top of any ward). Targeting you as a player isn't covered yet.",
+      "Behind the scenes: \"search for up to that many\" now uses the number the trigger counted."
+    ]
+  },
+  {
     "version": "1.3.287",
     "title": "Valkyrie's Call, The Ooze, Jackdaw Savior, Norin the Wary, Song of Freyalise",
     "notes": [

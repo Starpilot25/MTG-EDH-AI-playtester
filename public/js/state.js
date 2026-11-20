@@ -1143,7 +1143,7 @@ export function setLife(pid, value, reason) {
       // in a pod, the player whose turn it is gets the credit (in 1v1, the other player)
       const by = multiplayer() ? (G.s.active && G.s.active !== pid ? G.s.active : null) : opp(pid);
       if (by && G.s.ts[by]) G.s.ts[by].damagedOpp = true;
-      queueEvent({ type: 'lifeLost', pid, amount: before - value, byDamage: !!G.s.damageNow });
+      queueEvent({ type: 'lifeLost', pid, amount: before - value, byDamage: !!G.s.damageNow, tick: deathTick() });
       // Start your engines!: speed goes up once on your turn when an opponent loses life
       const o = by || opp(pid);
       const po = G.s.players[o];

@@ -230,7 +230,7 @@ function parseTriggerText(text, speed) {
       // Al Bhed Salvagers, Susurian Voidborn, Shadow the Hedgehog
       if ((q = line.match(/^Whenever ~ or another (creature or artifact|creature) you control(?: with (flash or haste))? dies, (.+)$/i))) {
         const ca = /artifact/i.test(q[1]), kw = q[2];
-        add('p:dies', q[3], { pred: (c, ev) => { if (ev.controller !== c.controller) return false; const lk = card(ev.iid) || { def: ev.def, face: ev.face }; const tl = DB[ev.def] ? (DB[ev.def].faces[ev.face || 0] || DB[ev.def].faces[0]).typeLine || '' : ''; if (!(/Creature/.test(tl) || (ca && /Artifact/.test(tl)))) return false; if (kw && !(hasKw(lk, 'flash') || hasKw(lk, 'haste') || /\b(?:Flash|Haste)\b/.test(oracle(lk) || ''))) return false; return true; }, selfGone: true });
+        add('p:dies', q[3], { pred: (c, ev) => { if (ev.controller !== c.controller) return false; const lk = card(ev.iid) || { def: ev.def, face: ev.face }; const tl = DB[ev.def] ? (DB[ev.def].faces[ev.face || 0] || DB[ev.def].faces[0]).typeLine || '' : ''; if (!(/Creature/.test(tl) || (ca && /Artifact/.test(tl)))) return false; if (kw && !(hasKw(lk, 'flash') || hasKw(lk, 'haste') || /\b(?:Flash|Haste)\b/.test(oracle(lk) || ''))) return false; return { it: { iid: ev.iid, counters: ev.counters || {} } }; }, selfGone: true });
         add('p:leaves', q[3], { pred: (c, ev) => ca && ev.to === 'graveyard' && ev.controller === c.controller && DB[ev.def] && /Artifact/.test(DB[ev.def].faces[ev.face || 0].typeLine || '') && !/Creature/.test(DB[ev.def].faces[ev.face || 0].typeLine || '') });
         continue;
       }
@@ -491,6 +491,16 @@ function parseTriggerText(text, speed) {
       // Aang, at the Crossroads
       if ((q = line.match(/^When(?:ever)? another creature you control leaves the battlefield, (.+)$/i))) { add('leaves', q[1], { mine: true, kind: 'creature' }); continue; }
       // Fangorn: "Whenever one or more Treefolk you control attack"
+      // The Earth King: "Whenever one or more creatures you control with power 4 or greater attack, …" (that many = how many)
+      if ((q = line.match(/^Whenever one or more creatures you control with power (\d+) or greater attack, (.+)$/i))) { add('youAttack', q[2], { powerAtLeast: +q[1] }); continue; }
+      // Ob Nixilis, Captive Kingpin: "Whenever one or more opponents each lose exactly 1 life, …" (once for life lost at the same moment)
+      if ((q = line.match(/^Whenever one or more opponents each lose exactly (\d+) life, (.+)$/i))) { const n = +q[1]; add('p:lifeLost', q[2], { pred: (c, ev) => {
+        if (ev.pid === c.controller || ev.amount !== n || !opponents(c.controller).includes(ev.pid)) return false;
+        const k = c.iid + '|' + (ev.tick || Math.random());
+        if (G.s.onceTick && G.s.onceTick[k]) return false;
+        G.s.onceTick = { [k]: true };
+        return true;
+      } }); continue; }
       if ((q = line.match(/^Whenever one or more ([A-Z][\w-]+) you control attack, (.+)$/))) { add('youAttack', q[2], { kindCount: q[1] }); continue; }
       // Fire Lord Azula
       if ((q = line.match(/^Whenever you cast a spell while ~ is attacking, (.+)$/i))) { add('cast', q[1], { spell: '', mine: true, whileAttacking: true }); continue; }
@@ -2392,6 +2402,12 @@ function matches(ev) {
         }
         if (trig.goadedAtk) {
           if (((G.s.combat && G.s.combat.attackers) || []).some((i) => card(i) && isGoaded(card(i)))) out.push({ src: c, trig });
+          return;
+        }
+        if (trig.powerAtLeast) {
+          if (c.controller !== ev.controller) return;
+          const k = ((G.s.combat && G.s.combat.attackers) || []).map(card).filter((x) => x && x.controller === c.controller && power(x) >= trig.powerAtLeast).length;
+          if (k) out.push({ src: c, trig, amount: k, thatPlayer: ev.defender });
           return;
         }
         // Fangorn: "Whenever one or more Treefolk you control attack" — that much = how many
