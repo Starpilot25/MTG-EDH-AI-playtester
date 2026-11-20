@@ -9377,6 +9377,14 @@ on(/^if it had counters on it, put those counters on up to one target creature$/
   for (const [k, v] of cs) addCounters(t, k, v);
   env.did.push(`puts ${cs.map(([k, v]) => `${v} ${k}`).join(', ')} counter${cs.length === 1 && cs[0][1] === 1 ? '' : 's'} on ${nameTag(t)}`);
 }, { first: true });
+// Death by Dragons: "Each player other than target player creates a 5/5 red Dragon creature token with flying."
+on(/^each player other than target player creates (a|an|one|two|three) (\d+)\/(\d+) ([a-z]+) ([a-z ]+?) creature tokens? with ([a-z ,]+)$/, async (m, env) => {
+  const [t] = await playerTarget(env, 'target player');
+  const k = n(m[1]);
+  const others = seats().filter((p) => inGame(p) && p !== t);
+  for (const p of others) createToken(genericTokenDef(+m[2], +m[3], capWords(m[5]), { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }[m[4]] || '', { keywords: m[6].split(/,? and |, /).map((x) => x.trim()).filter(Boolean) }), p, k);
+  env.did.push(`every player except ${t ? who(t) : 'nobody'} gets a ${m[2]}/${m[3]} ${capWords(m[5])}`);
+}, { first: true });
 // The Ooze: "create a Mutagen token for each +1/+1 counter on it" (the creature that left; X from the trigger)
 on(/^create a mutagen token for each \+1\/\+1 counter on it$/, async (m, env) => {
   const n = env.x || 0;

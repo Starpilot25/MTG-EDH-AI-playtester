@@ -269,6 +269,12 @@ function parseStatics(text, selfName) {
       pushAnthem({ who: 'all', f: filterFrom(m[1]), p: +m[2], t: +m[3], grants: [] });
       continue;
     }
+    // Crescendo of War: "Attacking creatures get +1/+0 for each strife counter on ~." /
+    // "Blocking creatures you control get +1/+0 for each strife counter on ~."
+    if ((m = l.match(/^(attacking|blocking) creatures( you control)? get ([+-]\d+)\/([+-]\d+) for each ([^.]+?)\.?$/))) {
+      pushAnthem({ who: m[2] ? 'you' : 'all', f: { creature: true, [m[1]]: true }, p: +m[3], t: +m[4], grants: [], each: m[5] });
+      continue;
+    }
     // Lord of Atlantis: "Other Merfolk get +1/+1 and have islandwalk." (a creature type on its own, no "creatures")
     if ((m = l.match(/^other ([a-z][a-z'-]+?)(?:s|es)? get ([+-]\d+)\/([+-]\d+)(?: and (?:have|gain) (.+?))?\.?$/)) && !/^(creature|permanent|artifact|land|token|player|card|spell|attacker|blocker|nontoken)$/.test(m[1])) {
       const ty = m[1] === 'elve' ? 'elf' : m[1] === 'dwarve' ? 'dwarf' : m[1] === 'wolve' ? 'wolf' : m[1];
