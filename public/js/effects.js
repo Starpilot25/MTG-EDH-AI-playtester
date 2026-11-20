@@ -9377,6 +9377,114 @@ on(/^if it had counters on it, put those counters on up to one target creature$/
   for (const [k, v] of cs) addCounters(t, k, v);
   env.did.push(`puts ${cs.map(([k, v]) => `${v} ${k}`).join(', ')} counter${cs.length === 1 && cs[0][1] === 1 ? '' : 's'} on ${nameTag(t)}`);
 }, { first: true });
+// Burning-Rune Demon: "you may search your library for exactly two cards not named ~ that have different names. If you do,
+// reveal those cards. An opponent chooses one of them. Put the chosen card into your hand and the other into your graveyard,
+// then shuffle."
+on(/^(?:you may )?search your library for exactly two cards not named ~ that have different names\. if you do, reveal those cards\. an opponent chooses one of them\. put the chosen card into your hand and the other into your graveyard, then shuffle$/, async (m, env) => {
+  const me = env.me;
+  const nameOf = (c) => cardName(c);
+  const srcName = env.src ? nameOf(env.src) : '';
+  const lib = cardsIn(me, 'library').filter((c) => nameOf(c) !== srcName);
+  const picks = [];
+  for (let i = 0; i < 2; i++) {
+    const pool = lib.filter((c) => !picks.some((p) => nameOf(p) === nameOf(c)));
+    if (!pool.length) break;
+    const [iid] = await env.choosers[me].pickCards({ prompt: i ? 'Choose a second card with a different name' : 'Search for two cards with different names (an opponent picks which one you get)', cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'tutor', src: env.src, aiScore: (c) => cardValue(c) });
+    if (!iid) break;
+    picks.push(card(iid));
+  }
+  if (picks.length < 2) { shuffle(me); env.did.push(picks.length ? 'needs two cards with different names, so it finds nothing' : "doesn't search"); return; }
+  const o = await chooseOpponent(env);
+  const [give] = await env.choosers[o].pickCards({ prompt: `${who(me)} revealed these: choose the one that goes to their hand (the other goes to their graveyard)`, cards: picks.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'opponentChoice', src: env.src, aiScore: (c) => -cardValue(c) });
+  const toHand = card(give) || picks[0];
+  const toGy = picks.find((c) => c.iid !== toHand.iid);
+  move(toHand.iid, 'hand');
+  move(toGy.iid, 'graveyard');
+  shuffle(me);
+  env.did.push(`reveals ${nameTag(picks[0])} and ${nameTag(picks[1])}; ${who(o)} ${o === 'p' ? 'give' : 'gives'} them ${nameTag(toHand)}, ${nameTag(toGy)} goes to the graveyard`);
+}, { first: true, multi: true });
+// Rottenmouth Viper: "Then for each blight counter on it, each opponent loses 4 life unless that player sacrifices a nonland
+// permanent of their choice or discards a card."
+on(/^(?:then )?for each ([a-z]+) counter on it, each opponent loses (\d+) life unless that player sacrifices a nonland permanent of their choice or discards a card$/, async (m, env) => {
+  const src = env.src && card(env.src.iid);
+  const k = src ? (src.counters || {})[m[1]] || 0 : 0;
+  const life = +m[2];
+  const out = [];
+  for (const o of opponents(env.me).filter(inGame)) {
+    let lost = 0, sac = 0, disc = 0;
+    for (let i = 0; i < k && inGame(o); i++) {
+      const perms = cardsIn(o, 'battlefield').filter((c) => !isLand(c));
+      const hand = cardsIn(o, 'hand');
+      const opts = [{ label: `Lose ${life} life`, k: 'life' }, ...(perms.length ? [{ label: 'Sacrifice a nonland permanent', k: 'sac' }] : []), ...(hand.length ? [{ label: 'Discard a card', k: 'disc' }] : [])];
+      // the AI keeps its life while it's comfortable, then gives up its cheapest card or permanent
+      const aiPick = () => {
+        const cheapP = perms.reduce((a, b) => (!a || cardValue(b) < cardValue(a) ? b : a), null);
+        const cheapH = hand.reduce((a, b) => (!a || cardValue(b) < cardValue(a) ? b : a), null);
+        if (G.s.players[o].life > life * 3 && !(cheapP && cheapP.token)) return 0;
+        const best = [cheapP && { k: 'sac', v: cardValue(cheapP) }, cheapH && { k: 'disc', v: cardValue(cheapH) }].filter(Boolean).sort((a, b) => a.v - b.v)[0];
+        return best ? opts.findIndex((x) => x.k === best.k) : 0;
+      };
+      const pick = opts[(await env.choosers[o].choose({ prompt: `${cardName(env.src)} (${i + 1} of ${k}): lose ${life} life unless you sacrifice a nonland permanent or discard a card`, options: opts, aiPick })) || 0] || opts[0];
+      if (pick.k === 'sac') {
+        const [iid] = await env.choosers[o].pickCards({ prompt: 'Sacrifice a nonland permanent', cards: perms.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'sacrifice', src: env.src, aiScore: (c) => -cardValue(c) });
+        if (iid) { sacrifice(iid); sac++; continue; }
+      } else if (pick.k === 'disc') {
+        const [iid] = await env.choosers[o].pickCards({ prompt: 'Discard a card', cards: hand.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'discard', src: env.src, aiScore: (c) => -cardValue(c) });
+        if (iid) { discardCard(iid); disc++; continue; }
+      }
+      changeLife(o, -life);
+      lost += life;
+    }
+    out.push(`${who(o)}: ${[lost && `loses ${lost} life`, sac && `sacrifices ${sac}`, disc && `discards ${disc}`].filter(Boolean).join(', ') || 'nothing'}`);
+  }
+  env.did.push(out.join('; '));
+}, { first: true });
+// Animation Module: "Choose a counter on target permanent or player. Give that permanent or player another counter of that kind."
+on(/^choose a counter on target permanent or player\. give that permanent or player another counter of that kind$/, async (m, env) => {
+  const opts = [];
+  for (const c of allBf()) for (const [k, v] of Object.entries(c.counters || {})) if (v > 0 && canTarget(c, env.me, env.src)) opts.push({ label: `${cardName(c)} (${c.controller === env.me ? 'yours' : who(c.controller)}): ${k}`, c, k });
+  for (const p of seats().filter(inGame)) for (const [k, v] of Object.entries(G.s.players[p].counters || {})) if (v > 0) opts.push({ label: `${who(p)}: ${k}`, p, k });
+  if (!opts.length) { env.did.push('there are no counters to add to'); return; }
+  const good = (o) => (o.p ? (o.p === env.me ? (o.k === 'poison' ? -5 : 2) : o.k === 'poison' ? 6 : -2) : (o.c.controller === env.me ? (/^-1\/-1$|^stun$|^shield$/.test(o.k) ? -3 : 4) : /^-1\/-1$|^stun$/.test(o.k) ? 5 : -3));
+  const i = (await env.choosers[env.me].choose({ prompt: 'Give another counter of which kind?', options: opts.map((o) => ({ label: o.label })), aiPick: () => opts.reduce((b, o, j) => (good(o) > good(opts[b]) ? j : b), 0) })) || 0;
+  const o = opts[i];
+  if (o.c) addCounters(o.c, o.k, 1);
+  else G.s.players[o.p].counters[o.k] = (G.s.players[o.p].counters[o.k] || 0) + 1;
+  env.did.push(`gives ${o.c ? nameTag(o.c) : who(o.p)} another ${o.k} counter`);
+}, { first: true, multi: true });
+// Sorin, Lord of Innistrad: "Destroy up to three target creatures and/or other planeswalkers. Return each card put into a
+// graveyard this way to the battlefield under your control."
+on(/^destroy up to (\w+) target creatures and\/or other planeswalkers\. return each card put into a graveyard this way to the battlefield under your control$/, async (m, env) => {
+  const k = n(m[1]);
+  const pool = allBf().filter((c) => (isCreature(c) || isType(c, 'Planeswalker')) && (!env.src || c.iid !== env.src.iid) && canTarget(c, env.me, env.src));
+  const picks = await env.choosers[env.me].pickCards({ prompt: `Destroy up to ${k} creatures and/or other planeswalkers (the ones that die come back under your control)`, cards: pool.map((c) => c.iid), min: 0, max: k, purpose: 'destroy', src: env.src, aiScore: (c) => (c.controller === env.me ? -50 : cardValue(c)) });
+  const back = [];
+  for (const iid of picks) {
+    destroy(iid);
+    const c = card(iid);
+    if (c && c.zone === 'graveyard' && !c.token) { toBattlefield(iid, env.me); back.push(c); }
+  }
+  env.did.push(`destroys ${picks.length}; ${back.length ? back.map(nameTag).join(', ') + ' return under your control' : 'nothing returns'}`);
+}, { first: true, multi: true });
+// Teferi, Who Slows the Sunset: "Choose up to one target artifact, up to one target creature, and up to one target land.
+// Untap the chosen permanents you control. Tap the chosen permanents you don't control."
+on(/^choose up to one target artifact, up to one target creature, and up to one target land\. untap the chosen permanents you control\. tap the chosen permanents you don't control$/, async (m, env) => {
+  const chosen = [];
+  for (const ty of ['Artifact', 'Creature', 'Land']) {
+    const pool = allBf().filter((c) => isType(c, ty) && !chosen.includes(c.iid) && canTarget(c, env.me, env.src));
+    if (!pool.length) continue;
+    // the AI untaps its own tapped permanents (mana!) or taps an opponent's best untapped one
+    const [iid] = await env.choosers[env.me].pickCards({ prompt: `Up to one target ${ty.toLowerCase()} (yours untap, others tap)`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'tapUntap', src: env.src, aiScore: (c) => (c.controller === env.me ? (c.tapped ? 5 + cardValue(c) / 10 : -1) : c.tapped ? -1 : 2 + (isCreature(c) ? power(c) : 0)) });
+    if (iid) chosen.push(iid);
+  }
+  const did = [];
+  for (const iid of chosen) {
+    const c = card(iid);
+    if (c.controller === env.me) { if (c.tapped) { c.tapped = false; did.push(`untaps ${nameTag(c)}`); } }
+    else if (!c.tapped) { tapPerm(c); did.push(`taps ${nameTag(c)}`); }
+  }
+  env.did.push(did.join(', ') || 'changes nothing');
+}, { first: true, multi: true });
 // Death by Dragons: "Each player other than target player creates a 5/5 red Dragon creature token with flying."
 on(/^each player other than target player creates (a|an|one|two|three) (\d+)\/(\d+) ([a-z]+) ([a-z ]+?) creature tokens? with ([a-z ,]+)$/, async (m, env) => {
   const [t] = await playerTarget(env, 'target player');

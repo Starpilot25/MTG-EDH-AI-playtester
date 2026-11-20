@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.3.290",
+    "title": "Burning-Rune Demon, Rottenmouth Viper, Animation Module, Sorin, Teferi",
+    "notes": [
+      "Burning-Rune Demon: search for two cards with different names, reveal them, and an opponent chooses which one goes to your hand. The other goes to your graveyard.",
+      "Rottenmouth Viper: for each blight counter on it, each opponent chooses to lose 4 life, sacrifice a nonland permanent, or discard a card. The AI keeps its life while it's comfortable and gives up its cheapest card or permanent when it isn't.",
+      "Animation Module: its {3}, {T} ability gives another counter of a kind already on a permanent or player (another +1/+1, loyalty, poison, and so on).",
+      "Sorin, Lord of Innistrad's −6: destroy up to three creatures and/or other planeswalkers, and each one that goes to a graveyard comes back under your control.",
+      "Teferi, Who Slows the Sunset's +1: choose up to one artifact, creature and land; yours untap, the others tap, and you gain 2 life.",
+      "None of these did anything before."
+    ]
+  },
+  {
     "version": "1.3.289",
     "title": "Death by Dragons, Crescendo of War",
     "notes": [
