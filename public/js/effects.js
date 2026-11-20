@@ -157,6 +157,8 @@ export function spellText(c) {
     .replace(/Choose one\. If (?:this spell|~) was kicked, choose any number instead\.\s*/i, () => (c.kicked ? 'Choose any number —\n' : 'Choose one —\n'))
     // Flame of Anor: "If you control a Wizard as you cast this spell, you may choose two instead."
     .replace(/Choose one\. If you control an? ([A-Z][\w-]+) as you cast (?:this spell|~), you may choose (?:two|both) instead\.\s*/i, (x, ty) => (G.s && c.controller && cardsIn(c.controller, 'battlefield').some((y) => hasSubtype(y, ty)) ? 'Choose one or both —\n' : 'Choose one —\n'))
+    // See Double: "This spell can't be copied. Choose one. If an opponent has eight or more cards in their graveyard, you may choose both instead."
+    .replace(/(?:This spell can't be copied\.\s*)?Choose one\. If an opponent has (\w+) or more cards in their graveyard, you may choose both instead\.\s*/i, (x, k) => (G.s && c.controller && opponents(c.controller).some((o) => cardsIn(o, 'graveyard').length >= (n(k) || 8)) ? 'Choose one or both —\n' : 'Choose one —\n'))
     // HULK SMASH!: "If this spell was cast using teamwork, choose both instead."
     .replace(/Choose one\. If (?:this spell|~) was cast using teamwork, choose both instead\.\s*/i, () => (c.teamworkUsed ? 'Choose two —\n' : 'Choose one —\n'))
     .replace(/\([^)]*\)/g, '')
@@ -3773,6 +3775,17 @@ on(/^if that creature is an? ([a-z]+(?:, [a-z]+)*,? or [a-z]+), draw a card$/, a
   draw(env.me, 1);
   env.did.push(`${who(env.me)} ${s_(env.me, 'draw')} a card`);
 }, { first: true });
+// Bringer of the Last Gift: "each player sacrifices all other creatures they control. Then each player returns all creature cards
+// from their graveyard that weren't put there this way to the battlefield."
+on(/^(?:if (you cast (?:it|~)), )?each player sacrifices all other creatures they control\. then each player returns all creature cards from their graveyard that weren't put there this way to the battlefield$/, async (m, env) => {
+  if (m[1]) { const x = env.src && card(env.src.iid); if (!(x && x.castFrom && x.castTurn === G.s.turn)) return env.did.push("wasn't cast, so nothing happens"); }
+  const before = new Set(seats().flatMap((pid) => cardsIn(pid, 'graveyard')).filter((c) => /Creature/.test(DB[c.def].typeLine || '')).map((c) => c.iid));
+  let sacd = 0;
+  for (const pid of seats()) for (const c of cardsIn(pid, 'battlefield').filter((x) => isCreature(x) && x.iid !== (env.src && env.src.iid))) if (sacrifice(c.iid)) sacd++;
+  let back = 0;
+  for (const iid of before) { const c = card(iid); if (c && c.zone === 'graveyard') { toBattlefield(iid, c.owner); back++; } }
+  env.did.push(`each player sacrifices their other creatures (${sacd}), then ${back} creature card${back === 1 ? '' : 's'} return from graveyards to the battlefield`);
+}, { first: true, multi: true });
 // Kenrith: "Put target creature card from a graveyard onto the battlefield under its owner's control."
 on(/^put target creature card from a graveyard onto the battlefield under its owner's control$/, async (m, env) => {
   const pool = seats().flatMap((pid) => cardsIn(pid, 'graveyard')).filter((c) => /Creature/.test(DB[c.def].typeLine || ''));
@@ -7574,7 +7587,8 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
   const count = cm ? n(cm[1], env.x) : 1;
   let orig = null;
   const of = m[2];
-  if (/target/.test(of)) [orig] = await objects(env, of, { harm: false });
+  // the AI copies the best one, whoever controls it (See Double, Spark Double-style tokens)
+  if (/target/.test(of)) [orig] = await objects(env, of, { harm: false, aiScore: (c) => cardValue(c) });
   else if (/equipped|enchanted/.test(of)) orig = env.src.attachedTo ? card(env.src.attachedTo) : null;
   // "a copy of ~" is always this card (Scute Swarm on landfall: not the land that entered)
   else if (/^~/.test(of)) orig = (env.src && card(env.src.iid)) || env.src;
@@ -11748,6 +11762,41 @@ on(/^that creature enters with x additional \+1\/\+1 counters on it(?:, where x 
   sp.enterExtra = { ...(sp.enterExtra || {}), plus: ((sp.enterExtra || {}).plus || 0) + k };
   env.did.push(`${nameTag(sp)} will enter with ${k} extra +1/+1 counters`);
 }, { first: true });
+// Torgal, A Fine Hound: "that creature enters with an additional +1/+1 counter on it for each Dog and/or Wolf you control"
+on(/^that creature enters with an additional \+1\/\+1 counter on it for each ([a-z]+) and\/or ([a-z]+) you control$/, async (m, env) => {
+  const sp = env.it && env.it.iid && card(env.it.iid);
+  const k = cardsIn(env.me, 'battlefield').filter((c) => hasSubtype(c, capWords(m[1])) || hasSubtype(c, capWords(m[2]))).length;
+  if (!sp || !k) return env.did.push(`no ${capWords(m[1])}s or ${capWords(m[2])}s`);
+  sp.enterExtra = { ...(sp.enterExtra || {}), plus: ((sp.enterExtra || {}).plus || 0) + k };
+  env.did.push(`${nameTag(sp)} will enter with ${k} extra +1/+1 counter${k === 1 ? '' : 's'}`);
+}, { first: true });
+// Sothera, the Supervoid: "each opponent chooses a creature they control and exiles it" (remembered as exiled with Sothera)
+on(/^each opponent chooses a creature they control and exiles it$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  for (const o of opponents(env.me).filter(inGame)) {
+    const pool = cardsIn(o, 'battlefield').filter(isCreature);
+    if (!pool.length) { env.did.push(`${seatName(o)} has no creature`); continue; }
+    const [p] = await env.choosers[o].pickCards({ prompt: `Choose a creature you control to exile (${me ? cardName(me) : 'Sothera'})`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'exile', src: env.src, aiScore: (c) => -cardValue(c) });
+    if (!p || !card(p)) continue;
+    const nm = nameTag(card(p));
+    move(p, 'exile');
+    if (card(p) && me) card(p).exiledWith = me.iid;
+    env.did.push(`${nm} is exiled (${seatName(o)})`);
+  }
+}, { first: true });
+on(/^sacrifice ~, then put a creature card exiled with it onto the battlefield under your control with two additional \+1\/\+1 counters on it$/, async (m, env) => {
+  const me = env.src && card(env.src.iid);
+  if (!me) return;
+  const id = me.iid;
+  if (me.zone === 'battlefield') sacrifice(id);
+  const pool = Object.values(G.s.cards).filter((x) => x.zone === 'exile' && x.exiledWith === id && /Creature/.test((DB[x.def].faces[0] || {}).typeLine || ''));
+  if (!pool.length) return env.did.push('sacrifices itself; no creature card exiled with it');
+  const [p] = await env.choosers[env.me].pickCards({ prompt: 'Put a creature card exiled with Sothera onto the battlefield', cards: pool.map((x) => x.iid), min: 1, max: 1, forced: true, purpose: 'reanimate', src: env.src, aiScore: (c) => cardValue(c) });
+  if (!p) return;
+  toBattlefield(p, env.me);
+  if (card(p) && card(p).zone === 'battlefield') addCounters(card(p), '+1/+1', 2, { by: env.me });
+  env.did.push(`sacrifices itself and puts ${nameTag(card(p))} onto the battlefield with two extra +1/+1 counters`);
+}, { first: true, multi: true });
 // Conspiracy Theorist
 on(/^(?:you may )?exile one of them from your graveyard\. if you do, you may cast it this turn$/, async (m, env) => {
   const ids = (env.them_ || (env.it && env.it.iid ? [env.it.iid] : [])).filter((i) => card(i) && card(i).zone === 'graveyard' && !isLand(card(i)));
@@ -18540,6 +18589,15 @@ export function modeValue(t, env) {
   if (/double the number of each kind of counter you have/.test(low)) {
     const pc = G.s.players[me].counters || {};
     v += Object.values(pc).reduce((a, x) => a + (x || 0), 0) - (G.s.players[me].poison || 0) * 3 - 1;
+  }
+  // See Double: copying a spell needs one on the stack (other than this one); copying a creature is worth the best creature around
+  if (/^copy target (?:instant or sorcery )?spell/.test(low)) {
+    const sp = [G.s.stack, G.s.pstack].filter((x) => x && !Array.isArray(x) && x.iid && x.iid !== (env.src && env.src.iid) && card(x.iid) && !x.ability);
+    v += sp.length ? 4 : -10;
+  }
+  if (/^create a token that's a copy of target creature\b/.test(low)) {
+    const cs = seats().flatMap((pid) => cardsIn(pid, 'battlefield')).filter(isCreature);
+    v += cs.length ? 2 + Math.max(...cs.map(cardValue)) / 3 : -10;
   }
   // Moment of Reckoning: "Return target nonland permanent card from your graveyard to the battlefield"
   if ((m = low.match(/return target ([a-z ]+?) cards? from your graveyard to (the battlefield|your hand)/))) {

@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.291",
+    "title": "Bringer of the Last Gift, See Double, Sothera, Torgal",
+    "notes": [
+      "Bringer of the Last Gift: if you cast it, each player sacrifices their other creatures, then every creature card that was already in a graveyard returns to the battlefield under its owner's control. The ones just sacrificed stay put.",
+      "See Double: you can choose both modes when an opponent has eight or more cards in their graveyard. The AI only picks the copy-a-spell mode when there's a spell to copy, and otherwise copies the best creature on the battlefield, whoever controls it.",
+      "Sothera, the Supervoid: when a creature you control dies, each opponent exiles a creature of their choice. At your end step, if a player has no creatures, Sothera is sacrificed and you put one of the creatures it exiled onto the battlefield under your control with two +1/+1 counters.",
+      "Torgal, A Fine Hound: your first Human creature spell each turn enters with a +1/+1 counter for each Dog and Wolf you control (Torgal counts itself).",
+      "Token copies of a target creature: the AI now copies the most valuable creature, not just one of its own."
+    ]
+  },
+  {
     "version": "1.3.290",
     "title": "Burning-Rune Demon, Rottenmouth Viper, Animation Module, Sorin, Teferi",
     "notes": [
