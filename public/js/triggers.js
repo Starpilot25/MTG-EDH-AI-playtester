@@ -2034,7 +2034,8 @@ function spellMatches(filter, d, c) {
 
 // ------------------------------------------------------------ which triggers does an event set off?
 function onField() {
-  const out = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter((c) => !c.faceDown);
+  // a permanent that lost all its abilities (Humility, Vedalken Humiliator, Darksteel Mutation) has no triggered abilities either
+  const out = seats().flatMap((k) => cardsIn(k, 'battlefield')).filter((c) => !c.faceDown && !(abilitiesGone(c) && !c.becameTreasure));
   // Eminence: commanders' abilities that also work from the command zone
   for (const pid of seats()) for (const c of cardsIn(pid, 'command')) if (c.isCommander && /(?:^|\n)Eminence — /.test((DB[c.def].faces[0] || {}).oracle || '')) out.push(c);
   return out;

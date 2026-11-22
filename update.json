@@ -1,5 +1,5 @@
 {
-  "version": "1.3.295",
+  "version": "1.3.296",
   "minAppVersion": "1.0.0",
   "files": {
     "public/css/style.css": "0929cbd4f0aea0aff663b9c64bd43682d9c4b5d5bcd0fb25ba525ff79fae9b8c",
@@ -20,9 +20,9 @@
     "public/js/state.js": "988511b9e493f675936730658251103fdc51b529b0e19299dc061cdb1b7024d0",
     "public/js/statics.js": "0f12859f934c149180ef4c1acb1b3c13963d1b6ff175d620b974b7df5b34633c",
     "public/js/theme.js": "92998e58cd2e023c5f5c1e19bdb6f3b86322e8f390203c529e4d65f9c7e50160",
-    "public/js/triggers.js": "89a77d89cc1b087cdec12c61ed9edfd37d3274e4add78a81b027c8603d41a6f1",
+    "public/js/triggers.js": "09f416271fbe8e5c700df988bfb62bf187678d8d0a809f94a2f7e1bff9d9fdeb",
     "public/js/ui.js": "e492b8eb078d782ada2ed51e27a079e2b66e1e52f7564f19609fd377adcdc75f",
     "public/js/voice.js": "4622a40593b7db7f8997e96207d0412fcbaa4fa4fe658247c91b3345de1dabe6",
-    "public/patch-notes.json": "5383b012652b81a985b10c98c6e686b4c7af4308452932c5c0a95097b499ad17"
+    "public/patch-notes.json": "d73b6cb887515376ffccb002582944964d6cfe53c808ee207f7c0a05c76ce307"
   }
 }

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.296",
+    "title": "Lost abilities stop triggers",
+    "notes": [
+      "Permanents that have lost all their abilities (Vedalken Humiliator, Humility, Darksteel Mutation and the like) no longer have triggered abilities. Before, their end step, attack and other triggers still went off. \"Until end of turn\" lasts through the end step, so end step triggers stay off that turn. Delayed triggers set up by other cards (such as Sneak Attack's sacrifice) still happen."
+    ]
+  },
+  {
     "version": "1.3.295",
     "title": "Chaos Warp reveal popup",
     "notes": [
