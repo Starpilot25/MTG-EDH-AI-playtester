@@ -7159,6 +7159,15 @@ on(/^create (a|an|one|two|three) (.+?) tokens?( with [^.]+?)? for each (.+)$/, a
   await makeTokens(env, `x ${m[2]}${m[3] || ''}`, null);
   env.x = saved;
 }, { first: true });
+// Show the revealed top card in a popup (Chaos Warp and friends), with what happens to it next
+async function popReveal(env, pid, top, lead = '') {
+  if (!T || !T.showReveal || !card(top)) return;
+  const srcText = env.src ? oracle(card(env.src.iid) || env.src) : '';
+  const perm = isPermanentCard(DB[card(top).def]);
+  const outcome = /If it's a permanent card, (?:they|that player|its owner) puts? it onto the battlefield/i.test(srcText)
+    ? (perm ? "It's a permanent card, so it goes onto the battlefield." : "It isn't a permanent card, so it stays on top of the library.") : '';
+  await T.showReveal({ pid, iids: [top], src: env.src, title: `${seatNameCap(pid)} revealed`, detail: [lead, outcome].filter(Boolean).join(' ') });
+}
 // Chaos Warp, Blink, This Is How It Ends: "the owner of target permanent shuffles it into their library"
 on(/^(?:the owner of (target [^.]+?)|(target [^.]+?)'s owner|its owner) shuffles it into (?:their|his or her) library(?:, then reveals the top card of (?:their|his or her) library|, then investigates)?$/, async (m, env) => {
   const phrase = m[1] || m[2];
@@ -7180,7 +7189,10 @@ on(/^(?:the owner of (target [^.]+?)|(target [^.]+?)'s owner|its owner) shuffles
     if (/reveals the top card/.test(env.sentence)) {
       const top = libTop(owner, 1)[0];
       env.it = top ? { iid: top } : null;
-      if (top) env.did.push(`${who(owner)} ${s_(owner, 'reveal')} ${nameTag(card(top))}`);
+      if (top) {
+        env.did.push(`${who(owner)} ${s_(owner, 'reveal')} ${nameTag(card(top))}`);
+        await popReveal(env, owner, top, `${cardName(c)} was shuffled into the library.`);
+      }
     }
   }
 }, { first: true });
@@ -7188,7 +7200,7 @@ on(/^(?:(?:they|that player|its owner) )?reveals the top card of (?:their|his or
   const pid = env.thatPlayer || opp(env.me);
   const top = libTop(pid, 1)[0];
   env.it = top ? { iid: top } : null;
-  if (top) env.did.push(`${who(pid)} ${s_(pid, 'reveal')} ${nameTag(card(top))}`);
+  if (top) { env.did.push(`${who(pid)} ${s_(pid, 'reveal')} ${nameTag(card(top))}`); await popReveal(env, pid, top); }
 }, { first: true });
 // Chaos Warp: "If it's a permanent card, they put it onto the battlefield."
 on(/^if it's a permanent card, (?:they|that player|its owner) puts? it onto the battlefield$/, async (m, env) => {

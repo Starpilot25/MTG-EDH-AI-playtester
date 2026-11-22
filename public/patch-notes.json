@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.295",
+    "title": "Chaos Warp reveal popup",
+    "notes": [
+      "Chaos Warp (and other \"shuffle it into the library, then reveal the top card\" effects): a popup now shows the revealed card and whether it goes onto the battlefield. Click OK or press Enter to continue."
+    ]
+  },
+  {
     "version": "1.3.294",
     "title": "Fix: game stuck after countering an AI spell",
     "notes": [

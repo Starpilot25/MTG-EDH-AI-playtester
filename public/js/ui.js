@@ -1819,6 +1819,19 @@ hooks.slavedAttack = () =>
     });
   });
 T.confirm = (title, body) => confirmDialog({ title, body }, 'Yes', 'No');
+// Chaos Warp and other "reveal the top card" effects: show the revealed card(s) until you click OK
+T.showReveal = ({ iids, src, title, detail }) => new Promise((resolve) => {
+  const cs = (iids || []).map((i) => card(i)).filter(Boolean);
+  if (!cs.length) return resolve();
+  const dlg = openDialog(`<span class="eyebrow">${esc(src ? cardName(card(src.iid) || src) : '')}</span>
+    <h3>${esc(title || 'Revealed')}</h3>
+    ${detail ? `<p class="hint">${esc(detail)}</p>` : ''}
+    <div class="zv-grid reveal-grid">${cs.map((c) => `<div class="zv-item">${cardHTML(c)}<span>${esc(cardName(c))}</span></div>`).join('')}</div>
+    <div class="btns"><button class="primary" id="rv-ok">OK <kbd>Enter</kbd></button></div>`, { small: true, onClose: () => resolve() });
+  const ok = $('#rv-ok', dlg);
+  ok.addEventListener('click', () => { closeDialog(true); resolve(); });
+  ok.focus();
+});
 // triggers resolving in a row redraw at most once per frame (a board wipe with Blood Artists out is hundreds of triggers)
 let renderQueued = false;
 T.render = () => {

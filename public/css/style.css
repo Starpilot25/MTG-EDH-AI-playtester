@@ -601,6 +601,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 .dlg h4 { margin: 6px 0 0; font: 700 14px var(--f-display); color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
 .dlg-x { position: absolute; right: 10px; top: 10px; width: 30px; height: 30px; padding: 0; border-radius: 50%; font-size: 18px; line-height: 1; }
 .zv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px; }
+.zv-grid.reveal-grid { grid-template-columns: minmax(0, 200px); justify-content: center; margin: 8px 0 14px; }
+.zv-grid.reveal-grid .zv-item { cursor: default; }
+.zv-grid.reveal-grid .zv-item .card { --cw: 180px; --ch: 252px; cursor: default; }
 .zv-item { display: grid; gap: 4px; justify-items: center; font-size: 12px; text-align: center; cursor: pointer; color: var(--muted); }
 .zv-item .card { --cw: 100px; --ch: 140px; cursor: pointer; }
 .zv-item:hover .card { box-shadow: 0 0 0 2px var(--brass); }
