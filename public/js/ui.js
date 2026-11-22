@@ -55,6 +55,7 @@ let menuDoc = document;
 
 let hoverIid = null;
 let pendingRespond = null;
+let pendingRespondIid = null; // the spell the AI is waiting on you to respond to
 let pendingBlocks = null;
 let revealAiHand = false;
 let logScrolledUp = false;
@@ -1339,6 +1340,10 @@ function renderBanner() {
       <p>${cb.selected ? `Now click the attacker that <b>${esc(cardName(card(cb.selected)))}</b> should block.` : 'Click one of your untapped creatures, then the attacker it blocks. Click a blocker again to remove it.'}
       Unblocked damage: <b>${total}</b>${total >= G.s.players.p.life ? ' — <b class="lethal">lethal</b>' : ''}. You can also cast instants or activate abilities before you block.</p>
       <div class="btns"><button class="primary" data-act="blocks">${Object.values(cb.blocks).some((b) => b.length) ? 'Confirm blocks' : 'No blocks'} <kbd>Enter</kbd></button></div></div>`;
+  } else if (pendingRespond) {
+    // the AI is waiting on you but nothing is showing on the stack (it already resolved or left): never leave the game stuck
+    html = `<div class="combat-bar"><span class="eyebrow">Your priority</span><p>The AI is waiting for you to pass priority.</p>
+      <div class="btns"><button class="primary" data-act="resolve">Continue <kbd>Enter</kbd></button></div></div>`;
   } else if (run.aiBusy) {
     // pods: an AI attacking other players — say who it's going after
     const cb = s.combat;
@@ -1428,6 +1433,7 @@ hooks.respond = (iid) => {
   if (!G.settings.pauseOnAiSpells) return new Promise((r) => setTimeout(() => r('resolve'), Math.max(500, G.settings.aiSpeed)));
   return new Promise((r) => {
     pendingRespond = r;
+    pendingRespondIid = iid;
     render(); // light up the cards you can respond with
   });
 };
@@ -2111,7 +2117,7 @@ async function withRollback(fn) {
 async function castByPlayer(iid, opts = {}) {
   await castInner(iid, opts);
   // your counterspell hit the AI's spell: let the AI's turn move on
-  if (G.s.stack && G.s.stack.countered && pendingRespond) {
+  if (pendingRespond && ((G.s.stack && G.s.stack.countered) || (pendingRespondIid && (G.s.counteredIids || []).includes(pendingRespondIid)))) {
     const r = pendingRespond;
     pendingRespond = null;
     r('resolve');
@@ -3650,7 +3656,7 @@ function onKey(e) {
   const s = G.s;
   if (k === 'Enter' || k === ' ') {
     e.preventDefault();
-    if (s.stack && pendingRespond) {
+    if (pendingRespond && !s.pstack) {
       const r = pendingRespond;
       pendingRespond = null;
       return r('resolve');

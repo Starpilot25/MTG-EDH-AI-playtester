@@ -1105,6 +1105,9 @@ export async function castSpell(pid, iid, opt, env) {
   const tag = `${pid === 'p' ? 'You cast' : 'AI casts'} ${opt.mode === 'faceDown' ? 'a card face down' : nameTag({ ...c, face: fIdx })}${fromZone === 'hand' && c.owner !== pid ? (c.owner === 'p' ? ' from your hand' : " from the AI's hand") : fromZone === 'command' ? ' from the command zone' : fromZone === 'graveyard' ? ' from the graveyard' : fromZone === 'exile' ? ' from exile' : ''}${opt.mode && !/^(normal|faceDown|back|adventure|impulse|gyPermit|coram|freecast)$/.test(opt.mode) ? ` (${opt.mode === 'altcost' ? 'alternative cost' : opt.mode === 'handPermit' ? `free, ${card(opt.permitSrc) ? cardName(card(opt.permitSrc)) : 'permission'}` : opt.mode})` : ''}${info.kicked ? ' (kicked)' : ''}${info.x ? ` (X = ${info.x})` : ''}.`;
   log(pid, tag);
   const stackSlot = pid === 'p' && s.stack ? 'pstack' : pid === 'p' ? 'pstack' : 'stack';
+  // a spell cast while another is still waiting in this slot (Sunbird's Invocation casting a card while the spell that
+  // triggered it is on the stack): put the outer one back when this one is done, or its response window loses track of it
+  const outerSlot = s[stackSlot] && s[stackSlot].iid !== iid && !s[stackSlot].ability ? s[stackSlot] : null;
   s[stackSlot] = { iid, by: pid, face: fIdx };
   fire({ type: 'castSelf', iid, controller: pid });
   fire({ type: 'cast', iid, def: c.def, controller: pid });
@@ -1114,7 +1117,7 @@ export async function castSpell(pid, iid, opt, env) {
   // a cast trigger moved the spell off the stack (Lady Loki: "exile it")
   const leftStack = () => !opt.copy && card(iid) && card(iid).zone !== fromZone && !(fromZone === 'hand' && card(iid).zone === 'stack');
   if (leftStack()) {
-    s[stackSlot] = null;
+    s[stackSlot] = outerSlot;
     log(pid, `${nameTag(c)} left the stack.`);
     env.render();
     return true;
@@ -1202,7 +1205,7 @@ export async function castSpell(pid, iid, opt, env) {
   // a cast trigger countered it while it waited (Boromir, Swindler's Scheme, Mana Tithe-style effects)
   if (!countered && s[stackSlot] && s[stackSlot].iid === iid && s[stackSlot].countered) countered = true;
   if (leftStack()) {
-    s[stackSlot] = null;
+    s[stackSlot] = outerSlot;
     log(pid, `${nameTag(c)} left the stack.`);
     env.render();
     return true;
@@ -1215,7 +1218,7 @@ export async function castSpell(pid, iid, opt, env) {
   const bounced = s[stackSlot] && s[stackSlot].bounced;
   const topLib = s[stackSlot] && s[stackSlot].topLibCountered; // Memory Lapse
   const counteredByEffect = !!(s[stackSlot] && s[stackSlot].countered);
-  s[stackSlot] = null;
+  s[stackSlot] = outerSlot;
   if (counteredByEffect) countered = true;
   // countered by an effect while another spell took the stack slot (a spell cast in response, then resolved)
   if (s.counteredIids && s.counteredIids.includes(iid)) { countered = true; s.counteredIids = s.counteredIids.filter((x) => x !== iid); }

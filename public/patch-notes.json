@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.294",
+    "title": "Fix: game stuck after countering an AI spell",
+    "notes": [
+      "Fixed a hang on the AI's turn. When an AI spell made it cast another spell while the first was still on the stack (Sunbird's Invocation, cascade and similar), the game lost track of the first spell. Countering it then left the AI waiting forever on \"taking its turn\". The first spell now stays on the stack and can be countered normally.",
+      "Safety net: if the AI is ever waiting on you with nothing showing on the stack, a Continue button (or Enter) now lets the game move on."
+    ]
+  },
+  {
     "version": "1.3.293",
     "title": "Perilous Snare",
     "notes": [
