@@ -475,7 +475,9 @@ export function matchesFilter(c, phrase) {
   if (/\bsorcer(?:y|ies)\b/.test(p2)) kinds.push('Sorcery');
   // subtypes: "target Zombie", "Goblin creature", "Dragon you control", "Mount or Vehicle"
   const subs = subtypeWords(p2);
-  if (subs.length) {
+  // "creature or Vehicle" (Perilous Snare), "artifact or Equipment": a card type or-ed with a subtype; either one will do
+  const mixedOr = subs.length && kinds.length && /\bor\b|, |and\/or/.test(p2);
+  if (subs.length && !mixedOr) {
     const ok = / or |, /.test(phrase) ? subs.some((t) => hasSubtype(c, t)) : subs.every((t) => hasSubtype(c, t));
     if (!ok) return false;
   }
@@ -492,6 +494,7 @@ export function matchesFilter(c, phrase) {
   }
   if (!kinds.length) return true;
   const isK = (k) => (k === 'Creature' ? isCreature(c) : isType(c, k));
+  if (mixedOr) return kinds.some(isK) || subs.some((t) => hasSubtype(c, t));
   // "artifact creature" needs both; "artifact or creature", "artifact, creature, or enchantment" needs one
   const kindOk = kinds.length > 1 && !/\bor\b|, |and\/or/.test(p2) ? kinds.every(isK) : kinds.some(isK);
   if (!kindOk) return false;

@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.293",
+    "title": "Perilous Snare",
+    "notes": [
+      "Perilous Snare: its max speed ability now puts a +1/+1 counter on the target. Before, it did nothing because the game couldn't find a target for \"creature or Vehicle you control\".",
+      "Targets of the form \"card type or subtype\" (creature or Vehicle, artifact or Equipment, and similar) now accept either one. Before, they matched nothing."
+    ]
+  },
+  {
     "version": "1.3.292",
     "title": "Decimate",
     "notes": [
