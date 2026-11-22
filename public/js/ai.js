@@ -726,6 +726,17 @@ function removalBar(c, f) {
 function targetsAvailable(text, c) {
   const t = String(text || '').toLowerCase();
   if (/choose (?:one|two|one or both|one or more|any number)/.test(t)) return true;
+  // Decimate: "destroy target artifact, target creature, target enchantment, and target land" needs a different permanent for each
+  const dm = t.match(/destroy target ([a-z]+), target ([a-z]+), target ([a-z]+), and target ([a-z]+)\./);
+  if (dm) {
+    const used = new Set();
+    for (const w of dm.slice(1, 5)) {
+      const ok = legalTargets(w, AI, c).find((x) => !used.has(x.iid || x));
+      if (!ok) return false;
+      used.add(ok.iid || ok);
+    }
+    return true;
+  }
   for (const sent of t.split(/(?<=\.)\s+|\n/)) {
     const m = sent.match(/(?:^|[^a-z])(up to (?:one|two|three|four|x|\d+) |any number of )?(?:other |another )?target ([^,.;]+)/);
     if (!m || m[1]) continue;

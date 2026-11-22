@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.292",
+    "title": "Decimate",
+    "notes": [
+      "Decimate: now destroys a target artifact, creature, enchantment and land. Before, it destroyed only the creature. Each target must be a different permanent, and the AI won't cast it unless all four targets exist."
+    ]
+  },
+  {
     "version": "1.3.291",
     "title": "Bringer of the Last Gift, See Double, Sothera, Torgal",
     "notes": [

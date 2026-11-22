@@ -9482,6 +9482,22 @@ on(/^destroy up to (\w+) target creatures and\/or other planeswalkers\. return e
 }, { first: true, multi: true });
 // Teferi, Who Slows the Sunset: "Choose up to one target artifact, up to one target creature, and up to one target land.
 // Untap the chosen permanents you control. Tap the chosen permanents you don't control."
+// Decimate: "Destroy target artifact, target creature, target enchantment, and target land."
+// Every target is required, and one permanent can't be two of them (an artifact creature can't be both).
+on(/^destroy target ([a-z]+), target ([a-z]+), target ([a-z]+), and target ([a-z]+)$/, async (m, env) => {
+  const chosen = [];
+  for (const w of m.slice(1, 5)) {
+    const ty = capWords(w);
+    const pool = allBf().filter((c) => isType(c, ty) && !chosen.includes(c.iid) && canTarget(c, env.me, env.src));
+    if (!pool.length) { env.did.push(`has no target ${w}, so it does nothing`); return; }
+    const [iid] = await env.choosers[env.me].pickCards({ prompt: `Target ${w} to destroy`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'destroy', src: env.src, aiScore: (c) => (c.controller === env.me ? -5 - cardValue(c) : cardValue(c)) });
+    if (!iid) return;
+    chosen.push(iid);
+  }
+  const did = [];
+  for (const iid of chosen) { const c = card(iid); const t = nameTag(c); if (destroy(iid)) did.push(t); }
+  env.did.push(did.length ? `destroys ${did.join(', ')}` : 'destroys nothing');
+}, { first: true });
 on(/^choose up to one target artifact, up to one target creature, and up to one target land\. untap the chosen permanents you control\. tap the chosen permanents you don't control$/, async (m, env) => {
   const chosen = [];
   for (const ty of ['Artifact', 'Creature', 'Land']) {
