@@ -94,6 +94,14 @@ function applyTypes(t, ty) {
 }
 function typeFxOf(inst, base) {
   const fx = [];
+  // a crewed Vehicle or a Spacecraft stationed past its "It's an artifact creature at N+" is a creature: say so in its type line,
+  // so "artifact creature", "creature card"-style checks that read the type line see it too
+  if (inst.zone === 'battlefield' && !/Creature/.test(base.split('—')[0]) && !inst.animated) {
+    const f = face(inst);
+    const at = (f.oracle || '').match(/It's an artifact creature at (\d+)\+/i);
+    if ((G.s && inst.crewedTurn === G.s.turn) || inst.stationCreature || (at && ((inst.counters || {}).charge || 0) >= +at[1] && f.power !== undefined && f.power !== null && f.power !== ''))
+      fx.push({ ts: 0, ty: { add: 'Creature' } });
+  }
   if (inst.animated && !/Creature/.test(base.split('—')[0])) fx.push({ ts: stampOf(inst.animated), ty: { add: 'Creature', subAdd: inst.animated.types && inst.animated.types !== 'Creature' ? inst.animated.types : '' } });
   if (inst.auraType && G.s && G.s.cards[inst.auraType.src] && G.s.cards[inst.auraType.src].attachedTo === inst.iid) fx.push({ ts: stampOf((inst.auraBuffs || {})[inst.auraType.src] || inst.auraType), ty: { subSet: inst.auraType.type } });
   if (inst.addTypes) {

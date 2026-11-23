@@ -743,9 +743,13 @@ export function countPhrase(pid, phrase, helpers, srcIid) {
   }
   // Tesak: "add {R} for each attacking creature"; "for each other attacking creature"
   {
-    const am = p.match(/^(other )?attacking (creature|[a-z-]+)s?( you control)?$/);
+    // Cloud, Ex-SOLDIER: "for each equipped attacking creature you control"
+    const am = p.match(/^(other )?(equipped |enchanted )?attacking (creature|[a-z-]+)s?( you control)?$/);
     if (am && G.s) {
-      return Object.values(G.s.cards).filter((c) => c.zone === 'battlefield' && c.attacking && (am[2] === 'creature' ? true : helpers.hasSubtype(c, am[2][0].toUpperCase() + am[2].slice(1))) && (!am[3] || c.controller === pid) && (!am[1] || c.iid !== srcIid)).length;
+      const all = Object.values(G.s.cards);
+      const has = (c, kind) => all.some((x) => x.zone === 'battlefield' && x.attachedTo === c.iid && new RegExp('\\b' + kind + '\\b').test(helpers.typeLine(x)));
+      return all.filter((c) => c.zone === 'battlefield' && c.attacking && (am[3] === 'creature' ? true : helpers.hasSubtype(c, am[3][0].toUpperCase() + am[3].slice(1))) && (!am[4] || c.controller === pid) && (!am[1] || c.iid !== srcIid)
+        && (!am[2] || has(c, am[2] === 'equipped ' ? 'Equipment' : 'Aura'))).length;
     }
   }
   // Crackling Drake: "the total number of instant and sorcery cards you own in exile and in your graveyard"

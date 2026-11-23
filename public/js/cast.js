@@ -1148,7 +1148,7 @@ export async function castSpell(pid, iid, opt, env) {
   }
   let cascades = (oracle({ ...c, face: fIdx }).replace(/\([^)]*\)/g, '').match(/(?:^|\n|, )cascade\b/gi) || []).length;
   // Smoldering Stagecoach: "the next instant spell and the next sorcery spell you cast this turn each have cascade"
-  if (s.cascadeNext && !opt.copy) { const tl0 = (d.faces[fIdx] || d.faces[0]).typeLine || d.typeLine || ''; const k = s.cascadeNext.findIndex((e) => e.pid === pid && e.turn === s.turn && new RegExp('\\b' + e.type + '\\b').test(tl0)); if (k >= 0) { cascades++; s.cascadeNext.splice(k, 1); log(pid, `${nameTag(c)} has cascade (Smoldering Stagecoach).`); } }
+  if (s.cascadeNext && !opt.copy) { const tl0 = (d.faces[fIdx] || d.faces[0]).typeLine || d.typeLine || ''; const k = s.cascadeNext.findIndex((e) => e.pid === pid && e.turn === s.turn && new RegExp('\\b' + e.type + '\\b').test(tl0)); if (k >= 0) { cascades++; s.cascadeNext.splice(k, 1); log(pid, `${nameTag(c)} has cascade.`); } }
   // Rain of Riches: "The first spell you cast each turn that mana from a Treasure was spent to cast has cascade."
   if (!opt.copy) {
     const usedTreasure = s.treasureSpent && s.treasureSpent.pid === pid && s.treasureSpent.turn === s.turn;
@@ -1496,7 +1496,9 @@ async function resolveSpell(pid, c, opt, info, env) {
     }
   }
   const did = await resolveEffects(text, { ...c, face: fIdx }, ctx);
-  log(pid, did.length ? `${nameTag({ ...c, face: fIdx })} resolves: ${did.join('; ')}.` : did.handled ? `${nameTag({ ...c, face: fIdx })} resolves, but it does nothing.` : `${nameTag({ ...c, face: fIdx })} resolves — its effect isn't automated, apply it by hand.`);
+  // Throes of Chaos: a spell that's only keywords (cascade, retrace) has nothing left to do as it resolves
+  const onlyKw = !did.length && !did.handled && !String(spellText({ ...c, face: fIdx }) || '').trim();
+  log(pid, onlyKw ? `${nameTag({ ...c, face: fIdx })} resolves.` : did.length ? `${nameTag({ ...c, face: fIdx })} resolves: ${did.join('; ')}.` : did.handled ? `${nameTag({ ...c, face: fIdx })} resolves, but it does nothing.` : `${nameTag({ ...c, face: fIdx })} resolves — its effect isn't automated, apply it by hand.`);
   // Bill Potts: "Whenever you cast an instant or sorcery spell that targets only Bill Potts …, copy that spell"
   {
     const picked = did.picked || [];

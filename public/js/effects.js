@@ -6452,6 +6452,8 @@ async function dealDamage(env, source, amount, toPhrase, divided) {
   const to = toPhrase.toLowerCase();
   const me = env.me;
   const parts = to.split(/ and (?=each|target|you|that|its|any|up to)/);
+  // Impending Flux: "each opponent and each creature they control" — "they" are the opponents
+  for (let i = 1; i < parts.length; i++) if (/^each opponent$/.test(parts[i - 1]) && /\bthey control$/.test(parts[i])) parts[i] = parts[i].replace(/they control$/, 'your opponents control');
   for (const part of parts) {
     if (/^each (?:opponent|player)|^you$|^that player|^its controller|^defending player|^target (?:player|opponent)$/.test(part) || /^each opponent and each creature/.test(part)) {
       const ps = /^each player/.test(part) ? seats() : await playerTarget(env, part.replace(/ and .*/, ''));
@@ -7707,14 +7709,24 @@ function incubatorDef() {
   }
   return id;
 }
-on(/^populate/, async (m, env) => {
+on(/^populate(\. the token enters tapped and attacking)?/, async (m, env) => {
   const toks = cardsIn(env.me, 'battlefield').filter((c) => c.token && isCreature(c));
   if (!toks.length) return env.did.push('has nothing to populate');
   const [pick] = await env.choosers[env.me].pickCards({ prompt: 'Choose a creature token to copy', cards: toks.map((c) => c.iid), min: 1, max: 1, purpose: 'populate', src: env.src, aiScore: (c) => cardValue(c) });
   const orig = card(pick);
-  createToken(orig.def, env.me, 1);
-  env.did.push(`populates (${nameTag(orig)})`);
-});
+  const made = createToken(orig.def, env.me, 1);
+  // Ghired, Conclave Exile: "The token enters tapped and attacking" (the player or planeswalker Ghired is attacking)
+  if (m[1] && G.s.combat) for (const t of made) {
+    const tk = card(t);
+    if (!tk) continue;
+    const srcT = env.src && G.s.combat.targets && G.s.combat.targets[env.src.iid];
+    tk.tapped = true; tk.attacking = true;
+    G.s.combat.attackers.push(t);
+    G.s.combat.targets = G.s.combat.targets || {};
+    G.s.combat.targets[t] = srcT || env.thatPlayer || opp(env.me);
+  }
+  env.did.push(`populates (${nameTag(orig)})${m[1] && G.s.combat ? ', tapped and attacking' : ''}`);
+}, { multi: true });
 
 async function makeTokens(env, desc, attachPhrase) {
   const d = desc.toLowerCase();
@@ -14930,6 +14942,12 @@ on(/^for each kind of counter on target permanent or player, give that permanent
   if (o.p) for (const [kk, v] of Object.entries(G.s.players[o.p].counters)) if (v > 0) G.s.players[o.p].counters[kk] = v + 1;
   env.did.push(`adds a counter of each kind to ${o.label}`);
 }, { first: true });
+// TARDIS: "if you control a Time Lord, the next spell you cast this turn has cascade and you may planeswalk" (no planar deck here)
+on(/^(?:if you control an? ([a-z ]+?), )?the next spell you cast this turn has cascade(?: and you may planeswalk)?$/, async (m, env) => {
+  if (m[1] && !cardsIn(env.me, 'battlefield').some((c) => hasSubtype(c, capWords(m[1])))) return env.did.push(`no ${capWords(m[1])}, so nothing happens`);
+  G.s.cascadeNext = [...(G.s.cascadeNext || []), { pid: env.me, turn: G.s.turn, type: '[A-Za-z]+' }];
+  env.did.push(`the next spell ${who(env.me)} ${s_(env.me, 'cast')} this turn has cascade${/planeswalk/.test(m[0]) ? ' (no planar deck, so no planeswalking)' : ''}`);
+}, { first: true });
 // Smoldering Stagecoach
 on(/^the next instant spell and the next sorcery spell you cast this turn each have cascade$/, async (m, env) => {
   G.s.cascadeNext = [...(G.s.cascadeNext || []), { pid: env.me, turn: G.s.turn, type: 'Instant' }, { pid: env.me, turn: G.s.turn, type: 'Sorcery' }];
@@ -17874,6 +17892,9 @@ async function runSentence(sentence, env) {
     }
   }
   // "gets +1/+0 until end of turn for each artifact defending player controls" → "gets +1/+0 for each … until end of turn"
+  // Invisible Woman: "… until end of turn for each creature you control and can't be blocked this turn" — two effects
+  { const iw = s.match(/^(target creature) (gets? [+-][\dx]+\/[+-][\dx]+) until end of turn (for each [^.]+?) and (can't be blocked this turn|gains [a-z, ]+ until end of turn)$/i);
+    if (iw) { await runSentence(`${iw[1]} ${iw[2]} ${iw[3]} until end of turn`, env); await runSentence(`that creature ${iw[4].replace(/^gains/, 'gains')}`, env); return; } }
   s = s.replace(/^(.+? gets? [+-][\dx]+\/[+-][\dx]+) (until end of turn) (for each [^.]+)$/i, '$1 $3 $2');
   // X that depends on something done earlier in this same effect (Spellbound Dragon: "where X is the discarded card's mana value")
   {
@@ -18225,6 +18246,14 @@ function whereX(env) {
   else if (/^permanents you(?:'ve| have) sacrificed this turn$/.test(ph)) v = ts.sacrificed || 0;
   // Klauth: "where X is the total power of attacking creatures"
   else if (/^(?:the )?total power of attacking creatures(?: you control)?$/.test(ph)) v = ((G.s.combat && G.s.combat.attackers) || []).map(card).filter((c) => c && c.zone === 'battlefield' && (!/you control/.test(ph) || c.controller === me)).reduce((a, c) => a + Math.max(0, power(c)), 0);
+  // Impending Flux: "the number of spells you've cast from anywhere other than your hand this turn"
+  else if (/^spells you(?:'ve| have) cast from anywhere other than your hand this turn$/.test(ph)) v = ts.spellsNotHand || 0;
+  // "1 plus the number of …"
+  else if ((km = ph.match(/^(\d+|one|two|three) plus (?:the number of )?(.+)$/))) {
+    const sub = { ...env, xWhere: [null, '', km[2]], x: 0 };
+    whereX(sub);
+    v = n(km[1]) + (sub.x || 0);
+  }
   else v = countPhrase(me, ph, helpers, env.src && env.src.iid);
   if (v !== null) env.x = xm[1] === 'half ' ? (xm[3] === 'up' ? Math.ceil(v / 2) : Math.floor(v / 2)) : xm[1] === 'twice ' ? v * 2 : v;
 }
