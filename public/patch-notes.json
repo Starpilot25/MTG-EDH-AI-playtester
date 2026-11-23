@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.3.300",
+    "title": "New built-in deck: Dimir Graveyard (Ultimecia)",
+    "notes": [
+      "New built-in deck: Bracket 2 \u2014 Dimir Graveyard (Ultimecia, Time Sorceress). A budget surveil and reanimation deck that flips Ultimecia for an extra turn. Find it under Built-in decks.",
+      "Ultimecia, Time Sorceress: transforming now exiles all eight cards from your graveyard, and you can only pay if you have eight. Before, it exiled one.",
+      "Corpse Augur: you now choose the target player, and you draw and lose life equal to the creature cards in their graveyard. Before, it drew nothing.",
+      "AI: graveyard decks now surveil extra lands and big creatures into the graveyard instead of keeping everything on top.",
+      "AI: holds mana for Ultimecia's end-step transform once its graveyard is ready, instead of tapping out."
+    ]
+  },
+  {
     "version": "1.3.299",
     "title": "\"Defending player controls\" targets",
     "notes": [

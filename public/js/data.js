@@ -17142,6 +17142,95 @@ Deck
 ${basics(15, 'Island')}
 ${basics(15, 'Mountain')}`,
   },
+  ultimecia: {
+    label: 'Built-in deck · Bracket 2 — Dimir Graveyard (Ultimecia, Time Sorceress)',
+    bracket: 2,
+    text: `Commander
+1 Ultimecia, Time Sorceress
+
+Deck
+1 Sol Ring
+1 Arcane Signet
+1 Dimir Signet
+1 Talisman of Dominance
+1 Mind Stone
+1 Fellwar Stone
+1 Thought Vessel
+1 Commander's Sphere
+1 Dimir Locket
+1 Wayfarer's Bauble
+1 Everflowing Chalice
+1 Swiftfoot Boots
+1 Lightning Greaves
+1 Dimir Spybug
+1 Enhanced Surveillance
+1 Disinformation Campaign
+1 Thoughtbound Phantasm
+1 Notion Rain
+1 Thought Erasure
+1 Dimir Informant
+1 Mire Triton
+1 Stitcher's Supplier
+1 Undead Butler
+1 Consider
+1 Opt
+1 Doom Whisperer
+1 Corpse Augur
+1 Drown in the Loch
+1 Mulldrifter
+1 Night's Whisper
+1 Sign in Blood
+1 Read the Bones
+1 Fact or Fiction
+1 Phyrexian Arena
+1 Syphon Mind
+1 Animate Dead
+1 Victimize
+1 Unearth
+1 Persist
+1 Exhume
+1 Dread Return
+1 Zombify
+1 Living Death
+1 Phyrexian Reclamation
+1 Sepulchral Primordial
+1 Rune-Scarred Demon
+1 Grave Titan
+1 Archon of Cruelty
+1 Noxious Gearhulk
+1 Torrential Gearhulk
+1 Overseer of the Damned
+1 Gray Merchant of Asphodel
+1 Shriekmaw
+1 Ravenous Chupacabra
+1 Hostage Taker
+1 Infernal Grasp
+1 Go for the Throat
+1 Feed the Swarm
+1 Hero's Downfall
+1 Counterspell
+1 Arcane Denial
+1 Crux of Fate
+1 Decree of Pain
+1 Command Tower
+1 Dimir Aqueduct
+1 Dimir Guildgate
+1 Jwar Isle Refuge
+1 Temple of Deceit
+1 Sunken Hollow
+1 Darkwater Catacombs
+1 Path of Ancestry
+1 Ash Barrens
+1 Evolving Wilds
+1 Terramorphic Expanse
+1 Mortuary Mire
+1 Dakmor Salvage
+1 Choked Estuary
+1 Underground River
+1 Drowned Catacomb
+10 Island
+10 Swamp`,
+  },
   cats: {
     label: 'Built-in deck · Bracket 1 — Selesnya Cats (Arahbo)',
     bracket: 1,

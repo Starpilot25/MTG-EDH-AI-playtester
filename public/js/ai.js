@@ -331,9 +331,13 @@ const chooserImpl = {
     const lands = bf.filter(isLand).length + cardsIn(pid, 'hand').filter(isLand).length;
     const mana = lands + bf.filter((c) => !isLand(c) && DB[c.def].produced.length).length;
     // graveyard matters: Uurg, delirium, threshold, reanimation, "cards in your graveyard"
-    const gyText = bf.map((c) => oracle(c)).join('\n');
+    // (the commander counts even in the command zone: Ultimecia exiles eight cards from the graveyard to transform)
+    const cmdrs = cardsIn(pid, 'command').filter((c) => c.isCommander);
+    const gyText = [...bf, ...cmdrs].map((c) => oracle(c)).join('\n');
     const landsInGy = /land cards? in your graveyard/i.test(gyText);
-    const gyGood = landsInGy || /cards? in your graveyard|delirium|threshold|from your graveyard/i.test(gyText);
+    const gyGood = landsInGy || /cards? in your graveyard|cards? from your graveyard|delirium|threshold|from your graveyard/i.test(gyText);
+    // a reanimator deck (it knows its own list): big creatures are better in the graveyard than on top
+    const reanim = [...cardsIn(pid, 'hand'), ...cardsIn(pid, 'library'), ...bf].filter((c) => /creature cards? (?:from (?:your|a|all) graveyards?|in (?:your|a) graveyard)[^.]*(?:to|onto) the battlefield|return (?:target|up to one target|a) creature card from your graveyard to the battlefield|each player (?:exiles all creature cards|returns)/i.test(oracle(c))).length >= 3;
     const score = (c) => {
       const d = DB[c.def];
       const t = oracle(c);
@@ -347,6 +351,9 @@ const chooserImpl = {
       const c = card(iid);
       let v = score(c);
       if (surveil && gyGood && isLand(c) && landsInGy && lands >= 4) v = -2;
+      // graveyard decks: extra lands and creatures too big to cast soon go to the graveyard to be used from there
+      if (surveil && gyGood && isLand(c) && lands >= 5) v = -1;
+      if (surveil && reanim && isCreature(c) && DB[c.def].cmc >= 5 && DB[c.def].cmc > mana) v = -1;
       return { iid, v };
     });
     const keep = plan.filter((x) => x.v > 0).sort((a, b) => b.v - a.v);
@@ -853,9 +860,19 @@ function roleOf(o, f) {
 
 // Mana the AI keeps open on its own turn for counterspells and instant-speed removal.
 function reserveMana() {
+  // Ultimecia, Time Sorceress: keep the mana for "at the beginning of your end step, you may pay {4}{U}{U}{B}{B} and exile
+  // eight cards from your graveyard. If you do, transform ~" (an extra turn) once the graveyard is ready
+  let endStep = 0;
+  if (G.s.active === AI) for (const c of cardsIn(AI, 'battlefield')) {
+    const m = oracle(c).match(/At the beginning of your end step, you may pay ((?:\{[^}]+\})+) and exile (\w+) cards? from your graveyard\. If you do, transform/i);
+    if (!m) continue;
+    const need = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[m[2].toLowerCase()] || +m[2] || 1;
+    const pc = parseCost(m[1]); const cost = pc.generic + pc.pips.length;
+    if (cardsIn(AI, 'graveyard').length >= need && totalMana(sources(AI)) >= cost) endStep = Math.max(endStep, cost);
+  }
   const held = options((o) => ['counter', 'removal', 'fog'].includes(o.role));
-  if (!held.length) return 0;
-  let r = 0;
+  if (!held.length) return endStep;
+  let r = endStep;
   const counter = held.filter((o) => o.role === 'counter').sort((x, y) => x.u - y.u)[0];
   if (counter) r += counter.u;
   const removal = held.filter((o) => o.role === 'removal').sort((x, y) => x.u - y.u)[0];

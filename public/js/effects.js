@@ -9184,6 +9184,23 @@ on(/^sacrifice ((?:an? [a-z]+, )+and an? [a-z]+)$/, async (m, env) => {
 });
 
 on.first = true; // the handlers below are specific and take priority over the general ones
+// Ultimecia, Time Sorceress: "you may pay {4}{U}{U}{B}{B} and exile eight cards from your graveyard. If you do, transform ~."
+// both halves are one cost: no paying the mana without the cards
+on(/^(?:you may )?pay ((?:\{[^}]+\})+) and exile (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards? from your graveyard$/, async (m, env) => {
+  const { T } = await import('./triggers.js');
+  const k = n(m[2]) || 1;
+  const gy = cardsIn(env.me, 'graveyard');
+  env.lastMay = false;
+  if (gy.length < k) return env.did.push(`has only ${gy.length} card${gy.length === 1 ? '' : 's'} in the graveyard (needs ${k})`);
+  if (castMod && !payCost(m[1], castMod.manaSources(env.me))) return env.did.push(`can't pay ${m[1].toUpperCase()}`);
+  if (!isAI(env.me) && !(await env.choosers[env.me].confirm(cardName(env.src), `Pay ${m[1].toUpperCase()} and exile ${k} cards from your graveyard?`, env))) return env.did.push("doesn't pay");
+  const paid = T.payMana ? await T.payMana(env.me, m[1], cardName(env.src)) : false;
+  if (!paid) return env.did.push("doesn't pay");
+  const picks = gy.length === k ? gy.map((c) => c.iid) : await env.choosers[env.me].pickCards({ prompt: `Exile ${k} cards from your graveyard`, cards: gy.map((c) => c.iid), min: k, max: k, forced: true, purpose: 'exileCost', src: env.src, aiScore: (c) => -cardValue(c) - (isCreature(c) ? 3 : 0) });
+  for (const i of picks.slice(0, k)) move(i, 'exile');
+  env.lastMay = true;
+  env.did.push(`${who(env.me)} ${s_(env.me, 'pay')} ${m[1].toUpperCase()} and ${s_(env.me, 'exile')} ${k} cards from ${env.me === 'p' ? 'your' : 'their'} graveyard`);
+}, { first: true });
 // --- mana payments inside effects: "You may pay {2}. If you do, …"
 on(/^pay (?!\{e\})((?:\{[^}]+\})+)$/, async (m, env) => {
   const { T } = await import('./triggers.js');
@@ -22188,3 +22205,27 @@ on(/^until your next turn, (.+)$/, async (m, env) => {
   if (/^until /.test(m[1]) || !handled(t2)) return 'pass';
   await runSentence(t2, env);
 });
+// (registered last so it runs before the general "you draw X cards" handlers)
+// Corpse Augur: "You draw X cards and you lose X life, where X is the number of creature cards in target player's graveyard."
+on(/^you draw x cards( and you lose x life)?$/, async (m, env) => {
+  const wm = String(env.text || env.fullText || '').toLowerCase().match(/where x is (?:the number of )?([^.]+?)(?:\.|$)/);
+  const ph = (env.xWhere && env.xWhere[2] && env.xWhere[2].trim()) || (wm && wm[1].trim());
+  const km = ph && ph.match(/^(?:the number of )?([a-z ]+?) cards in target player's graveyard$/);
+  if (!km) return 'pass';
+  const count = (pid) => cardsIn(pid, 'graveyard').filter((c) => matchesFilter({ ...c, zone: 'hand' }, km[1])).length;
+  const all = seats().filter(inGame);
+  let pid;
+  if (isAI(env.me)) {
+    // as many cards as it can afford (keep some life)
+    const life = G.s.players[env.me].life;
+    pid = all.filter((p) => count(p) < life - 4).sort((a, b) => count(b) - count(a))[0] || all.sort((a, b) => count(a) - count(b))[0];
+  } else {
+    const pick = await env.choosers[env.me].target({ prompt: `Choose a player (X = creature cards in their graveyard)`, candidates: [], players: all });
+    pid = (pick && pick.player) || env.me;
+  }
+  const x = count(pid);
+  env.x = x; // "you lose X life" in the next sentence uses the same X
+  env.thatPlayer = pid;
+  if (x) { draw(env.me, x, true); if (m[1]) changeLife(env.me, -x, false); }
+  env.did.push(`targets ${who(pid)} (${x} ${km[1]} card${x === 1 ? '' : 's'}): ${who(env.me)} ${s_(env.me, 'draw')} ${x}${m[1] ? ` and ${s_(env.me, 'lose')} ${x} life` : ''}`);
+}, { first: true });
