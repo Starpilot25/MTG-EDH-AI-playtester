@@ -1182,6 +1182,11 @@ async function pickTargets(env, phrase, opts = {}) {
     );
   } else if (/^(?:player|opponent)/.test(kind)) cands = [];
   else cands = legalTargets(kind, me, env.src);
+  // Captain America's Shield: "target creature defending player controls" is that one player's, not any opponent's
+  if (/defending player controls/.test(kind)) {
+    const dp = [env.defender, env.event && env.event.defender, env.thatPlayer].find((x) => x && G.s.players[x]);
+    if (dp) cands = cands.filter((c) => c.controller === dp);
+  }
   if (/\bother\b|\banother\b/.test(p) && env.src) cands = cands.filter((c) => c.iid !== env.src.iid);
   // "Tap target permanent, then untap another target permanent": not one already chosen by this ability
   if (/\banother target\b/.test(p) && env.pickedSoFar) cands = cands.filter((c) => !env.pickedSoFar.includes(c.iid));
