@@ -21758,6 +21758,16 @@ on(/^(?:you may )?pay \{1\}\{g\} if ~ is attached to a creature you control\. if
   if (!copied) { createToken(genericTokenDef(1, 1, 'Insect', ['G']), env.me, 1); env.did.push('creates a 1/1 Insect'); }
 }, { first: true, multi: true });
 // Conduit of Worlds
+// Emry, Lurker of the Loch: "Choose target artifact card in your graveyard. You may cast that card this turn."
+on(/^choose target ([a-z ]+?) card in your graveyard\. you may cast that card this turn$/, async (m, env) => {
+  const pool = cardsIn(env.me, 'graveyard').filter((c) => matchesFilter({ ...c, zone: 'hand' }, m[1]) && !/\bLand\b/.test((DB[c.def].faces[0].typeLine || '').split('—')[0]));
+  if (!pool.length) return env.did.push(`no ${m[1]} card in the graveyard`);
+  const [p] = await env.choosers[env.me].pickCards({ prompt: `Choose a card in your graveyard (${m[1]}) to cast this turn`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'cast', src: env.src, aiScore: (c) => cardValue(c) });
+  const c = p && card(p);
+  if (!c) return;
+  Object.assign(c, { mayCastFromGy: env.me, mayCastFromGyTurn: G.s.turn });
+  env.did.push(`may cast ${nameTag(c)} from the graveyard this turn`);
+}, { first: true, multi: true });
 on(/^choose target nonland permanent card in your graveyard\. if you haven't cast a spell this turn, you may cast that card\. if you do, you can't cast additional spells this turn$/, async (m, env) => {
   const pool = cardsIn(env.me, 'graveyard').filter((c) => isPermanentCard(DB[c.def]) && !/\bLand\b/.test((DB[c.def].faces[0].typeLine || '').split('—')[0]));
   if (!pool.length) return env.did.push('no nonland permanent card in the graveyard');

@@ -1251,6 +1251,26 @@ async function useAbilities(h) {
   }
 }
 
+// Emry, Lurker of the Loch: "{T}: Choose target artifact card in your graveyard. You may cast that card this turn." —
+// used before spells are planned, and only when there's a card in the graveyard the rest of the mana can pay for
+async function gyCastPermits(h) {
+  if (G.s.active !== AI || !/main/.test(G.s.step) || G.s.stack) return;
+  for (const c of cardsIn(AI, 'battlefield')) {
+    for (const ab of activatedAbilities(c)) {
+      const em = (ab.text || '').match(/^Choose target ([a-z ]+?) card in your graveyard\. You may cast that card this turn\.?$/i);
+      if (!em || ab.kind !== 'ability') continue;
+      if (ab.tap && (c.tapped || (isCreature(c) && c.sick && !hasKw(c, 'haste')))) continue;
+      const src = sources(AI).filter((m) => m.iid !== c.iid || !ab.tap);
+      const ok = cardsIn(AI, 'graveyard').some((g) => matchesFilter({ ...g, zone: 'hand' }, em[1].toLowerCase()) && !isLand(g) && g.mayCastFromGyTurn !== G.s.turn
+        && payCost(((ab.mana || '') + (DB[g.def].faces[0].manaCost || DB[g.def].manaCost || '')).replace(/\{X\}/g, ''), src));
+      if (!ok) continue;
+      await safely(h, () => activateAbility(AI, c, ab, aiEnv(h)));
+      h.render();
+      await h.wait(G.settings.aiSpeed);
+    }
+  }
+}
+
 // Cycling, unearth, plot, foretell, encore… when there's nothing better to do with the mana.
 async function zoneActions(h, post) {
   const s = G.s;
@@ -1286,6 +1306,7 @@ export async function aiMainPhase(h, post = false) {
   await upgrades(h);
   // with The Chain Veil out, use the planeswalkers (and the Veil) before mana goes to spells
   if (!post && cardsIn(AI, 'battlefield').some((c) => isType(c, 'Planeswalker')) && cardsIn(AI, 'battlefield').some((c) => /activate one of its loyalty abilities once this turn/i.test(oracle(c)))) await planeswalkers(h);
+  if (G.s === s0) await gyCastPermits(h);
   for (let guard = 0; guard < 20 && G.s === s0 && !G.s.winner; guard++) {
     const plan = withReadCache(() => planMain(post));
     if (!plan) break;

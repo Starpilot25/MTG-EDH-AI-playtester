@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.297",
+    "title": "Emry, Lurker of the Loch",
+    "notes": [
+      "Emry, Lurker of the Loch: its {T} ability now works. Choose an artifact card in your graveyard, and you can cast it from there this turn (you still pay its costs). Before, the ability did nothing.",
+      "The AI uses Emry's ability when it has the mana to cast the artifact, then casts it."
+    ]
+  },
+  {
     "version": "1.3.296",
     "title": "Lost abilities stop triggers",
     "notes": [
