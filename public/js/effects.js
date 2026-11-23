@@ -9765,7 +9765,8 @@ on(/^copy (it|~|this spell|that spell|target (?:instant or sorcery |instant |sor
   const times = !m[2] ? 1 : m[2] === 'twice' ? 2 : m[2] === 'thrice' ? 3 : n(m[2].replace(/ times$/, '')) || 1;
   // a copy of a permanent spell becomes a token (Tomb of Horrors Adventurer, Double Major…)
   if (isPermanentCard({ faces: [DB[target.def].faces[target.castFace || 0] || DB[target.def].faces[0]] })) {
-    const made = createToken(target.def, env.me, times);
+    // a copy of a spell copies the choices made casting it: kicker (Everflowing Chalice), X, bargain (rule 707.10)
+    const made = createToken(target.def, env.me, times, { extra: { kicked: target.kicked, xPaid: target.xPaid, bargained: target.bargained, face: target.castFace || 0 } });
     for (const i of made) if (card(i)) card(i).face = target.castFace || 0;
     // The Sixth Doctor: "except the copy isn't legendary"
     if (/except the copy isn't legendary/.test(env.sentence)) for (const i of made) if (card(i)) card(i).notLegendary = true;

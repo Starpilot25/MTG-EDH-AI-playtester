@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.298",
+    "title": "Copied permanent spells keep kicker and X",
+    "notes": [
+      "Copying a permanent spell on the stack (Mendicant Core, Guidelight and other \"copy it\" effects) now keeps the choices made when casting it: kicker, X and bargain. An Everflowing Chalice kicked three times now gives a copy that enters with three charge counters. Before, the copy entered with none.",
+      "Copies of a permanent that's already on the battlefield still don't count as kicked, which matches the rules."
+    ]
+  },
+  {
     "version": "1.3.297",
     "title": "Emry, Lurker of the Loch",
     "notes": [
