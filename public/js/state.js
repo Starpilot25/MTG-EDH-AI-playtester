@@ -1316,9 +1316,20 @@ function leaveGame(pid) {
 export function untapAll(pid) {
   const untappedNow = [];
   // Endbringer, Seedborn Muse-style: "Untap ~ during each other player's untap step."
+  // Seedborn Muse ("Untap all permanents you control …"), Unwinding Clock ("Untap all artifacts you control …"): the whole group
+  const groupUntap = new Set();
+  for (const src of seats().filter((k) => k !== pid).flatMap((k) => cardsIn(k, 'battlefield'))) {
+    if (src.phasedOut || abilitiesGone(src)) continue;
+    const gm = oracle(src).match(/Untap all ([a-z ]+?) you control during each other player's untap step/i);
+    if (!gm) continue;
+    const kinds = gm[1].toLowerCase().replace(/s$/, '').split(/ and | or |, /).map((w) => w.trim().replace(/s$/, ''));
+    for (const c of cardsIn(src.controller, 'battlefield')) {
+      if (kinds.some((k) => k === 'permanent' || (k === 'creature' ? isCreature(c) : isType(c, k[0].toUpperCase() + k.slice(1))))) groupUntap.add(c.iid);
+    }
+  }
   for (const c of seats().filter((k) => k !== pid).flatMap((k) => cardsIn(k, 'battlefield'))) {
     if (!c.tapped || c.phasedOut) continue;
-    if (!/Untap (?:~|this [a-z]+|[^.\n]*?) during each other player's untap step/i.test(oracle(c).split(DB[c.def].name).join('~'))) continue;
+    if (!groupUntap.has(c.iid) && !/Untap (?:~|this [a-z]+) during each other player's untap step/i.test(oracle(c).split(DB[c.def].name).join('~'))) continue;
     if ((c.counters || {}).stun) {
       c.counters.stun--;
       if (!c.counters.stun) delete c.counters.stun;

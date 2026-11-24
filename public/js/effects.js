@@ -17892,6 +17892,16 @@ async function runSentence(sentence, env) {
     }
   }
   // "gets +1/+0 until end of turn for each artifact defending player controls" → "gets +1/+0 for each … until end of turn"
+  // Archon of Cruelty: "target opponent sacrifices a creature or planeswalker of their choice, discards a card, and loses 3 life"
+  { const ac = s.match(/^(target opponent|each opponent|target player|each player|that player) (sacrifices? [^,]+?)(?: of their choice)?, (discards? [^,]+?),? and (loses? \d+ life)$/i);
+    if (ac) {
+      const pids = await playerTarget(env, ac[1].toLowerCase());
+      for (const pid of pids) {
+        const sub = { ...env, thatPlayer: pid };
+        for (const part of [ac[2], ac[3], ac[4]]) await runSentence(`that player ${part}`, sub);
+      }
+      return;
+    } }
   // Invisible Woman: "… until end of turn for each creature you control and can't be blocked this turn" — two effects
   { const iw = s.match(/^(target creature) (gets? [+-][\dx]+\/[+-][\dx]+) until end of turn (for each [^.]+?) and (can't be blocked this turn|gains [a-z, ]+ until end of turn)$/i);
     if (iw) { await runSentence(`${iw[1]} ${iw[2]} ${iw[3]} until end of turn`, env); await runSentence(`that creature ${iw[4].replace(/^gains/, 'gains')}`, env); return; } }

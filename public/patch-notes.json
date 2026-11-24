@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.302",
+    "title": "Archon of Cruelty, Unwinding Clock, Seedborn Muse",
+    "notes": [
+      "Archon of Cruelty (and other \"sacrifices a creature or planeswalker of their choice, discards a card, and loses 3 life\" effects): you now choose only among your creatures and planeswalkers, then discard a card and lose 3 life. Before, the prompt was garbled, offered every permanent, and skipped the discard and life loss.",
+      "Unwinding Clock and Seedborn Muse now untap all your artifacts (Clock) or all your permanents (Muse) during each other player's untap step. Before, they only untapped themselves."
+    ]
+  },
+  {
     "version": "1.3.301",
     "title": "Spacecraft and Vehicles as creatures, and six card fixes",
     "notes": [
