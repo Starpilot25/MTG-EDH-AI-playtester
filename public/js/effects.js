@@ -22362,3 +22362,15 @@ on(/^look at the top (\w+) cards? of (your|target player's) library,? then put t
   for (const i of [...order].reverse()) move(i, 'library', { to: 'top' });
   env.did.push(`looks at the top ${ids.length} of ${pid === env.me ? possOf(env.me) : seatPoss(pid)} library and puts them back in ${isAI(env.me) ? 'an order of its choice' : 'the order you chose'}`);
 }, { first: true });
+// Commander's Insight: "Target player draws X cards plus an additional card for each time they've cast a commander from the
+// command zone this game." (commander tax counts those casts)
+on(/^target player draws x cards plus an additional card for each time they've cast a commander from the command zone this game$/, async (m, env) => {
+  const casts = (pid) => Object.values(G.s.players[pid].tax || {}).reduce((a, b) => a + (+b || 0), 0);
+  let pid;
+  if (isAI(env.me)) pid = env.me;
+  else { const [t] = await playerTarget(env, 'target player'); pid = t || env.me; }
+  const x = n('x', env.x) || 0;
+  const k = x + casts(pid);
+  if (k) draw(pid, k, true);
+  env.did.push(`${who(pid)} ${s_(pid, 'draw')} ${k} (X=${x} + ${casts(pid)} commander cast${casts(pid) === 1 ? '' : 's'})`);
+}, { first: true });

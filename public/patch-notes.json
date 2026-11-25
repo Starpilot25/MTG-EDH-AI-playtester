@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.309",
+    "title": "Commander's Insight",
+    "notes": [
+      "Commander's Insight: the target player now draws X cards plus one for each time they've cast a commander from the command zone this game. Before, the extra cards were left out. The AI targets itself."
+    ]
+  },
+  {
     "version": "1.3.308",
     "title": "Fix: Anikthea infinite loop freeze",
     "notes": [
