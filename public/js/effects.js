@@ -1201,6 +1201,12 @@ async function pickTargets(env, phrase, opts = {}) {
     const ok = cands.filter((c) => ctl(c) === me || wardPayableNow(me, c));
     // only when an opponent's permanent is still on offer (otherwise removal would land on its own creature)
     if (ok.length < cands.length && ok.some((c) => ctl(c) !== me)) cands = ok;
+    // a legendary card in its own graveyard with the same name as a legend it controls would only die to the legend rule
+    // (Anikthea copying another Anikthea from the graveyard)
+    if (optional) {
+      const legends = new Set(cardsIn(me, 'battlefield').filter((c) => /Legendary/.test(typeLine(c))).map((c) => cardName(c)));
+      cands = cands.filter((c) => !(c.zone === 'graveyard' && c.owner === me && /Legendary/.test(DB[c.def].faces[0].typeLine || DB[c.def].typeLine || '') && legends.has(cardName(c))));
+    }
   }
   let players = [];
   if (playerTarget) {
@@ -7615,7 +7621,10 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
   else if (/equipped|enchanted/.test(of)) orig = env.src.attachedTo ? card(env.src.attachedTo) : null;
   // "a copy of ~" is always this card (Scute Swarm on landfall: not the land that entered)
   else if (/^~/.test(of)) orig = (env.src && card(env.src.iid)) || env.src;
-  else if (/^(?:it|that creature|that card|the exiled card|the discarded card|the sacrificed creature)/.test(of)) orig = env.it && env.it.iid ? card(env.it.iid) || null : env.src;
+  // "that card" / "the exiled card" is only what this ability just exiled or discarded: with "up to one target" and no target,
+  // there's nothing to copy (Anikthea used to copy itself here, over and over)
+  else if (/^(?:that card|the exiled card|the discarded card|the sacrificed creature)/.test(of)) orig = env.it && env.it.iid ? card(env.it.iid) || null : null;
+  else if (/^(?:it|that creature)/.test(of)) orig = env.it && env.it.iid ? card(env.it.iid) || null : env.src;
   if (!orig && /^(?:~|it)/.test(of)) orig = env.src;
   if (!orig) return env.did.push('has nothing to copy');
   const made = createToken(orig.def, env.me, count, { tapped: /tapped/.test(m[1]) });
@@ -7632,6 +7641,9 @@ on(/^create (.+?) tokens? that(?:'s| are) (?:a )?cop(?:y|ies) of (.+?)(?:, excep
     // Hashaton: "except it's a 4/4 black Zombie" (its creature types and color are replaced)
     {
       const rp = !/in addition to its other/.test(except) && except.match(/(?:it's|they're) (?:an? )?(\d+)\/(\d+) ((?:white|blue|black|red|green|colorless) )?([a-z][a-z-]*)\b/i);
+      // Anikthea: "except it's a 3/3 black Zombie creature in addition to its other types" — still 3/3
+      const ap = !rp && /in addition to its other/.test(except) && except.match(/(?:it's|they're) (?:an? )?(\d+)\/(\d+) /i);
+      if (ap) tk.setPT = { ts: nextStamp(), p: +ap[1], t: +ap[2] };
       if (rp) {
         tk.setPT = { ts: nextStamp(), p: +rp[1], t: +rp[2] };
         const col = rp[3] ? rp[3].trim().toLowerCase() : null;

@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.308",
+    "title": "Fix: Anikthea infinite loop freeze",
+    "notes": [
+      "Fixed a freeze with Anikthea, Hand of Erebos. When its trigger had no card to exile, it copied itself instead. Each copy triggered again, so the game looped forever and \"Let it resolve\" did nothing. Now, with no card exiled, there's nothing to copy.",
+      "Anikthea's Zombie tokens are now 3/3 as printed.",
+      "Legend rule: the AI now keeps the real card (its commander above all) over a token copy."
+    ]
+  },
+  {
     "version": "1.3.307",
     "title": "Clever Impersonator",
     "notes": [

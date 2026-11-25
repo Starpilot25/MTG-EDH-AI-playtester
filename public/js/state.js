@@ -1642,7 +1642,8 @@ function legendRule() {
     if (isAI(v.controller)) {
       const cs = v.ids.map((i) => G.s.cards[i]);
       const score = (c) => Object.values(c.counters || {}).reduce((a, b) => a + b, 0) * 2 +
-        Object.values(G.s.cards).filter((o) => o.attachedTo === c.iid).length * 3 + v.ids.indexOf(c.iid) * 0.1;
+        Object.values(G.s.cards).filter((o) => o.attachedTo === c.iid).length * 3 + v.ids.indexOf(c.iid) * 0.1 +
+        (c.token ? 0 : 1.5) + (c.isCommander ? 10 : 0); // keep the real card (a commander above all) over a token copy
       cs.sort((a, b) => score(b) - score(a));
       for (const c of cs.slice(1)) {
         log(v.controller, `Legend rule: ${seatName(v.controller)} keeps one ${nameTag(c)} and puts the other into the graveyard.`);
