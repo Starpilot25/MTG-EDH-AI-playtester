@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.310",
+    "title": "The Pizza Update",
+    "notes": [
+      "New theme: Pizza. Each battlefield is a cheese pizza with melted, browned mozzarella and a baked crust, on a red checked tablecloth. Cards on the pizza get greasy and a little warped from the heat. Your hand sits in a pizza box, and the game log is an order ticket. Pick it under Settings > Theme.",
+      "The game now stops at an AI opponent's beginning of combat and end step when you have something you can do there, such as an instant, a flash card or an activated ability. It skips the stop when you can't act, and the combat stop only happens when the AI has a creature that can attack. Press Pass (or Enter) to continue.",
+      "New setting: \"Stop at opponents' combat and end step when I can act\". It is on by default. Turn it off in Settings to keep the old behavior."
+    ]
+  },
+  {
     "version": "1.3.309",
     "title": "Commander's Insight",
     "notes": [
@@ -85,7 +94,7 @@
     "version": "1.3.300",
     "title": "New built-in deck: Dimir Graveyard (Ultimecia)",
     "notes": [
-      "New built-in deck: Bracket 2 \u2014 Dimir Graveyard (Ultimecia, Time Sorceress). A budget surveil and reanimation deck that flips Ultimecia for an extra turn. Find it under Built-in decks.",
+      "New built-in deck: Bracket 2 — Dimir Graveyard (Ultimecia, Time Sorceress). A budget surveil and reanimation deck that flips Ultimecia for an extra turn. Find it under Built-in decks.",
       "Ultimecia, Time Sorceress: transforming now exiles all eight cards from your graveyard, and you can only pay if you have eight. Before, it exiled one.",
       "Corpse Augur: you now choose the target player, and you draw and lose life equal to the creature cards in their graveyard. Before, it drew nothing.",
       "AI: graveyard decks now surveil extra lands and big creatures into the graveyard instead of keeping everything on top.",

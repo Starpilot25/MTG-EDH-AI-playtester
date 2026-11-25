@@ -1492,6 +1492,12 @@ async function aiCombat(pid = 'ai') {
   fire({ type: 'beginCombat', active: pid });
   await settle();
   if (G.s !== s || s.winner || !inGame(pid)) return;
+  // your priority in its beginning of combat (tap a would-be attacker, flash in a blocker) — only when it has something
+  // that could attack and you have something you could do
+  if (hooks.priorityWindow && cardsIn(pid, 'battlefield').some((c) => isCreature(c) && !c.tapped && (!c.sick || hasKw(c, 'haste')))) {
+    await hooks.priorityWindow('aiBeginCombat', pid);
+    if (G.s !== s || s.winner || !inGame(pid)) return;
+  }
   const slaved = aiSlaved() && hooks.slavedAttack;
   if (!slaved) await aiPrepareCombat(hooks);
   if (G.s !== s) return;
@@ -1656,6 +1662,9 @@ export async function runAiTurn(pid = 'ai') {
         await settle();
         if (over()) return;
         await endStepThings(pid);
+        if (over()) return;
+        // your priority in its end step: the classic moment for instants, flash and abilities
+        if (hooks.priorityWindow) await hooks.priorityWindow('aiEndStep', pid);
         if (over()) return;
         await extraEndSteps(pid);
       }

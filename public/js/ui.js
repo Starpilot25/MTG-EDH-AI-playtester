@@ -1302,6 +1302,15 @@ function renderBanner() {
       ${arena ? `<p class="hint">${responses ? `You have ${responses} instant-speed card${responses > 1 ? 's' : ''} you can afford (glowing in your hand) — double-click one to respond, or let it resolve.` : 'You have nothing you can cast in response.'}</p>` : ''}
       <div class="btns"><button class="primary" data-act="resolve">Let it resolve <kbd>Enter</kbd></button>
       ${arena ? '' : '<button data-act="counter" title="Tabletop mode: counter it by hand">Counter it</button>'}</div></div></div>`;
+  } else if (pendingCombat && /^ai(?:BeginCombat|EndStep)$/.test(pendingCombat.kind)) {
+    const k = pendingCombat.kind;
+    const who = seatName(pendingCombat.pid || s.active);
+    const head = k === 'aiEndStep' ? `End of ${who === 'the AI' ? "the AI's" : who + "'s"} turn` : `${who === 'the AI' ? 'The AI' : who} is about to attack`;
+    const what = k === 'aiEndStep'
+      ? 'You have something you can do at instant speed: cast an instant or flash card, or activate an ability, before the turn ends.'
+      : 'Beginning of combat: you can cast instants or activate abilities before attackers are declared (tap a would-be attacker, flash in a blocker).';
+    html = `<div class="combat-bar"><span class="eyebrow">Your priority</span><p><b>${esc(head)}.</b> ${what}</p>
+      <div class="btns"><button class="primary" data-act="combat-go">${k === 'aiEndStep' ? 'Pass — end the turn' : 'Pass — go to attacks'} <kbd>Enter</kbd></button></div></div>`;
   } else if (pendingCombat && s.combat) {
     const k = pendingCombat.kind;
     const head = k === 'afterBlocks' ? 'Blockers declared' : k === 'aiAttack' ? `${multiplayer() && s.combat && isAI(s.combat.by) ? seatName(s.combat.by) : 'The AI'} attacks${multiplayer() ? '' : ' you'}` : 'Attackers declared';
@@ -1450,6 +1459,24 @@ function canActInCombat() {
     return !ab.mana || !!payCost(ab.mana.replace(/\{X\}/g, ''), manaSources('p', { ability: true }).filter((m) => m.iid !== c.iid || !ab.tap));
   }));
 }
+// Your priority in an opponent's beginning of combat and end step. It only stops when you could actually do something
+// (in either mode): an instant or flash card you can afford, or an ability you can activate. Turn it off in settings.
+function hasInstantSpeedPlay() {
+  if (cardsIn('p', 'hand').concat(cardsIn('p', 'command')).some((c) => castOptions('p', c).some((o) => timingOk('p', c, o) && affordable(c, o)))) return true;
+  return cardsIn('p', 'battlefield').some((c) => activatedAbilities(c).some((ab) => {
+    if (ab.kind !== 'ability' || ab.sorcery) return false;
+    if (/^Add\b/.test(ab.text || '')) return false;
+    if (ab.tap && (c.tapped || (isCreature(c) && c.sick && !hasKw(c, 'haste')))) return false;
+    return !ab.mana || !!payCost(ab.mana.replace(/\{X\}/g, ''), manaSources('p', { ability: true }).filter((m) => m.iid !== c.iid || !ab.tap));
+  }));
+}
+hooks.priorityWindow = (kind, pid) => {
+  if (aiSlaved() || G.settings.stopOnPriority === false || G.s.players.p.lost || !hasInstantSpeedPlay()) return Promise.resolve();
+  return new Promise((r) => {
+    pendingCombat = { kind, resolve: r, pid };
+    render();
+  });
+};
 hooks.combatWindow = (kind) => {
   if (aiSlaved() || !canActInCombat()) return Promise.resolve();
   return new Promise((r) => {

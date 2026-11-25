@@ -1,0 +1,243 @@
+/* Pizza theme: loaded on top of style.css (the Classic look). A pizzeria table: a red gingham tablecloth, every
+   playmat a pizza (sauce, melted cheese, a baked crust), brick-oven panels, pepperoni life counters, order tickets
+   for the log and prompts, and a stripe of basil, mozzarella and tomato along the top. */
+@import url('https://fonts.googleapis.com/css2?family=Lobster&family=Nunito:wght@400;600;700;800&family=Patrick+Hand&display=swap');
+
+:root {
+  --bg: #2a120c; --felt: #3a1a12; --felt-2: #45211a; --felt-3: #522a20; --line: #6a3a28;
+  --ink: #fff4e0; --muted: #e8c9a2; --brass: #f2b33d; --brass-ink: #3a1a08;
+  --you: #3f8f4a; --ai: #d23a28; --ai2: #8a5ab8; --ai3: #2f7fbf; --danger: #d0301f; --ok: #3f8f4a;
+  --f-display: 'Lobster', Georgia, serif; --f-body: 'Nunito', system-ui, sans-serif; --f-hand: 'Patrick Hand', 'Comic Sans MS', cursive;
+  --card-paper: #fff8e8; --card-ink: #3a1d10; --pen: #b3261a;
+  --plate: #fff1cf; --plate-ink: #3a1d10;
+  --tomato: #c8321f; --basil: #3f8f4a; --crust: #d79a4a; --crust-dark: #9a5f22; --cheese: #ffe7a3;
+  /* red and white gingham: two crossing stripes of see-through red over white */
+  --gingham:
+    repeating-linear-gradient(0deg, rgb(200 40 30 / 0.55) 0 28px, transparent 28px 56px),
+    repeating-linear-gradient(90deg, rgb(200 40 30 / 0.55) 0 28px, transparent 28px 56px),
+    #f7efe4;
+  --brick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='30'%3E%3Cpath d='M0 0h60M0 15h60M30 0v15M0 15v15M60 15v15' stroke='%23000' stroke-opacity='.28' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+  --cheese-tex: url('pizza/cheese.png');
+}
+#my-panel, #my-field, .deck-slot[data-pid="p"] { --seat: var(--you); }
+.seat[data-seat="ai"], #opp-panel, #opp-field, .deck-slot[data-pid="ai"] { --seat: var(--ai); }
+.seat[data-seat="ai2"], .deck-slot[data-pid="ai2"] { --seat: var(--ai2); }
+.seat[data-seat="ai3"], .deck-slot[data-pid="ai3"] { --seat: var(--ai3); }
+
+/* ---------- the table ---------- */
+/* (washed dark so the light text on the setup screen and between the mats stays readable) */
+body { background: linear-gradient(rgb(52 16 10 / 0.55), rgb(36 10 6 / 0.62)), var(--gingham); background-attachment: fixed; font-family: var(--f-body); }
+.board { background: linear-gradient(rgb(52 16 10 / 0.35), rgb(36 10 6 / 0.45)), var(--gingham); }
+
+/* playmats: each one a cheese pizza: sauce, melted browned mozzarella, a baked crust (textures in css/pizza/) */
+.field, .seat-field, #my-field, #opp-field {
+  background:
+    radial-gradient(ellipse 100% 100% at 50% 50%, transparent 72%, rgb(70 20 5 / 0.25) 100%),
+    var(--cheese-tex) var(--pz-off, 0 0) / 768px 512px repeat !important;
+  background-clip: padding-box !important;
+  border: 32px solid transparent !important;
+  border-image: url('pizza/crust.png') 80 / 40px stretch !important;
+  border-radius: 0;
+  box-shadow: inset 0 0 14px rgb(60 20 0 / 0.55);
+  margin: 6px;
+}
+.field .field-hint, .field .empty, .field em {
+  color: #fff8ec; font-weight: 700; text-shadow: 0 0 3px rgb(40 10 0), 0 1px 2px rgb(40 10 0), 0 0 12px rgb(40 10 0 / 0.9), 0 0 22px rgb(40 10 0 / 0.7);
+}
+#opp-field, .seat:nth-child(2n) .seat-field { --pz-off: -310px -190px; }
+.seat:nth-child(3n) .seat-field { --pz-off: -520px -60px; }
+/* the player on turn: fresh out of the oven */
+.seat.active .seat-field, #my-field.on-turn, #opp-field.on-turn {
+  filter: drop-shadow(0 0 12px rgb(255 150 40 / 0.65));
+}
+
+/* cards */
+.card { box-shadow: 0 1px 0 rgb(0 0 0 / 0.35), 0 6px 12px rgb(0 0 0 / 0.45); }
+.card.noimg { background: linear-gradient(170deg, #fff8e8, #f6e7c4); color: var(--card-ink); border-color: #d4b98a; }
+.card.noimg .ctype, .card.noimg .cora { color: #7a4a26; }
+.ctop b, .ctype { font-family: var(--f-body); font-weight: 800; }
+.card .pt { font: 800 12.5px var(--f-body); background: var(--cheese); color: var(--card-ink); border: 1px solid #c99a3c; border-radius: 4px; }
+.card.attacking { box-shadow: 0 0 0 2px var(--danger), 0 0 14px rgb(208 48 31 / 0.6); }
+
+/* cards on the pizza get greasy and a little warped from the heat */
+.field .card { filter: url(#pz-warp); rotate: var(--pz-rot, -1deg); }
+.field .card:nth-child(3n+1) { --pz-rot: 1.4deg; }
+.field .card:nth-child(4n+2) { --pz-rot: -1.8deg; }
+.field .card:nth-child(5n) { --pz-rot: 0.6deg; }
+body.target-mode .field .card:not(.targetable):not(.source) { filter: url(#pz-warp) brightness(0.45) saturate(0.6); }
+.field .card::before {
+  content: ''; position: absolute; inset: 0; border-radius: var(--cr); pointer-events: none; z-index: 2; mix-blend-mode: multiply;
+  background:
+    radial-gradient(ellipse 34% 26% at var(--g1, 28% 30%), rgb(214 128 30 / 0.7), rgb(222 140 40 / 0.35) 60%, transparent 72%),
+    radial-gradient(ellipse 22% 16% at var(--g2, 72% 66%), rgb(200 110 30 / 0.6), transparent 70%),
+    radial-gradient(circle 9% at var(--g3, 60% 22%), rgb(190 60 30 / 0.45), transparent 75%),
+    linear-gradient(170deg, rgb(240 190 110 / 0.25), rgb(220 150 70 / 0.38));
+}
+.field .card:not(.facedown)::after {
+  content: ''; position: absolute; inset: 0; border-radius: var(--cr); pointer-events: none; z-index: 3; mix-blend-mode: screen;
+  background: radial-gradient(ellipse 26% 18% at var(--g1, 28% 30%), rgb(255 240 200 / 0.35), transparent 70%);
+}
+.field .card:nth-child(3n+1) { --g1: 70% 24%; --g2: 30% 78%; --g3: 24% 50%; }
+.field .card:nth-child(4n+2) { --g1: 40% 62%; --g2: 78% 20%; --g3: 70% 84%; }
+.field .card:nth-child(5n) { --g1: 22% 82%; --g2: 66% 40%; --g3: 40% 16%; }
+
+/* ---------- player panels: brick-oven fronts with a tomato-red name sign ---------- */
+.panel, .seat-panel {
+  background: var(--brick), linear-gradient(180deg, #4a241a, #33170f) !important; border-color: #1a0a06 !important;
+  box-shadow: inset 0 0 0 1px rgb(255 200 150 / 0.08), inset 0 -18px 24px -14px rgb(255 120 40 / 0.18);
+}
+.pname {
+  display: inline-flex; align-items: baseline; gap: 8px; max-width: 100%;
+  font: 400 21px/1.15 var(--f-display); color: #fff8e8;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--seat, var(--tomato)) 85%, #fff), color-mix(in srgb, var(--seat, var(--tomato)) 80%, #000)); border-radius: 999px; padding: 3px 14px 5px;
+  box-shadow: inset 0 1px 0 rgb(255 220 200 / 0.4), 0 2px 4px rgb(0 0 0 / 0.5), 0 0 0 2px #fff4e0;
+  text-shadow: 0 1px 0 rgb(80 10 5 / 0.6);
+}
+.pname small { font: 600 11.5px var(--f-body); color: #ffe2cf; text-shadow: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pname .dot { background: #fff4e0 !important; box-shadow: inset 0 0 0 3px var(--seat, var(--tomato)); }
+.pname .popout-btn { background: rgb(255 248 232 / 0.25); border: 1px solid rgb(255 248 232 / 0.4); color: #fff8e8; box-shadow: none; }
+.seat.active .pname, #my-panel.on-turn .pname, #opp-panel.on-turn .pname { background: linear-gradient(180deg, color-mix(in srgb, var(--seat, var(--tomato)) 70%, #fff), var(--seat, var(--tomato))); box-shadow: inset 0 1px 0 rgb(255 230 210 / 0.5), 0 0 16px rgb(255 140 60 / 0.6), 0 0 0 2px #ffe7a3; }
+.turn-tag { font: 400 20px var(--f-display); background: transparent; color: #ffe7a3; border: 0; padding: 0 2px; transform: rotate(-4deg); text-shadow: 0 2px 0 rgb(0 0 0 / 0.4); }
+
+/* life: a pepperoni slice */
+.life { align-items: center; gap: 8px; }
+.life .lval {
+  flex: 0 0 auto; width: 70px; height: 70px; display: grid; place-items: center; padding: 0;
+  font: 800 30px/1 var(--f-body); font-variant-numeric: lining-nums tabular-nums; color: #fff4e0;
+  background:
+    radial-gradient(circle at 30% 30%, rgb(90 10 5 / 0.45) 0 4%, transparent 5%),
+    radial-gradient(circle at 70% 36%, rgb(90 10 5 / 0.45) 0 3.5%, transparent 4.5%),
+    radial-gradient(circle at 38% 74%, rgb(90 10 5 / 0.45) 0 3%, transparent 4%),
+    radial-gradient(circle at 74% 70%, rgb(255 200 150 / 0.25) 0 3%, transparent 4%),
+    radial-gradient(circle at 38% 32%, #e2503a, #b52a19 55%, #8a1a0e 88%, #6a1209 100%);
+  border-radius: 50%; border: 0;
+  text-shadow: 0 2px 0 rgb(80 5 0 / 0.75);
+  box-shadow: 0 3px 4px rgb(0 0 0 / 0.5), inset 0 -3px 5px rgb(0 0 0 / 0.3);
+}
+.seat-life .life .lval { width: 56px; height: 56px; font-size: 24px; }
+.life .lbtn { width: 28px; height: 28px; border-radius: 50%; background: #5a2a1c; border: 1px solid #7a3e2a; color: var(--ink); font: 800 17px var(--f-body); }
+
+/* poison and commander damage */
+.cmd-dmg, .poison { --v: 0; position: relative; padding-bottom: 6px; font-size: 12.5px; color: var(--muted); }
+.cmd-dmg::after, .poison::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: calc(var(--v) * 100%); background: var(--cheese); border-radius: 2px; }
+.cmd-dmg.warn::after { background: #ff7a5a; }
+.cmd-dmg b, .poison b { font: 800 15px var(--f-body); color: var(--ink); }
+.mini { border-radius: 50%; background: #5a2a1c; border: 1px solid #7a3e2a; }
+
+/* zones */
+.pile-face { border-radius: 6px !important; }
+.pile.cmdtile .pile-face { border: 2px solid var(--cheese) !important; box-shadow: 0 0 12px rgb(255 200 90 / 0.45); }
+.pile-n { font: 800 13px var(--f-body); background: var(--cheese); color: var(--card-ink); border-radius: 4px; }
+.pile-label { font: 600 12px var(--f-body); color: var(--muted); }
+
+/* ---------- the top bar: the pizzeria sign, with the tricolore stripe ---------- */
+.topbar {
+  background: var(--brick), linear-gradient(180deg, #3e1d14, #2a120c);
+  border-bottom: 0;
+  box-shadow: 0 6px 0 -0px #fff, 0 4px 10px rgb(0 0 0 / 0.5);
+  border-image: linear-gradient(90deg, var(--basil) 0 33.3%, #fff8e8 33.3% 66.6%, var(--tomato) 66.6%) 1;
+  border-bottom: 6px solid;
+}
+.brand { font: 400 26px var(--f-display); color: #ffe7a3; text-shadow: 0 2px 0 #6a1209, 0 0 12px rgb(255 160 60 / 0.4); }
+#turninfo .tnum { font: 700 12px var(--f-body); color: var(--muted); }
+#turninfo .who { font: 400 22px var(--f-display); color: #fff4e0; }
+/* turn steps: a row of order tickets; the current one is pulled up and stamped */
+.steps { gap: 3px; align-items: flex-end; }
+.steps li { font: 700 12.5px var(--f-body); color: #7a4a26; padding: 4px 10px; background: #f6e7c4; border-radius: 6px 6px 0 0; box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.12); }
+.steps li.past { background: #d9c39a; color: #5a3a1e; }
+.steps li.on { background: #fff8e8; color: var(--tomato); padding-top: 7px; padding-bottom: 6px; box-shadow: 0 -2px 6px rgb(0 0 0 / 0.25), inset 0 -3px 0 var(--tomato); }
+
+/* buttons: crust-brown, with a tomato-red main button */
+button { font-family: var(--f-body); font-weight: 700; border-radius: 8px; background: #5a2a1c; color: var(--ink); border: 1px solid #7a3e2a; box-shadow: inset 0 1px 0 rgb(255 220 190 / 0.1); }
+button:hover:not(:disabled) { border-color: var(--cheese); }
+button.primary { background: linear-gradient(180deg, #e04a33, #b8291a); color: #fff8e8; border-color: #7a160c; box-shadow: inset 0 1px 0 rgb(255 220 200 / 0.4), 0 2px 4px rgb(0 0 0 / 0.4); }
+button.primary:hover:not(:disabled) { background: linear-gradient(180deg, #ec5a40, #c8321f); }
+
+/* ---------- the side rail: the menu board, with the log as an order ticket ---------- */
+.rail { background: var(--brick), linear-gradient(180deg, #3e1d14, #2a120c) !important; border-left: 6px solid var(--crust-dark) !important; box-shadow: inset 4px 0 8px rgb(0 0 0 / 0.35); color: var(--ink); padding-left: 10px; padding-right: 10px; }
+.log-head { font: 400 26px var(--f-display); color: #ffe7a3; text-transform: none; letter-spacing: 0; text-shadow: 0 2px 0 #6a1209; }
+#log {
+  position: relative; margin: 4px 4px 14px; border-radius: 2px; padding-top: 6px;
+  background: repeating-linear-gradient(180deg, transparent 0 27px, rgb(120 80 40 / 0.12) 27px 28px), var(--card-paper);
+  box-shadow: 0 6px 14px rgb(0 0 0 / 0.45);
+  /* a torn, zigzag bottom edge like a ticket off the printer */
+  -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - 8px) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 16px 8px repeat-x;
+          mask: linear-gradient(#000 0 0) top / 100% calc(100% - 8px) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 16px 8px repeat-x;
+}
+#log li { font-size: 13.5px; color: var(--card-ink); border-left: 3px solid #d9b98a; }
+#log li.p { border-left-color: var(--you); }
+#log li.ai { border-left-color: var(--ai); }
+#log li.ai2 { border-left-color: var(--ai2); }
+#log li.ai3 { border-left-color: var(--ai3); }
+#log li.turn { font: 400 21px/1.1 var(--f-display); color: var(--pen); text-transform: none; letter-spacing: 0; border: 0; padding-top: 10px; border-top: 2px dashed rgb(179 38 26 / 0.35); }
+#log li.sys { color: #7a4a12; }
+#log a, #log .cref { color: #a3261a; }
+#log .cn, .combat-bar .cn, .stack .cn { color: #a3261a; border-bottom-color: rgb(163 38 26 / 0.4); }
+#preview { color: var(--ink); }
+#preview .pv-head b { font: 400 22px var(--f-display); color: #ffe7a3; }
+#preview .pv-type { color: var(--muted); }
+#preview img { box-shadow: 0 8px 16px rgb(0 0 0 / 0.5); border-radius: 10px; }
+#preview .pv-text, #preview p { color: var(--ink); }
+#preview .cn { color: #ffd27a; }
+#stackview { color: var(--ink); }
+
+/* the hand: the open lid of a pizza box */
+.hand-wrap { background: linear-gradient(180deg, #c99a62, #b5854e) !important; border-top: 4px solid #8a5f30 !important; box-shadow: inset 0 2px 0 rgb(255 240 210 / 0.35), inset 0 -14px 18px -10px rgb(60 30 10 / 0.35); }
+.hand-label { font: 400 22px var(--f-display); color: #5a2a10; }
+
+/* ---------- prompts: an order ticket ---------- */
+.combat-bar, .stack, .thinking {
+  position: relative; color: var(--card-ink); border: 0; border-radius: 4px;
+  border-top: 10px solid var(--tomato);
+  background: repeating-linear-gradient(180deg, transparent 0 23px, rgb(120 80 40 / 0.12) 23px 24px), var(--card-paper);
+  box-shadow: 0 10px 22px rgb(0 0 0 / 0.5);
+}
+.combat-bar p, .stack-copy p, .thinking { color: #5a3a24; }
+.combat-bar h3, .stack-copy h3 { font: 400 23px var(--f-display); color: var(--card-ink); }
+.eyebrow, .stack-copy .eyebrow { font: 400 21px/1 var(--f-hand); color: var(--tomato); text-transform: none; letter-spacing: 0; }
+.combat-bar button:not(.primary), .stack button:not(.primary) { background: #f6e7c4; color: var(--card-ink); border-color: #d4b98a; }
+.combat-bar kbd, .stack kbd { background: rgb(0 0 0 / 0.1); color: inherit; }
+#banner, #banner.floating { --bg: #3e1d14; }
+.banner-grip { font: 400 17px var(--f-hand); color: var(--muted); background: none; padding-top: 4px; }
+
+/* ---------- setup: each deck is a pizza box ---------- */
+.setup-head h1, h1 { font-family: var(--f-display); font-weight: 400; color: #fff8e8; text-shadow: 0 3px 0 #8a1a0e, 0 0 18px rgb(0 0 0 / 0.35); }
+.deck-slot {
+  background: linear-gradient(180deg, #d6aa72, #c4955c);
+  color: #3a1d10; border: 0; border-radius: 6px; border-top: 12px solid var(--tomato);
+  box-shadow: inset 0 0 0 2px rgb(120 70 30 / 0.35), 0 12px 26px rgb(60 10 5 / 0.45);
+}
+.deck-slot label, .deck-slot small, .deck-slot p, .deck-slot .mix { color: #4a2a14; }
+.slot-head h2 { font: 400 28px var(--f-display); color: #8a1a0e; }
+.deck-slot[data-pid="ai"] .slot-head .dot { background: var(--ai); }
+.deck-slot[data-pid="ai2"] .slot-head .dot { background: var(--ai2); }
+.deck-slot[data-pid="ai3"] .slot-head .dot { background: var(--ai3); }
+.deck-slot button:not(.primary), .deck-slot select, .deck-slot input, .deck-slot textarea { background: #fff4e0; color: var(--card-ink); border-color: #b08a5a; }
+.deck-slot .sum-head h3 { color: var(--card-ink); font-family: var(--f-body); font-weight: 800; }
+.deck-slot .cmd-names { color: #8a1a0e; }
+.deck-slot .mix b { color: #8a1a0e; }
+.pod-lbl { font: 400 24px var(--f-display); text-transform: none; letter-spacing: 0; color: #fff8e8; text-shadow: 0 2px 0 #8a1a0e; }
+.versus { font: 400 38px var(--f-display); color: #fff8e8; text-shadow: 0 3px 0 #8a1a0e; }
+
+/* whose turn it is: a slice-shaped tag */
+#turninfo .who {
+  display: inline-block; background: linear-gradient(180deg, #ffe7a3, #f2c35e); color: #5a1a0a;
+  padding: 1px 16px 3px 12px; font: 400 20px/1.2 var(--f-display);
+  box-shadow: 0 4px 6px rgb(0 0 0 / 0.35); border-radius: 4px 999px 999px 4px; border-left: 5px solid var(--crust-dark);
+}
+
+/* a slice of pizza next to the name in the top bar */
+.brand { position: relative; padding-left: 34px; }
+.brand::before {
+  content: ''; position: absolute; left: 0; top: 50%; width: 28px; height: 28px; margin-top: -14px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 5 Q16 -1 29 5 L16 31 Z' fill='%23f2c35e' stroke='%23b8772f' stroke-width='1.5'/%3E%3Cpath d='M3 5 Q16 -1 29 5 L27 9 Q16 4 5 9 Z' fill='%23d79a4a'/%3E%3Ccircle cx='12' cy='13' r='3' fill='%23c8321f'/%3E%3Ccircle cx='19' cy='17' r='3' fill='%23c8321f'/%3E%3Ccircle cx='15' cy='23' r='2.4' fill='%23c8321f'/%3E%3Cellipse cx='20' cy='11' rx='2.2' ry='1' fill='%233f8f4a' transform='rotate(-30 20 11)'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+/* the hand sits in a pizza box lid, stamped like one */
+.hand-wrap { position: relative; }
+.hand-wrap::after {
+  content: 'HOT & FRESH'; position: absolute; right: 18px; bottom: 10px; pointer-events: none;
+  font: 400 28px/1 var(--f-display); color: rgb(160 40 20 / 0.55); transform: rotate(-6deg);
+  border: 3px solid rgb(160 40 20 / 0.45); border-radius: 10px; padding: 4px 12px;
+}
+/* the log is an order ticket with a header */
+#log::before { content: 'ORDER TICKET'; display: block; text-align: center; font: 800 12px/1 var(--f-body); letter-spacing: 0.3em; color: #a3261a; padding: 4px 0 8px; border-bottom: 2px dashed rgb(163 38 26 / 0.4); margin-bottom: 4px; }

@@ -342,6 +342,7 @@ function readSettings() {
   G.settings.pauseOnAiSpells = $('#set-pause').checked;
   G.settings.autoTreasure = $('#set-treasure').checked;
   G.settings.arenaMode = $('#set-arena').checked;
+  G.settings.stopOnPriority = $('#set-prio').checked;
   G.settings.aiSpeed = +$('#set-speed').value;
   G.settings.aiStyle = $('#set-aistyle').value;
   G.settings.aiVoice = $('#set-voice').value;
@@ -516,6 +517,7 @@ function initSetup() {
   G.settings.orderTriggers = st.orderTriggers ?? true;
   G.settings.everyStep = st.everyStep ?? true;
   $('#set-arena').checked = st.arenaMode ?? true;
+  $('#set-prio').checked = st.stopOnPriority ?? true;
   $('#set-speed').value = st.aiSpeed ?? 650;
   $('#set-aistyle').value = st.aiStyle ?? 'casual';
   $('#set-voice').value = st.aiVoice ?? 'off';

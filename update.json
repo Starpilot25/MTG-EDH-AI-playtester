@@ -1,28 +1,31 @@
 {
-  "version": "1.3.309",
+  "version": "1.3.310",
   "minAppVersion": "1.0.0",
   "files": {
+    "public/css/pizza/cheese.png": "30daee868d430963f364d0ae10ab40a7fdee7d2ccd899d1b9433e96027634925",
+    "public/css/pizza/crust.png": "85c19e36d442b161e99dde16496aecd85754043c187cabe3448a4a673d8d5fd3",
     "public/css/style.css": "0929cbd4f0aea0aff663b9c64bd43682d9c4b5d5bcd0fb25ba525ff79fae9b8c",
     "public/css/theme-arcade.css": "4e666bd9ce239144500bad603ad9cac2cf147ba2422688cb3caf1990645903d9",
     "public/css/theme-broadcast.css": "8c27ca25187acee2d6dd15e74828b176cdb14e9eaf530c2c11c69abf51a80506",
     "public/css/theme-desk.css": "5ccfbbd81ce78c2f171d6b43d9fc1208cba37901364c93a675dec2119264ff6b",
+    "public/css/theme-pizza.css": "8bf7be87c7ad5821ae95c01c3aa27b5b66ccfc0dcf1284880f04bbcdbf18c1ea",
     "public/css/theme-spellbook.css": "02bb1164fc4a0931ebe88f76f1331de175ee460b3fa81ed709e8255a929c2605",
-    "public/index.html": "82eaedb1933c9d1cae919a241e338e348ce5105d2608d079fa105c8edc1f019b",
+    "public/index.html": "6cd4f10b4fcc6397a5e515d1fbb6b6c1cc8a4b688e2dff48d0f1cdba299d727a",
     "public/js/ai.js": "89fb5eaf8ad6f7b0287db698e8759dffb3f3bc59f8408dcf243b2e914f3cddb8",
     "public/js/aicombat.js": "764e9bdb24e75f0ad8357c5a5429c4313ea46274f195c172f95fca2fbbc6815d",
     "public/js/cast.js": "29ae2ee0f71178eeb5972be4447a1f559e804602c75b506f6a6bbfd3b9b84fbe",
     "public/js/data.js": "9b264344953e85fcac309e6d031ab39621377f5d8fcf1b7d5701e67e498ea147",
     "public/js/dungeon.js": "a42de281cbd9fed4f5470e03f56483a7ce8a82c9a52434f30f90cdaf655ee096",
     "public/js/effects.js": "62909a58eea0d905b8454b3a43546f24205cb0ab5123d5318244924a02901db7",
-    "public/js/game.js": "d9c5ca2f7e33c8ec67ec92356c420f3ef5eb76929d62133ca0b5263486ea43d0",
-    "public/js/main.js": "c3ffb1b4184e78aa3c0a85427242fb7287b32051d1470f136ec13d3213a79d96",
+    "public/js/game.js": "9ae0b042e1f2826c1b16bb41e6d3271ee0a03bdad8bcbfe489b48ebe09539a6b",
+    "public/js/main.js": "baddf5d60133777bfdf673b90eac6f7346ba0167980e1df76cc792350836834a",
     "public/js/rules.js": "ffbcdbb7baf8be59a92ee459031cb8ff0c2bb435978049e4d7e1aeab9167c522",
     "public/js/state.js": "838f73b584976b7cee7d95b0fa9b36c1ba6b83be9c0551fd647f51b0bdb267ca",
     "public/js/statics.js": "3c0f8b4573b5bdf4976c45f3d7e6e5ecc68cb092697059a2bcb00bbc19ca7b67",
-    "public/js/theme.js": "92998e58cd2e023c5f5c1e19bdb6f3b86322e8f390203c529e4d65f9c7e50160",
+    "public/js/theme.js": "9b054c70ca931457889e47bd91d753cc0fe879f1541d100ce22946cf976cb956",
     "public/js/triggers.js": "6842abbf281cb4797b9097a70a07132c938e496d00ae5950c4cfc1be053a8bfd",
-    "public/js/ui.js": "e492b8eb078d782ada2ed51e27a079e2b66e1e52f7564f19609fd377adcdc75f",
+    "public/js/ui.js": "9d4a213b1bc45610d5c4f3b114031efc1a2985b848249db595793b83ab299cac",
     "public/js/voice.js": "4622a40593b7db7f8997e96207d0412fcbaa4fa4fe658247c91b3345de1dabe6",
-    "public/patch-notes.json": "52646975f672efc9a16acd899cddd9be5724378aa7d15c85b6dc49a8ae4c7436"
+    "public/patch-notes.json": "97413c3692ada6fb3d60edef2e2f96283ca94a2d54638db1551e8a77995163a0"
   }
 }

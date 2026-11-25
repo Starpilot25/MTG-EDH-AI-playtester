@@ -13,6 +13,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='7' y='3' width='18' height='26' rx='3' fill='%23c9a24a'/%3E%3Crect x='10' y='6' width='12' height='20' rx='2' fill='%2314231f'/%3E%3C/svg%3E">
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><filter id="pz-warp" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="6" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
 
 <!-- ============================== SETUP ============================== -->
 <section id="setup">
@@ -107,6 +108,7 @@
       <label class="check" title="Mulligan as often as you like and always keep seven. Only affects you, not the AI."><input type="checkbox" id="set-unlimited"> Unlimited free mulligans</label>
       <label class="check" title="Off: tabletop mode. Nothing is automatic for you: drag cards to play them, tap your own lands, move cards and add counters yourself (right-click cards, piles and the mat for actions). The AI still plays by the rules."><input type="checkbox" id="set-arena" checked> Arena-style casting (auto-pay mana, pick targets, apply effects) — turn off to do everything by hand</label>
       <label class="check"><input type="checkbox" id="set-pause" checked> Let me respond to AI spells</label>
+      <label class="check" title="Stops in an opponent's beginning of combat and end step, but only when you have an instant, flash card or ability you could use."><input type="checkbox" id="set-prio" checked> Stop at opponents' combat and end step when I can act</label>
       <label class="check" title="When on, auto-pay sacrifices Treasures (after your lands and other mana) whenever they're needed. When off, you're asked first."><input type="checkbox" id="set-treasure" checked> Auto-sacrifice Treasures to pay</label>
       <label title="Casual plays like a friendly pod: fewer all-in attacks, keeps blockers home, saves removal, wipes and counterspells for real threats. Competitive plays to win as fast as it can.">AI style
         <select id="set-aistyle"><option value="casual" selected>Casual</option><option value="competitive">Competitive</option></select>
@@ -121,7 +123,7 @@
         <select id="set-cmdzone"><option value="ask" selected>Ask me</option><option value="auto">Always command zone</option></select>
       </label>
       <label title="Broadcast: the tournament-coverage look. Spellbook: a leather-bound grimoire. Arcade: an 80s neon cabinet. Desk: a planeswalker's study desk. Classic: the original green-felt look.">Look
-        <select id="set-theme"><option value="broadcast" selected>Broadcast</option><option value="spellbook">Spellbook</option><option value="arcade">Arcade</option><option value="desk">Desk</option><option value="classic">Classic</option></select>
+        <select id="set-theme"><option value="broadcast" selected>Broadcast</option><option value="spellbook">Spellbook</option><option value="arcade">Arcade</option><option value="desk">Desk</option><option value="pizza">Pizza</option><option value="classic">Classic</option></select>
       </label>
       <label title="Organized: your battlefield is laid out in rows (creatures, other permanents, lands) with identical cards stacked. Free: drag your cards anywhere.">Board layout
         <select id="set-layout"><option value="organized" selected>Organized</option><option value="free">Free</option></select>
@@ -177,7 +179,7 @@
           <label>AI announcements <select id="gm-voice"><option value="off">Off (game log only)</option><option value="plays">Say its plays out loud</option><option value="read">Say its plays and read its cards</option></select></label>
           <label>Auto-tap mana creatures <select id="gm-dorks"><option value="last">After lands</option><option value="first">Before lands</option></select></label>
           <label>Commander leaving play <select id="gm-cmdzone"><option value="ask">Ask me</option><option value="auto">Always command zone</option></select></label>
-          <label>Look <select id="gm-theme"><option value="broadcast">Broadcast</option><option value="spellbook">Spellbook</option><option value="arcade">Arcade</option><option value="desk">Desk</option><option value="classic">Classic</option></select></label>
+          <label>Look <select id="gm-theme"><option value="broadcast">Broadcast</option><option value="spellbook">Spellbook</option><option value="arcade">Arcade</option><option value="desk">Desk</option><option value="pizza">Pizza</option><option value="classic">Classic</option></select></label>
           <label>Board layout <select id="gm-layout"><option value="organized">Organized</option><option value="free">Free</option></select></label>
           <label>AI speed <select id="gm-speed"><option value="250">Fast</option><option value="650">Normal</option><option value="1200">Slow</option></select></label>
         </div>
