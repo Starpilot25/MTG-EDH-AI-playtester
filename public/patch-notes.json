@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.307",
+    "title": "Clever Impersonator",
+    "notes": [
+      "Clever Impersonator (and other \"enter as a copy of any nonland permanent\" cards) now actually copies. Before, it found nothing to copy and died as a 0/0. It can copy creatures, artifacts and enchantments."
+    ]
+  },
+  {
     "version": "1.3.306",
     "title": "Inkfathom Divers",
     "notes": [
