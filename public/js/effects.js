@@ -275,7 +275,7 @@ export function activatedAbilities(c) {
       untap: /\{Q\}/.test(cost),
       sac: /Sacrifice ~|Sacrifice this/i.test(cost),
       sacOther: (cost.match(/Sacrifice (an?|two|three|four|five|six|seven|eight|nine|ten|\d+|another) ([^,]+?)(?:,|$)/i) || null),
-      tapOther: (cost.match(/Tap (an?|one|two|three|four|five|\d+) untapped ([^,]+?)(?:,|$)/i) || null),
+      tapOther: (cost.match(/Tap (an?|another|one|two|three|four|five|\d+) untapped ([^,]+?)(?:,|$)/i) || null), // Kumena: "Tap another untapped Merfolk you control"
       discardN: (cost.match(/Discard (a|two|\d+) cards?/i) || [])[1],
       exert: /Exert ~/i.test(cost),
       removeCounters: cost.match(/Remove (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+|X) (?:([+-]\d+\/[+-]\d+|\w+) )?counters? from ~/i), // no kind: any counters (Ghost-Spider)
@@ -10130,12 +10130,17 @@ on(/^(~|it|target creature you control|each creature you control|that creature) 
     const [top] = libTop(env.me, 1);
     if (!top) continue;
     const tc = card(top);
+    // show the revealed card (like Chaos Warp)
+    const whose = env.me === 'p' ? 'your' : 'their';
     if (isLand(tc)) {
+      if (T && T.showReveal) await T.showReveal({ pid: env.me, iids: [top], src: c, title: `${cardName(c)} explores`, detail: `It's a land, so it goes to ${whose} hand.` });
       move(top, 'hand');
       env.did.push(`${nameTag(c)} explores: ${nameTag(tc)} to hand`);
     } else {
       addCounters(c, '+1/+1', 1);
-      const keep = isAI(env.me) ? DB[tc.def].cmc <= 4 : await env.choosers[env.me].confirm('Explore', `Keep ${cardName(tc)} on top of your library? (No puts it into your graveyard.)`);
+      const aiKeep = DB[tc.def].cmc <= 4;
+      if (T && T.showReveal) await T.showReveal({ pid: env.me, iids: [top], src: c, title: `${cardName(c)} explores`, detail: `It isn't a land, so ${cardName(c)} gets a +1/+1 counter. ${isAI(env.me) ? `${seatNameCap(env.me)} ${aiKeep ? 'keeps it on top of the library' : 'puts it into the graveyard'}.` : 'Next, choose whether to keep it on top.'}` });
+      const keep = isAI(env.me) ? aiKeep : await env.choosers[env.me].confirm('Explore', `Keep ${cardName(tc)} on top of your library? (No puts it into your graveyard.)`);
       if (!keep) move(top, 'graveyard');
       env.did.push(`${nameTag(c)} explores (+1/+1 counter${keep ? '' : ', ' + nameTag(tc) + ' milled'})`);
     }

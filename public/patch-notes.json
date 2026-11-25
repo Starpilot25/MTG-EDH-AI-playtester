@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.303",
+    "title": "Explore reveal popup, Kumena",
+    "notes": [
+      "Explore now shows the revealed card in a popup, like Chaos Warp: a land goes to hand, and a nonland gives the creature a +1/+1 counter. For your explores you then choose whether to keep the card on top; for the AI's, the popup says what it chose.",
+      "Kumena, Tyrant of Orazca: \"Tap another untapped Merfolk you control\" now actually taps a Merfolk, and needs one to be available. Before, Kumena became unblockable for free."
+    ]
+  },
+  {
     "version": "1.3.302",
     "title": "Archon of Cruelty, Unwinding Clock, Seedborn Muse",
     "notes": [

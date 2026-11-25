@@ -2290,7 +2290,7 @@ export async function activateAbility(pid, c, ab, env) {
   const tapK = ab.tapOther ? W_[ab.tapOther[1].toLowerCase()] || +ab.tapOther[1] || 1 : 0;
   if (ab.tapOther) {
     const what = ab.tapOther[2].toLowerCase().replace(/ you control$/, '');
-    const other = /^other /.test(what);
+    const other = /^other /.test(what) || /^another$/i.test(ab.tapOther[1]);
     const avail = cardsIn(pid, 'battlefield').filter((x) => !x.tapped && (!other || x.iid !== c.iid) && (!ab.tap || x.iid !== c.iid) && matchesFilter(x, what.replace(/^other /, '').replace(/s$/, '')));
     if (avail.length < tapK) return env.say(`You need ${tapK} untapped ${what}.`);
   }
@@ -2326,7 +2326,7 @@ export async function activateAbility(pid, c, ab, env) {
   { const rm = (ab.costText || '').match(/Roll an? d(\d+)/i); if (rm) { const sides = +rm[1]; const r = 1 + Math.floor(Math.random() * sides); queueEvent({ type: 'dieRolled', pid, sides, result: r }); log(pid, `${nameTag(c)}: ${pid === 'p' ? 'you roll' : seatName(pid) + ' rolls'} a d${sides}: ${r}.`); x = r; } }
   // other costs
   if (ab.tapOther) {
-    if (!(await payOtherCost(pid, `tap ${tapK} untapped ${ab.tapOther[2].toLowerCase().replace(/ you control$/, '')} you control`, c, env))) throw new Cancelled();
+    if (!(await payOtherCost(pid, `tap ${tapK} untapped ${/^another$/i.test(ab.tapOther[1]) ? 'other ' : ''}${ab.tapOther[2].toLowerCase().replace(/ you control$/, '')} you control`, c, env))) throw new Cancelled();
   }
   if (ab.sacOther) {
     const k = { a: 1, an: 1, another: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[ab.sacOther[1].toLowerCase()] || +ab.sacOther[1] || 1;
