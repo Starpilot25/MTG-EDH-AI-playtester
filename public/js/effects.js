@@ -1220,7 +1220,8 @@ async function pickTargets(env, phrase, opts = {}) {
       prompt: opts.prompt || `${opts.amount !== undefined ? `Deal ${opts.amount} damage — choose ` : 'Choose '}${count > 1 && count < 99 ? `target ${k + 1} of ${count}` : 'a target'}: ${String(kind).replace(/^(?:up to|any number of) \w+ /, '')}`,
       candidates: left.map((c) => c.iid), players: pl, harm: opts.harm !== undefined ? opts.harm : true, amount: opts.amount, src: env.src, purpose: opts.purpose,
       ...(opts.aiScore ? { aiScore: opts.aiScore } : {}), // handlers that know what a good target is (Chief Miles O'Brien: the permanent with the most counters)
-      optional: optional || k > 0 || (!left.length && !pl.length),
+      // "two target creatures" / "X target creatures" (Curse of the Swine) needs every one while there are targets left
+      optional: optional || (k > 0 && !/^(?:two|three|four|x|\d+) target/.test(p)) || (!left.length && !pl.length),
     });
     if (!pick) break;
     results.push(pick);
@@ -6579,7 +6580,7 @@ on(/^reveal cards from the top of your library until you reveal (a|an|one|two|th
   env.them_ = hits;
   env.did.push(`reveals ${revealed.length} card${revealed.length === 1 ? '' : 's'}${hits.length ? `, hitting ${hits.map((i) => nameTag(card(i))).join(', ')}` : ' without a hit'}`);
 }, { first: true });
-on(/^(?:you may )?put (?:that card|it|those cards|them) (onto the battlefield(?: tapped)?(?: under your control)?|into your hand)(?:,? and| and then|\. then)? ?(?:put )?(?:all other cards revealed this way|the rest|the other revealed cards) (on the bottom of your library in a random order|on the bottom of your library in any order|into your graveyard|into your library)?(?:,? then shuffle)?$/, async (m, env) => {
+on(/^(?:you may )?put (?:that card|it|those cards|them|those [a-z]+ cards) (onto the battlefield(?: tapped)?(?: under your control)?|into your hand)(?:,? and| and then|\. then)? ?(?:put )?(?:all other cards revealed this way|the rest|the other revealed cards) (on the bottom of your library in a random order|on the bottom of your library in any order|into your graveyard|into your library)?(?:,? then shuffle)?$/, async (m, env) => {
   const ids = env.them_ && env.them_.length ? env.them_ : env.it && env.it.iid ? [env.it.iid] : [];
   for (const i of ids) {
     const c = card(i);
@@ -8460,7 +8461,7 @@ on(/^(.+?) gets? ([+-]\d+|[+-]x)\/([+-]\d+|[+-]x)(?: and gains? ([^.]+?))?(?: fo
     pumpEOT(c, { p, t, grants: kwList(m[4]) });
     if (nextTurn) c.ntTurn = G.s.turn + 1;
   }
-  if (objs.length) env.did.push(`${objs.length > 2 ? objs.length + ' creatures get' : objs.map(nameTag).join(', ') + ' get' + (objs.length === 1 ? 's' : '')} ${p >= 0 ? '+' : ''}${p}/${t >= 0 ? '+' : ''}${t}${m[4] ? ' and ' + m[4] : ''} until ${nextTurn ? 'your next turn' : 'end of turn'}`);
+  if (objs.length) env.did.push(`${objs.length > 2 ? objs.length + ' creatures get' : objs.map(nameTag).join(', ') + ' get' + (objs.length === 1 ? 's' : '')} ${(p < 0 || Object.is(p, -0)) ? '-' + Math.abs(p) : '+' + p}/${(t < 0 || Object.is(t, -0)) ? '-' + Math.abs(t) : '+' + t}${m[4] ? ' and ' + m[4] : ''} until ${nextTurn ? 'your next turn' : 'end of turn'}`);
 });
 // "It gains haste." (no duration: for as long as it stays)
 on(/^(it|that creature|they|those creatures|those tokens|that token|the token|the tokens) gains? (?!.*\buntil\b)([a-z, ]+?)$/, async (m, env) => {
@@ -10144,7 +10145,7 @@ on(/^(~|it|target creature you control|each creature you control|that creature) 
       if (!keep) move(top, 'graveyard');
       env.did.push(`${nameTag(c)} explores (+1/+1 counter${keep ? '' : ', ' + nameTag(tc) + ' milled'})`);
     }
-    queueEvent({ type: 'explored', iid: c.iid, controller: env.me });
+    queueEvent({ type: 'explored', iid: c.iid, controller: env.me, land: isLand(tc) });
   }
 });
 on(/^(?:have )?(~|it|he|she|they|(?:up to (?:one|two) )?(?:another )?target creatures?(?: you control)?|that creature|each creature you control|those creatures) connives?(?: (\w+))?/, async (m, env) => {
@@ -14947,6 +14948,22 @@ on(/^for each kind of counter on target permanent or player, give that permanent
   if (o.p) for (const [kk, v] of Object.entries(G.s.players[o.p].counters)) if (v > 0) G.s.players[o.p].counters[kk] = v + 1;
   env.did.push(`adds a counter of each kind to ${o.label}`);
 }, { first: true });
+// Wanderwine Farewell: "Return one or two target nonland permanents to their owners' hands. Then if you control a Merfolk,
+// create a 1/1 white and blue Merfolk creature token for each permanent returned to its owner's hand this way."
+on(/^return one or two target ([a-z ]+?) to their owners' hands\. then if you control an? ([a-z]+), create (an? .+? token) for each permanent returned to its owner's hand this way$/, async (m, env) => {
+  const pool = legalTargets(m[1].replace(/s$/, '').replace(/permanents$/, 'permanent'), env.me, env.src);
+  if (!pool.length) return env.did.push('has no targets');
+  const picks = await env.choosers[env.me].pickCards({ prompt: `Return one or two target ${m[1]} to their owners' hands`, cards: pool.map((c) => c.iid), min: 1, max: 2, purpose: 'bounce', src: env.src,
+    aiScore: (c) => (c.controller === env.me ? -5 - cardValue(c) : cardValue(c)) });
+  let back = 0;
+  const names = [];
+  for (const i of picks) { const c = card(i); if (!c || c.zone !== 'battlefield') continue; names.push(nameTag(c)); move(i, 'hand'); back++; }
+  env.did.push(`returns ${names.join(' and ') || 'nothing'} to ${picks.length === 1 ? "its owner's hand" : "their owners' hands"}`);
+  if (back && cardsIn(env.me, 'battlefield').some((c) => hasSubtype(c, capWords(m[2])))) {
+    const desc = m[3].replace(/^an? /, back === 1 ? 'a ' : `${back} `).replace(/token$/, back === 1 ? 'token' : 'tokens');
+    await makeTokens(env, desc);
+  }
+}, { first: true, multi: true });
 // TARDIS: "if you control a Time Lord, the next spell you cast this turn has cascade and you may planeswalk" (no planar deck here)
 on(/^(?:if you control an? ([a-z ]+?), )?the next spell you cast this turn has cascade(?: and you may planeswalk)?$/, async (m, env) => {
   if (m[1] && !cardsIn(env.me, 'battlefield').some((c) => hasSubtype(c, capWords(m[1])))) return env.did.push(`no ${capWords(m[1])}, so nothing happens`);
@@ -17910,6 +17927,9 @@ async function runSentence(sentence, env) {
   // Invisible Woman: "… until end of turn for each creature you control and can't be blocked this turn" — two effects
   { const iw = s.match(/^(target creature) (gets? [+-][\dx]+\/[+-][\dx]+) until end of turn (for each [^.]+?) and (can't be blocked this turn|gains [a-z, ]+ until end of turn)$/i);
     if (iw) { await runSentence(`${iw[1]} ${iw[2]} ${iw[3]} until end of turn`, env); await runSentence(`that creature ${iw[4].replace(/^gains/, 'gains')}`, env); return; } }
+  // Merfolk Cave-Diver: "this creature gets +1/+0 until end of turn and can't be blocked this turn" — the second half was dropped
+  { const cb = s.match(/^(~|this creature|it) (gets? [+-][\dx]+\/[+-][\dx]+ until end of turn) and (can't be blocked this turn)$/i);
+    if (cb) { await runSentence(`${cb[1]} ${cb[2]}`, env); await runSentence(`${cb[1]} ${cb[3]}`, env); return; } }
   s = s.replace(/^(.+? gets? [+-][\dx]+\/[+-][\dx]+) (until end of turn) (for each [^.]+)$/i, '$1 $3 $2');
   // X that depends on something done earlier in this same effect (Spellbound Dragon: "where X is the discarded card's mana value")
   {
@@ -22272,4 +22292,31 @@ on(/^you draw x cards( and you lose x life)?$/, async (m, env) => {
   env.thatPlayer = pid;
   if (x) { draw(env.me, x, true); if (m[1]) changeLife(env.me, -x, false); }
   env.did.push(`targets ${who(pid)} (${x} ${km[1]} card${x === 1 ? '' : 's'}): ${who(env.me)} ${s_(env.me, 'draw')} ${x}${m[1] ? ` and ${s_(env.me, 'lose')} ${x} life` : ''}`);
+}, { first: true });
+// Gravelgill Scoundrel: "you may tap another untapped creature you control. If you do, ~ can't be blocked this turn."
+// (registered last so it runs before the general "you may …" handling, which skipped the tap)
+on(/^(?:you may )?tap (an?|another) untapped ([a-z ]+?) you control$/, async (m, env) => {
+  const kind = m[2].replace(/s$/, '');
+  const pool = cardsIn(env.me, 'battlefield').filter((c) => !c.tapped && !c.phasedOut && (m[1] !== 'another' || !env.src || c.iid !== env.src.iid) && matchesFilter(c, kind));
+  env.lastMay = false;
+  if (!pool.length) return env.did.push(`has no untapped ${kind} to tap`);
+  // the AI taps whatever it wants tapped anyway (Pestered Wellguard: "whenever this creature becomes tapped"), else its least useful one
+  const score = (c) => (/Whenever (?:~|this creature) becomes tapped/i.test(oracle(c)) ? 50 : 0) - cardValue(c) - (c.attacking ? 100 : 0);
+  if (isAI(env.me) && !pool.some((c) => !c.attacking)) return env.did.push("doesn't tap anything");
+  const picks = await env.choosers[env.me].pickCards({ prompt: `You may tap another untapped ${kind} you control`, cards: pool.map((c) => c.iid), min: 0, max: 1, purpose: 'tap', src: env.src, aiScore: score });
+  const c = picks[0] && card(picks[0]);
+  if (!c) return env.did.push("doesn't tap anything");
+  tapPerm(c);
+  env.lastMay = true;
+  env.did.push(`taps ${nameTag(c)}`);
+}, { first: true });
+// Rootcoil Creeper: "Return target card with flashback you own from exile to your hand."
+on(/^return target card with ([a-z]+) you own from exile to your hand$/, async (m, env) => {
+  const kw = m[1];
+  const pool = cardsIn(env.me, 'exile').filter((c) => c.owner === env.me && new RegExp(`(?:^|\\n)${kw}\\b`, 'i').test(oracle(c)));
+  if (!pool.length) return env.did.push(`has no exiled card with ${kw}`);
+  const [p] = await env.choosers[env.me].pickCards({ prompt: `Return a card with ${kw} from exile to your hand`, cards: pool.map((c) => c.iid), min: 1, max: 1, forced: true, purpose: 'return', src: env.src, aiScore: (c) => cardValue(c) });
+  if (!p) return;
+  move(p, 'hand');
+  env.did.push(`returns ${nameTag(card(p))} from exile to hand`);
 }, { first: true });

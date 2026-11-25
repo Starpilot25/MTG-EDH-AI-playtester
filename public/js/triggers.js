@@ -1057,6 +1057,9 @@ function parseTriggerText(text, speed) {
     else if ((m = line.match(/^Whenever you (scry or surveil|scry|surveil)( for the first time each turn)?[^,]*, (.+)$/i))) {
       for (const ev of m[1].toLowerCase().split(' or ')) add(ev, m[3], m[2] ? { oncePerTurn: true } : {});
     }
+    // Nicanzil, Current Conductor: "Whenever a creature you control explores a land card / a nonland card, …"
+    else if ((m = line.match(/^Whenever (?:~|a creature you control) explores an? (land|nonland) card, (.+)$/i)))
+      add('explored', m[2], { exploreKind: m[1].toLowerCase() });
     else if ((m = line.match(/^Whenever (?:~|a creature you control) explores, (.+)$/i)))
       add('explored', m[1]);
     else if ((m = line.match(/^Whenever (~|a creature you control) connives, (.+)$/i)))
@@ -2784,7 +2787,7 @@ function matches(ev) {
     case 'exploited':
     case 'transformed':
     case 'mutates':
-      each((c, trig) => trig.event === ev.type && (trig.self ? c.iid === ev.iid : c.controller === ev.controller) && out.push({ src: c, trig, it: { iid: ev.iid } }));
+      each((c, trig) => trig.event === ev.type && (trig.self ? c.iid === ev.iid : c.controller === ev.controller) && (!trig.exploreKind || (trig.exploreKind === 'land') === !!ev.land) && out.push({ src: c, trig, it: { iid: ev.iid } }));
       break;
     case 'untapped':
       each((c, trig) => {
