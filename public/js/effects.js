@@ -22320,3 +22320,32 @@ on(/^return target card with ([a-z]+) you own from exile to your hand$/, async (
   move(p, 'hand');
   env.did.push(`returns ${nameTag(card(p))} from exile to hand`);
 }, { first: true });
+// Inkfathom Divers, Index: "look at the top four cards of your library, then put them back in any order" — nothing leaves the library
+// (registered last so it wins over the general "look at the top N" handler, which took a card)
+on(/^look at the top (\w+) cards? of (your|target player's) library,? then put them back in any order$/, async (m, env) => {
+  const k = n(m[1], env.x) || 1;
+  let pid = env.me;
+  if (/target player/.test(m[2])) { const [t] = await playerTarget(env, 'target player'); pid = t || env.me; }
+  const ids = libTop(pid, k); // top first
+  if (!ids.length) return env.did.push('has no cards to look at');
+  let order = [];
+  if (isAI(env.me)) {
+    // what it wants next first: a land when short on them, otherwise the best spell (for an opponent's library: the reverse)
+    const lands = cardsIn(env.me, 'battlefield').filter(isLand).length;
+    const want = (c) => (isLand(c) ? (lands < 5 ? 10 : -1) : cardValue(c));
+    order = [...ids].sort((a, b) => want(card(b)) - want(card(a)));
+    if (pid !== env.me) order.reverse();
+  } else {
+    let left = [...ids];
+    while (left.length > 1) {
+      const [p] = await env.choosers[env.me].pickCards({ prompt: `Put them back in any order: choose the card to go ${order.length ? `next (position ${order.length + 1} from the top)` : 'on top'}`, cards: left, min: 1, max: 1, forced: true, purpose: 'order', src: env.src, aiScore: (c) => cardValue(c) });
+      const pick = p || left[0];
+      order.push(pick);
+      left = left.filter((i) => i !== pick);
+    }
+    order.push(...left);
+  }
+  // put them back: last placed ends up on top
+  for (const i of [...order].reverse()) move(i, 'library', { to: 'top' });
+  env.did.push(`looks at the top ${ids.length} of ${pid === env.me ? possOf(env.me) : seatPoss(pid)} library and puts them back in ${isAI(env.me) ? 'an order of its choice' : 'the order you chose'}`);
+}, { first: true });

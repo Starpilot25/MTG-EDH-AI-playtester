@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.306",
+    "title": "Inkfathom Divers",
+    "notes": [
+      "Inkfathom Divers and other \"look at the top N cards, then put them back in any order\" effects no longer put a card into your hand. You now choose the order card by card, and the AI orders them itself."
+    ]
+  },
+  {
     "version": "1.3.305",
     "title": "Restricted two-mana abilities",
     "notes": [
