@@ -42,6 +42,7 @@ function restrictedOk(onlyFor, abilitiesOf, spell, opts) {
   // (no spell being cast — ward, "unless you pay", abilities — is fine too)
   if (onlyFor === 'artifactOrAbility') return !!opts.ability || !spell || spell.zone === 'battlefield' || (/\bArtifact\b/.test((DB[spell.def].faces[spell.face || 0] || {}).typeLine || DB[spell.def].typeLine || '')); // Powerstone
   if (onlyFor === 'fromExile') return !!spell && spell.zone === 'exile' && !opts.ability;
+  if (onlyFor === 'fromGraveyard') return !!spell && spell.zone === 'graveyard' && !opts.ability; // Rootcoil Creeper
   if (onlyFor === 'spellNotHand') return !opts.ability && !!spell && spell.zone !== 'hand' && spell.zone !== 'battlefield'; // Mm'menon, the Right Hand
   if (onlyFor === 'commander') return !opts.ability && !!spell && spell.zone !== 'battlefield' && !!spell.isCommander; // Queen's Diamond
   if (onlyFor === 'colorless') return !!spell && !opts.ability && spell.zone !== 'battlefield' && !(DB[spell.def].colors || []).length;

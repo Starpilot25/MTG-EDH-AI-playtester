@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.305",
+    "title": "Restricted two-mana abilities",
+    "notes": [
+      "Overgrown Zealot: taps for one mana of any color. Its two-mana ability (only for turning permanents face up) no longer pays for anything.",
+      "Rootcoil Creeper: one mana of any color normally, or two mana of one color when casting a spell from your graveyard.",
+      "Resonating Lute: your lands keep their normal mana, plus two mana of one color for instants and sorceries. Before, each land gave one mana of any color for anything."
+    ]
+  },
+  {
     "version": "1.3.304",
     "title": "Merfolk fixes (Kumena deck)",
     "notes": [

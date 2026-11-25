@@ -1056,6 +1056,9 @@ export function manaAbility(inst) {
     const rm = /(?:^|\n)\{T\}: Add \{C\}\.(?:\n|$)/.test(o1) && o1.match(/(?:^|\n)\{T\}: Add one mana of any color\. Spend this mana only to cast (?:an? )?([A-Z][\w-]+) (?:creature )?spells?\./);
     if (rm) r = { colors: ['C'], amount: 1, alts: [{ colors: ['C', 'W', 'U', 'B', 'R', 'G'], amount: 1, onlyFor: rm[1] }] };
   }
+  // Rootcoil Creeper: "{T}: Add two mana of any one color. Spend this mana only to cast spells from your graveyard." (its 1-mana ability otherwise)
+  if (r && !r.alts && /\{T\}: Add two mana of any one color\. Spend this mana only to cast spells from your graveyard/.test(oracle(inst)))
+    r = { ...r, alts: [{ colors: ['W', 'U', 'B', 'R', 'G'], amount: 2, oneColor: true, onlyFor: 'fromGraveyard' }] };
   // Secluded Courtyard, Unclaimed Territory, Cavern of Souls: {C}, or any color only for creature spells of the chosen type
   if (r && !r.alts && inst.chosenType && /\{T\}: Add one mana of any color\. Spend this mana only to cast (?:a creature spell of the chosen type|an? [A-Z][\w-]* creature spell)/.test(oracle(inst)))
     r = { colors: /\{T\}: Add \{C\}/.test(oracle(inst)) ? ['C'] : [], amount: /\{T\}: Add \{C\}/.test(oracle(inst)) ? 1 : 0, alts: [{ colors: ['C', 'W', 'U', 'B', 'R', 'G'], amount: 1, onlyFor: inst.chosenType, ...(/or activate an ability of a creature source of (?:the chosen type|that type)|or activate an ability of an? [A-Z][\w-]* creature source|creature source of (?:the chosen type|[A-Z][\w-]*)/i.test(oracle(inst)) ? { abilitiesOf: inst.chosenType } : {}) }] };
@@ -1226,6 +1229,15 @@ function manaAbilityRaw(inst) {
   const d = DB[inst.def];
   // quoted text is an ability something else has (Warren Soultrader's Treasure reminder: "{T}, Sacrifice this token: Add …"), not this card's
   const o = grantedManaText(inst) + '\n' + oracle(inst).replace(/"[^"]*"/g, '""'); // granted ones first: "any color" beats a Forest's {G}
+  // Resonating Lute: lands also have "{T}: Add two mana of any one color. Spend this mana only to cast instant and sorcery spells."
+  const lute = o.match(/\{T\}: Add two mana of any one color\. Spend this mana only to cast instant and sorcery spells\./);
+  if (lute && noGrantFor !== inst.iid) {
+    let base = null;
+    noGrantFor = inst.iid;
+    try { base = manaAbilityRaw(inst); } finally { noGrantFor = null; }
+    const alt = { colors: ['W', 'U', 'B', 'R', 'G'], amount: 2, oneColor: true, onlyFor: 'instant or sorcery' };
+    return base ? { ...base, alts: [...(base.alts || []), alt] } : { ...alt, onlyFor: 'instant or sorcery' };
+  }
   // Nyx Lotus, Karametra's Acolyte-likes: "{T}: Choose a color. Add an amount of mana of that color equal to your devotion to that color."
   if (/\{T\}: Choose a color\. Add an amount of mana of that color equal to your devotion to that color/i.test(o)) {
     if (isCreature(inst) && inst.sick && !hasKw(inst, 'haste')) return null;
@@ -1239,7 +1251,8 @@ function manaAbilityRaw(inst) {
   if (/\{T\}: Add three mana of any one color\. You get two rad counters\./i.test(o)) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: 3, oneColor: true };
   // Discreet Retreat, Gilded Lotus-style grants: "{T}: Add two/three mana of any one color." (a spending limit after it isn't enforced)
   {
-    const gm = o.match(/(?:^|\n)\{T\}: Add (two|three) mana of any one color\.(?! Activate only)/i);
+    // (not Overgrown Zealot / Rootcoil Creeper's "Spend this mana only to turn permanents face up / cast spells from your graveyard")
+    const gm = o.match(/(?:^|\n)\{T\}: Add (two|three) mana of any one color\.(?! Activate only| Spend this mana only)/i);
     if (gm) return { colors: ['W', 'U', 'B', 'R', 'G'], amount: gm[1].toLowerCase() === 'three' ? 3 : 2, oneColor: true };
   }
   // Sceptre of Eternal Glory: "{T}: Add three mana of any one color. Activate only if you control three or more lands with the same name."
